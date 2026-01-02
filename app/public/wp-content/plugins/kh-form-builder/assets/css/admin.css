@@ -1,0 +1,7 @@
+.kh-form-fields-table td {
+    vertical-align: middle;
+}
+
+.kh-form-fields-table .delete-field {
+    color: #b32d2e;
+}

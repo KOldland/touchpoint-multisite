@@ -1,0 +1,33 @@
+[
+    {
+        "name": "Booking Notification Service",
+        "url": "https:\/\/api.example.com\/webhooks\/kh-events",
+        "events": [
+            "booking.completed",
+            "booking.cancelled"
+        ],
+        "secret": "f8bd621380ba71f06e4fd1858a2d7a9c89bb348289bbcbc7e5660ff73d6638a1",
+        "active": true
+    },
+    {
+        "name": "CRM Sync Service",
+        "url": "https:\/\/crm.example.com\/webhooks\/events",
+        "events": [
+            "event.created",
+            "event.updated",
+            "booking.completed"
+        ],
+        "secret": "320aabc7def78c4cc9d88980d2508d62c40b54791743d560c5f7bad180175457",
+        "active": true
+    },
+    {
+        "name": "Analytics Platform",
+        "url": "https:\/\/analytics.example.com\/webhooks\/kh-events",
+        "events": [
+            "event.created",
+            "booking.completed"
+        ],
+        "secret": "479446cd20abcf3f04c75b98d8ac524fcceb0e0bb8e9692ca0d969f7bb1c7a06",
+        "active": true
+    }
+]

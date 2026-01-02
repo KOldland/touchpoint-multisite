@@ -1,0 +1,206 @@
+/**
+ * KH Events Import/Export Admin Styles
+ */
+
+.kh-import-export-admin {
+    margin: 20px 0;
+}
+
+.kh-import-export-admin .tab-content {
+    margin-top: 20px;
+}
+
+.kh-import-export-admin .form-table th {
+    width: 200px;
+}
+
+.kh-import-export-admin .export-options {
+    background: #f9f9f9;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+.kh-import-export-admin .export-options h4 {
+    margin-top: 0;
+    color: #23282d;
+}
+
+.kh-import-export-admin .export-options .form-field {
+    margin: 10px 0;
+}
+
+.kh-import-export-admin .export-options label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+.kh-import-export-admin .export-options input[type="checkbox"],
+.kh-import-export-admin .export-options input[type="radio"] {
+    margin-right: 5px;
+}
+
+.kh-import-export-admin .export-options .radio-group {
+    margin: 5px 0;
+}
+
+.kh-import-export-admin .export-options .radio-group label {
+    display: inline-block;
+    margin-right: 15px;
+    font-weight: normal;
+}
+
+.kh-import-export-admin .import-options {
+    background: #f9f9f9;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+.kh-import-export-admin .import-options h4 {
+    margin-top: 0;
+    color: #23282d;
+}
+
+.kh-import-export-admin .import-options .form-field {
+    margin: 10px 0;
+}
+
+.kh-import-export-admin .import-options label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+.kh-import-export-admin .import-options input[type="file"] {
+    margin-bottom: 10px;
+}
+
+.kh-import-export-admin .import-options .description {
+    color: #666;
+    font-style: italic;
+    margin-top: 5px;
+}
+
+.kh-import-export-admin .import-progress {
+    display: none;
+    background: #fff;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+.kh-import-export-admin .import-progress .progress-bar {
+    width: 100%;
+    height: 20px;
+    background: #f1f1f1;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.kh-import-export-admin .import-progress .progress-fill {
+    height: 100%;
+    background: #007cba;
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.kh-import-export-admin .import-progress .progress-text {
+    text-align: center;
+    font-size: 12px;
+    color: #666;
+}
+
+.kh-import-export-admin .button-primary {
+    background: #007cba;
+    border-color: #007cba;
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 4px;
+    text-decoration: none;
+    display: inline-block;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.kh-import-export-admin .button-primary:hover {
+    background: #005a87;
+    border-color: #005a87;
+}
+
+.kh-import-export-admin .button-primary:disabled {
+    background: #ccc;
+    border-color: #ccc;
+    cursor: not-allowed;
+}
+
+.kh-import-export-admin .spinner {
+    float: none;
+    margin: 0 10px;
+    visibility: hidden;
+}
+
+.kh-import-export-admin .spinner.is-active {
+    visibility: visible;
+}
+
+.kh-import-export-admin .notice {
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.kh-import-export-admin .notice-success {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+.kh-import-export-admin .notice-error {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+.kh-import-export-admin .notice-warning {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+}
+
+.kh-import-export-admin .notice-info {
+    background: #d1ecf1;
+    border: 1px solid #bee5eb;
+    color: #0c5460;
+}
+
+/* Responsive design */
+@media screen and (max-width: 782px) {
+    .kh-import-export-admin .form-table th {
+        width: 100%;
+        display: block;
+        padding-bottom: 5px;
+    }
+
+    .kh-import-export-admin .form-table td {
+        display: block;
+        padding-left: 0;
+        padding-top: 0;
+    }
+
+    .kh-import-export-admin .export-options,
+    .kh-import-export-admin .import-options {
+        padding: 10px;
+    }
+
+    .kh-import-export-admin .export-options .radio-group label,
+    .kh-import-export-admin .import-options label {
+        margin-bottom: 8px;
+    }
+}

@@ -1,0 +1,26 @@
+{
+    "primary": {
+        "name": "Primary API Key",
+        "key": "kh_6da8ea3550440425b4a4da924d473bc0",
+        "permissions": [
+            "read",
+            "write",
+            "admin"
+        ]
+    },
+    "mobile_app": {
+        "name": "Mobile App API Key",
+        "key": "kh_955bcf1a0bd12ad47aa777bbf447e184",
+        "permissions": [
+            "read",
+            "write"
+        ]
+    },
+    "webhook_service": {
+        "name": "Webhook Service API Key",
+        "key": "kh_fee552fc0e31553dc5edca3bd28d4e18",
+        "permissions": [
+            "read"
+        ]
+    }
+}

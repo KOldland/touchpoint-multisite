@@ -1,0 +1,14 @@
+{
+    "api_key": "[YOUR_HUBSPOT_API_KEY]",
+    "auto_sync": true,
+    "auto_create_deals": true,
+    "contact_properties": {
+        "event_attendee": "Event Attendee",
+        "last_event_booked": "Last Event Booked",
+        "total_event_spend": "Total Event Spend"
+    },
+    "deal_stages": {
+        "event_booking": "Event Booking",
+        "closed_won": "Closed Won"
+    }
+}

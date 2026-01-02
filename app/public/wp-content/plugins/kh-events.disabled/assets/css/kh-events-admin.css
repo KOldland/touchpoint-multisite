@@ -1,0 +1,337 @@
+/* KH Events Admin Styles */
+
+.kh-events-admin-page {
+    max-width: 1200px;
+}
+
+.kh-events-admin-page .nav-tab-wrapper {
+    margin-bottom: 20px;
+}
+
+.kh-events-admin-page .form-table th {
+    width: 200px;
+    padding: 20px 10px 20px 0;
+}
+
+.kh-events-admin-page .form-table td {
+    padding: 15px 10px;
+}
+
+.kh-events-admin-page .description {
+    color: #666;
+    font-style: italic;
+    margin-top: 5px;
+}
+
+/* Settings Tabs */
+.kh-events-settings-tabs .nav-tab {
+    border: 1px solid #ccc;
+    background: #f1f1f1;
+    color: #555;
+    margin-left: 0;
+    margin-right: 4px;
+    padding: 8px 16px;
+    text-decoration: none;
+    border-radius: 4px 4px 0 0;
+}
+
+.kh-events-settings-tabs .nav-tab-active {
+    background: #fff;
+    border-bottom: 1px solid #fff;
+    color: #000;
+    margin-bottom: -1px;
+}
+
+/* Event Admin Columns */
+.column-event_date {
+    width: 15%;
+}
+
+.column-event_location {
+    width: 20%;
+}
+
+.column-event_bookings {
+    width: 10%;
+}
+
+/* Event Filters */
+.kh-events-admin-filters {
+    margin-top: 10px;
+}
+
+.kh-events-admin-filters select,
+.kh-events-admin-filters input[type="date"] {
+    margin-right: 10px;
+    margin-bottom: 5px;
+}
+
+/* Dashboard Widget */
+.kh-events-dashboard-widget {
+    padding: 0 !important;
+}
+
+.kh-events-dashboard-widget .inside {
+    padding: 12px 12px 0 12px;
+}
+
+.kh-events-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.kh-events-stat-card {
+    background: #f8f9fa;
+    border: 1px solid #e1e1e1;
+    border-radius: 4px;
+    padding: 15px;
+    text-align: center;
+}
+
+.kh-events-stat-number {
+    font-size: 24px;
+    font-weight: bold;
+    color: #2271b1;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.kh-events-stat-label {
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.kh-events-recent-events {
+    margin-top: 20px;
+}
+
+.kh-events-recent-events h4 {
+    margin: 0 0 10px 0;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #e1e1e1;
+}
+
+.kh-events-recent-events ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.kh-events-recent-events li {
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.kh-events-recent-events li:last-child {
+    border-bottom: none;
+}
+
+.kh-events-recent-events .event-title {
+    font-weight: 500;
+    color: #2271b1;
+    text-decoration: none;
+    display: block;
+}
+
+.kh-events-recent-events .event-date {
+    font-size: 12px;
+    color: #666;
+    margin-top: 2px;
+}
+
+/* Meta Boxes */
+.kh-events-meta-box {
+    background: #fff;
+    border: 1px solid #e1e1e1;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+.kh-events-meta-box .postbox-header {
+    border-bottom: 1px solid #e1e1e1;
+    background: #f8f9fa;
+    padding: 12px 12px 0 12px;
+}
+
+.kh-events-meta-box .inside {
+    padding: 12px;
+    margin: 0;
+}
+
+.kh-events-meta-box .form-field {
+    margin-bottom: 15px;
+}
+
+.kh-events-meta-box .form-field label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: #23282d;
+}
+
+.kh-events-meta-box .form-field input[type="text"],
+.kh-events-meta-box .form-field input[type="date"],
+.kh-events-meta-box .form-field input[type="time"],
+.kh-events-meta-box .form-field select,
+.kh-events-meta-box .form-field textarea {
+    width: 100%;
+    max-width: 400px;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.kh-events-meta-box .form-field input[type="checkbox"] {
+    width: auto;
+    margin-right: 8px;
+}
+
+.kh-events-meta-box .form-field .description {
+    color: #666;
+    font-size: 12px;
+    margin-top: 4px;
+    font-style: italic;
+}
+
+/* Recurring Events */
+.kh-recurring-options {
+    background: #f8f9fa;
+    border: 1px solid #e1e1e1;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 10px;
+}
+
+.kh-recurring-options .form-field {
+    display: inline-block;
+    margin-right: 15px;
+    margin-bottom: 10px;
+    vertical-align: top;
+}
+
+.kh-recurring-options .form-field label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 3px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #666;
+}
+
+/* Ticket Management */
+.kh-tickets-list {
+    margin-top: 15px;
+}
+
+.kh-ticket-item {
+    background: #f8f9fa;
+    border: 1px solid #e1e1e1;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 10px;
+    position: relative;
+}
+
+.kh-ticket-item .remove-ticket {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.kh-ticket-item .ticket-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.kh-ticket-item .form-field {
+    margin-bottom: 0;
+}
+
+/* Booking Management */
+.kh-bookings-list {
+    margin-top: 15px;
+}
+
+.kh-booking-item {
+    background: #f8f9fa;
+    border: 1px solid #e1e1e1;
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 8px;
+}
+
+.kh-booking-item .booking-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.kh-booking-item .attendee-info {
+    font-weight: 500;
+}
+
+.kh-booking-item .booking-meta {
+    font-size: 12px;
+    color: #666;
+}
+
+.kh-booking-item .booking-status {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.kh-booking-item .status-confirmed {
+    background: #d4edda;
+    color: #155724;
+}
+
+.kh-booking-item .status-pending {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.kh-booking-item .status-cancelled {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Responsive Design */
+@media screen and (max-width: 782px) {
+    .kh-events-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .kh-events-meta-box .form-field input[type="text"],
+    .kh-events-meta-box .form-field select {
+        max-width: 100%;
+    }
+
+    .kh-ticket-item .ticket-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .kh-booking-item .booking-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+}

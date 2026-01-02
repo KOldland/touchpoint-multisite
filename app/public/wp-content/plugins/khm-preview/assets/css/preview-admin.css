@@ -1,0 +1,32 @@
+.khm-preview-manager {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    padding: 20px;
+    max-width: 800px;
+}
+.khm-preview-manager label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+.khm-preview-manager input[type="number"],
+.khm-preview-manager input[type="text"] {
+    width: 100%;
+    max-width: 240px;
+}
+.khm-preview-manager button {
+    margin-top: 8px;
+}
+.khm-preview-status {
+    margin-top: 15px;
+    padding: 10px;
+    background: #f0f6fc;
+    border-left: 4px solid #2271b1;
+}
+.khm-preview-hits ul {
+    list-style: disc;
+    margin-left: 20px;
+}
+.hidden {
+    display: none;
+}

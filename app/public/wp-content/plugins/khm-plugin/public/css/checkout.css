@@ -1,0 +1,336 @@
+/**
+ * KHM Checkout Styles
+ */
+
+.khm-checkout-wrapper {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.khm-checkout-form {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 30px;
+}
+
+.khm-checkout-level {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+.khm-checkout-level h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 24px;
+    color: #212529;
+}
+
+.khm-level-description {
+    color: #6c757d;
+    margin-bottom: 15px;
+}
+
+.khm-level-price {
+    font-size: 20px;
+    color: #28a745;
+    margin: 0;
+}
+
+.khm-checkout-billing,
+.khm-checkout-payment {
+    margin-bottom: 30px;
+}
+
+.khm-checkout-billing h4,
+.khm-checkout-payment h4 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 18px;
+    color: #495057;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 10px;
+}
+
+.khm-form-row {
+    margin-bottom: 20px;
+}
+
+.khm-form-row label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #495057;
+}
+
+.khm-form-row .required {
+    color: #dc3545;
+}
+
+.khm-form-row input[type="text"],
+.khm-form-row input[type="email"] {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 16px;
+    transition: border-color 0.15s ease-in-out;
+}
+
+.khm-form-row input[type="text"]:focus,
+.khm-form-row input[type="email"]:focus {
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.khm-form-row-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 15px;
+}
+
+@media (max-width: 768px) {
+    .khm-form-row-group {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Stripe Elements */
+.khm-card-element {
+    padding: 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    background: #fff;
+}
+
+.khm-card-element.StripeElement--focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.khm-card-element.StripeElement--invalid {
+    border-color: #dc3545;
+}
+
+/* Messages */
+.khm-messages {
+    margin-top: 20px;
+    display: none;
+}
+
+.khm-messages p {
+    padding: 12px 16px;
+    border-radius: 4px;
+    margin: 0;
+}
+
+.khm-messages.khm-success {
+    display: block;
+}
+
+.khm-messages.khm-success p {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+.khm-messages.khm-error {
+    display: block;
+}
+
+.khm-messages.khm-error p {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+#khm-card-errors {
+    color: #dc3545;
+    font-size: 14px;
+    margin-top: 8px;
+    display: none;
+}
+
+#khm-card-errors:not(:empty) {
+    display: block;
+}
+
+/* Buttons */
+.khm-checkout-submit {
+    margin-top: 30px;
+    text-align: center;
+}
+
+.khm-button {
+    display: inline-block;
+    padding: 12px 30px;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+}
+
+.khm-button-primary {
+    background: #007bff;
+    color: #fff;
+}
+
+.khm-button-primary:hover:not(:disabled) {
+    background: #0056b3;
+}
+
+.khm-button-primary:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.khm-button.khm-loading {
+    position: relative;
+    color: transparent;
+}
+
+.khm-button.khm-loading::after {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    top: 50%;
+    left: 50%;
+    margin-left: -8px;
+    margin-top: -8px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: khm-spinner 0.6s linear infinite;
+}
+
+@keyframes khm-spinner {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Login Required */
+.khm-login-required {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.khm-login-required p {
+    margin-bottom: 20px;
+}
+
+.khm-button-secondary {
+    background: #6c757d;
+    color: #fff;
+    margin-left: 10px;
+}
+
+.khm-button-secondary:hover {
+    background: #545b62;
+}
+
+/* Error state */
+.khm-error {
+    color: #721c24;
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 4px;
+    padding: 12px 16px;
+}
+
+/* Discount Code Widget */
+.khm-checkout-discount {
+    margin-bottom: 30px;
+    padding: 20px;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+}
+
+.khm-checkout-discount h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 18px;
+    color: #212529;
+}
+
+.khm-discount-input-group {
+    display: flex;
+    gap: 10px;
+}
+
+.khm-discount-input-group input[type="text"] {
+    flex: 1;
+}
+
+.khm-discount-input-group .khm-button {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.khm-discount-message {
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+.khm-discount-message .khm-success {
+    color: #155724;
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 4px;
+    padding: 8px 12px;
+}
+
+.khm-discount-message .khm-error {
+    margin: 0;
+}
+
+.khm-discount-applied {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 6px;
+    padding: 15px;
+}
+
+.khm-discount-display {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.khm-discount-display strong {
+    font-size: 16px;
+    color: #155724;
+}
+
+.khm-discount-amount {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.khm-button-link {
+    background: none;
+    border: none;
+    color: #007bff;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+    font-size: 14px;
+}
+
+.khm-button-link:hover {
+    color: #0056b3;
+}
+

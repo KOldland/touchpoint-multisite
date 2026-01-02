@@ -1,0 +1,36 @@
+/**
+ * KH Events Status Frontend CSS
+ */
+
+.kh-event-status-display {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 4px;
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+}
+
+.kh-event-status-scheduled {
+    background-color: #4CAF50;
+}
+
+.kh-event-status-canceled {
+    background-color: #f44336;
+}
+
+.kh-event-status-postponed {
+    background-color: #FF9800;
+}
+
+/* Status in event lists */
+.kh-event-item .kh-event-status-display {
+    margin-right: 10px;
+}
+
+/* Status in event details */
+.kh-event-single .kh-event-status-display {
+    margin-bottom: 15px;
+}

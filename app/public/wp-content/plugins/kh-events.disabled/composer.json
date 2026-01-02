@@ -1,0 +1,7 @@
+{
+    "name": "kh-events/kh-events",
+    "require": {
+        "stripe/stripe-php": "^18.2",
+        "paypal/paypal-checkout-sdk": "^1.0"
+    }
+}

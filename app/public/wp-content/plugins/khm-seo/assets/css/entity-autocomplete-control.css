@@ -1,0 +1,98 @@
+/**
+ * Entity Autocomplete Control Styles
+ *
+ * @package KHM_SEO
+ * @since 2.0.0
+ */
+
+.khm-entity-autocomplete-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.khm-entity-autocomplete-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d5dadf;
+    border-radius: 3px;
+    font-size: 13px;
+    line-height: 1.4;
+    background: #fff;
+    transition: border-color 0.3s ease;
+}
+
+.khm-entity-autocomplete-input:focus {
+    border-color: #007cba;
+    box-shadow: 0 0 0 1px #007cba;
+    outline: none;
+}
+
+.khm-entity-autocomplete-value {
+    display: none;
+}
+
+.khm-entity-autocomplete-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #d5dadf;
+    border-top: none;
+    border-radius: 0 0 3px 3px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+}
+
+.khm-entity-result {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.khm-entity-result:hover {
+    background-color: #f8f9fa;
+}
+
+.khm-entity-result:last-child {
+    border-bottom: none;
+}
+
+.khm-entity-text {
+    font-weight: 500;
+    color: #333;
+}
+
+.khm-entity-type {
+    font-size: 11px;
+    color: #666;
+    background: #e9ecef;
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.khm-no-results,
+.khm-search-error {
+    padding: 12px;
+    text-align: center;
+    color: #666;
+    font-style: italic;
+}
+
+.khm-search-error {
+    color: #dc3545;
+}
+
+/* Elementor panel adjustments */
+.elementor-control.khm_entity_autocomplete .elementor-control-input-wrapper {
+    position: relative;
+}

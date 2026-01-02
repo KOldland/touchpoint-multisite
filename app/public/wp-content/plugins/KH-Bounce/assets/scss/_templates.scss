@@ -1,0 +1,159 @@
+@import 'helpers';
+
+.kh-bounce-modal-sub {
+  font-family: $font-family;
+  color: #1b1b2f;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+  padding: 48px;
+  text-align: left;
+
+  .kh-bounce-close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    background: transparent;
+    border: 0;
+    font-size: 30px;
+    color: $muted;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .kh-bounce-eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-size: 12px;
+    color: $accent;
+    font-weight: 600;
+    display: inline-block;
+    margin-bottom: 12px;
+  }
+
+  .kh-bounce-title {
+    margin: 0 0 12px;
+    font-size: 34px;
+    line-height: 1.2;
+  }
+
+  .kh-bounce-text {
+    font-size: 17px;
+    color: #2a2a3c;
+    line-height: 1.6;
+    margin: 0 0 24px;
+  }
+
+  .kh-bounce-footnote {
+    margin-top: 18px;
+    font-size: 13px;
+    color: $muted;
+  }
+
+  .kh-bounce-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .kh-bounce-cta {
+    background: $accent;
+    color: $white;
+    padding: 14px 28px;
+    border-radius: 4px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 10px 30px rgba(255,90,95,0.4);
+    transition: background .2s ease;
+
+    &:hover {
+      background: $accent-dark;
+      color: $white;
+    }
+  }
+
+  .kh-bounce-dismiss {
+    background: transparent;
+    border: 0;
+    font-size: 15px;
+    color: $muted;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+}
+
+.kh-bounce-modal-sub.template-classic {
+  background: #fff;
+}
+
+.kh-bounce-modal[data-template='minimal'] {
+  .kh-bounce-modal-flex {
+    @include flexbox();
+    @include vendor-prefix( align-items, flex-end );
+  }
+}
+
+.kh-bounce-modal-sub.template-minimal {
+  width: 100%;
+  max-width: none;
+  border-radius: 12px 12px 0 0;
+  background: #11121a;
+  color: $white;
+  padding: 24px 32px;
+
+  .kh-bounce-title {
+    font-size: 24px;
+  }
+
+  .kh-bounce-text {
+    color: rgba($white, 0.8);
+    margin: 0;
+  }
+
+  .kh-bounce-minimal-inner {
+    @include flexbox();
+    @include vendor-prefix( justify-content, space-between );
+    @include vendor-prefix( align-items, center );
+    gap: 20px;
+  }
+
+  .kh-bounce-minimal-actions {
+    @include flexbox();
+    gap: 12px;
+  }
+
+  .kh-bounce-cta {
+    background: $accent;
+    box-shadow: none;
+  }
+
+  .kh-bounce-dismiss {
+    color: rgba($white, 0.7);
+  }
+}
+
+.kh-bounce-preview-wrapper {
+  border: 1px solid #e2e4e7;
+  border-radius: 6px;
+  padding: 16px;
+  margin-top: 12px;
+  background: #fdfdfd;
+
+  &.template-minimal {
+    background: #0a0b11;
+    color: $white;
+  }
+}
+
+@media (max-width: 782px) {
+  .kh-bounce-modal-sub {
+    width: calc(100% - 32px);
+    padding: 32px 24px;
+  }
+
+  .kh-bounce-modal-sub.template-minimal {
+    border-radius: 0;
+  }
+}

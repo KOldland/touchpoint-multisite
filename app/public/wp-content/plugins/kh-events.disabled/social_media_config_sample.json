@@ -1,0 +1,18 @@
+{
+    "auto_post": true,
+    "message_template": "{title}\n\n\ud83d\udcc5 {date}\n\ud83d\udccd {location}\n\ud83d\udcb0 {price}\n\n{description}\n\nRegister: {link}",
+    "platforms": {
+        "facebook": {
+            "enabled": true
+        },
+        "twitter": {
+            "enabled": true
+        },
+        "linkedin": {
+            "enabled": false
+        },
+        "instagram": {
+            "enabled": false
+        }
+    }
+}

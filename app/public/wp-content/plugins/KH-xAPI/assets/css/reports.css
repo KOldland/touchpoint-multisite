@@ -1,0 +1,25 @@
+#grassblade_reports_output_main.kh-xapi-loading::after {
+    content: 'Loading...';
+    display: block;
+    margin: 10px 0;
+}
+
+.kh-xapi-summary {
+    display: inline-block;
+    padding: 5px 15px;
+    border: 1px solid #ddd;
+    margin-right: 10px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    background: #fff;
+}
+
+.kh-xapi-summary span {
+    display: block;
+    font-size: 12px;
+    color: #555;
+}
+
+.kh-xapi-summary strong {
+    font-size: 16px;
+}

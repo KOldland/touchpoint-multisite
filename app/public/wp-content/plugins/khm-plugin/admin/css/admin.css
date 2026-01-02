@@ -1,0 +1,143 @@
+/**
+ * KHM Admin Styles
+ */
+
+/* Status badges */
+.khm-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 10px;
+    white-space: nowrap;
+}
+
+.khm-status-active,
+.khm-status-success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.khm-status-expired {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.khm-status-cancelled {
+    background: #e2e3e5;
+    color: #383d41;
+}
+
+.khm-status-pending {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.khm-status-failed,
+.khm-status-refunded {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* List tables */
+.wp-list-table .khm-expired {
+    color: #d63638;
+    font-weight: 600;
+}
+
+/* Admin header consistency */
+.wrap h1.wp-heading-inline {
+    margin-bottom: 0;
+}
+
+.wrap .page-title-action {
+    margin-left: 8px;
+}
+
+.wrap hr.wp-header-end {
+    margin: 15px 0 20px;
+}
+
+/* Settings errors/messages */
+.khm-messages {
+    margin: 15px 0;
+}
+
+/* Help boxes */
+.khm-help-box {
+    background: #f0f6fc;
+    border-left: 4px solid #2271b1;
+    padding: 15px 20px;
+    margin-top: 30px;
+}
+
+.khm-help-box h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+.khm-help-box p:last-child {
+    margin-bottom: 0;
+}
+
+/* Form styles */
+.form-table th {
+    width: 200px;
+    font-weight: 600;
+}
+
+.form-table input[type="text"],
+.form-table input[type="email"],
+.form-table input[type="number"],
+.form-table select {
+    max-width: 100%;
+}
+
+/* Loading states */
+.khm-loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+.khm-loading::after {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    top: 50%;
+    left: 50%;
+    margin-left: -8px;
+    margin-top: -8px;
+    border: 2px solid #2271b1;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: khm-spinner 0.6s linear infinite;
+}
+
+@keyframes khm-spinner {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Responsive */
+@media screen and (max-width: 782px) {
+    .form-table th {
+        width: auto;
+    }
+    
+    .khm-badge {
+        font-size: 10px;
+        padding: 2px 8px;
+    }
+}
+
+/* WordPress admin color scheme compatibility */
+body.admin-color-midnight .khm-badge.khm-status-active,
+body.admin-color-midnight .khm-badge.khm-status-success {
+    background: #d4edda;
+    color: #155724;
+}

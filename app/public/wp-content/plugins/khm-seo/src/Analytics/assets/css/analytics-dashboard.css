@@ -1,0 +1,869 @@
+/**
+ * Advanced Analytics Dashboard Styles
+ * Professional styling for the SEO analytics interface
+ *
+ * @package KHM_SEO\Analytics
+ * @version 1.0.0
+ */
+
+/* ==========================================================================
+   Base Dashboard Layout
+   ========================================================================== */
+
+.khm-analytics-dashboard {
+    margin: 0;
+}
+
+.khm-analytics-dashboard .wp-heading-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.khm-analytics-dashboard .page-title-action {
+    display: inline-block;
+    margin-left: 16px;
+}
+
+.khm-analytics-dashboard .page-title-action .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ==========================================================================
+   Dashboard Controls
+   ========================================================================== */
+
+.analytics-controls {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin: 20px 0;
+    padding: 16px 20px;
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    flex-wrap: wrap;
+}
+
+.control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.control-group label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #23282d;
+    white-space: nowrap;
+}
+
+.control-group select {
+    padding: 4px 8px;
+    font-size: 13px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+}
+
+/* ==========================================================================
+   Summary Cards
+   ========================================================================== */
+
+.analytics-summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.summary-card {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.summary-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 1px solid #e1e1e1;
+}
+
+.card-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #23282d;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.card-header .dashicons {
+    font-size: 18px;
+    color: #0073aa;
+}
+
+.card-content {
+    padding: 20px;
+}
+
+/* SEO Overview Card */
+.seo-overview .metric-display {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.metric-number {
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1;
+    color: #0073aa;
+    margin-bottom: 8px;
+}
+
+.metric-label {
+    font-size: 14px;
+    color: #646970;
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.metric-change {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: #e7f3ff;
+    color: #0073aa;
+}
+
+.metric-change.positive {
+    background: #d4f6d4;
+    color: #28a745;
+}
+
+.metric-change.negative {
+    background: #ffe6e6;
+    color: #dc3545;
+}
+
+.score-breakdown {
+    display: grid;
+    gap: 16px;
+}
+
+.breakdown-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.breakdown-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #23282d;
+    min-width: 80px;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 8px;
+    background: #e1e1e1;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0073aa, #00a0d2);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.progress-fill.score-excellent {
+    background: linear-gradient(90deg, #28a745, #34ce57);
+}
+
+.progress-fill.score-good {
+    background: linear-gradient(90deg, #17a2b8, #20c997);
+}
+
+.progress-fill.score-fair {
+    background: linear-gradient(90deg, #ffc107, #ffca2c);
+}
+
+.progress-fill.score-poor {
+    background: linear-gradient(90deg, #dc3545, #e74c5c);
+}
+
+.breakdown-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: #23282d;
+    min-width: 40px;
+    text-align: right;
+}
+
+/* Traffic Overview Card */
+.traffic-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+.traffic-metric {
+    text-align: center;
+}
+
+.traffic-metric .metric-number {
+    font-size: 32px;
+    margin-bottom: 4px;
+}
+
+.traffic-metric .metric-label {
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+/* Keyword Overview Card */
+.keyword-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.keyword-metric {
+    text-align: center;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.keyword-metric .metric-number {
+    font-size: 24px;
+    margin-bottom: 4px;
+}
+
+.keyword-metric .metric-label {
+    font-size: 11px;
+}
+
+.keyword-distribution {
+    height: 200px;
+    position: relative;
+}
+
+.keyword-distribution canvas {
+    max-height: 100%;
+}
+
+/* Conversion Overview Card */
+.conversion-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+.conversion-metric {
+    text-align: center;
+}
+
+.conversion-metric .metric-number {
+    font-size: 28px;
+    margin-bottom: 4px;
+}
+
+/* ==========================================================================
+   Dashboard Content
+   ========================================================================== */
+
+.analytics-dashboard-content {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 8px;
+    margin-top: 20px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-tabs {
+    position: relative;
+}
+
+.nav-tab-wrapper {
+    border-bottom: 1px solid #ccd0d4;
+    margin: 0;
+    padding: 0;
+    background: #f9f9f9;
+}
+
+.nav-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 16px;
+    border: none;
+    background: transparent;
+    text-decoration: none;
+    color: #646970;
+    font-weight: 500;
+    border-radius: 0;
+    transition: all 0.2s ease;
+    position: relative;
+    margin: 0;
+    border-right: 1px solid #e1e1e1;
+}
+
+.nav-tab:hover {
+    background: rgba(0, 115, 170, 0.1);
+    color: #0073aa;
+}
+
+.nav-tab.nav-tab-active {
+    background: #fff;
+    color: #0073aa;
+    border-bottom: 3px solid #0073aa;
+    font-weight: 600;
+}
+
+.nav-tab .dashicons {
+    font-size: 16px;
+}
+
+.tab-content {
+    display: none;
+    padding: 24px;
+    min-height: 400px;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.tab-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 60px;
+    color: #646970;
+    font-size: 14px;
+}
+
+/* ==========================================================================
+   Dashboard Grid
+   ========================================================================== */
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.dashboard-widget {
+    background: #f8f9fa;
+    border: 1px solid #e1e1e1;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-widget.wide {
+    grid-column: 1 / -1;
+}
+
+.widget-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: #fff;
+    border-bottom: 1px solid #e1e1e1;
+}
+
+.widget-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #23282d;
+}
+
+.widget-controls select {
+    padding: 4px 8px;
+    font-size: 13px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.widget-content {
+    padding: 20px;
+    position: relative;
+}
+
+.widget-content canvas {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Content Lists */
+.content-list,
+.insights-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.content-item,
+.insight-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #e1e1e1;
+}
+
+.content-item:last-child,
+.insight-item:last-child {
+    border-bottom: none;
+}
+
+.content-title,
+.insight-title {
+    font-weight: 600;
+    color: #23282d;
+    text-decoration: none;
+}
+
+.content-title:hover {
+    color: #0073aa;
+}
+
+.content-meta,
+.insight-meta {
+    font-size: 12px;
+    color: #646970;
+    margin-top: 4px;
+}
+
+.content-score,
+.insight-priority {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.content-score.excellent,
+.insight-priority.high {
+    background: #d4f6d4;
+    color: #28a745;
+}
+
+.content-score.good,
+.insight-priority.medium {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.content-score.fair,
+.insight-priority.low {
+    background: #cce5ff;
+    color: #0066cc;
+}
+
+.content-score.poor {
+    background: #ffe6e6;
+    color: #dc3545;
+}
+
+/* Geographic Data */
+.geographic-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.geographic-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #e1e1e1;
+}
+
+.geographic-item:last-child {
+    border-bottom: none;
+}
+
+.country-name {
+    font-weight: 500;
+    color: #23282d;
+}
+
+.country-sessions {
+    font-weight: 600;
+    color: #0073aa;
+}
+
+/* ==========================================================================
+   Export Modal
+   ========================================================================== */
+
+.khm-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 100000;
+}
+
+.modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+}
+
+.modal-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    border-radius: 8px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e1e1e1;
+    background: #f9f9f9;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #23282d;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #646970;
+    padding: 4px;
+    line-height: 1;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+.modal-close:hover {
+    background: #e1e1e1;
+    color: #23282d;
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    color: #23282d;
+    margin-bottom: 8px;
+}
+
+.form-group select,
+.form-group input[type="text"] {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 14px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+}
+
+.form-group input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid #e1e1e1;
+    margin-top: 20px;
+}
+
+/* Export Progress */
+#export-progress {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+#export-progress .progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #e1e1e1;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+#export-progress .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0073aa, #00a0d2);
+    width: 0%;
+    transition: width 0.3s ease;
+    animation: progressAnimation 2s ease-in-out infinite;
+}
+
+@keyframes progressAnimation {
+    0%, 100% { width: 0%; }
+    50% { width: 100%; }
+}
+
+.progress-text {
+    color: #646970;
+    font-size: 14px;
+    margin: 0;
+}
+
+/* ==========================================================================
+   Loading States
+   ========================================================================== */
+
+.spinner {
+    background: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgIDxjaXJjbGUgY3g9IjEwIiBjeT0iMTAiIHI9IjEwIiBmaWxsPSJub25lIiBzdHJva2U9IiNjY2MiIHN0cm9rZS13aWR0aD0iNCI+PC9jaXJjbGU+CiAgICA8cGF0aCBkPSJNMTAsMEEzLDMsMCwwLDEsMTMsM0ExMCwxMCwwLDEsMSwyMCwxMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMDA3M2FhIiBzdHJva2Utd2lkdGg9IjQiPgogICAgICAgIDxhbmltYXRlVHJhbnNmb3JtIGF0dHJpYnV0ZU5hbWU9InRyYW5zZm9ybSIgYXR0cmlidXRlVHlwZT0iWE1MIiB0eXBlPSJyb3RhdGUiIGZyb209IjAgMTAgMTAiIHRvPSIzNjAgMTAgMTAiIGR1cj0iMXMiIHJlcGVhdENvdW50PSJpbmRlZmluaXRlIj48L2FuaW1hdGVUcmFuc2Zvcm0+CiAgICA8L3BhdGg+Cjwvc3ZnPg==') no-repeat center;
+    background-size: 20px 20px;
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+}
+
+.spinner.is-active {
+    visibility: visible;
+}
+
+/* ==========================================================================
+   Responsive Design
+   ========================================================================== */
+
+@media (max-width: 1200px) {
+    .analytics-summary-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .analytics-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+    
+    .control-group {
+        justify-content: space-between;
+    }
+    
+    .analytics-summary-cards {
+        grid-template-columns: 1fr;
+    }
+    
+    .traffic-metrics,
+    .keyword-metrics,
+    .conversion-metrics {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .tab-content {
+        padding: 16px;
+    }
+    
+    .widget-content {
+        padding: 16px;
+    }
+    
+    .metric-number {
+        font-size: 36px;
+    }
+    
+    .traffic-metric .metric-number,
+    .conversion-metric .metric-number {
+        font-size: 24px;
+    }
+    
+    .keyword-metric .metric-number {
+        font-size: 18px;
+    }
+    
+    .nav-tab {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+    
+    .modal-content {
+        width: 95%;
+    }
+    
+    .modal-body {
+        padding: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .breakdown-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    
+    .breakdown-label {
+        min-width: auto;
+        text-align: center;
+    }
+    
+    .breakdown-value {
+        text-align: center;
+        min-width: auto;
+    }
+    
+    .content-item,
+    .insight-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    
+    .nav-tab-wrapper {
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+}
+
+/* ==========================================================================
+   Print Styles
+   ========================================================================== */
+
+@media print {
+    .khm-analytics-dashboard {
+        color: #000 !important;
+    }
+    
+    .page-title-action,
+    .analytics-controls,
+    .nav-tab-wrapper,
+    .widget-controls {
+        display: none;
+    }
+    
+    .tab-content {
+        display: block !important;
+        page-break-inside: avoid;
+    }
+    
+    .summary-card,
+    .dashboard-widget {
+        break-inside: avoid;
+        box-shadow: none;
+        border: 1px solid #000;
+    }
+    
+    .analytics-summary-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ==========================================================================
+   Accessibility Enhancements
+   ========================================================================== */
+
+/* Focus indicators */
+.nav-tab:focus,
+.button:focus,
+select:focus,
+input:focus {
+    outline: 2px solid #005fcc;
+    outline-offset: 1px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .summary-card,
+    .dashboard-widget {
+        border-width: 2px;
+    }
+    
+    .progress-bar {
+        border: 1px solid #000;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    .progress-fill,
+    .summary-card {
+        transition: none;
+    }
+}
+
+/* Screen reader only content */
+.sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}

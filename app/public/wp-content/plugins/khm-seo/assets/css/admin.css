@@ -1,0 +1,238 @@
+/* KHM SEO Admin Styles */
+
+.khm-seo-field {
+    margin-bottom: 20px;
+}
+
+.khm-seo-field label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+.khm-seo-field .description {
+    margin-top: 5px;
+    font-style: italic;
+    color: #666;
+}
+
+/* SEO Score Indicator */
+.khm-seo-score {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 3px;
+    font-weight: bold;
+    text-align: center;
+    min-width: 80px;
+}
+
+.khm-seo-score.good {
+    background-color: #46b450;
+    color: white;
+}
+
+.khm-seo-score.needs-improvement {
+    background-color: #ffb900;
+    color: white;
+}
+
+.khm-seo-score.poor {
+    background-color: #dc3232;
+    color: white;
+}
+
+/* SEO Analysis */
+.khm-seo-analysis {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.khm-seo-check {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 8px;
+    background: white;
+    border-radius: 3px;
+}
+
+.khm-seo-check-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.khm-seo-check-icon.good {
+    background-color: #46b450;
+    color: white;
+}
+
+.khm-seo-check-icon.needs-improvement {
+    background-color: #ffb900;
+    color: white;
+}
+
+.khm-seo-check-icon.poor {
+    background-color: #dc3232;
+    color: white;
+}
+
+.khm-seo-check-message {
+    flex-grow: 1;
+}
+
+/* Recommendations */
+.khm-seo-recommendations {
+    margin-top: 15px;
+    padding: 15px;
+    background: #fff3cd;
+    border: 1px solid #ffeeba;
+    border-radius: 4px;
+}
+
+.khm-seo-recommendations h4 {
+    margin-top: 0;
+    color: #856404;
+}
+
+.khm-seo-recommendations ul {
+    margin-bottom: 0;
+}
+
+.khm-seo-recommendations li {
+    margin-bottom: 5px;
+    color: #856404;
+}
+
+/* Settings Pages */
+.khm-seo-settings-page {
+    max-width: 1200px;
+}
+
+.khm-seo-settings-section {
+    background: white;
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.04);
+}
+
+.khm-seo-settings-section h2 {
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+/* Form Fields */
+.khm-seo-form-row {
+    display: flex;
+    margin-bottom: 20px;
+    align-items: flex-start;
+}
+
+.khm-seo-form-label {
+    width: 200px;
+    padding-right: 20px;
+    flex-shrink: 0;
+}
+
+.khm-seo-form-field {
+    flex-grow: 1;
+}
+
+.khm-seo-form-field input[type="text"],
+.khm-seo-form-field input[type="url"],
+.khm-seo-form-field textarea,
+.khm-seo-form-field select {
+    width: 100%;
+    max-width: 500px;
+}
+
+.khm-seo-form-description {
+    margin-top: 5px;
+    color: #666;
+    font-style: italic;
+}
+
+/* Tabs */
+.khm-seo-tabs {
+    margin-bottom: 20px;
+}
+
+.khm-seo-tabs ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-bottom: 1px solid #ccd0d4;
+}
+
+.khm-seo-tabs li {
+    display: inline-block;
+    margin: 0;
+}
+
+.khm-seo-tabs a {
+    display: block;
+    padding: 10px 20px;
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+}
+
+.khm-seo-tabs a:hover,
+.khm-seo-tabs a.active {
+    border-bottom-color: #0073aa;
+}
+
+/* Status Indicators */
+.khm-seo-status {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.khm-seo-status.enabled {
+    background-color: #46b450;
+}
+
+.khm-seo-status.disabled {
+    background-color: #dc3232;
+}
+
+/* Loading */
+.khm-seo-loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: khm-seo-spin 1s linear infinite;
+}
+
+@keyframes khm-seo-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .khm-seo-form-row {
+        flex-direction: column;
+    }
+    
+    .khm-seo-form-label {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+}

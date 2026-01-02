@@ -1,0 +1,16 @@
+.kh-form {
+    max-width: 480px;
+}
+
+.kh-form-field {
+    margin-bottom: 15px;
+}
+
+.kh-form-field label {
+    display: block;
+    margin-bottom: 6px;
+}
+
+.kh-form-response {
+    margin-top: 10px;
+}

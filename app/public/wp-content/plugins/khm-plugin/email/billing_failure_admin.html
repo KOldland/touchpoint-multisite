@@ -1,0 +1,17 @@
+<h2>Member Payment Failed</h2>
+
+<p>The following payment attempt could not be completed:</p>
+
+<ul>
+  <li><strong>Member:</strong> !!user_name!! (!!user_email!!)</li>
+  <li><strong>Membership:</strong> !!level_name!!</li>
+  <li><strong>Amount:</strong> !!formatted_amount!!</li>
+  <li><strong>Invoice/Charge:</strong> !!invoice_id!!</li>
+  <li><strong>Stripe Reason:</strong> !!failure_reason!! (code: !!failure_code!!)</li>
+</ul>
+
+<p>Order reference: !!order_code!!</p>
+
+<p>You can review the account here: <a href="!!member_edit_url!!">Manage Member</a></p>
+
+<p>— !!sitename!!</p>

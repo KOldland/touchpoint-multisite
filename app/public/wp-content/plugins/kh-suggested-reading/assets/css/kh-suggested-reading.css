@@ -1,0 +1,98 @@
+
+/* Container styles */
+.suggested-reading-sidebar {
+  background-color: #fff;
+  padding: 1.5rem;
+  border: 0px;
+  border-radius: 8px;
+  max-width:400px;
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* Heading styles */
+h2.sr-sidebar-heading {
+  font-size: 1.125rem !important;
+  font-weight: 900 !important;
+  margin-bottom: 1rem !important;
+  border-left: 3px solid #6b0b0b !important;
+  padding-left: 0.75rem !important;
+}
+
+/* List reset */
+ul.sr-card-list {
+  list-style: none;
+  padding: 0;
+  margin: 0rem;;
+}
+
+.sr-card-list .sr-card + .sr-card {
+  margin-top: 1.25rem; 
+}
+
+
+/* Card link layout */
+a.sr-card-link {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  text-decoration: none;
+  color: #6d0b0b
+}
+
+/* Thumbnail */
+.sr-card-thumb {
+  width: 72px;
+  height: 72px;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: block; /* Swap flex back to block for stricter box sizing */
+}
+
+.sr-card-thumb img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  display: block;
+  border-radius: 6px;
+  aspect-ratio: 1 / 1;
+}
+
+/* Text block */
+.sr-card-meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Title styling */
+h3.sr-card-title {
+  font-size: 0.9rem !important;
+  font-weight: 900 !important;
+  font-family: "Times New Roman", Georgia, serif !important;
+  line-height: 1.4;
+   margin-top: 0 !important;
+}
+
+.sr-card-title:hover {
+  text-decoration: underline;
+}
+
+.suggested-reading--footer {
+  background-color: #f9f9f9;
+  padding: 2rem 1rem;
+  border-top: 1px solid #ddd;
+  margin-top: 3rem;
+}
+
+.suggested-reading--footer .sr-sidebar-heading {
+  font-size: 1rem;
+  text-align: center;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #333;
+  border-left: none;
+  padding-left: 0;
+  margin-bottom: 1.5rem;
+}

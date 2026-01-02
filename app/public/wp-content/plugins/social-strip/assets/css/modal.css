@@ -1,0 +1,674 @@
+/**
+ * KHM Unified Modal System
+ * Responsive modal for sharing, gifting, eCommerce, and general purpose use
+ * Based on TouchPoint Marketing Suite specifications
+ */
+
+/* Base Modal Structure */
+.khm-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.khm-modal-backdrop.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.khm-modal {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 90vw;
+    max-height: 90vh;
+    width: auto;
+    position: relative;
+    transform: scale(0.8);
+    transition: transform 0.3s ease;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.khm-modal-backdrop.show .khm-modal {
+    transform: scale(1);
+}
+
+/* Modal Header */
+.khm-modal-header {
+    padding: 24px 24px 16px;
+    border-bottom: 1px solid #e5e5e5;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+}
+
+.khm-modal-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+    flex: 1;
+}
+
+.khm-modal-subtitle {
+    font-size: 14px;
+    color: #666;
+    margin: 4px 0 0;
+    font-weight: 400;
+}
+
+.khm-modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 8px;
+    margin: -8px;
+    color: #666;
+    transition: color 0.2s ease, transform 0.2s ease;
+    border-radius: 4px;
+}
+
+.khm-modal-close:hover {
+    color: #333;
+    transform: scale(1.1);
+}
+
+/* Modal Content */
+.khm-modal-content {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0; /* Important for flexbox scrolling */
+}
+
+.khm-modal-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.khm-modal-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.khm-modal-content::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.khm-modal-content::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Modal Footer */
+.khm-modal-footer {
+    padding: 16px 24px 24px;
+    border-top: 1px solid #e5e5e5;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    flex-shrink: 0;
+    background: #fafafa;
+}
+
+.khm-modal-footer.centered {
+    justify-content: center;
+}
+
+.khm-modal-footer.space-between {
+    justify-content: space-between;
+}
+
+/* Modal Sizes */
+.khm-modal.small {
+    width: 400px;
+}
+
+.khm-modal.medium {
+    width: 600px;
+}
+
+.khm-modal.large {
+    width: 800px;
+}
+
+.khm-modal.extra-large {
+    width: 1000px;
+}
+
+.khm-modal.full-width {
+    width: 90vw;
+}
+
+/* Sharing Modal Specific Styles */
+.khm-modal.share-modal {
+    width: 500px;
+}
+
+.khm-share-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.khm-share-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #333;
+    transition: all 0.2s ease;
+    border: 2px solid transparent;
+}
+
+.khm-share-option:hover {
+    background: #e9ecef;
+    border-color: #007cba;
+    transform: translateY(-2px);
+    text-decoration: none;
+    color: #007cba;
+}
+
+.khm-share-icon {
+    width: 32px;
+    height: 32px;
+    margin-bottom: 8px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.khm-share-icon.facebook {
+    background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMTYgMEM3LjE2IDAgMCA3LjE2IDAgMTZzNy4xNiAxNiAxNiAxNiAxNi03LjE2IDE2LTE2UzI0Ljg0IDAgMTYgMHptNC40IDguNzJoLTIuMjRjLS44IDAtMS42LjMyLTEuNiAxLjJ2Mi4wOGgzLjg0bC0uNjQgMy44NEgxNi41NnY5LjkySDEyLjhWMTUuODRIOC42NHYtMy44NGgzLjg0VjEwLjRjMC0yLjU2IDEuNjAtNC42NCA0LjQ4LTQuNjRoMy4ydjMuNzZoLTEuNzZ6IiBmaWxsPSIjMzk3NUVBIi8+PC9zdmc+');
+}
+
+.khm-share-icon.twitter {
+    background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMTYgMEM3LjE2IDAgMCA3LjE2IDAgMTZzNy4xNiAxNiAxNiAxNiAxNi03LjE2IDE2LTE2UzI0Ljg0IDAgMTYgMHptNy4yIDEyLjhjLS4wOCAzLjItMi40IDYuNzItNi40IDguOGMtMi40IDEuMjgtNS4yIDEuMjgtNy42IDBjLTEuNi0uOC0yLjgtMi4wOC0zLjYtMy42cy0uOC0zLjIgMC00LjhjLjgtMS42IDIuMDgtMi44IDMuNi0zLjZzMy4yLS44IDQuOCAwYzEuNi44IDIuOCAyLjA4IDMuNiAzLjZ6IiBmaWxsPSIjMUQ5QkY5Ii8+PC9zdmc+');
+}
+
+.khm-share-icon.email {
+    background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMTYgMEM3LjE2IDAgMCA3LjE2IDAgMTZzNy4xNiAxNiAxNiAxNiAxNi03LjE2IDE2LTE2UzI0Ljg0IDAgMTYgMHptOCAxMS4ydjkuNmMwIC42NC0uNTYgMS4yLTEuMiAxLjJIOUMoLjU2IDIyIDggMjEuNDQgOCAyMC44di05LjZjMC0uNjQuNTYtMS4yIDEuMi0xLjJoMTMuNmMuNjQgMCAxLjIuNTYgMS4yIDEuMnptLTEuNi45NkwxNiAxN0w5LjYgMTIuMTZ2LS4xNkg5LjZjMC0uMzIuMjQtLjU2LjU2LS41NmgxMi40OGMuMzIgMCAuNTYuMjQuNTYuNTZ2LjE2eiIgZmlsbD0iIzMzMzMzMyIvPjwvc3ZnPg==');
+}
+
+.khm-share-icon.copy {
+    background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMjIuNCA4SDEyLjhBMi40IDIuNCAwIDAgMCAxMC40IDEwLjR2MTMuNkEyLjQgMi40IDAgMCAwIDEyLjggMjYuNGg5LjZBMi40IDIuNCAwIDAgMCAyNCAyNFYxMC40QTIuNCAyLjQgMCAwIDAgMjIuNCA4eiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMzMzIiBzdHJva2Utd2lkdGg9IjEuNSIvPjxwYXRoIGQ9Ik04IDIyLjR2LTEyQTIuNCAyLjQgMCAwIDEgMTAuNCA4aDEyIiBmaWxsPSJub25lIiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMS41Ii8+PC9zdmc+');
+}
+
+.khm-share-label {
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+}
+
+.khm-link-copy {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 16px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.khm-link-input {
+    flex: 1;
+    border: none;
+    background: none;
+    font-size: 14px;
+    color: #666;
+}
+
+.khm-link-input:focus {
+    outline: none;
+}
+
+.khm-copy-btn {
+    background: #007cba;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.khm-copy-btn:hover {
+    background: #005a87;
+}
+
+.khm-copy-btn.copied {
+    background: #28a745;
+}
+
+/* Gifting Modal Specific Styles */
+.khm-modal.gift-modal {
+    width: 600px;
+}
+
+.khm-gift-form {
+    display: grid;
+    gap: 16px;
+}
+
+.khm-gift-recipient {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.khm-gift-message {
+    grid-column: 1 / -1;
+}
+
+.khm-gift-message textarea {
+    height: 120px;
+    resize: vertical;
+}
+
+.khm-gift-preview {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 16px;
+    border-left: 4px solid #007cba;
+}
+
+.khm-gift-preview-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.khm-gift-preview-message {
+    font-size: 14px;
+    color: #666;
+    line-height: 1.6;
+    font-style: italic;
+}
+
+.khm-gift-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.khm-gift-option {
+    padding: 16px;
+    border: 2px solid #e5e5e5;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.khm-gift-option:hover {
+    border-color: #007cba;
+}
+
+.khm-gift-option.selected {
+    border-color: #007cba;
+    background: #f0f8ff;
+}
+
+.khm-gift-option-icon {
+    font-size: 24px;
+    margin-bottom: 8px;
+    display: block;
+}
+
+.khm-gift-option-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+}
+
+/* eCommerce Modal Specific Styles */
+.khm-modal.cart-modal {
+    width: 700px;
+    max-height: 80vh;
+}
+
+.khm-cart-summary {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.khm-cart-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+    border-top: 1px solid #dee2e6;
+    padding-top: 16px;
+    margin-top: 16px;
+}
+
+/* Form Elements in Modals */
+.khm-modal .khm-form-group {
+    margin-bottom: 16px;
+}
+
+.khm-modal .khm-form-label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+    color: #333;
+    font-size: 14px;
+}
+
+.khm-modal .khm-form-input,
+.khm-modal .khm-form-select,
+.khm-modal .khm-form-textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #e5e5e5;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    box-sizing: border-box;
+}
+
+.khm-modal .khm-form-input:focus,
+.khm-modal .khm-form-select:focus,
+.khm-modal .khm-form-textarea:focus {
+    outline: none;
+    border-color: #007cba;
+    box-shadow: 0 0 0 3px rgba(0, 124, 186, 0.1);
+}
+
+.khm-modal .khm-form-input.error,
+.khm-modal .khm-form-select.error,
+.khm-modal .khm-form-textarea.error {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+}
+
+.khm-modal .khm-checkbox-group {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.khm-modal .khm-checkbox {
+    margin: 0;
+}
+
+.khm-modal .khm-checkbox-label {
+    font-size: 14px;
+    line-height: 1.5;
+    color: #666;
+    cursor: pointer;
+}
+
+/* Button Styles in Modals */
+.khm-modal-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+    min-width: 80px;
+}
+
+.khm-modal-btn.primary {
+    background: #007cba;
+    color: white;
+}
+
+.khm-modal-btn.primary:hover {
+    background: #005a87;
+}
+
+.khm-modal-btn.secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.khm-modal-btn.secondary:hover {
+    background: #545b62;
+}
+
+.khm-modal-btn.outline {
+    background: transparent;
+    color: #007cba;
+    border: 2px solid #007cba;
+}
+
+.khm-modal-btn.outline:hover {
+    background: #007cba;
+    color: white;
+}
+
+.khm-modal-btn.danger {
+    background: #dc3545;
+    color: white;
+}
+
+.khm-modal-btn.danger:hover {
+    background: #c82333;
+}
+
+.khm-modal-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.khm-modal-btn:disabled:hover {
+    background: inherit;
+}
+
+/* Loading States */
+.khm-modal.loading {
+    pointer-events: none;
+}
+
+.khm-modal-loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.khm-modal.loading .khm-modal-loading {
+    opacity: 1;
+    visibility: visible;
+}
+
+.khm-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #007cba;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.khm-loading-text {
+    margin-top: 12px;
+    color: #666;
+    font-size: 14px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .khm-modal-backdrop {
+        padding: 10px;
+        align-items: flex-start;
+        padding-top: 40px;
+    }
+    
+    .khm-modal {
+        width: 100% !important;
+        max-width: none;
+        margin: 0;
+        border-radius: 12px 12px 0 0;
+    }
+    
+    .khm-modal.small,
+    .khm-modal.medium,
+    .khm-modal.large,
+    .khm-modal.extra-large {
+        width: 100% !important;
+    }
+    
+    .khm-modal-header {
+        padding: 16px 16px 12px;
+    }
+    
+    .khm-modal-content {
+        padding: 16px;
+    }
+    
+    .khm-modal-footer {
+        padding: 12px 16px 16px;
+        flex-direction: column;
+    }
+    
+    .khm-modal-footer .khm-modal-btn {
+        width: 100%;
+        margin: 0;
+    }
+    
+    .khm-share-options {
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        gap: 12px;
+    }
+    
+    .khm-gift-recipient,
+    .khm-gift-options {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .khm-modal-backdrop {
+        padding: 0;
+        align-items: stretch;
+    }
+    
+    .khm-modal {
+        border-radius: 0;
+        height: 100vh;
+    }
+    
+    .khm-modal-header {
+        padding: 12px;
+    }
+    
+    .khm-modal-content {
+        padding: 12px;
+    }
+    
+    .khm-modal-footer {
+        padding: 8px 12px 12px;
+    }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .khm-modal {
+        background: #2d3748;
+        color: #e2e8f0;
+    }
+    
+    .khm-modal-header {
+        border-bottom-color: #4a5568;
+        background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+    }
+    
+    .khm-modal-title {
+        color: #e2e8f0;
+    }
+    
+    .khm-modal-subtitle {
+        color: #a0aec0;
+    }
+    
+    .khm-modal-close {
+        color: #a0aec0;
+    }
+    
+    .khm-modal-close:hover {
+        color: #e2e8f0;
+    }
+    
+    .khm-modal-footer {
+        border-top-color: #4a5568;
+        background: #2d3748;
+    }
+    
+    .khm-form-input,
+    .khm-form-select,
+    .khm-form-textarea {
+        background: #1a202c;
+        border-color: #4a5568;
+        color: #e2e8f0;
+    }
+    
+    .khm-form-input:focus,
+    .khm-form-select:focus,
+    .khm-form-textarea:focus {
+        border-color: #4299e1;
+    }
+    
+    .khm-share-option {
+        background: #1a202c;
+        color: #e2e8f0;
+    }
+    
+    .khm-share-option:hover {
+        background: #2d3748;
+        color: #4299e1;
+    }
+    
+    .khm-gift-preview,
+    .khm-cart-summary {
+        background: #1a202c;
+    }
+}

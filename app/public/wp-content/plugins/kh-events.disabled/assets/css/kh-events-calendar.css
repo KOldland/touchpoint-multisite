@@ -1,0 +1,548 @@
+/**
+ * KH Events Calendar Styles
+ *
+ * Frontend styles for calendar display
+ */
+
+.kh-events-calendar {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.kh-events-calendar-header {
+    background: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.kh-events-calendar-nav {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.kh-events-nav-prev,
+.kh-events-nav-next {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.kh-events-nav-prev:hover,
+.kh-events-nav-next:hover {
+    background: #f8f9fa;
+    border-color: #bbb;
+}
+
+.kh-events-calendar-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+}
+
+.kh-events-calendar-views {
+    display: flex;
+    gap: 5px;
+}
+
+.kh-events-view-btn {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.kh-events-view-btn:hover,
+.kh-events-view-btn.active {
+    background: #007cba;
+    color: #fff;
+    border-color: #007cba;
+}
+
+/* Calendar Grid Styles */
+.kh-events-calendar-grid {
+    position: relative;
+}
+
+.kh-events-calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    background: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+}
+
+.kh-events-weekday {
+    padding: 10px;
+    text-align: center;
+    font-weight: 600;
+    color: #666;
+    font-size: 14px;
+}
+
+.kh-events-calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+}
+
+.kh-events-calendar-day {
+    min-height: 120px;
+    border-right: 1px solid #eee;
+    border-bottom: 1px solid #eee;
+    padding: 5px;
+    position: relative;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.kh-events-calendar-day:hover {
+    background: #f8f9fa;
+}
+
+.kh-events-calendar-day.kh-events-other-month {
+    background: #fafafa;
+    color: #999;
+}
+
+.kh-events-calendar-day.kh-events-today {
+    background: #e6f7ff;
+}
+
+.kh-events-calendar-day.kh-events-today::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: #007cba;
+}
+
+.kh-events-day-number {
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: inherit;
+}
+
+.kh-events-day-events {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.kh-events-day-event {
+    background: #007cba;
+    color: #fff;
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.kh-events-day-event:hover {
+    opacity: 0.8;
+}
+
+.kh-events-more-events {
+    font-size: 11px;
+    color: #666;
+    margin-top: 2px;
+}
+
+/* Week View Styles */
+.kh-events-week-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    background: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+}
+
+.kh-events-week-day-header {
+    padding: 10px;
+    text-align: center;
+    border-right: 1px solid #ddd;
+}
+
+.kh-events-week-day-header.kh-events-today {
+    background: #e6f7ff;
+}
+
+.kh-events-week-day-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+.kh-events-week-day-number {
+    color: #666;
+    font-size: 12px;
+    margin-top: 2px;
+}
+
+.kh-events-week-content {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    min-height: 400px;
+}
+
+.kh-events-week-day {
+    border-right: 1px solid #eee;
+    border-bottom: 1px solid #eee;
+    padding: 10px;
+    position: relative;
+}
+
+.kh-events-week-events {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.kh-events-week-event {
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.kh-events-week-event:hover {
+    background: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.kh-events-event-time {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+.kh-events-event-title {
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+/* Day View Styles */
+.kh-events-calendar-day-content {
+    min-height: 400px;
+    padding: 20px;
+}
+
+.kh-events-day-events {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.kh-events-day-event-card {
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.kh-events-day-event-card:hover {
+    background: #fff;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.kh-events-event-header {
+    margin-bottom: 10px;
+}
+
+.kh-events-event-title {
+    margin: 0 0 5px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+}
+
+.kh-events-event-title a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.kh-events-event-title a:hover {
+    color: #007cba;
+}
+
+.kh-events-event-description {
+    color: #666;
+    margin-bottom: 15px;
+    line-height: 1.5;
+}
+
+.kh-events-event-meta {
+    display: flex;
+    gap: 20px;
+    font-size: 14px;
+}
+
+.kh-events-event-location,
+.kh-events-event-price {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: #666;
+}
+
+.kh-events-no-events {
+    text-align: center;
+    padding: 40px 20px;
+    color: #666;
+}
+
+/* List View Styles */
+.kh-events-calendar-list {
+    padding: 20px;
+}
+
+.kh-events-list-events {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.kh-events-list-date-group {
+    margin-bottom: 20px;
+}
+
+.kh-events-list-date {
+    margin: 0 0 15px 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #007cba;
+    color: #333;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.kh-events-list-event {
+    display: flex;
+    gap: 15px;
+    padding: 15px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.kh-events-list-event:hover {
+    background: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.kh-events-event-details {
+    flex: 1;
+}
+
+.kh-events-event-details h5 {
+    margin: 0 0 5px 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.kh-events-event-details h5 a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.kh-events-event-details h5 a:hover {
+    color: #007cba;
+}
+
+.kh-events-list-event .kh-events-event-description {
+    margin-bottom: 10px;
+}
+
+.kh-events-list-event .kh-events-event-meta {
+    display: flex;
+    gap: 15px;
+    font-size: 13px;
+}
+
+/* Filters */
+.kh-events-calendar-footer {
+    background: #f8f9fa;
+    border-top: 1px solid #ddd;
+    padding: 15px;
+}
+
+.kh-events-filters {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.kh-events-filter-category,
+.kh-events-filter-location {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    font-size: 14px;
+}
+
+.kh-events-filter-apply,
+.kh-events-filter-clear {
+    padding: 8px 16px;
+    border: 1px solid #007cba;
+    border-radius: 4px;
+    background: #007cba;
+    color: #fff;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.kh-events-filter-apply:hover,
+.kh-events-filter-clear:hover {
+    background: #005a87;
+    border-color: #005a87;
+}
+
+.kh-events-filter-clear {
+    background: #fff;
+    color: #007cba;
+}
+
+.kh-events-filter-clear:hover {
+    background: #f8f9fa;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .kh-events-calendar-header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: stretch;
+    }
+
+    .kh-events-calendar-nav {
+        justify-content: space-between;
+    }
+
+    .kh-events-calendar-views {
+        justify-content: center;
+    }
+
+    .kh-events-calendar-day {
+        min-height: 80px;
+        padding: 3px;
+    }
+
+    .kh-events-day-number {
+        font-size: 14px;
+    }
+
+    .kh-events-day-event {
+        font-size: 11px;
+        padding: 1px 3px;
+    }
+
+    .kh-events-list-event {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .kh-events-filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .kh-events-filter-category,
+    .kh-events-filter-location {
+        width: 100%;
+    }
+}
+
+/* Loading States */
+.kh-events-calendar-loading {
+    position: relative;
+}
+
+.kh-events-calendar-loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255,255,255,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.kh-events-calendar-loading::before {
+    content: '';
+    width: 20px;
+    height: 20px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #007cba;
+    border-radius: 50%;
+    animation: kh-events-spin 1s linear infinite;
+}
+
+@keyframes kh-events-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Event Tooltip */
+.kh-events-event-tooltip {
+    position: absolute;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    z-index: 1000;
+    max-width: 250px;
+    display: none;
+}
+
+.kh-events-event-tooltip.show {
+    display: block;
+}
+
+.kh-events-tooltip-title {
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: #333;
+}
+
+.kh-events-tooltip-time,
+.kh-events-tooltip-location {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 3px;
+}
+
+.kh-events-tooltip-description {
+    font-size: 13px;
+    color: #555;
+    margin-top: 8px;
+    line-height: 1.4;
+}

@@ -1,0 +1,527 @@
+/**
+ * KHM Integration CSS for Social Strip
+ * Styles for enhanced functionality (loading states, messages, etc.)
+ */
+
+/* Button Loading States */
+.kss-social-strip .loading {
+    position: relative;
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.kss-social-strip .loading .spinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #333;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Button States */
+.kss-social-strip .disabled {
+    opacity: 0.5;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
+.kss-social-strip .saved {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+
+.kss-social-strip .saved img {
+    filter: brightness(0) invert(1);
+}
+
+/* Credit Display */
+.kss-credits-display {
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+    text-align: center;
+}
+
+.kss-credits-display.low-credits {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+/* Cart Count Display */
+.kss-cart-indicator {
+    position: relative;
+    display: inline-block;
+}
+
+.kss-cart-count {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #dc3545;
+    color: white;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+    line-height: 18px;
+    text-align: center;
+    font-weight: bold;
+}
+
+/* Message System */
+.kss-message {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 4px;
+    font-weight: 500;
+    z-index: 9999;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    max-width: 300px;
+    word-wrap: break-word;
+}
+
+.kss-message-success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.kss-message-error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.kss-message-info {
+    background: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+
+/* Enhanced Button Styling */
+.kss-social-strip .kss-icon,
+.kss-social-strip button {
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.kss-social-strip .kss-icon:hover,
+.kss-social-strip button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.kss-social-strip .kss-icon:active,
+.kss-social-strip button:active {
+    transform: translateY(0);
+}
+
+/* Price Display */
+.kss-price-display {
+    font-size: 10px;
+    color: #666;
+    margin-top: 2px;
+    text-align: center;
+}
+
+.kss-price-display.member-price {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.kss-price-display.discount {
+    text-decoration: line-through;
+    color: #999;
+}
+
+/* Tooltips */
+.kss-social-strip [title] {
+    position: relative;
+}
+
+.kss-social-strip [title]:hover:after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1000;
+    margin-bottom: 5px;
+}
+
+.kss-social-strip [title]:hover:before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: rgba(0,0,0,0.8);
+    z-index: 1000;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .kss-message {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+    }
+    
+    .kss-social-strip .kss-icon,
+    .kss-social-strip button {
+        margin-bottom: 10px;
+    }
+    
+    .kss-social-strip [title]:hover:after,
+    .kss-social-strip [title]:hover:before {
+        display: none;
+    }
+}
+
+/* Member Status Indicators */
+.kss-member-indicator {
+    font-size: 10px;
+    font-weight: bold;
+    color: #28a745;
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.kss-guest-indicator {
+    font-size: 10px;
+    color: #6c757d;
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+/* Animation for successful actions */
+@keyframes success-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.kss-social-strip .success-action {
+    animation: success-pulse 0.3s ease;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .kss-message-success {
+        background: #1e3a2e;
+        color: #a3d4b0;
+        border-color: #2f5233;
+    }
+    
+    .kss-message-error {
+        background: #3d1a1a;
+        color: #e8b4b8;
+        border-color: #5a2d2d;
+    }
+    
+    .kss-message-info {
+        background: #1a2e3d;
+        color: #b4c7e8;
+        border-color: #2d475a;
+    }
+    
+    .kss-social-strip .loading .spinner {
+        border-color: #666;
+        border-top-color: #fff;
+    }
+}
+
+/* Gift Modal Styles */
+.kss-modal {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+}
+
+.kss-modal-content {
+    background-color: #fff;
+    margin: 5% auto;
+    padding: 0;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.kss-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #e9ecef;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 8px 8px 0 0;
+}
+
+.kss-modal-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.kss-modal-close {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.kss-modal-close:hover {
+    color: white;
+    transform: scale(1.1);
+}
+
+.kss-modal-body {
+    padding: 30px;
+}
+
+.gift-article-info {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 6px;
+    margin-bottom: 25px;
+    border-left: 4px solid #667eea;
+}
+
+.gift-article-info h3 {
+    margin: 0 0 10px 0;
+    color: #343a40;
+    font-size: 1.2rem;
+}
+
+.gift-article-info .article-excerpt {
+    color: #6c757d;
+    margin: 0 0 15px 0;
+    line-height: 1.5;
+}
+
+.gift-price {
+    font-size: 1.1rem;
+    color: #28a745;
+    font-weight: 600;
+}
+
+.gift-price small {
+    color: #6c757d;
+    font-weight: normal;
+    margin-left: 10px;
+}
+
+/* Form Styles */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: #343a40;
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e9ecef;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+/* Message Templates */
+.message-templates {
+    margin-top: 10px;
+}
+
+.message-templates label {
+    font-size: 13px;
+    color: #6c757d;
+    margin-bottom: 8px;
+}
+
+.template-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.template-btn {
+    background: #e9ecef;
+    border: 1px solid #dee2e6;
+    color: #495057;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.template-btn:hover {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+    transform: translateY(-1px);
+}
+
+/* Form Actions */
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #e9ecef;
+}
+
+.form-actions button {
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+    font-size: 14px;
+}
+
+.btn-cancel {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-cancel:hover {
+    background: #5a6268;
+    transform: translateY(-1px);
+}
+
+.btn-send-gift {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
+}
+
+.btn-send-gift:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-send-gift:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .kss-modal-content {
+        margin: 10px;
+        width: calc(100% - 20px);
+        max-width: none;
+    }
+    
+    .kss-modal-body {
+        padding: 20px;
+    }
+    
+    .template-buttons {
+        justify-content: center;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .form-actions button {
+        width: 100%;
+    }
+}
+
+/* Dark Mode Support for Modal */
+@media (prefers-color-scheme: dark) {
+    .kss-modal-content {
+        background-color: #2c3e50;
+        color: #ecf0f1;
+    }
+    
+    .gift-article-info {
+        background: #34495e;
+        color: #ecf0f1;
+    }
+    
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+        background: #34495e;
+        border-color: #4a5f7a;
+        color: #ecf0f1;
+    }
+    
+    .template-btn {
+        background: #34495e;
+        border-color: #4a5f7a;
+        color: #ecf0f1;
+    }
+}

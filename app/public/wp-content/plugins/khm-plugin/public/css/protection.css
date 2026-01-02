@@ -1,0 +1,131 @@
+/**
+ * KHM Content Protection Styles
+ */
+
+.khm-access-denied {
+    background: #f8f9fa;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 40px;
+    text-align: center;
+    margin: 40px 0;
+}
+
+.khm-access-denied p {
+    font-size: 18px;
+    color: #495057;
+    margin: 0 0 20px;
+}
+
+.khm-access-denied p:first-child {
+    font-size: 24px;
+    font-weight: 600;
+    color: #212529;
+}
+
+.khm-access-denied a {
+    color: #007bff;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.khm-access-denied a:hover {
+    text-decoration: underline;
+}
+
+.khm-required-levels {
+    list-style: none;
+    padding: 0;
+    margin: 30px 0 0;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.khm-required-levels li {
+    margin: 0;
+}
+
+.khm-required-levels a {
+    display: inline-block;
+    padding: 12px 24px;
+    background: #007bff;
+    color: #fff;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: background 0.2s ease;
+}
+
+.khm-required-levels a:hover {
+    background: #0056b3;
+    text-decoration: none;
+}
+
+/* Protected excerpt indicator */
+.khm-excerpt-protected {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #ffc107;
+    color: #212529;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 5px;
+}
+
+/* Protected post icon in listings */
+.khm-protected-icon {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    background: #ffc107;
+    color: #212529;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-left: 5px;
+    vertical-align: middle;
+}
+
+/* Admin bar indicator for protected posts */
+#wpadminbar .khm-admin-protected {
+    background: #ffc107;
+    color: #212529;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .khm-access-denied {
+        padding: 30px 20px;
+    }
+    
+    .khm-access-denied p:first-child {
+        font-size: 20px;
+    }
+    
+    .khm-access-denied p {
+        font-size: 16px;
+    }
+    
+    .khm-required-levels {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .khm-required-levels a {
+        display: block;
+        width: 100%;
+        max-width: 300px;
+    }
+}

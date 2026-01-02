@@ -1,0 +1,68 @@
+/**
+ * KH Events Recurring Events Admin CSS
+ */
+
+.kh-recurrence-settings {
+    margin-top: 20px;
+}
+
+.kh-recurrence-options {
+    margin-top: 15px;
+    padding: 15px;
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.kh-recurrence-options table {
+    width: 100%;
+}
+
+.kh-recurrence-options th {
+    text-align: left;
+    padding: 8px 0;
+    width: 120px;
+}
+
+.kh-recurrence-options td {
+    padding: 8px 0;
+}
+
+.kh-recurrence-options input[type="number"] {
+    width: 60px;
+}
+
+.kh-recurrence-options input[type="date"] {
+    width: auto;
+}
+
+.kh-recurrence-options label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.kh-recurrence-options input[type="radio"] {
+    margin-right: 5px;
+}
+
+.kh-recurrence-preview {
+    margin-top: 20px;
+    padding: 15px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.kh-recurrence-preview h4 {
+    margin: 0 0 10px 0;
+    padding: 0;
+}
+
+.kh-recurrence-preview ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.kh-recurrence-preview li {
+    margin-bottom: 2px;
+}

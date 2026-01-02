@@ -1,0 +1,41 @@
+@import '../helpers';
+
+.template-edge {
+  background: #fff9f2;
+  border-left: 6px solid $accent;
+  padding: 36px;
+  max-width: 420px;
+  text-align: left;
+
+  .kh-bounce-title {
+    font-size: 26px;
+    margin-top: 0;
+  }
+
+  .kh-bounce-text {
+    color: #4b1e00;
+  }
+
+  .kh-bounce-actions {
+    margin-top: 20px;
+    display: grid;
+    row-gap: 10px;
+
+    .kh-bounce-cta {
+      background: $accent;
+      color: $white;
+      padding: 12px;
+      text-align: center;
+      border-radius: 4px;
+      text-decoration: none;
+    }
+
+    .kh-bounce-dismiss {
+      background: transparent;
+      border: none;
+      color: #4b1e00;
+      text-align: center;
+      cursor: pointer;
+    }
+  }
+}

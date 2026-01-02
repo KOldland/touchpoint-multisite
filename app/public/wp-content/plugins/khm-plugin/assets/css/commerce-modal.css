@@ -1,0 +1,421 @@
+/**
+ * Unified Commerce Modal Styles
+ * 
+ * Provides consistent modal experience for cart and checkout
+ */
+
+/* Modal Overlay */
+.khm-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.khm-modal-container {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    max-width: 600px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    animation: modalSlideUp 0.3s ease-out;
+}
+
+@keyframes modalSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Modal Header */
+.khm-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.khm-modal-header h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.khm-modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #6b7280;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.khm-modal-close:hover {
+    background-color: #f3f4f6;
+    color: #374151;
+}
+
+/* Tab Navigation */
+.khm-modal-tabs {
+    display: flex;
+    border-bottom: 1px solid #e5e7eb;
+    background-color: #f9fafb;
+}
+
+.khm-tab-btn {
+    flex: 1;
+    padding: 12px 20px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-weight: 500;
+    color: #6b7280;
+    transition: all 0.2s;
+}
+
+.khm-tab-btn.active {
+    color: #1d4ed8;
+    border-bottom-color: #1d4ed8;
+    background-color: white;
+}
+
+.khm-tab-btn:hover:not(.active) {
+    background-color: #f3f4f6;
+    color: #374151;
+}
+
+/* Modal Content */
+.khm-modal-content {
+    padding: 24px;
+}
+
+.khm-tab-content {
+    display: none;
+}
+
+.khm-tab-content.active {
+    display: block;
+}
+
+/* Article Summary */
+.khm-article-summary {
+    margin-bottom: 24px;
+    padding: 16px;
+    background-color: #f9fafb;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+}
+
+.khm-article-summary h4 {
+    margin: 0 0 12px 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.khm-price-display {
+    margin-bottom: 16px;
+}
+
+.khm-member-price {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #059669;
+    margin-right: 10px;
+}
+
+.khm-regular-price {
+    text-decoration: line-through;
+    color: #6b7280;
+    font-size: 1.1rem;
+}
+
+.khm-purchase-options label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    color: #374151;
+    cursor: pointer;
+}
+
+.khm-purchase-options input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+/* Cart Items */
+.khm-cart-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.khm-cart-item:last-child {
+    border-bottom: none;
+}
+
+.khm-cart-item h5 {
+    margin: 0;
+    flex: 1;
+    font-weight: 500;
+    color: #1f2937;
+}
+
+.khm-cart-item .khm-price {
+    font-weight: 600;
+    color: #059669;
+    margin-right: 12px;
+}
+
+.khm-remove-item {
+    background: #ef4444;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.khm-remove-item:hover {
+    background: #dc2626;
+}
+
+.khm-cart-total {
+    text-align: right;
+    padding: 16px 0;
+    border-top: 2px solid #e5e7eb;
+    margin-top: 16px;
+    font-size: 1.2rem;
+}
+
+/* Payment Section */
+.khm-payment-section {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.khm-payment-section h4 {
+    margin: 0 0 16px 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.khm-billing-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.khm-billing-fields input {
+    padding: 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    transition: border-color 0.2s;
+}
+
+.khm-billing-fields input:focus {
+    outline: none;
+    border-color: #1d4ed8;
+    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
+}
+
+.khm-card-field {
+    margin-bottom: 20px;
+}
+
+#khm-card-element {
+    padding: 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+    transition: border-color 0.2s;
+}
+
+#khm-card-element:focus-within {
+    border-color: #1d4ed8;
+    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
+}
+
+.khm-error {
+    color: #ef4444;
+    font-size: 0.9rem;
+    margin-top: 8px;
+    display: none;
+}
+
+/* Modal Actions */
+.khm-modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.khm-btn-primary {
+    flex: 1;
+    background: #1d4ed8;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.khm-btn-primary:hover:not(:disabled) {
+    background: #1e40af;
+}
+
+.khm-btn-primary:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+}
+
+.khm-btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.khm-btn-secondary:hover {
+    background: #e5e7eb;
+    border-color: #9ca3af;
+}
+
+/* Messages */
+.khm-messages {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 6px;
+    display: none;
+}
+
+.khm-messages .error {
+    background: #fef2f2;
+    color: #ef4444;
+    border: 1px solid #fecaca;
+    padding: 12px;
+    border-radius: 6px;
+    display: block;
+}
+
+.khm-messages .success {
+    background: #f0fdf4;
+    color: #059669;
+    border: 1px solid #bbf7d0;
+    padding: 12px;
+    border-radius: 6px;
+    display: block;
+}
+
+/* Body lock when modal is open */
+body.khm-modal-open {
+    overflow: hidden;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .khm-modal-overlay {
+        padding: 10px;
+    }
+    
+    .khm-modal-container {
+        margin: 0;
+        border-radius: 0;
+        max-height: 100vh;
+    }
+    
+    .khm-billing-fields {
+        grid-template-columns: 1fr;
+    }
+    
+    .khm-modal-actions {
+        flex-direction: column;
+    }
+    
+    .khm-cart-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .khm-cart-item .khm-price {
+        margin-right: 0;
+    }
+}
+
+/* Cart count badge */
+.khm-tab-btn[data-tab="cart"] {
+    position: relative;
+}
+
+#khm-cart-count {
+    background: #ef4444;
+    color: white;
+    border-radius: 10px;
+    padding: 2px 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+/* Loading states */
+.khm-loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.khm-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #1d4ed8;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

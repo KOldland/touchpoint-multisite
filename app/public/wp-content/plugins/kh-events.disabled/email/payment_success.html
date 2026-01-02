@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Payment Successful</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #e8f5e8; padding: 20px; text-align: center; border-radius: 5px; margin-bottom: 20px; border: 1px solid #c8e6c9; }
+        .content { background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        .payment-details { background: #f8f9fa; padding: 15px; margin: 15px 0; border-radius: 5px; }
+        .booking-info { margin: 15px 0; }
+        .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+        .success { background: #e8f5e8; padding: 10px; border-left: 4px solid #4caf50; margin: 10px 0; }
+        .receipt { background: #f5f5f5; padding: 15px; margin: 15px 0; border-radius: 5px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💳 Payment Successful</h1>
+            <p>Your payment has been processed successfully</p>
+        </div>
+
+        <div class="content">
+            <p>Dear {{attendee_name}},</p>
+
+            <p>Great news! Your payment for {{event_title}} has been successfully processed.</p>
+
+            <div class="success">
+                <strong>✅ Payment Confirmed</strong><br>
+                Amount: ${{ total_amount|number_format(2) }}<br>
+                Transaction ID: {{ transaction_id }}<br>
+                Payment Method: {{ payment_method }}<br>
+                Date: {{ payment_date }}
+            </div>
+
+            <div class="booking-info">
+                <h3>🎫 Booking Details</h3>
+                <p><strong>Booking ID:</strong> {{booking_id}}</p>
+                <p><strong>Event:</strong> {{event_title}}</p>
+                <p><strong>Event Date:</strong> {{event_date}}</p>
+                <p><strong>Location:</strong> {{event_location}}</p>
+            </div>
+
+            {% if tickets %}
+            <div class="payment-details">
+                <h3>🎭 Ticket Breakdown</h3>
+                {% for ticket in tickets %}
+                <div style="margin: 5px 0;">
+                    {{ ticket.name }}: {{ ticket.quantity }} × ${{ ticket.price|number_format(2) }} = ${{ (ticket.quantity * ticket.price)|number_format(2) }}
+                </div>
+                {% endfor %}
+                <hr style="border: none; border-top: 1px solid #ddd; margin: 10px 0;">
+                <strong>Total Paid: ${{ total_amount|number_format(2) }}</strong>
+            </div>
+            {% endif %}
+
+            <div class="receipt">
+                <h4>Payment Receipt</h4>
+                <p>Booking ID: {{booking_id}}</p>
+                <p>Transaction: {{transaction_id}}</p>
+                <p>Amount: ${{total_amount|number_format(2)}}</p>
+                <p>Date: {{payment_date}}</p>
+            </div>
+
+            <p><strong>What's Next?</strong></p>
+            <ul>
+                <li>You'll receive a booking confirmation email shortly</li>
+                <li>Event updates will be sent to this email address</li>
+                <li>Save this receipt for your records</li>
+            </ul>
+
+            <p>If you have any questions about your payment or booking, please contact us at {{ contact_email }}.</p>
+
+            <p>Thank you for your payment!</p>
+
+            <p>Best regards,<br>The {{ site_name }} Team</p>
+        </div>
+
+        <div class="footer">
+            <p>This is an automated message. Please do not reply to this email.</p>
+            <p>{{ site_name }} | {{ site_url }}</p>
+        </div>
+    </div>
+</body>
+</html>
