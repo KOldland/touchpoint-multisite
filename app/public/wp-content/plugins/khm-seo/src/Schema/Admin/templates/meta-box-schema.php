@@ -18,6 +18,83 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly
 }
 
+// Helper methods for schema field rendering.
+if ( ! function_exists( 'khm_seo_get_field_label' ) ) :
+    function khm_seo_get_field_label( $field_key ) {
+        $labels = array(
+            'headline' => __( 'Headline', 'khm-seo' ),
+            'author' => __( 'Author', 'khm-seo' ),
+            'datePublished' => __( 'Published Date', 'khm-seo' ),
+            'dateModified' => __( 'Modified Date', 'khm-seo' ),
+            'description' => __( 'Description', 'khm-seo' ),
+            'name' => __( 'Name', 'khm-seo' ),
+            'url' => __( 'URL', 'khm-seo' ),
+            'logo' => __( 'Logo URL', 'khm-seo' ),
+            'contactPoint' => __( 'Contact Information', 'khm-seo' ),
+            'address' => __( 'Address', 'khm-seo' ),
+            'sameAs' => __( 'Social Media URLs', 'khm-seo' ),
+            'jobTitle' => __( 'Job Title', 'khm-seo' ),
+            'image' => __( 'Image URL', 'khm-seo' ),
+            'worksFor' => __( 'Works For', 'khm-seo' ),
+        );
+
+        return $labels[ $field_key ] ?? ucfirst( str_replace( '_', ' ', $field_key ) );
+    }
+
+    function khm_seo_get_field_description( $field_key ) {
+        $descriptions = array(
+            'headline' => __( 'The main headline of the article', 'khm-seo' ),
+            'author' => __( 'Author name or organization', 'khm-seo' ),
+            'datePublished' => __( 'When the content was first published', 'khm-seo' ),
+            'dateModified' => __( 'When the content was last updated', 'khm-seo' ),
+            'description' => __( 'Brief description of the content', 'khm-seo' ),
+            'sameAs' => __( 'One URL per line for social media profiles', 'khm-seo' ),
+        );
+
+        return $descriptions[ $field_key ] ?? '';
+    }
+
+    function khm_seo_get_field_type( $field_key ) {
+        $types = array(
+            'datePublished' => 'date',
+            'dateModified' => 'date',
+            'url' => 'url',
+            'logo' => 'url',
+            'image' => 'url',
+            'description' => 'textarea',
+            'address' => 'textarea',
+            'sameAs' => 'textarea',
+        );
+
+        return $types[ $field_key ] ?? 'text';
+    }
+
+    function khm_seo_get_field_placeholder( $field_key ) {
+        $placeholders = array(
+            'headline' => __( 'Enter article headline...', 'khm-seo' ),
+            'author' => __( 'Enter author name...', 'khm-seo' ),
+            'description' => __( 'Enter content description...', 'khm-seo' ),
+            'name' => __( 'Enter organization name...', 'khm-seo' ),
+            'url' => __( 'https://example.com', 'khm-seo' ),
+            'logo' => __( 'https://example.com/logo.png', 'khm-seo' ),
+            'sameAs' => __( "https://facebook.com/page\nhttps://twitter.com/account", 'khm-seo' ),
+        );
+
+        return $placeholders[ $field_key ] ?? '';
+    }
+
+    function khm_seo_is_required_field( $field_key, $schema_type ) {
+        $required_fields = array(
+            'article' => array( 'headline', 'author', 'datePublished' ),
+            'organization' => array( 'name', 'url' ),
+            'person' => array( 'name' ),
+            'product' => array( 'name' ),
+        );
+
+        return in_array( $field_key, $required_fields[ $schema_type ] ?? array() );
+    }
+endif;
+
 $is_enabled = ! empty( $current_schema['enabled'] );
 $applicable_types = array();
 
@@ -83,15 +160,15 @@ foreach ( $this->schema_types as $type_key => $type_config ) {
                     <?php foreach ( $type_config['fields'] as $field_key ) : ?>
                         <?php 
                         $field_value = $custom_fields[ $field_key ] ?? '';
-                        $field_label = $this->get_field_label( $field_key );
-                        $field_description = $this->get_field_description( $field_key );
-                        $field_type = $this->get_field_type( $field_key );
+                        $field_label = khm_seo_get_field_label( $field_key );
+                        $field_description = khm_seo_get_field_description( $field_key );
+                        $field_type = khm_seo_get_field_type( $field_key );
                         ?>
                         
                         <div class="khm-seo-field">
                             <label for="khm_seo_field_<?php echo esc_attr( $field_key ); ?>">
                                 <?php echo esc_html( $field_label ); ?>
-                                <?php if ( $this->is_required_field( $field_key, $type_key ) ) : ?>
+                                <?php if ( khm_seo_is_required_field( $field_key, $type_key ) ) : ?>
                                     <span class="required">*</span>
                                 <?php endif; ?>
                             </label>
@@ -101,14 +178,14 @@ foreach ( $this->schema_types as $type_key => $type_config ) {
                                           id="khm_seo_field_<?php echo esc_attr( $field_key ); ?>"
                                           class="widefat"
                                           rows="3"
-                                          placeholder="<?php echo esc_attr( $this->get_field_placeholder( $field_key ) ); ?>"><?php echo esc_textarea( $field_value ); ?></textarea>
+                                          placeholder="<?php echo esc_attr( khm_seo_get_field_placeholder( $field_key ) ); ?>"><?php echo esc_textarea( $field_value ); ?></textarea>
                             <?php elseif ( $field_type === 'url' ) : ?>
                                 <input type="url" 
                                        name="khm_seo_schema_fields[<?php echo esc_attr( $field_key ); ?>]"
                                        id="khm_seo_field_<?php echo esc_attr( $field_key ); ?>"
                                        class="widefat"
                                        value="<?php echo esc_attr( $field_value ); ?>"
-                                       placeholder="<?php echo esc_attr( $this->get_field_placeholder( $field_key ) ); ?>">
+                                       placeholder="<?php echo esc_attr( khm_seo_get_field_placeholder( $field_key ) ); ?>">
                             <?php elseif ( $field_type === 'date' ) : ?>
                                 <input type="date" 
                                        name="khm_seo_schema_fields[<?php echo esc_attr( $field_key ); ?>]"
@@ -339,88 +416,4 @@ foreach ( $this->schema_types as $type_key => $type_config ) {
 }
 </style>
 
-<?php
-// Helper methods would normally be in the class, but defining here for template use
-if ( ! function_exists( 'khm_seo_get_field_label' ) ) :
-    function khm_seo_get_field_label( $field_key ) {
-        $labels = array(
-            'headline' => __( 'Headline', 'khm-seo' ),
-            'author' => __( 'Author', 'khm-seo' ),
-            'datePublished' => __( 'Published Date', 'khm-seo' ),
-            'dateModified' => __( 'Modified Date', 'khm-seo' ),
-            'description' => __( 'Description', 'khm-seo' ),
-            'name' => __( 'Name', 'khm-seo' ),
-            'url' => __( 'URL', 'khm-seo' ),
-            'logo' => __( 'Logo URL', 'khm-seo' ),
-            'contactPoint' => __( 'Contact Information', 'khm-seo' ),
-            'address' => __( 'Address', 'khm-seo' ),
-            'sameAs' => __( 'Social Media URLs', 'khm-seo' ),
-            'jobTitle' => __( 'Job Title', 'khm-seo' ),
-            'image' => __( 'Image URL', 'khm-seo' ),
-            'worksFor' => __( 'Works For', 'khm-seo' ),
-        );
-        
-        return $labels[ $field_key ] ?? ucfirst( str_replace( '_', ' ', $field_key ) );
-    }
-    
-    function khm_seo_get_field_description( $field_key ) {
-        $descriptions = array(
-            'headline' => __( 'The main headline of the article', 'khm-seo' ),
-            'author' => __( 'Author name or organization', 'khm-seo' ),
-            'datePublished' => __( 'When the content was first published', 'khm-seo' ),
-            'dateModified' => __( 'When the content was last updated', 'khm-seo' ),
-            'description' => __( 'Brief description of the content', 'khm-seo' ),
-            'sameAs' => __( 'One URL per line for social media profiles', 'khm-seo' ),
-        );
-        
-        return $descriptions[ $field_key ] ?? '';
-    }
-    
-    function khm_seo_get_field_type( $field_key ) {
-        $types = array(
-            'datePublished' => 'date',
-            'dateModified' => 'date',
-            'url' => 'url',
-            'logo' => 'url',
-            'image' => 'url',
-            'description' => 'textarea',
-            'address' => 'textarea',
-            'sameAs' => 'textarea',
-        );
-        
-        return $types[ $field_key ] ?? 'text';
-    }
-    
-    function khm_seo_get_field_placeholder( $field_key ) {
-        $placeholders = array(
-            'headline' => __( 'Enter article headline...', 'khm-seo' ),
-            'author' => __( 'Enter author name...', 'khm-seo' ),
-            'description' => __( 'Enter content description...', 'khm-seo' ),
-            'name' => __( 'Enter organization name...', 'khm-seo' ),
-            'url' => __( 'https://example.com', 'khm-seo' ),
-            'logo' => __( 'https://example.com/logo.png', 'khm-seo' ),
-            'sameAs' => __( "https://facebook.com/page\nhttps://twitter.com/account", 'khm-seo' ),
-        );
-        
-        return $placeholders[ $field_key ] ?? '';
-    }
-    
-    function khm_seo_is_required_field( $field_key, $schema_type ) {
-        $required_fields = array(
-            'article' => array( 'headline', 'author', 'datePublished' ),
-            'organization' => array( 'name', 'url' ),
-            'person' => array( 'name' ),
-            'product' => array( 'name' ),
-        );
-        
-        return in_array( $field_key, $required_fields[ $schema_type ] ?? array() );
-    }
-endif;
-
-// Use helper functions in template
-$this->get_field_label = 'khm_seo_get_field_label';
-$this->get_field_description = 'khm_seo_get_field_description';
-$this->get_field_type = 'khm_seo_get_field_type';
-$this->get_field_placeholder = 'khm_seo_get_field_placeholder';
-$this->is_required_field = 'khm_seo_is_required_field';
 ?>
