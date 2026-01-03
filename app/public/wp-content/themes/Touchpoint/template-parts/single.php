@@ -50,7 +50,7 @@
 
   <?php
     //  Multiple Authors Output
-    $authors = get_field('authors'); // Relationship field: returns array of post objects
+    $authors = function_exists('kh_get_post_authors') ? kh_get_post_authors( get_the_ID() ) : get_field('authors');
     if (!empty($authors) && is_array($authors)) :
       echo '<section class="multi-author-block" aria-label="Contributing Authors">';
       foreach ($authors as $author_post) {

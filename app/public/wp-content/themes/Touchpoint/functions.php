@@ -260,6 +260,89 @@ add_action( 'wp_enqueue_scripts', 'redirect_hello_elementor_assets', 11 );
 		) );
 	}
 
+/* ACF fields for footnotes block */
+	add_action( 'acf/init', 'register_footnotes_block_fields' );
+	function register_footnotes_block_fields() {
+		if ( ! function_exists( 'acf_add_local_field_group' ) ) {
+			return;
+		}
+
+		acf_add_local_field_group( array(
+			'key' => 'group_footnotes_block',
+			'title' => 'Footnotes Block',
+			'fields' => array(
+				array(
+					'key' => 'field_footnotes_items',
+					'label' => 'Footnotes',
+					'name' => 'footnotes',
+					'type' => 'repeater',
+					'layout' => 'row',
+					'button_label' => 'Add Footnote',
+					'sub_fields' => array(
+						array(
+							'key' => 'field_footnotes_reference_text',
+							'label' => 'Reference Text',
+							'name' => 'reference_text',
+							'type' => 'text',
+						),
+						array(
+							'key' => 'field_footnotes_reference_link',
+							'label' => 'Reference Link',
+							'name' => 'reference_link',
+							'type' => 'url',
+						),
+					),
+				),
+			),
+			'location' => array(
+				array(
+					array(
+						'param' => 'block',
+						'operator' => '==',
+						'value' => 'acf/footnotes',
+					),
+				),
+			),
+		) );
+	}
+
+/* ACF fields for multi-author selection */
+	add_action( 'acf/init', 'register_multi_author_fields' );
+	function register_multi_author_fields() {
+		if ( ! function_exists( 'acf_add_local_field_group' ) ) {
+			return;
+		}
+
+		acf_add_local_field_group( array(
+			'key' => 'group_multi_author',
+			'title' => 'Authors',
+			'position' => 'side',
+			'style' => 'seamless',
+			'fields' => array(
+				array(
+					'key' => 'field_multi_author_relationship',
+					'label' => 'Authors',
+					'name' => 'authors',
+					'type' => 'relationship',
+					'post_type' => array( 'multi_author' ),
+					'filters' => array( 'search' ),
+					'return_format' => 'object',
+					'min' => 0,
+					'max' => 0,
+				),
+			),
+			'location' => array(
+				array(
+					array(
+						'param' => 'post_type',
+						'operator' => '==',
+						'value' => 'post',
+					),
+				),
+			),
+		) );
+	}
+
 /* ACF abstract block short code */
 	function render_abstract_shortcode() {
 		ob_start();
@@ -326,10 +409,11 @@ add_action( 'wp_enqueue_scripts', 'redirect_hello_elementor_assets', 11 );
 			
 			// AUTHOR(S)
 			if ( in_array( 'author', $show, true ) ) {
-				$authors = get_field( 'authors' );
+				$authors = function_exists( 'kh_get_post_authors' ) ? kh_get_post_authors( get_the_ID() ) : get_field( 'authors' );
 				if ( ! empty( $authors ) && is_array( $authors ) ) {
 					$names = array_map( function ( $post ) {
-						return get_the_title( $post );
+						$name = function_exists( 'get_field' ) ? get_field( 'author_name', $post->ID ) : '';
+						return $name ? $name : get_the_title( $post );
 					}, $authors );
 					
 					if ( count( $names ) > 2 ) {

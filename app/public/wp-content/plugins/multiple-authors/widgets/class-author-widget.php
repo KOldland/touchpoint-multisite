@@ -20,13 +20,24 @@ class Elementor_Fancy_Author_Widget extends Widget_Base {
 	}
 
 	public function render() {
-		$authors = get_field('authors'); // This is your ACF field on the post
-		if (!empty($authors)) {
-			echo '<div class="multi-author-block">';
-			foreach ($authors as $author_post) {
-				echo kh_render_author_block($author_post->ID); // Your beautiful block function
-			}
-			echo '</div>';
+		if ( ! function_exists( 'get_field' ) ) {
+			return;
 		}
+
+		$post_id = function_exists( 'kh_get_author_context_post_id' ) ? kh_get_author_context_post_id() : get_the_ID();
+		if ( ! $post_id ) {
+			return;
+		}
+
+		$authors = function_exists( 'kh_get_post_authors' ) ? kh_get_post_authors( $post_id ) : get_field( 'authors', $post_id );
+		if ( empty( $authors ) || ! is_array( $authors ) ) {
+			return;
+		}
+
+		echo '<div class="multi-author-block">';
+		foreach ( $authors as $author_post ) {
+			echo kh_render_author_block( $author_post->ID );
+		}
+		echo '</div>';
 	}
 }
