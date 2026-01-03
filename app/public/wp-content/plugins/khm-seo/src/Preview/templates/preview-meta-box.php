@@ -11,8 +11,7 @@ if (!defined('ABSPATH')) {
 }
 
 global $post;
-$preview_manager = new KHM_SEO\Preview\SocialMediaPreviewManager();
-$platforms = $preview_manager->get_platforms();
+$platforms = $platforms ?? [];
 ?>
 
 <div class="khm-social-preview-container">

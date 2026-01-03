@@ -232,12 +232,21 @@ final class Plugin {
      */
     public function init_components() {
         error_log( 'KHM SEO: init_components start.' );
+        $request_uri = $_SERVER['REQUEST_URI'] ?? '';
+        $is_post_editor = is_admin() && ( false !== strpos( $request_uri, 'post-new.php' ) || false !== strpos( $request_uri, 'post.php' ) );
+        $is_elementor_editor = is_admin() && isset( $_GET['action'] ) && 'elementor' === $_GET['action'];
+        $is_rest_request = defined( 'REST_REQUEST' ) && REST_REQUEST;
+        $disable_editor = defined( 'KHM_SEO_DISABLE_EDITOR' ) && KHM_SEO_DISABLE_EDITOR;
         // Initialize managers
         $this->meta = new MetaManager();
         $this->schema = new SchemaManager();
-        $this->sitemap = new SitemapManager( new \KHM_SEO\Sitemap\SitemapGenerator() );
+        if ( ! $is_post_editor && ! $is_rest_request ) {
+            $this->sitemap = new SitemapManager( new \KHM_SEO\Sitemap\SitemapGenerator() );
+        }
         $this->admin = new AdminManager();
-        $this->tools = new ToolsManager();
+        if ( ! $is_post_editor && ! $is_rest_request ) {
+            $this->tools = new ToolsManager();
+        }
         
         // Initialize Phase 3 social media manager
         $this->social = new SocialMediaManager();
@@ -248,48 +257,56 @@ final class Plugin {
         }
         
         // Initialize Phase 5 schema validator
-        $this->validator = new SchemaValidator();
+        if ( ( ! $is_post_editor && ! $is_rest_request ) || ( defined( 'DOING_AJAX' ) && DOING_AJAX ) ) {
+            $this->validator = new SchemaValidator();
+        }
         
         // Initialize Phase 6 social media preview manager
         $this->preview = new SocialMediaPreviewManager();
         
         // Initialize analysis engine with default configuration
-        $this->analysis = new AnalysisEngine( $this->get_analysis_config() );
+        if ( ! $is_post_editor && ! $is_rest_request ) {
+            $this->analysis = new AnalysisEngine( $this->get_analysis_config() );
+        }
         
-        // Initialize editor manager for Phase 2
-        $this->editor = new EditorManager();
-        $this->editor->init();
+        // Initialize editor manager for Phase 2 (skip on editor/REST to avoid hangs).
+        if ( ! $is_post_editor && ! $is_rest_request && ! $disable_editor ) {
+            $this->editor = new EditorManager();
+            $this->editor->init();
+        }
         
         
         // Ensure GEO manager is ready before Elementor integration.
-        if ( ! $this->geo instanceof GEOManager ) {
-            $this->geo = class_exists( GEOManager::class ) ? new GEOManager() : null;
-        }
-        error_log( 'KHM SEO: GEO manager status: ' . ( $this->geo instanceof GEOManager ? 'ready' : 'missing' ) );
-
-        // Initialize Elementor integration (resilient to load order)
-        if ( defined( 'KHM_SEO_DISABLE_ELEMENTOR' ) && KHM_SEO_DISABLE_ELEMENTOR ) {
-            error_log( 'KHM SEO: Elementor integration disabled via KHM_SEO_DISABLE_ELEMENTOR.' );
-        } elseif ( $this->geo instanceof GEOManager ) {
-            if ( did_action( 'elementor/loaded' ) ) {
-                error_log( 'KHM SEO: Elementor already loaded, bootstrapping integration.' );
-                $this->elementor = new ElementorIntegration( $this->geo );
-            } else {
-                $that = $this;
-                add_action( 'elementor/loaded', function() use ( $that ) {
-                    if ( ! $that->geo instanceof GEOManager ) {
-                        $that->geo = class_exists( GEOManager::class ) ? new GEOManager() : null;
-                    }
-
-                    if ( $that->geo instanceof GEOManager ) {
-                        error_log( 'KHM SEO: Elementor loaded later, bootstrapping integration.' );
-                        $that->elementor = new ElementorIntegration( $that->geo );
-                    }
-                } );
+        if ( ( ! $is_post_editor && ! $is_rest_request ) || $is_elementor_editor ) {
+            if ( ! $this->geo instanceof GEOManager ) {
+                $this->geo = class_exists( GEOManager::class ) ? new GEOManager() : null;
             }
-        } else {
-            // Guard: avoid fatal if GEO is unavailable; emit log for troubleshooting.
-            error_log( 'KHM SEO: Skipping Elementor integration because GEOManager is not available.' );
+            error_log( 'KHM SEO: GEO manager status: ' . ( $this->geo instanceof GEOManager ? 'ready' : 'missing' ) );
+
+            // Initialize Elementor integration (resilient to load order)
+            if ( defined( 'KHM_SEO_DISABLE_ELEMENTOR' ) && KHM_SEO_DISABLE_ELEMENTOR ) {
+                error_log( 'KHM SEO: Elementor integration disabled via KHM_SEO_DISABLE_ELEMENTOR.' );
+            } elseif ( $this->geo instanceof GEOManager ) {
+                if ( did_action( 'elementor/loaded' ) ) {
+                    error_log( 'KHM SEO: Elementor already loaded, bootstrapping integration.' );
+                    $this->elementor = new ElementorIntegration( $this->geo );
+                } else {
+                    $that = $this;
+                    add_action( 'elementor/loaded', function() use ( $that ) {
+                        if ( ! $that->geo instanceof GEOManager ) {
+                            $that->geo = class_exists( GEOManager::class ) ? new GEOManager() : null;
+                        }
+
+                        if ( $that->geo instanceof GEOManager ) {
+                            error_log( 'KHM SEO: Elementor loaded later, bootstrapping integration.' );
+                            $that->elementor = new ElementorIntegration( $that->geo );
+                        }
+                    } );
+                }
+            } else {
+                // Guard: avoid fatal if GEO is unavailable; emit log for troubleshooting.
+                error_log( 'KHM SEO: Skipping Elementor integration because GEOManager is not available.' );
+            }
         }
 
         // Register Elementor widgets for SEO shortcodes.

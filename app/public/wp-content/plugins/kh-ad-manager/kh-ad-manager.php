@@ -147,6 +147,9 @@ add_action('admin_head', function() {
 
 // Enqueue frontend assets
 add_action('wp_enqueue_scripts', function() {
+    if ( defined( 'KHM_DISABLE_ADS' ) && KHM_DISABLE_ADS ) {
+        return;
+    }
     if ( kh_ad_manager_is_builder_preview() ) {
         return;
     }
@@ -172,6 +175,9 @@ add_action('admin_enqueue_scripts', function() {
 
 // Optional public footer injection
 add_action('wp_footer', function() {
+    if ( defined( 'KHM_DISABLE_ADS' ) && KHM_DISABLE_ADS ) {
+        return;
+    }
     if ( kh_ad_manager_is_builder_preview() ) {
         return;
     }

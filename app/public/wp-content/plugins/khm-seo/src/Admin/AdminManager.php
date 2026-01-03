@@ -40,9 +40,12 @@ class AdminManager {
         // Admin menu and settings
         add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
         add_action( 'admin_init', array( $this, 'register_settings' ) );
+        add_action( 'admin_menu', array( $this, 'add_boost_visibility_pages' ), 20 );
+        add_action( 'admin_post_khm_geo_save_post', array( $this, 'handle_geo_save_post' ) );
         
         // Meta boxes for posts and pages
         add_action( 'add_meta_boxes', array( $this, 'add_meta_boxes' ) );
+        add_action( 'add_meta_boxes', array( $this, 'add_boost_visibility_meta_box' ) );
         add_action( 'save_post', array( $this, 'save_post_meta' ) );
         
         // Term meta for categories and tags
@@ -53,6 +56,10 @@ class AdminManager {
         
         // Ajax handlers
         add_action( 'wp_ajax_khm_seo_analyze_content', array( $this, 'ajax_analyze_content' ) );
+
+        // Post list actions
+        add_filter( 'post_row_actions', array( $this, 'add_boost_visibility_row_actions' ), 10, 2 );
+        add_filter( 'page_row_actions', array( $this, 'add_boost_visibility_row_actions' ), 10, 2 );
     }
 
     /**
@@ -122,6 +129,440 @@ class AdminManager {
             'khm-seo-performance',
             array( $this, 'performance_page' )
         );
+    }
+
+    /**
+     * Add Boost Visibility pages.
+     */
+    public function add_boost_visibility_pages() {
+        add_submenu_page(
+            'khm-seo',
+            __( 'Boost Visibility', 'khm-seo' ),
+            __( 'Boost Visibility', 'khm-seo' ),
+            'edit_posts',
+            'khm-seo-boost-visibility',
+            array( $this, 'render_boost_visibility_page' )
+        );
+
+        add_submenu_page(
+            'khm-seo',
+            __( 'GEO Manager', 'khm-seo' ),
+            __( 'GEO Manager', 'khm-seo' ),
+            'edit_posts',
+            'khm-seo-geo-post',
+            array( $this, 'render_geo_post_page' )
+        );
+
+        add_submenu_page(
+            'khm-seo',
+            __( 'Post Health', 'khm-seo' ),
+            __( 'Post Health', 'khm-seo' ),
+            'edit_posts',
+            'khm-seo-post-health',
+            array( $this, 'render_post_health_page' )
+        );
+    }
+
+    /**
+     * Render the Boost Visibility hub.
+     */
+    public function render_boost_visibility_page() {
+        if ( ! current_user_can( 'edit_posts' ) ) {
+            return;
+        }
+
+        $post_types = get_post_types( array( 'public' => true ), 'objects' );
+        $default_post_type = array_key_first( $post_types );
+        $selected_type = isset( $_GET['post_type'] ) ? sanitize_key( $_GET['post_type'] ) : $default_post_type;
+        if ( empty( $selected_type ) || ! isset( $post_types[ $selected_type ] ) ) {
+            $selected_type = $default_post_type;
+        }
+
+        $post_id = isset( $_GET['post_id'] ) ? (int) $_GET['post_id'] : 0;
+        $selected_post = $post_id ? get_post( $post_id ) : null;
+        if ( $selected_post && 'publish' !== $selected_post->post_status ) {
+            $selected_post = null;
+        }
+
+        $posts = get_posts( array(
+            'post_type' => $selected_type,
+            'post_status' => 'publish',
+            'posts_per_page' => 50,
+            'orderby' => 'date',
+            'order' => 'DESC',
+        ) );
+
+        $social_url = $selected_post ? admin_url( 'admin.php?page=khm-seo-social-preview&post_type=' . $selected_type . '&post_id=' . $selected_post->ID ) : '';
+        $geo_url = $selected_post ? admin_url( 'admin.php?page=khm-seo-geo-post&post_type=' . $selected_type . '&post_id=' . $selected_post->ID ) : '';
+        $health_url = $selected_post ? admin_url( 'admin.php?page=khm-seo-post-health&post_type=' . $selected_type . '&post_id=' . $selected_post->ID ) : '';
+
+        ?>
+        <div class="wrap">
+            <h1><?php esc_html_e( 'Boost Visibility', 'khm-seo' ); ?></h1>
+            <p class="description">
+                <?php esc_html_e( 'Publish first, then manage GEO, social previews, and post health from here.', 'khm-seo' ); ?>
+            </p>
+
+            <form method="get">
+                <input type="hidden" name="page" value="khm-seo-boost-visibility" />
+                <table class="form-table" role="presentation">
+                    <tbody>
+                        <tr>
+                            <th scope="row">
+                                <label for="khm-boost-post-type"><?php esc_html_e( 'Content Type', 'khm-seo' ); ?></label>
+                            </th>
+                            <td>
+                                <select id="khm-boost-post-type" name="post_type">
+                                    <?php foreach ( $post_types as $type_slug => $type_obj ) : ?>
+                                        <option value="<?php echo esc_attr( $type_slug ); ?>" <?php selected( $selected_type, $type_slug ); ?>>
+                                            <?php echo esc_html( $type_obj->labels->singular_name ); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">
+                                <label for="khm-boost-post-id"><?php esc_html_e( 'Published Item', 'khm-seo' ); ?></label>
+                            </th>
+                            <td>
+                                <select id="khm-boost-post-id" name="post_id">
+                                    <option value="0"><?php esc_html_e( 'Select a published item...', 'khm-seo' ); ?></option>
+                                    <?php foreach ( $posts as $post_item ) : ?>
+                                        <option value="<?php echo esc_attr( $post_item->ID ); ?>" <?php selected( $selected_post && $selected_post->ID === $post_item->ID ); ?>>
+                                            <?php echo esc_html( $post_item->post_title ?: sprintf( __( '(Untitled #%d)', 'khm-seo' ), $post_item->ID ) ); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <?php submit_button( __( 'Load Actions', 'khm-seo' ), 'primary', false ); ?>
+            </form>
+
+            <?php if ( $selected_post ) : ?>
+                <hr />
+                <h2><?php echo esc_html( get_the_title( $selected_post ) ); ?></h2>
+                <p>
+                    <a class="button button-primary" href="<?php echo esc_url( $social_url ); ?>"><?php esc_html_e( 'Open Social Media Manager', 'khm-seo' ); ?></a>
+                    <a class="button button-secondary" href="<?php echo esc_url( $geo_url ); ?>"><?php esc_html_e( 'Open GEO Manager', 'khm-seo' ); ?></a>
+                    <a class="button button-secondary" href="<?php echo esc_url( $health_url ); ?>"><?php esc_html_e( 'Open Post Health', 'khm-seo' ); ?></a>
+                </p>
+            <?php else : ?>
+                <div class="notice notice-info" style="margin-top:16px;">
+                    <p><?php esc_html_e( 'Choose a published item to unlock GEO and Social workflows.', 'khm-seo' ); ?></p>
+                </div>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+
+    /**
+     * Render GEO manager page for a post.
+     */
+    public function render_geo_post_page() {
+        if ( ! current_user_can( 'edit_posts' ) ) {
+            return;
+        }
+
+        $post_types = get_post_types( array( 'public' => true ), 'objects' );
+        $default_post_type = array_key_first( $post_types );
+        $selected_type = isset( $_GET['post_type'] ) ? sanitize_key( $_GET['post_type'] ) : $default_post_type;
+        if ( empty( $selected_type ) || ! isset( $post_types[ $selected_type ] ) ) {
+            $selected_type = $default_post_type;
+        }
+
+        $post_id = isset( $_GET['post_id'] ) ? (int) $_GET['post_id'] : 0;
+        $selected_post = $post_id ? get_post( $post_id ) : null;
+        if ( $selected_post && 'publish' !== $selected_post->post_status ) {
+            $selected_post = null;
+        }
+
+        $posts = get_posts( array(
+            'post_type' => $selected_type,
+            'post_status' => 'publish',
+            'posts_per_page' => 50,
+            'orderby' => 'date',
+            'order' => 'DESC',
+        ) );
+
+        ?>
+        <div class="wrap">
+            <h1><?php esc_html_e( 'GEO Manager', 'khm-seo' ); ?></h1>
+            <p class="description">
+                <?php esc_html_e( 'Manage GEO series placement for published content.', 'khm-seo' ); ?>
+            </p>
+
+            <form method="get">
+                <input type="hidden" name="page" value="khm-seo-geo-post" />
+                <table class="form-table" role="presentation">
+                    <tbody>
+                        <tr>
+                            <th scope="row">
+                                <label for="khm-geo-post-type"><?php esc_html_e( 'Content Type', 'khm-seo' ); ?></label>
+                            </th>
+                            <td>
+                                <select id="khm-geo-post-type" name="post_type">
+                                    <?php foreach ( $post_types as $type_slug => $type_obj ) : ?>
+                                        <option value="<?php echo esc_attr( $type_slug ); ?>" <?php selected( $selected_type, $type_slug ); ?>>
+                                            <?php echo esc_html( $type_obj->labels->singular_name ); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">
+                                <label for="khm-geo-post-id"><?php esc_html_e( 'Published Item', 'khm-seo' ); ?></label>
+                            </th>
+                            <td>
+                                <select id="khm-geo-post-id" name="post_id">
+                                    <option value="0"><?php esc_html_e( 'Select a published item...', 'khm-seo' ); ?></option>
+                                    <?php foreach ( $posts as $post_item ) : ?>
+                                        <option value="<?php echo esc_attr( $post_item->ID ); ?>" <?php selected( $selected_post && $selected_post->ID === $post_item->ID ); ?>>
+                                            <?php echo esc_html( $post_item->post_title ?: sprintf( __( '(Untitled #%d)', 'khm-seo' ), $post_item->ID ) ); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <?php submit_button( __( 'Load GEO Settings', 'khm-seo' ), 'primary', false ); ?>
+            </form>
+
+            <?php if ( $selected_post ) : ?>
+                <hr />
+                <h2><?php echo esc_html( get_the_title( $selected_post ) ); ?></h2>
+                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                    <input type="hidden" name="action" value="khm_geo_save_post" />
+                    <input type="hidden" name="post_id" value="<?php echo esc_attr( $selected_post->ID ); ?>" />
+                    <?php
+                    $series_manager = function_exists( 'khm_seo' ) && khm_seo()->get_geo_manager()
+                        ? khm_seo()->get_geo_manager()->get_series_manager()
+                        : null;
+                    if ( $series_manager ) {
+                        $post = $selected_post;
+                        setup_postdata( $post );
+                        $series_manager->render_series_meta_box( $post );
+                        wp_reset_postdata();
+                    } else {
+                        echo '<p>' . esc_html__( 'GEO manager is not available.', 'khm-seo' ) . '</p>';
+                    }
+                    ?>
+                    <?php submit_button( __( 'Save GEO Settings', 'khm-seo' ) ); ?>
+                </form>
+            <?php else : ?>
+                <div class="notice notice-info" style="margin-top:16px;">
+                    <p><?php esc_html_e( 'Choose a published item to manage GEO settings.', 'khm-seo' ); ?></p>
+                </div>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+
+    /**
+     * Handle GEO save for post settings.
+     */
+    public function handle_geo_save_post() {
+        $post_id = isset( $_POST['post_id'] ) ? (int) $_POST['post_id'] : 0;
+        if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+            wp_die( esc_html__( 'Insufficient permissions.', 'khm-seo' ) );
+        }
+
+        $post = get_post( $post_id );
+        if ( ! $post ) {
+            wp_die( esc_html__( 'Invalid post.', 'khm-seo' ) );
+        }
+
+        if ( function_exists( 'khm_seo' ) && khm_seo()->get_geo_manager() ) {
+            $series_manager = khm_seo()->get_geo_manager()->get_series_manager();
+            if ( $series_manager ) {
+                $series_manager->on_post_save( $post_id, $post );
+            }
+        }
+
+        wp_safe_redirect( admin_url( 'admin.php?page=khm-seo-geo-post&post_type=' . $post->post_type . '&post_id=' . $post_id . '&updated=1' ) );
+        exit;
+    }
+
+    /**
+     * Render Post Health page.
+     */
+    public function render_post_health_page() {
+        if ( ! current_user_can( 'edit_posts' ) ) {
+            return;
+        }
+
+        $post_types = get_post_types( array( 'public' => true ), 'objects' );
+        $default_post_type = array_key_first( $post_types );
+        $selected_type = isset( $_GET['post_type'] ) ? sanitize_key( $_GET['post_type'] ) : $default_post_type;
+        if ( empty( $selected_type ) || ! isset( $post_types[ $selected_type ] ) ) {
+            $selected_type = $default_post_type;
+        }
+
+        $post_id = isset( $_GET['post_id'] ) ? (int) $_GET['post_id'] : 0;
+        $selected_post = $post_id ? get_post( $post_id ) : null;
+        if ( $selected_post && 'publish' !== $selected_post->post_status ) {
+            $selected_post = null;
+        }
+
+        $posts = get_posts( array(
+            'post_type' => $selected_type,
+            'post_status' => 'publish',
+            'posts_per_page' => 50,
+            'orderby' => 'date',
+            'order' => 'DESC',
+        ) );
+
+        ?>
+        <div class="wrap">
+            <h1><?php esc_html_e( 'Post Health', 'khm-seo' ); ?></h1>
+            <p class="description">
+                <?php esc_html_e( 'Quick health checks for published content.', 'khm-seo' ); ?>
+            </p>
+
+            <form method="get">
+                <input type="hidden" name="page" value="khm-seo-post-health" />
+                <table class="form-table" role="presentation">
+                    <tbody>
+                        <tr>
+                            <th scope="row">
+                                <label for="khm-health-post-type"><?php esc_html_e( 'Content Type', 'khm-seo' ); ?></label>
+                            </th>
+                            <td>
+                                <select id="khm-health-post-type" name="post_type">
+                                    <?php foreach ( $post_types as $type_slug => $type_obj ) : ?>
+                                        <option value="<?php echo esc_attr( $type_slug ); ?>" <?php selected( $selected_type, $type_slug ); ?>>
+                                            <?php echo esc_html( $type_obj->labels->singular_name ); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">
+                                <label for="khm-health-post-id"><?php esc_html_e( 'Published Item', 'khm-seo' ); ?></label>
+                            </th>
+                            <td>
+                                <select id="khm-health-post-id" name="post_id">
+                                    <option value="0"><?php esc_html_e( 'Select a published item...', 'khm-seo' ); ?></option>
+                                    <?php foreach ( $posts as $post_item ) : ?>
+                                        <option value="<?php echo esc_attr( $post_item->ID ); ?>" <?php selected( $selected_post && $selected_post->ID === $post_item->ID ); ?>>
+                                            <?php echo esc_html( $post_item->post_title ?: sprintf( __( '(Untitled #%d)', 'khm-seo' ), $post_item->ID ) ); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <?php submit_button( __( 'Load Health', 'khm-seo' ), 'primary', false ); ?>
+            </form>
+
+            <?php if ( $selected_post ) : ?>
+                <?php
+                $word_count = str_word_count( wp_strip_all_tags( $selected_post->post_content ) );
+                $has_featured = has_post_thumbnail( $selected_post->ID );
+                $seo_title = get_post_meta( $selected_post->ID, '_khm_seo_title', true );
+                $seo_description = get_post_meta( $selected_post->ID, '_khm_seo_description', true );
+                ?>
+                <hr />
+                <h2><?php echo esc_html( get_the_title( $selected_post ) ); ?></h2>
+                <table class="widefat striped" style="max-width:720px;">
+                    <tbody>
+                        <tr>
+                            <th><?php esc_html_e( 'Word Count', 'khm-seo' ); ?></th>
+                            <td><?php echo esc_html( $word_count ); ?></td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e( 'Featured Image', 'khm-seo' ); ?></th>
+                            <td><?php echo esc_html( $has_featured ? __( 'Yes', 'khm-seo' ) : __( 'No', 'khm-seo' ) ); ?></td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e( 'SEO Title', 'khm-seo' ); ?></th>
+                            <td><?php echo esc_html( $seo_title ? $seo_title : __( 'Not set', 'khm-seo' ) ); ?></td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e( 'SEO Description', 'khm-seo' ); ?></th>
+                            <td><?php echo esc_html( $seo_description ? $seo_description : __( 'Not set', 'khm-seo' ) ); ?></td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e( 'Last Updated', 'khm-seo' ); ?></th>
+                            <td><?php echo esc_html( get_the_modified_date( '', $selected_post ) ); ?></td>
+                        </tr>
+                    </tbody>
+                </table>
+            <?php else : ?>
+                <div class="notice notice-info" style="margin-top:16px;">
+                    <p><?php esc_html_e( 'Choose a published item to view post health.', 'khm-seo' ); ?></p>
+                </div>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+
+    /**
+     * Add Boost Visibility meta box on editor screen.
+     */
+    public function add_boost_visibility_meta_box() {
+        $post_types = get_post_types( array( 'public' => true ) );
+        foreach ( $post_types as $post_type ) {
+            add_meta_box(
+                'khm-seo-boost-visibility',
+                __( 'Boost Visibility', 'khm-seo' ),
+                array( $this, 'render_boost_visibility_meta_box' ),
+                $post_type,
+                'side',
+                'high'
+            );
+        }
+    }
+
+    /**
+     * Render Boost Visibility meta box.
+     *
+     * @param WP_Post $post
+     */
+    public function render_boost_visibility_meta_box( $post ) {
+        if ( ! $post || 'publish' !== $post->post_status ) {
+            echo '<p>' . esc_html__( 'Publish this content to unlock GEO and Social actions.', 'khm-seo' ) . '</p>';
+            return;
+        }
+
+        $social_url = admin_url( 'admin.php?page=khm-seo-social-preview&post_type=' . $post->post_type . '&post_id=' . $post->ID );
+        $geo_url = admin_url( 'admin.php?page=khm-seo-geo-post&post_type=' . $post->post_type . '&post_id=' . $post->ID );
+        $health_url = admin_url( 'admin.php?page=khm-seo-post-health&post_type=' . $post->post_type . '&post_id=' . $post->ID );
+        $hub_url = admin_url( 'admin.php?page=khm-seo-boost-visibility&post_type=' . $post->post_type . '&post_id=' . $post->ID );
+
+        echo '<p><a class="button button-primary" href="' . esc_url( $hub_url ) . '">' . esc_html__( 'Boost Visibility', 'khm-seo' ) . '</a></p>';
+        echo '<p><a class="button button-secondary" href="' . esc_url( $social_url ) . '">' . esc_html__( 'Social Media Manager', 'khm-seo' ) . '</a></p>';
+        echo '<p><a class="button button-secondary" href="' . esc_url( $geo_url ) . '">' . esc_html__( 'GEO Manager', 'khm-seo' ) . '</a></p>';
+        echo '<p><a class="button button-secondary" href="' . esc_url( $health_url ) . '">' . esc_html__( 'Post Health', 'khm-seo' ) . '</a></p>';
+    }
+
+    /**
+     * Add row actions for Boost Visibility workflows.
+     *
+     * @param array   $actions
+     * @param WP_Post $post
+     * @return array
+     */
+    public function add_boost_visibility_row_actions( $actions, $post ) {
+        if ( ! $post || 'publish' !== $post->post_status ) {
+            return $actions;
+        }
+
+        $actions['boost_visibility'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-boost-visibility&post_type=' . $post->post_type . '&post_id=' . $post->ID ) ) . '">' . esc_html__( 'Boost Visibility', 'khm-seo' ) . '</a>';
+        $actions['boost_social'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-social-preview&post_type=' . $post->post_type . '&post_id=' . $post->ID ) ) . '">' . esc_html__( 'Social', 'khm-seo' ) . '</a>';
+        $actions['boost_geo'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-geo-post&post_type=' . $post->post_type . '&post_id=' . $post->ID ) ) . '">' . esc_html__( 'GEO', 'khm-seo' ) . '</a>';
+        $actions['boost_health'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-post-health&post_type=' . $post->post_type . '&post_id=' . $post->ID ) ) . '">' . esc_html__( 'Post Health', 'khm-seo' ) . '</a>';
+
+        return $actions;
     }
 
     /**

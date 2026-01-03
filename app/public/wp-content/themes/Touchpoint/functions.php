@@ -199,6 +199,67 @@ add_action( 'wp_enqueue_scripts', 'redirect_hello_elementor_assets', 11 );
 		}
 	}
 
+/* ACF fields for abstract block */
+	add_action( 'acf/init', 'register_abstract_block_fields' );
+	function register_abstract_block_fields() {
+		if ( ! function_exists( 'acf_add_local_field_group' ) ) {
+			return;
+		}
+
+		acf_add_local_field_group( array(
+			'key' => 'group_abstract_block',
+			'title' => 'Abstract Block',
+			'fields' => array(
+				array(
+					'key' => 'field_abstract_overview',
+					'label' => 'Overview',
+					'name' => 'overview',
+					'type' => 'textarea',
+					'rows' => 4,
+				),
+				array(
+					'key' => 'field_abstract_context',
+					'label' => 'Context',
+					'name' => 'context',
+					'type' => 'textarea',
+					'rows' => 4,
+				),
+				array(
+					'key' => 'field_abstract_application',
+					'label' => 'Application',
+					'name' => 'application',
+					'type' => 'textarea',
+					'rows' => 4,
+				),
+				array(
+					'key' => 'field_abstract_key_points',
+					'label' => 'Observations',
+					'name' => 'key_points',
+					'type' => 'repeater',
+					'layout' => 'table',
+					'button_label' => 'Add Observation',
+					'sub_fields' => array(
+						array(
+							'key' => 'field_abstract_key_points_bullet',
+							'label' => 'Bullet',
+							'name' => 'bullet',
+							'type' => 'text',
+						),
+					),
+				),
+			),
+			'location' => array(
+				array(
+					array(
+						'param' => 'block',
+						'operator' => '==',
+						'value' => 'acf/abstract',
+					),
+				),
+			),
+		) );
+	}
+
 /* ACF abstract block short code */
 	function render_abstract_shortcode() {
 		ob_start();

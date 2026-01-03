@@ -47,7 +47,9 @@ if ( ! shortcode_exists( 'styled_excerpt' ) ) {
         if ( count( $words ) > $word_limit ) {
             $short_excerpt = implode( ' ', array_slice( $words, 0, $word_limit ) ) . '…';
         }
-        return '<div class="excerpt-wrapper"><strong>' . esc_html__( 'Summary.', 'touchpoint-core' ) . '</strong><span class="excerpt-text" data-full="' . esc_attr( $full_excerpt ) . '">' . esc_html( $short_excerpt ) . '</span><a href="javascript:void(0);" class="excerpt-toggle" onclick="toggleExcerpt(this)"><em><strong>More</strong></em></a></div>';
+        $html = '<div class="excerpt-wrapper"><strong>' . esc_html__( 'Summary', 'touchpoint-core' ) . ':</strong>&nbsp;&nbsp;<span class="excerpt-text" data-full="' . esc_attr( $full_excerpt ) . '" data-short="' . esc_attr( $short_excerpt ) . '">' . esc_html( $short_excerpt ) . '</span><button type="button" class="excerpt-toggle" onclick="toggleExcerpt(this)" aria-expanded="false"><em><strong>More</strong></em></button></div>';
+        $html .= '<script>(function(){if(window.khmExcerptToggleInit){return;}window.khmExcerptToggleInit=true;function getParts(span){var full=span.getAttribute("data-full")||span.textContent||"";var short=span.getAttribute("data-short");if(short){return{fullText:full,shortText:short};}var words=full.trim().split(/\\s+/).filter(Boolean);var limit=30;var shortText=words.length>limit?words.slice(0,limit).join(" ")+"…":full;return{fullText:full,shortText:shortText};}function toggle(btn){var span=btn.previousElementSibling;if(!span){return;}var parts=getParts(span);var expanded=btn.classList.contains("expanded");if(!expanded){span.textContent=parts.fullText;btn.innerHTML="<em><strong>Less</strong></em>";btn.classList.add("expanded");btn.setAttribute("aria-expanded","true");}else{span.textContent=parts.shortText;btn.innerHTML="<em><strong>More</strong></em>";btn.classList.remove("expanded");btn.setAttribute("aria-expanded","false");}}if(!window.toggleExcerpt){window.toggleExcerpt=function(btn){toggle(btn);};}document.addEventListener("click",function(e){var btn=e.target.closest(".excerpt-toggle");if(btn){toggle(btn);}});})();</script>';
+        return $html;
     } );
 }
 

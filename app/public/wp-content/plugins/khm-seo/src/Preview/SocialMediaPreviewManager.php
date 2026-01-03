@@ -35,6 +35,13 @@ class SocialMediaPreviewManager {
      * Preview cache
      */
     private $preview_cache;
+
+    /**
+     * Admin page hook suffix.
+     *
+     * @var string|null
+     */
+    private $preview_page_hook = null;
     
     /**
      * Constructor
@@ -52,6 +59,10 @@ class SocialMediaPreviewManager {
     private function init_hooks() {
         // Admin hooks
         if (is_admin()) {
+            if ( defined( 'KHM_SEO_DISABLE_SOCIAL_PREVIEW' ) && KHM_SEO_DISABLE_SOCIAL_PREVIEW ) {
+                return;
+            }
+            add_action( 'admin_menu', [ $this, 'add_admin_menu' ] );
             add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_scripts']);
             add_action('add_meta_boxes', [$this, 'add_preview_meta_boxes']);
             
@@ -67,6 +78,52 @@ class SocialMediaPreviewManager {
         // Frontend hooks for live preview
         add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_scripts']);
         add_action('wp_head', [$this, 'add_preview_meta'], 1);
+    }
+
+    /**
+     * Register admin page for social previews.
+     */
+    public function add_admin_menu() {
+        $this->preview_page_hook = add_submenu_page(
+            'khm-seo',
+            __( 'Social Media Manager', 'khm-seo' ),
+            __( 'Social Media Manager', 'khm-seo' ),
+            'edit_posts',
+            'khm-seo-social-preview',
+            [ $this, 'render_preview_page' ]
+        );
+    }
+
+    /**
+     * Render social preview admin page (published-only).
+     */
+    public function render_preview_page() {
+        if ( ! current_user_can( 'edit_posts' ) ) {
+            return;
+        }
+
+        $post_types = get_post_types( [ 'public' => true ], 'objects' );
+        $default_post_type = array_key_first( $post_types );
+        $selected_type = isset( $_GET['post_type'] ) ? sanitize_key( $_GET['post_type'] ) : $default_post_type;
+        if ( empty( $selected_type ) || ! isset( $post_types[ $selected_type ] ) ) {
+            $selected_type = $default_post_type;
+        }
+
+        $post_id = isset( $_GET['post_id'] ) ? (int) $_GET['post_id'] : 0;
+        $selected_post = $post_id ? get_post( $post_id ) : null;
+        if ( $selected_post && 'publish' !== $selected_post->post_status ) {
+            $selected_post = null;
+        }
+
+        $posts = get_posts( [
+            'post_type' => $selected_type,
+            'post_status' => 'publish',
+            'posts_per_page' => 50,
+            'orderby' => 'date',
+            'order' => 'DESC',
+        ] );
+
+        include KHM_SEO_PLUGIN_DIR . 'src/Preview/templates/social-preview-page.php';
     }
     
     /**
@@ -192,8 +249,23 @@ class SocialMediaPreviewManager {
         global $post;
         
         // Only load on post edit screens
-        if (!in_array($hook, ['post.php', 'post-new.php']) || !$post) {
+        $is_editor_screen = in_array( $hook, [ 'post.php', 'post-new.php' ], true );
+        $is_preview_page = $this->preview_page_hook && $hook === $this->preview_page_hook;
+
+        if ( ! $is_editor_screen && ! $is_preview_page ) {
             return;
+        }
+
+        if ( $is_editor_screen ) {
+            if ( ! $post || 'publish' !== $post->post_status ) {
+                return;
+            }
+        } elseif ( $is_preview_page ) {
+            $post_id = isset( $_GET['post_id'] ) ? (int) $_GET['post_id'] : 0;
+            $post = $post_id ? get_post( $post_id ) : null;
+            if ( ! $post || 'publish' !== $post->post_status ) {
+                return;
+            }
         }
         
         wp_enqueue_script(
@@ -235,6 +307,12 @@ class SocialMediaPreviewManager {
      * Enqueue Gutenberg block editor assets
      */
     public function enqueue_block_editor_assets() {
+        global $post;
+
+        if ( ! $post || 'publish' !== $post->post_status ) {
+            return;
+        }
+
         wp_enqueue_script(
             'khm-social-preview-block',
             KHM_SEO_PLUGIN_URL . 'src/Preview/assets/js/social-preview-block.js',
@@ -305,7 +383,15 @@ class SocialMediaPreviewManager {
      */
     public function render_preview_meta_box($post) {
         wp_nonce_field('khm_social_preview_meta', 'khm_social_preview_nonce');
-        
+        if ( ! $post || 'publish' !== $post->post_status ) {
+            $preview_url = admin_url( 'admin.php?page=khm-seo-social-preview' );
+            echo '<p>' . esc_html__( 'Social previews are available after publish to keep the editor fast.', 'khm-seo' ) . '</p>';
+            echo '<p><a class="button button-secondary" href="' . esc_url( $preview_url ) . '">' . esc_html__( 'Open Social Previews', 'khm-seo' ) . '</a></p>';
+            return;
+        }
+
+        $preview_manager = $this;
+        $platforms = $this->get_platforms();
         include KHM_SEO_PLUGIN_DIR . 'src/Preview/templates/preview-meta-box.php';
     }
     

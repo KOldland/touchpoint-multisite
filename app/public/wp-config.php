@@ -88,8 +88,29 @@ $table_prefix = 'wp_';
  * @link https://wordpress.org/support/article/debugging-in-wordpress/
  */
 if ( ! defined( 'WP_DEBUG' ) ) {
-	define( 'WP_DEBUG', false );
+	define( 'WP_DEBUG', true );
 }
+
+if ( ! defined( 'WP_DEBUG_LOG' ) ) {
+	define( 'WP_DEBUG_LOG', __DIR__ . '/wp-content/debug-wsod.log' );
+}
+
+if ( ! defined( 'WP_DEBUG_DISPLAY' ) ) {
+	define( 'WP_DEBUG_DISPLAY', true );
+}
+
+// Toggle to fully disable KHM SEO social previews if needed.
+define( 'KHM_SEO_DISABLE_SOCIAL_PREVIEW', false );
+// Temporarily disable KHM SEO Elementor integration to stabilize the editor.
+define( 'KHM_SEO_DISABLE_ELEMENTOR', true );
+// Temporarily disable KHM SEO editor scripts to isolate editor hangs.
+define( 'KHM_SEO_DISABLE_EDITOR', true );
+// Temporarily disable heavy plugins on editor requests.
+define( 'KHM_EDITOR_DISABLED_PLUGINS', array(
+    'khm-plugin/khm-plugin.php',
+) );
+// Temporarily disable KH ad rendering.
+define( 'KHM_DISABLE_ADS', true );
 
 define( 'WP_ENVIRONMENT_TYPE', 'local' );
 /* That's all, stop editing! Happy publishing. */

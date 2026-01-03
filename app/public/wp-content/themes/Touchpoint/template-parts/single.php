@@ -7,8 +7,14 @@
       
       <?php if (has_excerpt()) : ?>
         <div class="excerpt-container">
-          <span class="excerpt-text"><?php echo get_the_excerpt(); ?></span>
-          <button class="excerpt-toggle">More</button>
+          <?php
+            $excerpt_full = get_the_excerpt();
+            $excerpt_short = wp_trim_words( $excerpt_full, 30, '…' );
+          ?>
+          <span class="excerpt-text" data-full="<?php echo esc_attr( $excerpt_full ); ?>" data-short="<?php echo esc_attr( $excerpt_short ); ?>">
+            <?php echo esc_html( $excerpt_short ); ?>
+          </span>
+          <button class="excerpt-toggle" type="button">More</button>
         </div>
       <?php endif; ?>
     </div>

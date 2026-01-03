@@ -314,13 +314,36 @@ a:hover, a:active {
 .excerpt-toggle {
   display: inline-block;
   margin-left: 5px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 1em;
   font-style: italic;
   font-weight: bold;
-  text-decoration: underline;
+  text-decoration: none;
   cursor: pointer;
-  color: inherit;
+  color: #6d0b0b;
   border: none;
   background: none;
+}
+
+.excerpt-wrapper > strong {
+  font-style: italic;
+  font-weight: bold;
+  color: #6d0b0b;
+  font-family: "DM Sans", sans-serif;
+  font-size: 1em;
+}
+
+.excerpt-wrapper,
+.elementor-shortcode .excerpt-wrapper,
+.elementor-shortcode .excerpt-toggle {
+  pointer-events: auto;
+}
+
+.excerpt-wrapper,
+.excerpt-wrapper * {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 2;
 }
 
 /* Sponsored Post Styling */

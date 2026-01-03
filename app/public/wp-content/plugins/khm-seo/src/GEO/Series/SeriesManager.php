@@ -37,6 +37,13 @@ class SeriesManager {
     private $config = array();
 
     /**
+     * Cache for series table availability.
+     *
+     * @var bool|null
+     */
+    private $series_tables_ready = null;
+
+    /**
      * Constructor - Initialize series management
      *
      * @param EntityManager $entity_manager
@@ -92,6 +99,31 @@ class SeriesManager {
         // Allow override from options
         $saved_config = get_option( 'khm_geo_series_config', array() );
         $this->config = array_merge( $this->config, $saved_config );
+    }
+
+    /**
+     * Check if required series tables exist.
+     *
+     * @return bool
+     */
+    private function series_tables_ready() {
+        if ( null !== $this->series_tables_ready ) {
+            return $this->series_tables_ready;
+        }
+
+        global $wpdb;
+        $series_table = $wpdb->prefix . 'khm_geo_series';
+        $items_table = $wpdb->prefix . 'khm_geo_series_items';
+
+        $series_exists = $wpdb->get_var(
+            $wpdb->prepare( 'SHOW TABLES LIKE %s', $series_table )
+        );
+        $items_exists = $wpdb->get_var(
+            $wpdb->prepare( 'SHOW TABLES LIKE %s', $items_table )
+        );
+
+        $this->series_tables_ready = ( $series_exists === $series_table && $items_exists === $items_table );
+        return $this->series_tables_ready;
     }
 
     /**
@@ -821,6 +853,11 @@ class SeriesManager {
      * @param WP_Post $post Current post
      */
     public function render_series_meta_box( $post ) {
+        if ( ! $this->series_tables_ready() ) {
+            echo '<p>' . esc_html__( 'Series data tables are not available yet. Please run the GEO setup to enable series management.', 'khm-seo' ) . '</p>';
+            return;
+        }
+
         $current_series_id = $this->get_post_series_id( $post->ID );
         $all_series = $this->get_all_series();
 
@@ -902,6 +939,10 @@ class SeriesManager {
     public function get_series( $series_id ) {
         global $wpdb;
 
+        if ( ! $this->series_tables_ready() ) {
+            return null;
+        }
+
         $table_name = $wpdb->prefix . 'khm_geo_series';
 
         return $wpdb->get_row(
@@ -917,6 +958,10 @@ class SeriesManager {
     public function get_all_series() {
         global $wpdb;
 
+        if ( ! $this->series_tables_ready() ) {
+            return array();
+        }
+
         $table_name = $wpdb->prefix . 'khm_geo_series';
 
         return $wpdb->get_results( "SELECT * FROM {$table_name} ORDER BY title ASC" );
@@ -930,6 +975,10 @@ class SeriesManager {
      */
     public function get_series_items( $series_id ) {
         global $wpdb;
+
+        if ( ! $this->series_tables_ready() ) {
+            return array();
+        }
 
         $table_name = $wpdb->prefix . 'khm_geo_series_items';
 
@@ -960,6 +1009,10 @@ class SeriesManager {
     public function get_post_series_position( $post_id ) {
         global $wpdb;
 
+        if ( ! $this->series_tables_ready() ) {
+            return 0;
+        }
+
         $table_name = $wpdb->prefix . 'khm_geo_series_items';
 
         return (int) $wpdb->get_var(
@@ -979,6 +1032,10 @@ class SeriesManager {
      */
     public function is_post_in_series( $post_id, $series_id ) {
         global $wpdb;
+
+        if ( ! $this->series_tables_ready() ) {
+            return false;
+        }
 
         $table_name = $wpdb->prefix . 'khm_geo_series_items';
 
@@ -1001,6 +1058,10 @@ class SeriesManager {
     private function get_next_series_position( $series_id ) {
         global $wpdb;
 
+        if ( ! $this->series_tables_ready() ) {
+            return 1;
+        }
+
         $table_name = $wpdb->prefix . 'khm_geo_series_items';
 
         $max_position = $wpdb->get_var(
@@ -1022,6 +1083,10 @@ class SeriesManager {
      */
     private function shift_series_positions( $series_id, $from_position, $shift_amount ) {
         global $wpdb;
+
+        if ( ! $this->series_tables_ready() ) {
+            return;
+        }
 
         $table_name = $wpdb->prefix . 'khm_geo_series_items';
 

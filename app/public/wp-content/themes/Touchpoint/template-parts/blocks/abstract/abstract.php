@@ -41,21 +41,19 @@
   <?php endif; ?>
 
   <?php
-  // Display linked categories inline
-  $categories = get_the_category();
-  if( !empty($categories) ) : ?>
+  // Display linked tags inline
+  $tags = get_the_tags();
+  if( !empty($tags) ) : ?>
     <h4>Key Themes</h4>
     <p class="inline-keywords">
       <?php
       $output = array();
-      foreach( $categories as $category ) {
-        if( strtolower($category->name) !== 'uncategorized' ) {
+      foreach( $tags as $tag ) {
           $output[] = sprintf(
             '<a href="%s">%s</a>',
-            esc_url( get_category_link( $category->term_id ) ),
-            esc_html( $category->name )
+            esc_url( get_tag_link( $tag->term_id ) ),
+            esc_html( $tag->name )
           );
-        }
       }
       echo implode(', ', $output) . '.';
       ?>

@@ -133,6 +133,11 @@ function kh_ad_manager_render_overlay_card($ad_id, array $slots) {
 
 // --- ELEMENTOR + ACF SLOT RENDERER ---
 function kh_ad_manager_render_ad_for_slot_in_context($slot, $post_id = null) {
+    if ( defined( 'KHM_DISABLE_ADS' ) && KHM_DISABLE_ADS ) {
+        echo '<!-- KH Ad: disabled -->';
+        return;
+    }
+
     if (! $slot) {
         return;
     }
