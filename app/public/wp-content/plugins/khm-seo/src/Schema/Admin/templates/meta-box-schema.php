@@ -198,7 +198,7 @@ foreach ( $this->schema_types as $type_key => $type_config ) {
                                        id="khm_seo_field_<?php echo esc_attr( $field_key ); ?>"
                                        class="widefat"
                                        value="<?php echo esc_attr( $field_value ); ?>"
-                                       placeholder="<?php echo esc_attr( $this->get_field_placeholder( $field_key ) ); ?>">
+                                       placeholder="<?php echo esc_attr( khm_seo_get_field_placeholder( $field_key ) ); ?>">
                             <?php endif; ?>
                             
                             <?php if ( $field_description ) : ?>
