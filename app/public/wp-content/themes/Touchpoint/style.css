@@ -77,7 +77,7 @@ html {
 /* Body text in Elementor */
 .elementor-widget-text-editor,
 .elementor-widget-theme-post-content {
-  font-family: 'Times New Roman', 'Georgia', serif;
+  font-family: 'DM Sans', sans-serif !important;
   font-size: 1rem;
   font-weight: 400;
   line-height: 1.5;
@@ -85,6 +85,24 @@ html {
   background-color: #fff;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.page-content,
+.page-content p,
+.elementor-widget-theme-post-content,
+.elementor-widget-theme-post-content p {
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 10pt;
+  letter-spacing: 0.01em;
+  color: #474747;
+}
+
+.author-description,
+.author-description p {
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 10pt;
+  letter-spacing: 0.01em;
+  color: #474747;
 }
 
 
