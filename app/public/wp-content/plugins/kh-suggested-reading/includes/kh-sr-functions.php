@@ -46,12 +46,14 @@
 		return $result;
 	}
 
-	// 4. Lead category fallback
-	$lead_term = get_field( 'override_lead_category', $post_id );
-	$lead_ids  = [];
+	// 4. Lead category fallback (native category + lead meta)
+	$lead_ids = [];
+	$lead_id  = function_exists( 'touchpointcrm_get_lead_category_id' )
+		? touchpointcrm_get_lead_category_id( $post_id )
+		: 0;
 
-	if ( ! empty( $lead_term ) && is_object( $lead_term ) ) {
-		$lead_ids[] = $lead_term->term_id;
+	if ( $lead_id ) {
+		$lead_ids[] = $lead_id;
 	} else {
 		$post_cats = wp_get_post_categories( $post_id );
 		if ( ! empty( $post_cats ) ) {

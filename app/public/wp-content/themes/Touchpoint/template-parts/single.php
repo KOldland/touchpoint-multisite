@@ -2,8 +2,18 @@
 
 
   <?php if (apply_filters('touchpoint_crm_page_title', true)) : ?>
-    <div class="page-header">
-      <?php the_title('<h1 class="entry-title">', '</h1>'); ?>
+    <div class="kh-post-header">
+      <?php
+        // Pull primary category
+        $cat_id = function_exists( 'touchpointcrm_get_lead_category_id' ) ? touchpointcrm_get_lead_category_id( get_the_ID() ) : 0;
+        if ( $cat_id ) {
+          $term = get_term( $cat_id, 'category' );
+          if ( $term && ! is_wp_error( $term ) ) {
+            echo '<a class="kh-post-category" href="' . esc_url( get_term_link( $term ) ) . '">' . esc_html( $term->name ) . '</a>';
+          }
+        }
+      ?>
+      <?php the_title('<h1 class="kh-post-title">', '</h1>'); ?>
       
       <?php if (has_excerpt()) : ?>
         <div class="excerpt-container">
@@ -19,17 +29,6 @@
       <?php endif; ?>
     </div>
   <?php endif; ?>
-
-  <?php
-    // Pull primary category
-    $cat_id = get_field('primary_category');
-    if ($cat_id) {
-      $term = get_term($cat_id, 'category');
-      if (!is_wp_error($term)) {
-        echo '<div class="primary-category"><span class="post-meta main-category-label">' . esc_html($term->name) . '</span></div>';
-      }
-    }
-  ?>
 
   <div class="page-content">
     <?php echo do_shortcode('[abstract_block]'); ?>

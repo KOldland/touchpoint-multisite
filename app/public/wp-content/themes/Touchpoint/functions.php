@@ -132,6 +132,274 @@ if ( ! function_exists( 'touchpoint_show_or_hide' ) ) {
 
 // Re-enable default WordPress category meta box (useful for ACF taxonomy fields)
 	
+/* Lead category (native, no ACF dependency) */
+function touchpointcrm_get_lead_category_id( $post_id = null ) {
+	$post_id = $post_id ?: get_the_ID();
+	if ( ! $post_id ) {
+		return 0;
+	}
+
+	$lead_id = (int) get_post_meta( $post_id, '_lead_category_id', true );
+	if ( $lead_id ) {
+		return $lead_id;
+	}
+
+	$cats = wp_get_post_categories( $post_id );
+	return ! empty( $cats ) ? (int) $cats[0] : 0;
+}
+
+function touchpointcrm_render_category_row( $term, $selected_ids, $lead_id, $depth ) {
+	$indent = str_repeat( '&nbsp;&nbsp;&nbsp;', $depth );
+	$checked = in_array( $term->term_id, $selected_ids, true ) ? ' checked' : '';
+	$lead_checked = ( (int) $lead_id === (int) $term->term_id ) ? ' checked' : '';
+
+	echo '<li>';
+	echo '<label style="display:inline-flex;align-items:center;gap:6px;">';
+	echo '<input type="checkbox" name="tax_input[category][]" value="' . esc_attr( $term->term_id ) . '"' . $checked . ' />';
+	echo $indent . esc_html( $term->name );
+	echo '</label>';
+	echo '<label style="margin-left:12px;">';
+	echo '<input type="radio" name="touchpoint_lead_category" value="' . esc_attr( $term->term_id ) . '"' . $lead_checked . ' /> ';
+	echo esc_html__( 'Lead', 'touchpoint' );
+	echo '</label>';
+	echo '</li>';
+}
+
+add_action( 'add_meta_boxes', function() {
+	remove_meta_box( 'categorydiv', 'post', 'side' );
+
+	add_meta_box(
+		'touchpoint-categories',
+		__( 'Categories', 'touchpoint' ),
+		function( $post ) {
+	wp_nonce_field( 'touchpoint_lead_category_save', 'touchpoint_lead_category_nonce' );
+	$ajax_nonce = wp_create_nonce( 'touchpoint_lead_category_save' );
+	echo '<input type="hidden" id="touchpoint-lead-category-nonce" value="' . esc_attr( $ajax_nonce ) . '" />';
+	echo '<div class="touchpoint-category-status" id="touchpoint-category-status" style="margin-top:6px;color:#b32d2e;"></div>';
+			$selected_ids = wp_get_post_categories( $post->ID );
+			$lead_id = (int) get_post_meta( $post->ID, '_lead_category_id', true );
+			$terms = get_terms( array(
+				'taxonomy'   => 'category',
+				'hide_empty' => false,
+				'parent'     => 0,
+			) );
+
+			echo '<p class="description">' . esc_html__( 'Choose categories and mark one as the lead.', 'touchpoint' ) . '</p>';
+			echo '<ul class="touchpoint-categories-list" style="margin:0;padding:0;list-style:none;">';
+			if ( ! empty( $terms ) && ! is_wp_error( $terms ) ) {
+				foreach ( $terms as $term ) {
+					touchpointcrm_render_category_row( $term, $selected_ids, $lead_id, 0 );
+					$children = get_terms( array(
+						'taxonomy'   => 'category',
+						'hide_empty' => false,
+						'parent'     => $term->term_id,
+					) );
+					if ( ! empty( $children ) && ! is_wp_error( $children ) ) {
+						foreach ( $children as $child ) {
+							touchpointcrm_render_category_row( $child, $selected_ids, $lead_id, 1 );
+						}
+					}
+				}
+			} else {
+				echo '<li>' . esc_html__( 'No categories found.', 'touchpoint' ) . '</li>';
+			}
+			echo '</ul>';
+			echo '<div class="touchpoint-category-add" style="margin-top:8px;">';
+			echo '<input type="text" id="touchpoint-new-category" class="widefat" placeholder="' . esc_attr__( 'Add new category', 'touchpoint' ) . '" />';
+			echo '<button type="button" class="button button-link" id="touchpoint-add-category" style="margin-top:4px;">' . esc_html__( 'Add Category', 'touchpoint' ) . '</button>';
+			echo '</div>';
+		},
+		'post',
+		'side',
+		'default'
+	);
+} );
+
+add_action( 'enqueue_block_editor_assets', function() {
+	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+	if ( ! $screen || 'post' !== $screen->post_type ) {
+		return;
+	}
+
+	wp_add_inline_script(
+		'wp-edit-post',
+		"window.wp && wp.domReady(function(){var dispatch=wp.data&&wp.data.dispatch?wp.data.dispatch('core/edit-post'):null;if(dispatch&&dispatch.removeEditorPanel){dispatch.removeEditorPanel('taxonomy-panel-category');}});"
+	);
+} );
+
+add_action( 'init', function() {
+	register_post_meta( 'post', '_lead_category_id', array(
+		'type'              => 'integer',
+		'single'            => true,
+		'show_in_rest'      => true,
+		'auth_callback'     => function() {
+			return current_user_can( 'edit_posts' );
+		},
+		'sanitize_callback' => 'absint',
+	) );
+} );
+
+add_action( 'rest_after_insert_post', function( $post, $request, $creating ) {
+	if ( ! $post instanceof WP_Post ) {
+		return;
+	}
+
+	$cat_ids = array_values( array_filter( array_map( 'absint', (array) $request->get_param( 'categories' ) ) ) );
+	if ( ! empty( $cat_ids ) ) {
+		wp_set_post_categories( $post->ID, $cat_ids );
+	}
+
+	$meta = (array) $request->get_param( 'meta' );
+	if ( ! empty( $meta['_lead_category_id'] ) ) {
+		update_post_meta( $post->ID, '_lead_category_id', (int) $meta['_lead_category_id'] );
+	}
+}, 10, 3 );
+
+add_action( 'save_post', function( $post_id ) {
+	if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
+		return;
+	}
+	if ( ! isset( $_POST['touchpoint_lead_category_nonce'] ) || ! wp_verify_nonce( $_POST['touchpoint_lead_category_nonce'], 'touchpoint_lead_category_save' ) ) {
+		return;
+	}
+	if ( ! current_user_can( 'edit_post', $post_id ) ) {
+		return;
+	}
+
+	$selected = array();
+	if ( isset( $_POST['tax_input']['category'] ) && is_array( $_POST['tax_input']['category'] ) ) {
+		$selected = array_values( array_filter( array_map( 'intval', $_POST['tax_input']['category'] ) ) );
+	} elseif ( isset( $_POST['post_category'] ) && is_array( $_POST['post_category'] ) ) {
+		$selected = array_values( array_filter( array_map( 'intval', $_POST['post_category'] ) ) );
+	}
+	$lead_id = isset( $_POST['touchpoint_lead_category'] ) ? (int) $_POST['touchpoint_lead_category'] : 0;
+
+	if ( $lead_id && ! in_array( $lead_id, $selected, true ) ) {
+		$selected[] = $lead_id;
+	}
+
+	if ( ! empty( $selected ) ) {
+		wp_set_post_categories( $post_id, $selected );
+		if ( ! $lead_id ) {
+			$lead_id = (int) $selected[0];
+		}
+		update_post_meta( $post_id, '_lead_category_id', $lead_id );
+	} else {
+		wp_set_post_categories( $post_id, array() );
+		delete_post_meta( $post_id, '_lead_category_id' );
+	}
+}, 20 );
+
+add_action( 'wp_ajax_touchpoint_add_category', function() {
+	if ( ! current_user_can( 'manage_categories' ) ) {
+		wp_send_json_error( array( 'message' => __( 'Permission denied.', 'touchpoint' ) ), 403 );
+	}
+	check_ajax_referer( 'touchpoint_lead_category_save', 'nonce' );
+
+	$name = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
+	if ( '' === $name ) {
+		wp_send_json_error( array( 'message' => __( 'Category name is required.', 'touchpoint' ) ), 400 );
+	}
+
+	$term = wp_insert_term( $name, 'category' );
+	if ( is_wp_error( $term ) ) {
+		wp_send_json_error( array( 'message' => $term->get_error_message() ), 400 );
+	}
+
+	$term_obj = get_term( $term['term_id'], 'category' );
+	if ( ! $term_obj || is_wp_error( $term_obj ) ) {
+		wp_send_json_error( array( 'message' => __( 'Unable to load category.', 'touchpoint' ) ), 400 );
+	}
+
+	wp_send_json_success( array(
+		'id'   => $term_obj->term_id,
+		'name' => $term_obj->name,
+	) );
+} );
+
+add_action( 'enqueue_block_editor_assets', function() {
+	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+	if ( ! $screen || 'post' !== $screen->post_type ) {
+		return;
+	}
+
+	wp_enqueue_script( 'jquery' );
+
+	$lead_label = esc_js( __( 'Lead', 'touchpoint' ) );
+	$lead_label_json = wp_json_encode( $lead_label );
+	$script = <<<'JS'
+jQuery(function($){
+  var $list = $('.touchpoint-categories-list');
+  var $status = $('#touchpoint-category-status');
+  function showError(msg){$status.text(msg||'Unable to add category.');}
+  function getSelected(){
+    var ids = [];
+    $list.find('input[type=checkbox]:checked').each(function(){
+      ids.push(parseInt($(this).val(), 10));
+    });
+    return ids;
+  }
+  function setCategories(ids){
+    if (window.wp && wp.data && wp.data.dispatch) {
+      wp.data.dispatch('core/editor').editPost({categories: ids});
+    }
+  }
+  function setLead(id){
+    if (window.wp && wp.data && wp.data.dispatch) {
+      wp.data.dispatch('core/editor').editPost({meta: {_lead_category_id: id}});
+    }
+  }
+  $list.on('change', 'input[type=checkbox]', function(){
+    setCategories(getSelected());
+  });
+  $list.on('change', 'input[type=radio]', function(){
+    var id = parseInt($(this).val(), 10);
+    if (!isNaN(id)) {
+      var $box = $list.find('input[type=checkbox][value=' + id + ']');
+      if ($box.length && !$box.prop('checked')) {
+        $box.prop('checked', true);
+        setCategories(getSelected());
+      }
+      setLead(id);
+    }
+  });
+  $('#touchpoint-add-category').on('click', function(){
+    var name = $.trim($('#touchpoint-new-category').val());
+    $status.text('');
+    if(!name){showError('Category name is required.');return;}
+    var nonce = $('#touchpoint-lead-category-nonce').val();
+    var data = {action:'touchpoint_add_category', name:name, nonce:nonce};
+    $.post(ajaxurl, data).done(function(resp){
+      if(!resp || !resp.success){
+        showError(resp && resp.data && resp.data.message ? resp.data.message : 'Unable to add category.');
+        return;
+      }
+      var id = resp.data.id;
+      var label = $('<label/>', {css:{display:'inline-flex',alignItems:'center',gap:'6px'}});
+      label.append($('<input/>', {type:'checkbox', name:'tax_input[category][]', value:id, checked:true}));
+      label.append(document.createTextNode(' '+resp.data.name));
+      var leadLabel = $('<label/>', {css:{marginLeft:'12px'}});
+      leadLabel.append($('<input/>', {type:'radio', name:'touchpoint_lead_category', value:id}));
+      leadLabel.append(' ' + __LEAD_LABEL__);
+      var li = $('<li/>');
+      li.append(label).append(leadLabel);
+      $list.append(li);
+      $('#touchpoint-new-category').val('');
+      setCategories(getSelected());
+    }).fail(function(xhr){
+      var msg = 'Unable to add category.';
+      if(xhr && xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message){
+        msg = xhr.responseJSON.data.message;
+      }
+      showError(msg);
+    });
+  });
+});
+JS;
+	$script = str_replace( '__LEAD_LABEL__', $lead_label_json, $script );
+	wp_add_inline_script( 'jquery', $script );
+} );
+
 
 /* DEque Hello and enque Touch */
 function redirect_hello_elementor_assets() {
@@ -178,6 +446,7 @@ add_action( 'wp_enqueue_scripts', 'redirect_hello_elementor_assets', 11 );
 		wp_enqueue_style( 'barlow-font', 'https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;600&display=swap', false );
 		wp_enqueue_style( 'dm-sans-font', 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&display=swap', false );
 		wp_enqueue_style( 'inter-font', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap', false );
+		wp_enqueue_style( 'lora-font', 'https://fonts.googleapis.com/css2?family=Lora:wght@400;700&display=swap', false );
 	}
 	add_action( 'wp_enqueue_scripts', 'touchpointcrm_fonts',  5 ); // Priority 5, load after theme styles
 
@@ -396,9 +665,12 @@ add_action( 'wp_enqueue_scripts', 'redirect_hello_elementor_assets', 11 );
 			
 			// CATEGORY
 			if ( in_array( 'category', $show, true ) ) {
-				$term = get_field( 'lead_category' );
-				if ( $term instanceof WP_Term ) {
-					$html .= '<div class="lead-category"><a href="' . esc_url( get_term_link( $term ) ) . '">' . esc_html( $term->name ) . '</a></div>';
+				$lead_id = function_exists( 'touchpointcrm_get_lead_category_id' ) ? touchpointcrm_get_lead_category_id( get_the_ID() ) : 0;
+				if ( $lead_id ) {
+					$term = get_term( $lead_id, 'category' );
+					if ( $term && ! is_wp_error( $term ) ) {
+						$html .= '<div class="lead-category"><a href="' . esc_url( get_term_link( $term ) ) . '">' . esc_html( $term->name ) . '</a></div>';
+					}
 				}
 			}
 			
