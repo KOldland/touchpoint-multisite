@@ -41,6 +41,7 @@ class MembersListTable extends \WP_List_Table {
 			'user'        => __( 'Member', 'khm-membership' ),
 			'email'       => __( 'Email', 'khm-membership' ),
 			'level_name'  => __( 'Membership Level', 'khm-membership' ),
+			'credits'     => __( 'Credits', 'khm-membership' ),
 			'start_date'  => __( 'Start Date', 'khm-membership' ),
 			'end_date'    => __( 'End Date', 'khm-membership' ),
 			'status'      => __( 'Status', 'khm-membership' ),
@@ -195,6 +196,47 @@ class MembersListTable extends \WP_List_Table {
 
 	public function column_level_name( $item ): string {
 		return esc_html( $item['level_name'] ?: __( 'Unknown', 'khm-membership' ) );
+	}
+
+	public function column_credits( $item ): string {
+		$user_id = (int) $item['user_id'];
+		$membership_id = (int) $item['id'];
+		
+		// Get current credits from CreditService
+		$credits = 0;
+		if ( class_exists( 'KHM\\Services\\CreditService' ) ) {
+			$credit_service = new \KHM\Services\CreditService(
+				new \KHM\Services\MembershipRepository(),
+				new \KHM\Services\LevelRepository()
+			);
+			$credits = $credit_service->getUserCredits( $user_id );
+		}
+		
+		$add_url = add_query_arg(
+			[
+				'page'          => MembersPage::PAGE_SLUG,
+				'action'        => 'add_credits',
+				'membership_id' => $membership_id,
+				'user_id'       => $user_id,
+			],
+			admin_url( 'admin.php' )
+		);
+		
+		$actions = [
+			'add' => sprintf(
+				'<a href="%s" class="khm-add-credits-link" data-user-id="%d" data-membership-id="%d">%s</a>',
+				esc_url( $add_url ),
+				$user_id,
+				$membership_id,
+				esc_html__( 'Add Credits', 'khm-membership' )
+			),
+		];
+		
+		return sprintf(
+			'<strong>%d</strong>%s',
+			$credits,
+			$this->row_actions( $actions )
+		);
 	}
 
 	public function column_start_date( $item ): string {

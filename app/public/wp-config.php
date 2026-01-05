@@ -101,6 +101,20 @@ if ( ! defined( 'WP_DEBUG_DISPLAY' ) ) {
 	define( 'WP_DEBUG_DISPLAY', false );
 }
 
+// Simple debug log rotation to prevent huge files in local dev.
+if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+	register_shutdown_function( function() {
+		$log_path = WP_DEBUG_LOG;
+		if ( is_string( $log_path ) && file_exists( $log_path ) ) {
+			$max_bytes = 10 * 1024 * 1024; // 10MB
+			$size = filesize( $log_path );
+			if ( $size !== false && $size > $max_bytes ) {
+				@file_put_contents( $log_path, '' );
+			}
+		}
+	} );
+}
+
 // Toggle to fully disable KHM SEO social previews if needed.
 define( 'KHM_SEO_DISABLE_SOCIAL_PREVIEW', false );
 // Temporarily disable KHM SEO Elementor integration to stabilize the editor.

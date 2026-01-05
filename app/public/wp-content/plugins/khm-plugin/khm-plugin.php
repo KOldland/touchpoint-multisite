@@ -87,16 +87,20 @@ function khm_enqueue_attribution_scripts() {
 // Create main admin menu if it doesn't exist
 add_action('admin_menu', 'khm_create_main_admin_menu');
 
-// Register LevelsPage admin_post handler early via admin_init (runs before init)
+// Register LevelsPage and AddMemberPage admin_post handlers early via admin_init
 add_action('admin_init', function() {
-    error_log('KHM: admin_init priority 1 fired');
-    error_log('KHM: class_exists LevelsPage = ' . (class_exists('KHM\\Admin\\LevelsPage') ? 'YES' : 'NO'));
+    // Register LevelsPage
     if ( class_exists('KHM\\Admin\\LevelsPage') ) {
-        error_log('KHM: Creating LevelsPage instance');
         $levels_page = new KHM\Admin\LevelsPage();
         $levels_page->register();
         $GLOBALS['khm_levels_page'] = $levels_page;
-        error_log('KHM: LevelsPage registered');
+    }
+    
+    // Register AddMemberPage
+    if ( class_exists('KHM\\Admin\\AddMemberPage') ) {
+        $add_member_page = new KHM\Admin\AddMemberPage();
+        $add_member_page->register();
+        $GLOBALS['khm_add_member_page'] = $add_member_page;
     }
 }, 1); // Priority 1 = very early
 

@@ -37,6 +37,7 @@ class MembersPage {
 		add_action( 'admin_post_khm_membership_pause', [ $this, 'handle_pause_request' ] );
 		add_action( 'admin_post_khm_membership_resume', [ $this, 'handle_resume_request' ] );
 		add_action( 'admin_post_khm_assign_membership', [ $this, 'handle_assign_request' ] );
+		add_action( 'admin_post_khm_add_credits', [ $this, 'handle_add_credits_request' ] );
 		add_action( 'wp_ajax_khm_user_lookup', [ $this, 'ajax_user_lookup' ] );
 
 		// User profile hooks (edit and add-new user screens)
@@ -59,6 +60,11 @@ class MembersPage {
 
 		if ( 'add' === $action ) {
 			$this->render_add_member();
+			return;
+		}
+
+		if ( 'add_credits' === $action ) {
+			$this->render_add_credits_form();
 			return;
 		}
 
@@ -127,10 +133,12 @@ class MembersPage {
 
 		echo '<table class="form-table"><tbody>';
 		echo '<tr><th scope="row"><label for="khm-assign-user-id">' . esc_html__( 'User ID or email', 'khm-membership' ) . '</label></th>';
-		echo '<td><input type="text" name="user_identifier" id="khm-assign-user-id" class="regular-text" required>';
-		echo '<p class="description">' . esc_html__( 'Enter a WordPress user ID or email address.', 'khm-membership' ) . '</p></td></tr>';
+		echo '<td><div style="position:relative;">';
+		echo '<input type="text" name="user_identifier" id="khm-assign-user-id" class="regular-text" autocomplete="off" required>';
 		echo '<input type="hidden" name="user_id" id="khm-assign-user-hidden" value="">';
-		echo '<datalist id="khm-assign-user-list"></datalist>';
+		echo '<div id="khm-user-suggestions" style="position:absolute;top:100%;left:0;z-index:1000;background:#fff;border:1px solid #ddd;max-height:200px;overflow-y:auto;display:none;width:100%;box-shadow:0 2px 4px rgba(0,0,0,0.1);"></div>';
+		echo '</div>';
+		echo '<p class="description">' . esc_html__( 'Enter a WordPress user ID or email address.', 'khm-membership' ) . '</p></td></tr>';
 
 		echo '<tr><th scope="row"><label for="khm-assign-level">' . esc_html__( 'Membership Level', 'khm-membership' ) . '</label></th>';
 		echo '<td><select name="level_id" id="khm-assign-level" required>';
@@ -166,41 +174,68 @@ class MembersPage {
 		(function() {
 			const input = document.getElementById('khm-assign-user-id');
 			const hidden = document.getElementById('khm-assign-user-hidden');
-			const list = document.getElementById('khm-assign-user-list');
-			if (!input || !hidden || !list) return;
+			const suggestions = document.getElementById('khm-user-suggestions');
+			if (!input || !hidden || !suggestions) return;
 
-			let lastTerm = '';
 			let debounceTimer;
+			let currentUsers = [];
+
+			function showSuggestions(users) {
+				currentUsers = users;
+				suggestions.innerHTML = '';
+				if (!users.length) {
+					suggestions.style.display = 'none';
+					return;
+				}
+				users.forEach((user, idx) => {
+					const div = document.createElement('div');
+					div.textContent = user.label;
+					div.dataset.userId = user.id;
+					div.dataset.idx = idx;
+					div.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid #eee;';
+					div.addEventListener('mouseenter', () => div.style.background = '#f0f0f1');
+					div.addEventListener('mouseleave', () => div.style.background = '#fff');
+					div.addEventListener('click', () => selectUser(user));
+					suggestions.appendChild(div);
+				});
+				suggestions.style.display = 'block';
+			}
+
+			function selectUser(user) {
+				input.value = user.label;
+				hidden.value = user.id;
+				suggestions.style.display = 'none';
+			}
 
 			input.addEventListener('input', function(e) {
 				const term = e.target.value.trim();
 				hidden.value = '';
-				if (term.length < 2 || term === lastTerm) return;
-				lastTerm = term;
+				if (term.length < 2) {
+					suggestions.style.display = 'none';
+					return;
+				}
 				clearTimeout(debounceTimer);
 				debounceTimer = setTimeout(() => {
 					const params = new URLSearchParams({ action: 'khm_user_lookup', term });
 					fetch(ajaxurl + '?' + params.toString(), { credentials: 'same-origin' })
 						.then(r => r.json())
 						.then(users => {
-							list.innerHTML = '';
 							if (!Array.isArray(users)) return;
-							users.forEach(user => {
-								const opt = document.createElement('option');
-								opt.value = user.label || '';
-								opt.dataset.userId = user.id;
-								list.appendChild(opt);
-							});
+							showSuggestions(users);
 						})
-						.catch(() => {});
+						.catch(() => suggestions.style.display = 'none');
 				}, 200);
 			});
 
-			input.addEventListener('change', function(e) {
-				const val = e.target.value;
-				const match = Array.from(list.options).find(o => o.value === val);
-				if (match && match.dataset.userId) {
-					hidden.value = match.dataset.userId;
+			input.addEventListener('keydown', function(e) {
+				if (e.key === 'Escape') {
+					suggestions.style.display = 'none';
+				}
+			});
+
+			document.addEventListener('click', function(e) {
+				if (!input.contains(e.target) && !suggestions.contains(e.target)) {
+					suggestions.style.display = 'none';
 				}
 			});
 		})();
@@ -598,6 +633,58 @@ class MembersPage {
 		$this->redirect();
 	}
 
+	public function handle_add_credits_request(): void {
+		$this->ensure_capability();
+		check_admin_referer( 'khm_add_credits', 'khm_add_credits_nonce' );
+
+		$user_id = isset( $_POST['user_id'] ) ? absint( $_POST['user_id'] ) : 0;
+		$credits_amount = isset( $_POST['credits_amount'] ) ? absint( $_POST['credits_amount'] ) : 0;
+		$credits_reason = isset( $_POST['credits_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['credits_reason'] ) ) : '';
+
+		if ( ! $user_id ) {
+			$this->add_notice( 'credits_user_missing', __( 'Invalid user.', 'khm-membership' ), 'error' );
+			$this->redirect();
+			return;
+		}
+
+		if ( $credits_amount < 1 ) {
+			$this->add_notice( 'credits_amount_invalid', __( 'Credits amount must be at least 1.', 'khm-membership' ), 'error' );
+			$this->redirect();
+			return;
+		}
+
+		$user = get_user_by( 'ID', $user_id );
+		if ( ! $user ) {
+			$this->add_notice( 'credits_user_not_found', __( 'User not found.', 'khm-membership' ), 'error' );
+			$this->redirect();
+			return;
+		}
+
+		try {
+			if ( class_exists( 'KHM\\Services\\CreditService' ) ) {
+				$credit_service = new \KHM\Services\CreditService(
+					new \KHM\Services\MembershipRepository(),
+					new \KHM\Services\LevelRepository()
+				);
+				
+				$reason = $credits_reason ?: 'manual';
+				$credit_service->addBonusCredits( $user_id, $credits_amount, $reason );
+				
+				$this->add_notice( 
+					'credits_added', 
+					sprintf( __( 'Successfully added %d credits to %s.', 'khm-membership' ), $credits_amount, $user->display_name ?: $user->user_login )
+				);
+			} else {
+				$this->add_notice( 'credits_service_missing', __( 'Credit service unavailable.', 'khm-membership' ), 'error' );
+			}
+		} catch ( \Throwable $e ) {
+			error_log( 'KHM add credits error: ' . $e->getMessage() );
+			$this->add_notice( 'credits_failed', __( 'Failed to add credits. Check logs for details.', 'khm-membership' ), 'error' );
+		}
+
+		$this->redirect();
+	}
+
 	private function get_filters(): array {
 		$search = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
 		$level  = isset( $_GET['level'] ) ? (int) $_GET['level'] : 0;
@@ -916,5 +1003,71 @@ class MembersPage {
 		}
 
 		esc_html_e( 'Add Member admin is unavailable.', 'khm-membership' );
+	}
+
+	private function render_add_credits_form(): void {
+		$user_id = isset( $_GET['user_id'] ) ? absint( $_GET['user_id'] ) : 0;
+		$membership_id = isset( $_GET['membership_id'] ) ? absint( $_GET['membership_id'] ) : 0;
+
+		if ( ! $user_id ) {
+			$this->add_notice( 'invalid_user', __( 'Invalid user selected.', 'khm-membership' ), 'error' );
+			$this->render_list();
+			return;
+		}
+
+		$user = get_user_by( 'ID', $user_id );
+		if ( ! $user ) {
+			$this->add_notice( 'user_not_found', __( 'User not found.', 'khm-membership' ), 'error' );
+			$this->render_list();
+			return;
+		}
+
+		// Get current credits
+		$current_credits = 0;
+		if ( class_exists( 'KHM\\Services\\CreditService' ) ) {
+			$credit_service = new \KHM\Services\CreditService(
+				new \KHM\Services\MembershipRepository(),
+				new \KHM\Services\LevelRepository()
+			);
+			$current_credits = $credit_service->getUserCredits( $user_id );
+		}
+
+		echo '<div class="wrap">';
+		echo '<h1>' . esc_html__( 'Add Credits', 'khm-membership' ) . '</h1>';
+		
+		settings_errors( self::SETTINGS_GROUP );
+
+		echo '<p>' . sprintf( 
+			esc_html__( 'Adding credits for: %s (%s)', 'khm-membership' ), 
+			'<strong>' . esc_html( $user->display_name ?: $user->user_login ) . '</strong>',
+			esc_html( $user->user_email )
+		) . '</p>';
+		echo '<p>' . sprintf( esc_html__( 'Current balance: %d credits', 'khm-membership' ), $current_credits ) . '</p>';
+
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+		wp_nonce_field( 'khm_add_credits', 'khm_add_credits_nonce' );
+		echo '<input type="hidden" name="action" value="khm_add_credits">';
+		echo '<input type="hidden" name="user_id" value="' . esc_attr( $user_id ) . '">';
+		echo '<input type="hidden" name="membership_id" value="' . esc_attr( $membership_id ) . '">';
+
+		echo '<table class="form-table">';
+		
+		echo '<tr><th scope="row"><label for="khm-credits-amount">' . esc_html__( 'Credits to Add', 'khm-membership' ) . '</label></th>';
+		echo '<td><input type="number" id="khm-credits-amount" name="credits_amount" min="1" value="1" class="small-text" required>';
+		echo '<p class="description">' . esc_html__( 'Number of bonus credits to add.', 'khm-membership' ) . '</p></td></tr>';
+
+		echo '<tr><th scope="row"><label for="khm-credits-reason">' . esc_html__( 'Reason', 'khm-membership' ) . '</label></th>';
+		echo '<td><input type="text" id="khm-credits-reason" name="credits_reason" class="regular-text" placeholder="' . esc_attr__( 'e.g., Promotional bonus, Support gesture', 'khm-membership' ) . '">';
+		echo '<p class="description">' . esc_html__( 'Optional note for audit trail.', 'khm-membership' ) . '</p></td></tr>';
+
+		echo '</table>';
+
+		echo '<p>';
+		echo '<button type="submit" class="button button-primary">' . esc_html__( 'Add Credits', 'khm-membership' ) . '</button> ';
+		echo '<a href="' . esc_url( admin_url( 'admin.php?page=' . self::PAGE_SLUG ) ) . '" class="button">' . esc_html__( 'Cancel', 'khm-membership' ) . '</a>';
+		echo '</p>';
+
+		echo '</form>';
+		echo '</div>';
 	}
 }
