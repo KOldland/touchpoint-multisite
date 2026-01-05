@@ -32,7 +32,6 @@ class AddMemberPage {
     }
 
     public function render_page(): void {
-        error_log('AddMemberPage render_page called');
         if (!current_user_can('manage_khm')) {
             wp_die(esc_html__('You do not have permission to add members.', 'khm-membership'));
         }
@@ -279,7 +278,7 @@ class AddMemberPage {
                 $this->credits->addBonusCredits($user_id, $initial_credits, 'manual');
             }
             if ($allocate_monthly) {
-                $this->credits->allocateMonthlyCredits($user_id);
+                $this->credits->allocateEnrollmentCredits($user_id, $level_id);
             }
 
             // Send password setup email if no password

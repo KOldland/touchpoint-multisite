@@ -242,6 +242,66 @@ class MembershipRepository implements MembershipRepositoryInterface {
     }
 
     /**
+     * Change the membership level for an existing membership (update in place).
+     * This updates the membership_id field rather than creating a new record.
+     *
+     * @param int $membershipId The membership record ID to update
+     * @param int $newLevelId The new level ID to assign
+     * @param array $options Optional updates (status, start_date, end_date)
+     * @return bool True on success
+     */
+    public function changeLevelById( int $membershipId, int $newLevelId, array $options = [] ): bool {
+        global $wpdb;
+
+        $membership = $this->getById( $membershipId );
+        if ( ! $membership ) {
+            return false;
+        }
+
+        $oldLevelId = (int) $membership->membership_id;
+        $userId = (int) $membership->user_id;
+
+        $data = [
+            'membership_id' => $newLevelId,
+        ];
+        $formats = [ '%d' ];
+
+        if ( isset( $options['status'] ) ) {
+            $data['status'] = $options['status'];
+            $formats[] = '%s';
+        }
+
+        if ( isset( $options['start_date'] ) ) {
+            $data['startdate'] = $this->formatDateTime( $options['start_date'] );
+            $formats[] = '%s';
+        }
+
+        if ( isset( $options['end_date'] ) ) {
+            $data['enddate'] = $this->formatDateTime( $options['end_date'] );
+            $formats[] = '%s';
+        } elseif ( array_key_exists( 'end_date', $options ) && $options['end_date'] === null ) {
+            $data['enddate'] = null;
+            $formats[] = '%s';
+        }
+
+        $result = $wpdb->update(
+            $this->tableName,
+            $data,
+            [ 'id' => $membershipId ],
+            $formats,
+            [ '%d' ]
+        );
+
+        if ( $result !== false ) {
+            do_action( 'khm_membership_level_changed', $userId, $oldLevelId, $newLevelId, $membershipId );
+            $this->recalculateUserCapabilities( $userId );
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Expire a user's membership.
      */
     public function expire( int $userId, int $levelId ): bool {

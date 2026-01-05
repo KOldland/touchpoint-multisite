@@ -33,37 +33,79 @@ class LevelsPage {
 			wp_die( esc_html__( 'You do not have permission to manage membership levels.', 'khm-membership' ) );
 		}
 
-		$form_state = $this->consume_form_state();
-
 		$requested_action = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
-		$requested_id     = ( 'edit' === $requested_action && isset( $_GET['id'] ) ) ? absint( $_GET['id'] ) : 0;
 
-		$edit_id = isset( $form_state['level_id'] ) ? (int) $form_state['level_id'] : 0;
-		if ( ! $edit_id ) {
-			$edit_id = $requested_id;
+		if ( 'add' === $requested_action ) {
+			$this->render_add_page();
+			return;
 		}
 
-		$edit_level = $edit_id ? $this->repository->get( $edit_id, true ) : null;
-
-		if ( $edit_id && ! $edit_level ) {
-			$this->add_notice( 'level_not_found', __( 'Membership level not found.', 'khm-membership' ), 'error' );
-			$this->persist_notices();
-			$edit_id    = 0;
-			$edit_level = null;
+		if ( 'edit' === $requested_action ) {
+			$this->render_edit_page();
+			return;
 		}
 
-		$old_input = isset( $form_state['data'] ) && is_array( $form_state['data'] ) ? $form_state['data'] : [];
+		$this->render_list_page();
+	}
 
-		$levels    = $this->repository->all( true );
+	private function render_list_page(): void {
+		$levels = $this->repository->all( true );
 		$list_table = new LevelsListTable( $this->repository, $levels, self::PAGE_SLUG );
 
 		echo '<div class="wrap">';
-		echo '<h1>' . esc_html__( 'Membership Levels', 'khm-membership' ) . '</h1>';
+		echo '<h1 class="wp-heading-inline">' . esc_html__( 'Membership Levels', 'khm-membership' ) . '</h1>';
+		echo '<a href="' . esc_url( admin_url( 'admin.php?page=' . self::PAGE_SLUG . '&action=add' ) ) . '" class="page-title-action">' . esc_html__( 'Add New Level', 'khm-membership' ) . '</a>';
+		echo '<hr class="wp-header-end">';
 
+		// Load any persisted notices from transient, then display
+		$this->clear_persisted_notices();
 		settings_errors( self::SETTINGS_GROUP );
 
 		$list_table->prepare_items();
 		$this->render_table( $list_table );
+
+		echo '<p><a href="' . esc_url( admin_url( 'admin.php?page=' . self::PAGE_SLUG . '&action=add' ) ) . '" class="button button-primary">' . esc_html__( 'Create New Membership Level', 'khm-membership' ) . '</a></p>';
+
+		echo '</div>';
+	}
+
+	private function render_add_page(): void {
+		$form_state = $this->consume_form_state();
+		$old_input = isset( $form_state['data'] ) && is_array( $form_state['data'] ) ? $form_state['data'] : [];
+
+		echo '<div class="wrap">';
+		echo '<h1>' . esc_html__( 'Add New Membership Level', 'khm-membership' ) . '</h1>';
+		echo '<p><a href="' . esc_url( admin_url( 'admin.php?page=' . self::PAGE_SLUG ) ) . '">&larr; ' . esc_html__( 'Back to Levels', 'khm-membership' ) . '</a></p>';
+
+		settings_errors( self::SETTINGS_GROUP );
+
+		$this->render_form( null, $old_input );
+
+		echo '</div>';
+	}
+
+	private function render_edit_page(): void {
+		$form_state = $this->consume_form_state();
+		$requested_id = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
+
+		$edit_id = isset( $form_state['level_id'] ) ? (int) $form_state['level_id'] : $requested_id;
+		$edit_level = $edit_id ? $this->repository->get( $edit_id, true ) : null;
+
+		if ( ! $edit_level ) {
+			$this->add_notice( 'level_not_found', __( 'Membership level not found.', 'khm-membership' ), 'error' );
+			$this->persist_notices();
+			wp_redirect( admin_url( 'admin.php?page=' . self::PAGE_SLUG ) );
+			exit;
+		}
+
+		$old_input = isset( $form_state['data'] ) && is_array( $form_state['data'] ) ? $form_state['data'] : [];
+
+		echo '<div class="wrap">';
+		echo '<h1>' . esc_html__( 'Edit Membership Level', 'khm-membership' ) . ': ' . esc_html( $edit_level->name ) . '</h1>';
+		echo '<p><a href="' . esc_url( admin_url( 'admin.php?page=' . self::PAGE_SLUG ) ) . '">&larr; ' . esc_html__( 'Back to Levels', 'khm-membership' ) . '</a></p>';
+
+		settings_errors( self::SETTINGS_GROUP );
+
 		$this->render_form( $edit_level, $old_input );
 
 		echo '</div>';
@@ -99,9 +141,8 @@ class LevelsPage {
 
 		$data = wp_parse_args( $old_input, $defaults );
 
-		$form_title = $data['level_id'] ? esc_html__( 'Edit Membership Level', 'khm-membership' ) : esc_html__( 'Add Membership Level', 'khm-membership' );
-
-		echo '<h2>' . $form_title . '</h2>';
+		$is_editing = (bool) $data['level_id'];
+		
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="khm-level-form">';
 		wp_nonce_field( 'khm_save_membership_level', 'khm_membership_level_nonce' );
 		echo '<input type="hidden" name="action" value="khm_save_membership_level">';
@@ -165,7 +206,9 @@ class LevelsPage {
 
         echo '</table>';
 
-		echo '<p><input type="submit" class="button button-primary" value="' . esc_attr__( 'Save Membership Level', 'khm-membership' ) . '"></p>';
+		echo '<p class="submit">';
+		echo '<input type="submit" class="button button-primary" value="' . esc_attr__( 'Save Membership Level', 'khm-membership' ) . '">';
+		echo '</p>';
 
 		echo '</form>';
 	}
@@ -322,15 +365,7 @@ class LevelsPage {
 	}
 
 	private function redirect_after_save( int $level_id ): void {
-		if ( $level_id > 0 ) {
-			$this->redirect(
-				[
-					'action' => 'edit',
-					'id'     => $level_id,
-				]
-			);
-		}
-
+		// Always redirect to list page after successful save
 		$this->redirect();
 	}
 
@@ -349,7 +384,22 @@ class LevelsPage {
 	}
 
 	private function persist_notices(): void {
-		set_transient( 'settings_errors', get_settings_errors( self::SETTINGS_GROUP ), 30 );
+		set_transient( 'khm_levels_notices', get_settings_errors( self::SETTINGS_GROUP ), 30 );
+	}
+
+	private function clear_persisted_notices(): void {
+		$notices = get_transient( 'khm_levels_notices' );
+		if ( $notices && is_array( $notices ) ) {
+			foreach ( $notices as $notice ) {
+				add_settings_error(
+					$notice['setting'] ?? self::SETTINGS_GROUP,
+					$notice['code'] ?? '',
+					$notice['message'] ?? '',
+					$notice['type'] ?? 'success'
+				);
+			}
+			delete_transient( 'khm_levels_notices' );
+		}
 	}
 
 	private function store_form_state( int $level_id, array $data ): void {
@@ -427,12 +477,12 @@ class LevelsListTable extends WP_List_Table {
 		return [
 			'cb'               => '<input type="checkbox" />',
 			'name'             => __( 'Name', 'khm-membership' ),
+			'monthly_credits'  => __( 'Monthly Credits', 'khm-membership' ),
 			'initial_payment'  => __( 'Initial Payment', 'khm-membership' ),
 			'billing'          => __( 'Billing', 'khm-membership' ),
 			'trial'            => __( 'Trial', 'khm-membership' ),
 			'expiration'       => __( 'Expiration', 'khm-membership' ),
 			'allow_signups'    => __( 'Signups', 'khm-membership' ),
-			'created_at'       => __( 'Created', 'khm-membership' ),
 		];
 	}
 
@@ -455,6 +505,7 @@ class LevelsListTable extends WP_List_Table {
 				return [
 					'id'               => (int) $level->id,
 					'name'             => $level->name,
+					'monthly_credits'  => (int) ($level->meta['monthly_credits'] ?? 0),
 					'initial_payment'  => (float) $level->initial_payment,
 					'billing_amount'   => (float) $level->billing_amount,
 					'cycle_number'     => (int) $level->cycle_number,
@@ -465,7 +516,6 @@ class LevelsListTable extends WP_List_Table {
 					'allow_signups'    => (int) $level->allow_signups,
 					'expiration_number'=> (int) $level->expiration_number,
 					'expiration_period'=> $level->expiration_period,
-					'created_at'       => $level->created_at,
 				];
 			},
 			$this->levels
@@ -534,8 +584,9 @@ class LevelsListTable extends WP_List_Table {
 		return $item['allow_signups'] ? esc_html__( 'Enabled', 'khm-membership' ) : esc_html__( 'Disabled', 'khm-membership' );
 	}
 
-	public function column_created_at( $item ): string {
-		return $item['created_at'] ? esc_html( mysql2date( 'Y-m-d', $item['created_at'], false ) ) : '';
+	public function column_monthly_credits( $item ): string {
+		$credits = (int) $item['monthly_credits'];
+		return $credits > 0 ? esc_html( (string) $credits ) : '—';
 	}
 
 	public function column_default( $item, $column_name ) {

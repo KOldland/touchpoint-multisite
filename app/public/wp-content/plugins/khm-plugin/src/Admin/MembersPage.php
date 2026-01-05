@@ -104,7 +104,7 @@ class MembersPage {
 		echo '<a href="' . esc_url( admin_url( 'admin.php?page=khm-members&action=add' ) ) . '" class="page-title-action">' . esc_html__( 'Add New Member', 'khm-membership' ) . '</a>';
 		echo '<hr class="wp-header-end">';
 
-		settings_errors( self::SETTINGS_GROUP );
+		$this->display_persisted_notices();
 
 		$this->render_assignment_form();
 
@@ -163,6 +163,10 @@ class MembersPage {
 		echo '<tr><th scope="row"><label for="khm-assign-end">' . esc_html__( 'End Date', 'khm-membership' ) . '</label></th>';
 		echo '<td><input type="date" name="end_date" id="khm-assign-end"> ';
 		echo '<span class="description">' . esc_html__( 'Optional expiration.', 'khm-membership' ) . '</span></td></tr>';
+
+		echo '<tr><th scope="row">' . esc_html__( 'Allocate Monthly Credits', 'khm-membership' ) . '</th>';
+		echo '<td><label><input type="checkbox" name="allocate_credits" value="1"> ' . esc_html__( 'Allocate monthly credits now', 'khm-membership' ) . '</label>';
+		echo '<p class="description">' . esc_html__( 'Credits will be added to the user\'s existing balance.', 'khm-membership' ) . '</p></td></tr>';
 		echo '</tbody></table>';
 
 		echo '<p><button type="submit" class="button button-primary">' . esc_html__( 'Assign Membership', 'khm-membership' ) . '</button></p>';
@@ -492,6 +496,30 @@ class MembersPage {
 		echo '<p><a class="button" href="' . esc_url( $user_link ) . '">' . esc_html__( 'View WordPress User Profile', 'khm-membership' ) . '</a></p>';
 		echo '</div>';
 
+		// Edit Membership Level section
+		echo '<div class="khm-member-change-level">';
+		echo '<h2>' . esc_html__( 'Change Membership Level', 'khm-membership' ) . '</h2>';
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+		wp_nonce_field( 'khm_assign_membership', 'khm_assign_membership_nonce' );
+		echo '<input type="hidden" name="action" value="khm_assign_membership">';
+		echo '<input type="hidden" name="user_id" value="' . esc_attr( (int) $membership->user_id ) . '">';
+		echo '<input type="hidden" name="user_identifier" value="' . esc_attr( (int) $membership->user_id ) . '">';
+		
+		$levels = $this->levels->getNameMap();
+		echo '<p><label for="khm-change-level">' . esc_html__( 'New Membership Level', 'khm-membership' ) . '</label><br>';
+		echo '<select name="level_id" id="khm-change-level" required>';
+		foreach ( $levels as $id => $name ) {
+			$selected = ( (int) $id === (int) $membership->membership_id ) ? ' selected' : '';
+			echo '<option value="' . esc_attr( $id ) . '"' . $selected . '>' . esc_html( $name ) . '</option>';
+		}
+		echo '</select></p>';
+		
+		echo '<p><label><input type="checkbox" name="allocate_credits" value="1"> ' . esc_html__( 'Allocate monthly credits now', 'khm-membership' ) . '</label></p>';
+		echo '<p class="description">' . esc_html__( 'Changing the level will cancel the current membership and assign the new one. Credits will be added to the existing balance.', 'khm-membership' ) . '</p>';
+		echo '<p><button type="submit" class="button button-primary">' . esc_html__( 'Change Level', 'khm-membership' ) . '</button></p>';
+		echo '</form>';
+		echo '</div>';
+
 		echo '<div class="khm-member-actions">';
 		echo '<h2>' . esc_html__( 'Actions', 'khm-membership' ) . '</h2>';
 		echo '<p>';
@@ -573,12 +601,13 @@ class MembersPage {
 		$this->ensure_capability();
 		check_admin_referer( 'khm_assign_membership', 'khm_assign_membership_nonce' );
 
-		$user_identifier = isset( $_POST['user_identifier'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['user_identifier'] ) ) ) : '';
-		$user_id_hidden  = isset( $_POST['user_id'] ) ? absint( $_POST['user_id'] ) : 0;
-		$level_id        = isset( $_POST['level_id'] ) ? absint( $_POST['level_id'] ) : 0;
-		$status          = isset( $_POST['status'] ) ? sanitize_key( wp_unslash( $_POST['status'] ) ) : 'active';
-		$start_raw       = isset( $_POST['start_date'] ) ? sanitize_text_field( wp_unslash( $_POST['start_date'] ) ) : '';
-		$end_raw         = isset( $_POST['end_date'] ) ? sanitize_text_field( wp_unslash( $_POST['end_date'] ) ) : '';
+		$user_identifier  = isset( $_POST['user_identifier'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['user_identifier'] ) ) ) : '';
+		$user_id_hidden   = isset( $_POST['user_id'] ) ? absint( $_POST['user_id'] ) : 0;
+		$level_id         = isset( $_POST['level_id'] ) ? absint( $_POST['level_id'] ) : 0;
+		$status           = isset( $_POST['status'] ) ? sanitize_key( wp_unslash( $_POST['status'] ) ) : 'active';
+		$start_raw        = isset( $_POST['start_date'] ) ? sanitize_text_field( wp_unslash( $_POST['start_date'] ) ) : '';
+		$end_raw          = isset( $_POST['end_date'] ) ? sanitize_text_field( wp_unslash( $_POST['end_date'] ) ) : '';
+		$allocate_credits = isset( $_POST['allocate_credits'] ) ? 1 : 0;
 
 		$user = null;
 		if ( $user_id_hidden ) {
@@ -623,8 +652,48 @@ class MembersPage {
 		}
 
 		try {
-			$this->memberships->assign( (int) $user->ID, (int) $level_id, $options );
-			$this->add_notice( 'assign_success', __( 'Membership assigned successfully.', 'khm-membership' ) );
+			// Check if user already has an active membership
+			$existing_memberships = $this->memberships->findActive( (int) $user->ID );
+			$changed_level = false;
+
+			if ( ! empty( $existing_memberships ) ) {
+				// User has existing membership(s) - update the first one in place
+				$existing = $existing_memberships[0];
+				if ( (int) $existing->membership_id !== (int) $level_id ) {
+					// Different level - change it
+					$this->memberships->changeLevelById( (int) $existing->id, (int) $level_id, $options );
+					$changed_level = true;
+				} else {
+					// Same level - just update options if needed
+					$this->memberships->assign( (int) $user->ID, (int) $level_id, $options );
+				}
+			} else {
+				// No existing membership - create new
+				$this->memberships->assign( (int) $user->ID, (int) $level_id, $options );
+			}
+
+			$credits_allocated = 0;
+			// Allocate credits if checkbox was checked
+			if ( $allocate_credits ) {
+				if ( class_exists( 'KHM\\Services\\CreditService' ) ) {
+					$credit_service = new \KHM\Services\CreditService(
+						new \KHM\Services\MembershipRepository(),
+						new \KHM\Services\LevelRepository()
+					);
+					$credits_allocated = $credit_service->allocateEnrollmentCredits( (int) $user->ID, (int) $level_id );
+				}
+			}
+
+			// Build success message
+			$message = $changed_level 
+				? __( 'Membership level changed successfully.', 'khm-membership' )
+				: __( 'Membership assigned successfully.', 'khm-membership' );
+			if ( $credits_allocated > 0 ) {
+				/* translators: %d: number of credits allocated */
+				$message .= ' ' . sprintf( __( '%d credits have been added to the user\'s account.', 'khm-membership' ), $credits_allocated );
+			}
+
+			$this->add_notice( 'assign_success', $message );
 		} catch ( \Throwable $e ) {
 			error_log( 'KHM assign membership error: ' . $e->getMessage() );
 			$this->add_notice( 'assign_failed', __( 'Failed to assign membership. Check logs for details.', 'khm-membership' ), 'error' );
@@ -638,7 +707,7 @@ class MembersPage {
 		check_admin_referer( 'khm_add_credits', 'khm_add_credits_nonce' );
 
 		$user_id = isset( $_POST['user_id'] ) ? absint( $_POST['user_id'] ) : 0;
-		$credits_amount = isset( $_POST['credits_amount'] ) ? absint( $_POST['credits_amount'] ) : 0;
+		$credits_amount = isset( $_POST['credits_amount'] ) ? intval( $_POST['credits_amount'] ) : 0;
 		$credits_reason = isset( $_POST['credits_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['credits_reason'] ) ) : '';
 
 		if ( ! $user_id ) {
@@ -647,8 +716,8 @@ class MembersPage {
 			return;
 		}
 
-		if ( $credits_amount < 1 ) {
-			$this->add_notice( 'credits_amount_invalid', __( 'Credits amount must be at least 1.', 'khm-membership' ), 'error' );
+		if ( $credits_amount === 0 ) {
+			$this->add_notice( 'credits_amount_invalid', __( 'Credits amount cannot be zero.', 'khm-membership' ), 'error' );
 			$this->redirect();
 			return;
 		}
@@ -670,10 +739,17 @@ class MembersPage {
 				$reason = $credits_reason ?: 'manual';
 				$credit_service->addBonusCredits( $user_id, $credits_amount, $reason );
 				
-				$this->add_notice( 
-					'credits_added', 
-					sprintf( __( 'Successfully added %d credits to %s.', 'khm-membership' ), $credits_amount, $user->display_name ?: $user->user_login )
-				);
+				if ( $credits_amount > 0 ) {
+					$this->add_notice( 
+						'credits_added', 
+						sprintf( __( 'Successfully added %d credits to %s.', 'khm-membership' ), $credits_amount, $user->display_name ?: $user->user_login )
+					);
+				} else {
+					$this->add_notice( 
+						'credits_removed', 
+						sprintf( __( 'Successfully removed %d credits from %s.', 'khm-membership' ), abs( $credits_amount ), $user->display_name ?: $user->user_login )
+					);
+				}
 			} else {
 				$this->add_notice( 'credits_service_missing', __( 'Credit service unavailable.', 'khm-membership' ), 'error' );
 			}
@@ -743,7 +819,26 @@ class MembersPage {
 
 	private function add_notice( string $code, string $message, string $type = 'success' ): void {
 		add_settings_error( self::SETTINGS_GROUP, $code, $message, $type );
-		set_transient( 'settings_errors', get_settings_errors( self::SETTINGS_GROUP ), 30 );
+		set_transient( 'khm_members_notices', get_settings_errors( self::SETTINGS_GROUP ), 30 );
+	}
+
+	/**
+	 * Load and display notices from transient (for post-redirect display).
+	 */
+	private function display_persisted_notices(): void {
+		$notices = get_transient( 'khm_members_notices' );
+		if ( $notices && is_array( $notices ) ) {
+			delete_transient( 'khm_members_notices' );
+			foreach ( $notices as $notice ) {
+				add_settings_error(
+					self::SETTINGS_GROUP,
+					$notice['code'] ?? 'notice',
+					$notice['message'] ?? '',
+					$notice['type'] ?? 'success'
+				);
+			}
+		}
+		settings_errors( self::SETTINGS_GROUP );
 	}
 
 	public function render_user_membership_fields( $user ): void {
@@ -1033,12 +1128,12 @@ class MembersPage {
 		}
 
 		echo '<div class="wrap">';
-		echo '<h1>' . esc_html__( 'Add Credits', 'khm-membership' ) . '</h1>';
+		echo '<h1>' . esc_html__( 'Amend Credit Balance', 'khm-membership' ) . '</h1>';
 		
 		settings_errors( self::SETTINGS_GROUP );
 
 		echo '<p>' . sprintf( 
-			esc_html__( 'Adding credits for: %s (%s)', 'khm-membership' ), 
+			esc_html__( 'Amending credits for: %s (%s)', 'khm-membership' ), 
 			'<strong>' . esc_html( $user->display_name ?: $user->user_login ) . '</strong>',
 			esc_html( $user->user_email )
 		) . '</p>';
@@ -1052,9 +1147,9 @@ class MembersPage {
 
 		echo '<table class="form-table">';
 		
-		echo '<tr><th scope="row"><label for="khm-credits-amount">' . esc_html__( 'Credits to Add', 'khm-membership' ) . '</label></th>';
-		echo '<td><input type="number" id="khm-credits-amount" name="credits_amount" min="1" value="1" class="small-text" required>';
-		echo '<p class="description">' . esc_html__( 'Number of bonus credits to add.', 'khm-membership' ) . '</p></td></tr>';
+		echo '<tr><th scope="row"><label for="khm-credits-amount">' . esc_html__( 'Credit Adjustment', 'khm-membership' ) . '</label></th>';
+		echo '<td><input type="number" id="khm-credits-amount" name="credits_amount" value="0" class="small-text" required>';
+		echo '<p class="description">' . esc_html__( 'Enter a positive number to add credits, or a negative number to remove credits.', 'khm-membership' ) . '</p></td></tr>';
 
 		echo '<tr><th scope="row"><label for="khm-credits-reason">' . esc_html__( 'Reason', 'khm-membership' ) . '</label></th>';
 		echo '<td><input type="text" id="khm-credits-reason" name="credits_reason" class="regular-text" placeholder="' . esc_attr__( 'e.g., Promotional bonus, Support gesture', 'khm-membership' ) . '">';
@@ -1063,7 +1158,7 @@ class MembersPage {
 		echo '</table>';
 
 		echo '<p>';
-		echo '<button type="submit" class="button button-primary">' . esc_html__( 'Add Credits', 'khm-membership' ) . '</button> ';
+		echo '<button type="submit" class="button button-primary">' . esc_html__( 'Update Balance', 'khm-membership' ) . '</button> ';
 		echo '<a href="' . esc_url( admin_url( 'admin.php?page=' . self::PAGE_SLUG ) ) . '" class="button">' . esc_html__( 'Cancel', 'khm-membership' ) . '</a>';
 		echo '</p>';
 

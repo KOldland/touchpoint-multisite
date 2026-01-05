@@ -708,15 +708,82 @@ add_action('khm_order_updated', function () {
     }
 });
 
-add_action('khm_membership_assigned', function () {
+add_action('khm_membership_assigned', function ( $userId, $levelId, $membershipId, $options ) {
+    // Clear reports cache
+    if ( class_exists('KHM\\Services\\ReportsService') ) {
+        ( new KHM\Services\ReportsService() )->clear_cache();
+    }
+    
+    // Allocate enrollment credits for the new membership
+    if ( class_exists('KHM\\Services\\CreditService') && 
+         class_exists('KHM\\Services\\MembershipRepository') && 
+         class_exists('KHM\\Services\\LevelRepository') ) {
+        try {
+            $creditService = new KHM\Services\CreditService(
+                new KHM\Services\MembershipRepository(),
+                new KHM\Services\LevelRepository()
+            );
+            $creditService->allocateEnrollmentCredits( $userId, $levelId );
+        } catch ( \Throwable $e ) {
+            error_log( 'KHM: Failed to allocate credits on membership assignment: ' . $e->getMessage() );
+        }
+    }
+}, 10, 4);
+
+add_action('khm_membership_cancelled', function () {
     if ( class_exists('KHM\\Services\\ReportsService') ) {
         ( new KHM\Services\ReportsService() )->clear_cache();
     }
 });
 
-add_action('khm_membership_cancelled', function () {
-    if ( class_exists('KHM\\Services\\ReportsService') ) {
-        ( new KHM\Services\ReportsService() )->clear_cache();
+// Reset credit period when membership level changes
+add_action('khm_membership_level_changed', function ( $userId, $oldLevelId, $newLevelId, $membershipId ) {
+    if ( class_exists('KHM\\Services\\CreditService') && 
+         class_exists('KHM\\Services\\MembershipRepository') && 
+         class_exists('KHM\\Services\\LevelRepository') ) {
+        try {
+            $creditService = new KHM\Services\CreditService(
+                new KHM\Services\MembershipRepository(),
+                new KHM\Services\LevelRepository()
+            );
+            // Reset the 30-day period when level changes
+            $creditService->resetCreditPeriod( $userId );
+        } catch ( \Throwable $e ) {
+            error_log( 'KHM: Failed to reset credit period on level change: ' . $e->getMessage() );
+        }
+    }
+}, 10, 4);
+
+// Schedule daily cron job for credit expiration
+add_action('init', function () {
+    if ( ! wp_next_scheduled('khm_daily_credit_expiration') ) {
+        wp_schedule_event( time(), 'daily', 'khm_daily_credit_expiration' );
+    }
+});
+
+// Process credit expiration daily
+add_action('khm_daily_credit_expiration', function () {
+    if ( class_exists('KHM\\Services\\CreditService') && 
+         class_exists('KHM\\Services\\MembershipRepository') && 
+         class_exists('KHM\\Services\\LevelRepository') ) {
+        try {
+            $creditService = new KHM\Services\CreditService(
+                new KHM\Services\MembershipRepository(),
+                new KHM\Services\LevelRepository()
+            );
+            $stats = $creditService->processExpiredCredits();
+            
+            if ( $stats['expired'] > 0 ) {
+                error_log( sprintf( 
+                    'KHM Credit Expiration: Processed %d records, expired %d, skipped %d paid accounts', 
+                    $stats['processed'], 
+                    $stats['expired'], 
+                    $stats['skipped_paid'] 
+                ) );
+            }
+        } catch ( \Throwable $e ) {
+            error_log( 'KHM: Credit expiration cron failed: ' . $e->getMessage() );
+        }
     }
 });
 

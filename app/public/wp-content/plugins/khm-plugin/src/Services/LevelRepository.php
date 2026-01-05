@@ -92,6 +92,25 @@ class LevelRepository {
     }
 
     /**
+     * Check if a level is a paid subscription (has billing_amount > 0).
+     *
+     * @param int $levelId
+     * @return bool True if paid, false if free
+     */
+    public function isPaidLevel( int $levelId ): bool {
+        global $wpdb;
+
+        $billing_amount = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT billing_amount FROM {$this->levelsTable} WHERE id = %d LIMIT 1",
+                $levelId
+            )
+        );
+
+        return $billing_amount !== null && (float) $billing_amount > 0;
+    }
+
+    /**
      * Return an associative array of level id => name pairs.
      *
      * @return array<int,string>
@@ -321,7 +340,9 @@ class LevelRepository {
             [ '%d', '%s' ]
         );
 
-        return (bool) $result;
+        // Return true if delete succeeded (including 0 rows deleted - key didn't exist)
+        // Return false only on actual error
+        return $result !== false;
     }
 
     /**

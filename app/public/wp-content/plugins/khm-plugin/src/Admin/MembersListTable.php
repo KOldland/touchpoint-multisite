@@ -158,10 +158,10 @@ class MembersListTable extends \WP_List_Table {
 				esc_url( $this->action_url( 'khm_membership_cancel', $membership_id ) ),
 				esc_html__( 'Cancel', 'khm-membership' )
 			);
-			$actions['expire'] = sprintf(
+			$actions['edit'] = sprintf(
 				'<a href="%s">%s</a>',
-				esc_url( $this->action_url( 'khm_membership_expire', $membership_id ) ),
-				esc_html__( 'Expire', 'khm-membership' )
+				esc_url( $edit_url ),
+				esc_html__( 'Edit', 'khm-membership' )
 			);
 		} else {
 			$actions['reactivate'] = sprintf(
@@ -228,7 +228,7 @@ class MembersListTable extends \WP_List_Table {
 				esc_url( $add_url ),
 				$user_id,
 				$membership_id,
-				esc_html__( 'Add Credits', 'khm-membership' )
+				esc_html__( 'Adjust', 'khm-membership' )
 			),
 		];
 		
