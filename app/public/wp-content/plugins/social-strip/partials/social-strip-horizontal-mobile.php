@@ -1,11 +1,5 @@
 <?php
-// Get enhanced KHM data if available
-$enhanced_data = function_exists('kss_get_enhanced_widget_data')
-    ? kss_get_enhanced_widget_data($data['post_id'])
-    : [];
-
-// Merge with original data
-$widget_data = array_merge($data, $enhanced_data);
+$widget_data = $data;
 $post_id = $widget_data['post_id'];
 $icon_base = $widget_data['icon_base'];
 ?>

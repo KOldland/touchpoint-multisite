@@ -38,6 +38,8 @@ define( 'DB_CHARSET', 'utf8' );
 /** The database collate type. Don't change this if in doubt. */
 define( 'DB_COLLATE', '' );
 
+define( 'WP_CONTENT_DIR', dirname(__FILE__) . '/wp-content' );
+
 /**#@+
  * Authentication unique keys and salts.
  *
@@ -96,7 +98,7 @@ if ( ! defined( 'WP_DEBUG_LOG' ) ) {
 }
 
 if ( ! defined( 'WP_DEBUG_DISPLAY' ) ) {
-	define( 'WP_DEBUG_DISPLAY', true );
+	define( 'WP_DEBUG_DISPLAY', false );
 }
 
 // Toggle to fully disable KHM SEO social previews if needed.
@@ -111,6 +113,8 @@ define( 'KHM_EDITOR_DISABLED_PLUGINS', array(
 ) );
 // Temporarily disable KH ad rendering.
 define( 'KHM_DISABLE_ADS', true );
+// Temporarily disable KHM data calls in Social Strip.
+define( 'KSS_DISABLE_KHM', true );
 
 define( 'WP_ENVIRONMENT_TYPE', 'local' );
 /* That's all, stop editing! Happy publishing. */

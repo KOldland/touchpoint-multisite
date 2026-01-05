@@ -22,18 +22,6 @@
             
             // Bulk action confirmation
             $('#doaction, #doaction2').on('click', this.confirmBulkAction);
-            
-            // Add level button (placeholder)
-            $('#khm-add-level').on('click', function(e) {
-                e.preventDefault();
-                alert('Level editor coming soon! For now, manage levels via phpMyAdmin or SQL.');
-            });
-            
-            // Add discount code button (placeholder)
-            $('#khm-add-code').on('click', function(e) {
-                e.preventDefault();
-                alert('Discount code editor coming soon! For now, manage codes via phpMyAdmin or SQL.');
-            });
         },
 
         /**

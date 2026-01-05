@@ -23,7 +23,7 @@
 .kss-vertical {
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.4s cubic-bezier(0.36,0,0.66,1);
+  transition: opacity 0.6s cubic-bezier(0.36,0,0.66,1);
   transform: translateY(-50%);
 }
 
@@ -51,6 +51,14 @@
   background: none;
   border-radius: 0;
   box-shadow: none;
+  opacity: 0;
+  transition: opacity 0.6s cubic-bezier(0.36,0,0.66,1);
+  pointer-events: none;
+}
+
+.kss-social-strip.kss-horizontal.kss-active {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .kss-action {
@@ -77,12 +85,7 @@
 }
 
 .kss-divider {
-  border: none;
-  border-top: 1px solid #e2e2e2;
-  margin: 0rem auto 2.5rem auto !important; 
-  max-width: 920px;
-  width: 90%;
-  opacity: 1;
+  display: none;
 }
 
 /* horizontal Strip (mobile) */
@@ -118,6 +121,7 @@
 .kss-icon,
 .kss-buy-button,
 .kss-save-button,
+.kss-gift-button,
 .ssm-share-trigger {
   display: flex;
   align-items: center;
@@ -138,6 +142,7 @@
 .kss-icon:hover,
 .kss-buy-button:hover,
 .kss-save-button:hover,
+.kss-gift-button:hover,
 .ssm-share-trigger:hover {
   background-color: #891b34;
 }
@@ -145,6 +150,7 @@
 .kss-icon img,
 .kss-buy-button img,
 .kss-save-button img,
+.kss-gift-button img,
 .ssm-share-trigger img {
   width: 24px;
   height: 24px;
@@ -155,6 +161,7 @@
 .kss-icon:hover img,
 .kss-buy-button:hover img,
 .kss-save-button:hover img,
+.kss-gift-button:hover img,
 .ssm-share-trigger:hover img {
   filter: brightness(0) invert(1);
 }

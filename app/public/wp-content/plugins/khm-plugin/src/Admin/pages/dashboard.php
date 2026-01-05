@@ -178,7 +178,7 @@ $expiring_soon = $wpdb->get_results(
     <div class="khm-dashboard-actions">
         <h2><?php esc_html_e('Quick Actions', 'khm-membership'); ?></h2>
         <div class="khm-actions-grid">
-            <a href="<?php echo esc_url(admin_url('user-new.php')); ?>" class="khm-action-card">
+            <a href="<?php echo esc_url(admin_url('admin.php?page=khm-members&action=add')); ?>" class="khm-action-card">
                 <span class="dashicons dashicons-plus-alt"></span>
                 <?php esc_html_e('Add New Member', 'khm-membership'); ?>
             </a>

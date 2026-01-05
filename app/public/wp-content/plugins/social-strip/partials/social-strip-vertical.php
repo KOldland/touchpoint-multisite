@@ -1,11 +1,5 @@
 <?php
-// Get enhanced KHM data if available
-$enhanced_data = function_exists('kss_get_enhanced_widget_data') 
-    ? kss_get_enhanced_widget_data($data['post_id']) 
-    : [];
-
-// Merge with original data
-$widget_data = array_merge($data, $enhanced_data);
+$widget_data = $data;
 $post_id = $widget_data['post_id'];
 $icon_base = $widget_data['icon_base'];
 ?>
@@ -16,7 +10,7 @@ $icon_base = $widget_data['icon_base'];
         <!-- Credit Download Button -->
         <button class="kss-download-credit kss-icon" 
                 data-post-id="<?= esc_attr($post_id); ?>" 
-                title="Download (1 credit) - <?= $widget_data['credits']['available']; ?> remaining">
+                title="Download (<?= esc_attr($widget_data['credits']['required']); ?> credit<?= $widget_data['credits']['required'] == 1 ? '' : 's'; ?>) - <?= $widget_data['credits']['available']; ?> remaining">
             <img src="<?= esc_url($icon_base . 'download.png'); ?>" alt="Download">
         </button>
     <?php elseif (!$widget_data['is_logged_in']): ?>
@@ -26,7 +20,7 @@ $icon_base = $widget_data['icon_base'];
         </button>
     <?php else: ?>
         <!-- Insufficient Credits -->
-        <button class="kss-icon disabled" title="Insufficient credits (<?= $widget_data['credits']['available']; ?> available)">
+        <button class="kss-icon disabled" title="Download (<?= esc_attr($widget_data['credits']['required']); ?> credit<?= $widget_data['credits']['required'] == 1 ? '' : 's'; ?>) - <?= $widget_data['credits']['available']; ?> remaining">
             <img src="<?= esc_url($icon_base . 'download.png'); ?>" alt="Download">
         </button>
     <?php endif; ?>
@@ -45,21 +39,19 @@ $icon_base = $widget_data['icon_base'];
         </button>
     <?php endif; ?>
 
-    <?php if (isset($widget_data['pricing']['member_price']) && $widget_data['pricing']['member_price'] > 0): ?>
-        <!-- Buy Button -->
-        <button class="kss-buy-button kss-add-to-cart" 
-                data-post-id="<?= esc_attr($post_id); ?>" 
-                title="Buy (<?= $widget_data['pricing']['currency'] . number_format($widget_data['pricing']['member_price'], 2); ?>)">
-            <img src="<?= esc_url($icon_base . 'buy.png'); ?>" alt="Buy PDF">
-        </button>
-        
-        <!-- Gift Button -->
-        <button class="kss-gift-button" 
-                data-post-id="<?= esc_attr($post_id); ?>" 
-                title="Send as Gift (<?= $widget_data['pricing']['currency'] . number_format($widget_data['pricing']['member_price'], 2); ?>)">
-            <img src="<?= esc_url($icon_base . 'gift.png'); ?>" alt="Gift Article">
-        </button>
-    <?php endif; ?>
+    <!-- Buy Button -->
+    <button class="kss-buy-button kss-add-to-cart" 
+            data-post-id="<?= esc_attr($post_id); ?>" 
+            title="Buy (<?= $widget_data['pricing']['currency'] . number_format($widget_data['pricing']['member_price'], 2); ?>)">
+        <img src="<?= esc_url($icon_base . 'buy.png'); ?>" alt="Buy PDF">
+    </button>
+    
+    <!-- Gift Button -->
+    <button class="kss-gift-button" 
+            data-post-id="<?= esc_attr($post_id); ?>" 
+            title="Send as Gift (<?= $widget_data['pricing']['currency'] . number_format($widget_data['gift']['price'], 2); ?>)">
+        <img src="<?= esc_url($icon_base . 'gift.png'); ?>" alt="Gift Article">
+    </button>
 
     <!-- Share Button (always available) -->
     <button class="ssm-share-trigger" 
@@ -81,11 +73,4 @@ $icon_base = $widget_data['icon_base'];
         </div>
     <?php endif; ?>
     
-    <?php if ($widget_data['is_logged_in']): ?>
-        <!-- Credits Display -->
-        <div class="kss-credits-display <?= $widget_data['credits']['available'] < 2 ? 'low-credits' : ''; ?>">
-            <span class="credits-count"><?= $widget_data['credits']['available']; ?></span> credits
-        </div>
-    <?php endif; ?>
-
 </div>

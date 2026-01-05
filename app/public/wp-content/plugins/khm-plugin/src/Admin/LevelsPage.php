@@ -25,6 +25,7 @@ class LevelsPage {
 	public function register(): void {
 		add_action( 'admin_post_khm_save_membership_level', [ $this, 'handle_save_request' ] );
 		add_action( 'admin_post_khm_delete_membership_level', [ $this, 'handle_delete_request' ] );
+		error_log('LevelsPage::register() - Actions registered');
 	}
 
 	public function render_page(): void {
@@ -93,6 +94,7 @@ class LevelsPage {
             'expiration_number'  => $level ? (int) $level->expiration_number : 0,
             'expiration_period'  => $level ? $level->expiration_period : 'Month',
             'custom_capabilities'=> $level && ! empty( $level->meta['custom_capabilities'] ) ? implode( "\n", (array) $level->meta['custom_capabilities'] ) : '',
+            'monthly_credits'    => $level ? (int) ($level->meta['monthly_credits'] ?? 0) : 0,
         ];
 
 		$data = wp_parse_args( $old_input, $defaults );
@@ -157,6 +159,10 @@ class LevelsPage {
         echo '<td><textarea id="khm-level-capabilities" name="custom_capabilities" rows="4" class="large-text">' . esc_textarea( $data['custom_capabilities'] ) . '</textarea>';
         echo '<p class="description">' . esc_html__( 'Optional. Enter one capability per line to grant while this membership is active.', 'khm-membership' ) . '</p></td></tr>';
 
+        echo '<tr><th scope="row"><label for="khm-monthly-credits">' . esc_html__( 'Monthly Credits', 'khm-membership' ) . '</label></th>';
+        echo '<td><input type="number" min="0" id="khm-monthly-credits" name="monthly_credits" value="' . esc_attr( $data['monthly_credits'] ) . '">';
+        echo '<p class="description">' . esc_html__( 'Number of credits to allocate monthly for this membership level.', 'khm-membership' ) . '</p></td></tr>';
+
         echo '</table>';
 
 		echo '<p><input type="submit" class="button button-primary" value="' . esc_attr__( 'Save Membership Level', 'khm-membership' ) . '"></p>';
@@ -165,6 +171,7 @@ class LevelsPage {
 	}
 
 	public function handle_save_request(): void {
+		error_log('LevelsPage::handle_save_request() called');
 		if ( ! current_user_can( 'manage_khm' ) ) {
 			wp_die( esc_html__( 'You do not have permission to manage membership levels.', 'khm-membership' ) );
 		}
@@ -193,13 +200,15 @@ class LevelsPage {
 
         $custom_caps_raw = isset( $_POST['custom_capabilities'] ) ? (string) wp_unslash( $_POST['custom_capabilities'] ) : '';
 
+        $monthly_credits = isset( $_POST['monthly_credits'] ) ? absint( wp_unslash( $_POST['monthly_credits'] ) ) : 0;
+
         $form_data = [
             'level_id'          => $level_id,
             'name'              => $name,
             'description'       => $description,
             'confirmation'      => $confirmation,
             'initial_payment'   => $initial_payment,
-			'billing_amount'    => $billing_amount,
+            'billing_amount'    => $billing_amount,
 			'cycle_number'      => $cycle_number,
 			'cycle_period'      => $cycle_period,
 			'billing_limit'     => $billing_limit,
@@ -209,6 +218,7 @@ class LevelsPage {
             'expiration_number' => $expiration_number,
             'expiration_period' => $expiration_period,
             'custom_capabilities'=> $custom_caps_raw,
+            'monthly_credits'   => $monthly_credits,
         ];
 
 		if ( '' === $name ) {
@@ -252,6 +262,7 @@ class LevelsPage {
         $custom_caps = $this->sanitize_capabilities_input( $custom_caps_raw );
         $meta = [
             'custom_capabilities' => ! empty( $custom_caps ) ? $custom_caps : null,
+            'monthly_credits'     => $monthly_credits,
         ];
 
 		$success = false;
@@ -264,7 +275,9 @@ class LevelsPage {
 				$this->add_notice( 'update_failed', __( 'Failed to update membership level.', 'khm-membership' ), 'error' );
 			}
 		} else {
+			error_log('LevelsPage: Creating new level with name: ' . $name);
             $created = $this->repository->create( $payload, $meta );
+			error_log('LevelsPage: create() returned: ' . ($created ? 'object with id ' . $created->id : 'null/false'));
 			if ( $created ) {
 				$level_id = (int) $created->id;
 				$this->add_notice( 'level_created', __( 'Membership level created successfully.', 'khm-membership' ), 'success' );

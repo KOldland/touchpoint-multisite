@@ -57,6 +57,11 @@ class MembersPage {
 
 		$action = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
 
+		if ( 'add' === $action ) {
+			$this->render_add_member();
+			return;
+		}
+
 		if ( in_array( $action, [ 'view', 'edit' ], true ) ) {
 			$membership_id = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
 
@@ -90,7 +95,7 @@ class MembersPage {
 
 		echo '<div class="wrap">';
 		echo '<h1 class="wp-heading-inline">' . esc_html__( 'Members', 'khm-membership' ) . '</h1>';
-		echo '<a href="' . esc_url( admin_url( 'user-new.php' ) ) . '" class="page-title-action">' . esc_html__( 'Add New Member', 'khm-membership' ) . '</a>';
+		echo '<a href="' . esc_url( admin_url( 'admin.php?page=khm-members&action=add' ) ) . '" class="page-title-action">' . esc_html__( 'Add New Member', 'khm-membership' ) . '</a>';
 		echo '<hr class="wp-header-end">';
 
 		settings_errors( self::SETTINGS_GROUP );
@@ -894,5 +899,22 @@ class MembersPage {
 		echo '</form>';
 
 		echo '</div>';
+	}
+
+	private function render_add_member(): void {
+		if ( isset( $GLOBALS['khm_add_member_page'] ) && $GLOBALS['khm_add_member_page'] instanceof \KHM\Admin\AddMemberPage ) {
+			$GLOBALS['khm_add_member_page']->render_page();
+			return;
+		}
+
+		if ( class_exists( \KHM\Admin\AddMemberPage::class ) ) {
+			$add_member_page = new \KHM\Admin\AddMemberPage();
+			$add_member_page->register();
+			$GLOBALS['khm_add_member_page'] = $add_member_page;
+			$add_member_page->render_page();
+			return;
+		}
+
+		esc_html_e( 'Add Member admin is unavailable.', 'khm-membership' );
 	}
 }

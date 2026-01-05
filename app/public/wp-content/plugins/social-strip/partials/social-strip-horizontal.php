@@ -1,11 +1,5 @@
 <?php
-// Get enhanced KHM data if available
-$enhanced_data = function_exists('kss_get_enhanced_widget_data')
-    ? kss_get_enhanced_widget_data($data['post_id'])
-    : [];
-
-// Merge with original data
-$widget_data = array_merge($data, $enhanced_data);
+$widget_data = $data;
 $post_id = $widget_data['post_id'];
 $icon_base = $widget_data['icon_base'];
 ?>
@@ -17,10 +11,10 @@ $icon_base = $widget_data['icon_base'];
         <div class="kss-action">
             <button class="kss-download-credit kss-icon"
                     data-post-id="<?= esc_attr($post_id); ?>"
-                    title="Download (1 credit) - <?= $widget_data['credits']['available']; ?> remaining">
+                    title="Download (<?= esc_attr($widget_data['credits']['required']); ?> credit<?= $widget_data['credits']['required'] == 1 ? '' : 's'; ?>) - <?= $widget_data['credits']['available']; ?> remaining">
                 <img src="<?= esc_url($icon_base . 'download.png'); ?>" alt="Download">
             </button>
-            <span class="kss-label">Download PDF (1 credit)</span>
+            <span class="kss-label">Download PDF (<?= esc_html($widget_data['credits']['required']); ?> credit<?= $widget_data['credits']['required'] == 1 ? '' : 's'; ?>)</span>
         </div>
     <?php elseif (!$widget_data['is_logged_in']): ?>
         <div class="kss-action">
@@ -56,27 +50,23 @@ $icon_base = $widget_data['icon_base'];
         </div>
     <?php endif; ?>
 
-    <?php if ($widget_data['features']['can_buy']): ?>
-        <div class="kss-action">
-            <button class="kss-buy-button kss-add-to-cart"
-                    data-post-id="<?= esc_attr($post_id); ?>"
-                    title="Buy (<?= $widget_data['pricing']['currency'] . number_format($widget_data['pricing']['member_price'], 2); ?>)">
-                <img src="<?= esc_url($icon_base . 'buy.png'); ?>" alt="Buy PDF">
-            </button>
-            <span class="kss-label">Buy PDF (<?= $widget_data['pricing']['currency'] . number_format($widget_data['pricing']['member_price'], 2); ?>)</span>
-        </div>
+    <div class="kss-action">
+        <button class="kss-buy-button kss-add-to-cart"
+                data-post-id="<?= esc_attr($post_id); ?>"
+                title="Buy (<?= $widget_data['pricing']['currency'] . number_format($widget_data['pricing']['member_price'], 2); ?>)">
+            <img src="<?= esc_url($icon_base . 'buy.png'); ?>" alt="Buy PDF">
+        </button>
+        <span class="kss-label">Buy PDF (<?= $widget_data['pricing']['currency'] . number_format($widget_data['pricing']['member_price'], 2); ?>)</span>
+    </div>
 
-        <?php if ($widget_data['features']['can_gift']): ?>
-            <div class="kss-action">
-                <button class="kss-gift-button"
-                        data-post-id="<?= esc_attr($post_id); ?>"
-                        title="Send as Gift (<?= $widget_data['pricing']['currency'] . number_format($widget_data['pricing']['member_price'], 2); ?>)">
-                    <img src="<?= esc_url($icon_base . 'gift.png'); ?>" alt="Gift Article">
-                </button>
-                <span class="kss-label">Send Article as a Gift</span>
-            </div>
-        <?php endif; ?>
-    <?php endif; ?>
+    <div class="kss-action">
+        <button class="kss-gift-button"
+                data-post-id="<?= esc_attr($post_id); ?>"
+                title="Send as Gift (<?= $widget_data['pricing']['currency'] . number_format($widget_data['gift']['price'], 2); ?>)">
+            <img src="<?= esc_url($icon_base . 'gift.png'); ?>" alt="Gift Article">
+        </button>
+        <span class="kss-label">Send Article as a Gift (<?= $widget_data['pricing']['currency'] . number_format($widget_data['gift']['price'], 2); ?>)</span>
+    </div>
 
     <div class="kss-action">
         <button class="ssm-share-trigger"

@@ -914,11 +914,7 @@ table tbody tr:hover > th {
 }
 
 .footnotes-divider {
-  border: none;
-  border-top: 2px solid #ececec;  /* match the top rule exactly */
-  margin-top: 2.25rem;           /* more air above */
-  margin-bottom: 2.5rem;         /* more air below before the author bio */
-  width: 100%;
+  display: none;
 }
 
 .kss-footnotes a {

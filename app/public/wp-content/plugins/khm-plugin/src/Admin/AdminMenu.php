@@ -124,14 +124,14 @@ class AdminMenu {
 
         wp_enqueue_style(
             'khm-admin',
-            plugins_url('admin/css/admin.css', dirname(__DIR__, 2)),
+            plugins_url('admin/css/admin.css', dirname(__DIR__, 2) . '/khm-plugin.php'),
             [],
             '1.0.0'
         );
 
         wp_enqueue_script(
             'khm-admin',
-            plugins_url('admin/js/admin.js', dirname(__DIR__, 2)),
+            plugins_url('admin/js/admin.js', dirname(__DIR__, 2) . '/khm-plugin.php'),
             [ 'jquery' ],
             '1.0.0',
             true

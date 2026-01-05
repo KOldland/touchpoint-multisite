@@ -87,6 +87,19 @@ function khm_enqueue_attribution_scripts() {
 // Create main admin menu if it doesn't exist
 add_action('admin_menu', 'khm_create_main_admin_menu');
 
+// Register LevelsPage admin_post handler early via admin_init (runs before init)
+add_action('admin_init', function() {
+    error_log('KHM: admin_init priority 1 fired');
+    error_log('KHM: class_exists LevelsPage = ' . (class_exists('KHM\\Admin\\LevelsPage') ? 'YES' : 'NO'));
+    if ( class_exists('KHM\\Admin\\LevelsPage') ) {
+        error_log('KHM: Creating LevelsPage instance');
+        $levels_page = new KHM\Admin\LevelsPage();
+        $levels_page->register();
+        $GLOBALS['khm_levels_page'] = $levels_page;
+        error_log('KHM: LevelsPage registered');
+    }
+}, 1); // Priority 1 = very early
+
 // Redirect pretty admin slug to correct page param to avoid 404s.
 add_action('admin_init', function () {
     if (!is_admin()) {
@@ -633,13 +646,6 @@ add_action('init', function () {
         ) )->register();
     }
 
-    // Register levels page
-    if ( is_admin() && class_exists('KHM\\Admin\\LevelsPage') ) {
-        $levels_page = new KHM\Admin\LevelsPage();
-        $levels_page->register();
-        $GLOBALS['khm_levels_page'] = $levels_page;
-    }
-
     // Register discount codes page
     if ( is_admin() && class_exists('KHM\\Admin\\DiscountCodesPage') ) {
         $discount_codes_page = new KHM\Admin\DiscountCodesPage();
@@ -740,6 +746,10 @@ if (!function_exists('kss_get_enhanced_widget_data')) {
      * @return array
      */
     function kss_get_enhanced_widget_data(int $post_id): array {
+        if ( defined( 'KSS_DISABLE_KHM' ) && KSS_DISABLE_KHM ) {
+            return [];
+        }
+
         $user_id = get_current_user_id();
         $post = get_post($post_id);
         

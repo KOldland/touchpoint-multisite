@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function toggleSocialStrip() {
   const vertical = document.querySelector('.kss-vertical');
+  const horizontal = document.querySelector('.kss-horizontal');
   const abstract = document.querySelector('.abstract-block');
   const footnotes = document.querySelector('.kss-footnotes');
   if (!vertical || !abstract || !footnotes) return;
@@ -30,13 +31,19 @@ function toggleSocialStrip() {
     } else {
       alignSocialStrip();
     }
+    if (horizontal) {
+      horizontal.classList.remove('kss-active');
+    }
   } else {
     vertical.classList.remove('kss-active');
     setTimeout(() => {
       if (!vertical.classList.contains('kss-active')) {
         vertical.classList.remove('kss-prepare');
       }
-    }, 500); // match your fade-out time
+    }, 700); // match your fade-out time
+    if (horizontal) {
+      horizontal.classList.add('kss-active');
+    }
   }
 }
 

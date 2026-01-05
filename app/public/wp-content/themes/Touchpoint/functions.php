@@ -239,6 +239,27 @@ add_action( 'init', function() {
 	) );
 } );
 
+add_action( 'init', function() {
+	register_post_meta( 'post', 'kss_article_price', array(
+		'type'              => 'number',
+		'single'            => true,
+		'show_in_rest'      => true,
+		'auth_callback'     => function() {
+			return current_user_can( 'edit_posts' );
+		},
+		'sanitize_callback' => 'sanitize_text_field',
+	) );
+	register_post_meta( 'post', 'kss_credit_cost', array(
+		'type'              => 'integer',
+		'single'            => true,
+		'show_in_rest'      => true,
+		'auth_callback'     => function() {
+			return current_user_can( 'edit_posts' );
+		},
+		'sanitize_callback' => 'absint',
+	) );
+} );
+
 add_action( 'rest_after_insert_post', function( $post, $request, $creating ) {
 	if ( ! $post instanceof WP_Post ) {
 		return;
@@ -394,6 +415,23 @@ jQuery(function($){
       showError(msg);
     });
   });
+
+  var $price = $('#kss_article_price');
+  var $credits = $('#kss_credit_cost');
+  function setMeta(key, value){
+    if (window.wp && wp.data && wp.data.dispatch) {
+      var meta = {};
+      meta[key] = value;
+      wp.data.dispatch('core/editor').editPost({meta: meta});
+    }
+  }
+  $(document).on('change', '#kss_article_price', function(){
+    setMeta('kss_article_price', $(this).val());
+  });
+  $(document).on('change', '#kss_credit_cost', function(){
+    var val = parseInt($(this).val(), 10);
+    setMeta('kss_credit_cost', isNaN(val) ? 0 : val);
+  });
 });
 JS;
 	$script = str_replace( '__LEAD_LABEL__', $lead_label_json, $script );
@@ -438,7 +476,228 @@ add_action( 'wp_enqueue_scripts', 'redirect_hello_elementor_assets', 11 );
 		);
 	}
 		
-	add_action('wp_enqueue_scripts', 'touchpointcrm_enqueue_styles', 10); // Priority 10, load first
+add_action('wp_enqueue_scripts', 'touchpointcrm_enqueue_styles', 10); // Priority 10, load first
+
+/* PDF export (native, no ACF dependency) */
+function touchpointcrm_get_primary_author( $post_id ) {
+	if ( function_exists( 'kh_get_post_authors' ) ) {
+		$authors = kh_get_post_authors( $post_id );
+		if ( ! empty( $authors ) && is_array( $authors ) ) {
+			return $authors[0];
+		}
+	}
+	return null;
+}
+
+function touchpointcrm_build_pdf_html( $post_id, $user_label ) {
+	$post = get_post( $post_id );
+	if ( ! $post ) {
+		return '';
+	}
+
+	$lead_id = function_exists( 'touchpointcrm_get_lead_category_id' ) ? touchpointcrm_get_lead_category_id( $post_id ) : 0;
+	$lead_term = $lead_id ? get_term( $lead_id, 'category' ) : null;
+	$lead_name = ( $lead_term && ! is_wp_error( $lead_term ) ) ? $lead_term->name : '';
+
+	$featured = get_the_post_thumbnail_url( $post_id, 'large' );
+	$title = get_the_title( $post_id );
+	$date = get_the_date( 'F j, Y', $post_id );
+	$author_post = touchpointcrm_get_primary_author( $post_id );
+	$author_name = '';
+	$author_title = '';
+	$author_company = '';
+	$author_bio = '';
+	if ( $author_post ) {
+		if ( function_exists( 'get_field' ) ) {
+			$author_name = get_field( 'author_name', $author_post->ID );
+			$author_title = get_field( 'author_title', $author_post->ID );
+			$author_company = get_field( 'author_company', $author_post->ID );
+			$author_bio = get_field( 'author_bio', $author_post->ID );
+		}
+		if ( ! $author_name ) {
+			$author_name = get_the_title( $author_post );
+		}
+	}
+
+	$synopsis = get_the_excerpt( $post_id );
+	if ( ! $synopsis ) {
+		$synopsis = wp_trim_words( wp_strip_all_tags( $post->post_content ), 40 );
+	}
+
+	$content = apply_filters( 'the_content', $post->post_content );
+
+	$author_line = $author_name;
+	if ( $author_title ) {
+		$author_line .= $author_title ? ' — ' . $author_title : '';
+	}
+	if ( $author_company ) {
+		$author_line .= $author_company ? ', ' . $author_company : '';
+	}
+
+	$watermark = $user_label ? 'Personal copy of ' . $user_label : 'Personal copy';
+
+	ob_start();
+	?>
+	<!doctype html>
+	<html>
+	<head>
+		<meta charset="utf-8">
+		<style>
+			@page { margin: 1in; }
+			body { font-family: DejaVu Sans, Arial, sans-serif; color: #111; }
+			.cover { page-break-after: always; }
+			.cover .lead { font-size: 12pt; letter-spacing: 0.08em; text-transform: uppercase; color: #6d0b0b; margin: 0 0 12px; }
+			.cover .title { font-size: 28pt; font-weight: 700; margin: 12px 0 10px; }
+			.cover .meta { font-size: 10pt; color: #555; margin: 0 0 16px; }
+			.cover .synopsis { font-size: 10pt; color: #333; margin: 16px 0 0; }
+			.cover img { width: 100%; height: auto; margin: 10px 0 16px; }
+			.watermark { position: fixed; top: 45%; left: 50%; transform: translate(-50%, -50%) rotate(-25deg); opacity: 0.08; font-size: 36pt; color: #6d0b0b; z-index: 0; }
+			.body { column-count: 2; column-gap: 24px; font-size: 10pt; color: #474747; }
+			.body p { margin: 0 0 10px; }
+			.body h2, .body h3 { column-span: all; color: #111; }
+			.wp-block-pullquote { border-left: 3px solid #6d0b0b; padding-left: 12px; color: #333; font-style: italic; margin: 12px 0; }
+			.final { page-break-before: always; font-size: 10pt; color: #474747; }
+			.final h2 { font-size: 16pt; margin-bottom: 10px; color: #111; }
+		</style>
+	</head>
+	<body>
+		<div class="watermark"><?php echo esc_html( $watermark ); ?></div>
+		<section class="cover">
+			<?php if ( $lead_name ) : ?>
+				<div class="lead"><?php echo esc_html( $lead_name ); ?></div>
+			<?php endif; ?>
+			<?php if ( $featured ) : ?>
+				<img src="<?php echo esc_url( $featured ); ?>" alt="">
+			<?php endif; ?>
+			<div class="title"><?php echo esc_html( $title ); ?></div>
+			<?php if ( $author_name || $date ) : ?>
+				<div class="meta"><?php echo esc_html( trim( $author_line ) ); ?><?php echo $author_line && $date ? ' · ' : ''; ?><?php echo esc_html( $date ); ?></div>
+			<?php endif; ?>
+			<?php if ( $synopsis ) : ?>
+				<div class="synopsis"><?php echo esc_html( $synopsis ); ?></div>
+			<?php endif; ?>
+		</section>
+
+		<section class="body">
+			<?php echo $content; ?>
+		</section>
+
+		<section class="final">
+			<h2>Author Bio</h2>
+			<?php if ( $author_name ) : ?>
+				<p><strong><?php echo esc_html( $author_name ); ?></strong><?php echo $author_title ? ' — ' . esc_html( $author_title ) : ''; ?><?php echo $author_company ? ', ' . esc_html( $author_company ) : ''; ?></p>
+			<?php endif; ?>
+			<?php if ( $author_bio ) : ?>
+				<?php echo wp_kses_post( wpautop( $author_bio ) ); ?>
+			<?php else : ?>
+				<p><?php echo esc_html__( 'Author bio not available.', 'touchpoint' ); ?></p>
+			<?php endif; ?>
+		</section>
+	</body>
+	</html>
+	<?php
+	return ob_get_clean();
+}
+
+function touchpointcrm_render_pdf( $post_id ) {
+	if ( ! $post_id ) {
+		return;
+	}
+
+	if ( ! class_exists( '\Dompdf\Dompdf' ) ) {
+		wp_die( esc_html__( 'PDF engine not available.', 'touchpoint' ) );
+	}
+
+	$user = wp_get_current_user();
+	$user_label = $user && $user->exists() ? $user->display_name : '';
+	$html = touchpointcrm_build_pdf_html( $post_id, $user_label );
+	if ( ! $html ) {
+		wp_die( esc_html__( 'Unable to build PDF.', 'touchpoint' ) );
+	}
+
+	$options = new \Dompdf\Options();
+	$options->set( 'isRemoteEnabled', true );
+	$dompdf = new \Dompdf\Dompdf( $options );
+	$dompdf->loadHtml( $html );
+	$dompdf->setPaper( 'A4', 'portrait' );
+	$dompdf->render();
+
+	$filename = sanitize_file_name( get_the_title( $post_id ) . '.pdf' );
+	nocache_headers();
+	header( 'Content-Type: application/pdf' );
+	header( 'Content-Disposition: inline; filename="' . $filename . '"' );
+	echo $dompdf->output();
+	exit;
+}
+
+add_action( 'template_redirect', function() {
+	if ( empty( $_GET['kh_pdf'] ) ) {
+		return;
+	}
+	$post_id = get_queried_object_id();
+	if ( ! $post_id && ! empty( $_GET['p'] ) && is_numeric( $_GET['p'] ) ) {
+		$post_id = (int) $_GET['p'];
+	}
+	if ( $post_id ) {
+		touchpointcrm_render_pdf( $post_id );
+	}
+} );
+
+/* Social Strip meta (native, no ACF dependency) */
+add_action( 'add_meta_boxes', function() {
+	add_meta_box(
+		'touchpoint-social-strip',
+		__( 'eCommerce', 'touchpoint' ),
+		function( $post ) {
+			wp_nonce_field( 'touchpoint_social_strip_save', 'touchpoint_social_strip_nonce' );
+			$price = get_post_meta( $post->ID, 'kss_article_price', true );
+
+			echo '<p><label for="kss_article_price">' . esc_html__( 'Article Price (£)', 'touchpoint' ) . '</label></p>';
+			echo '<input type="number" step="0.01" min="0" class="widefat" id="kss_article_price" name="kss_article_price" value="' . esc_attr( $price ) . '">';
+
+			$credit_cost = get_post_meta( $post->ID, 'kss_credit_cost', true );
+
+			echo '<p style="margin-top:12px;"><label for="kss_credit_cost">' . esc_html__( 'Download Credit Cost', 'touchpoint' ) . '</label></p>';
+			echo '<input type="number" step="1" min="1" class="widefat" id="kss_credit_cost" name="kss_credit_cost" value="' . esc_attr( $credit_cost ) . '">';
+
+			echo '<p style="margin-top:12px;">' . esc_html__( 'Gifting uses the same price as Article Price.', 'touchpoint' ) . '</p>';
+		},
+		'post',
+		'side',
+		'default'
+	);
+} );
+
+add_action( 'save_post', function( $post_id ) {
+	if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
+		return;
+	}
+	if ( ! isset( $_POST['touchpoint_social_strip_nonce'] ) || ! wp_verify_nonce( $_POST['touchpoint_social_strip_nonce'], 'touchpoint_social_strip_save' ) ) {
+		return;
+	}
+	if ( ! current_user_can( 'edit_post', $post_id ) ) {
+		return;
+	}
+
+	$price = isset( $_POST['kss_article_price'] ) ? sanitize_text_field( wp_unslash( $_POST['kss_article_price'] ) ) : '';
+	$credit_cost = isset( $_POST['kss_credit_cost'] ) ? absint( $_POST['kss_credit_cost'] ) : 0;
+
+	if ( '' !== $price ) {
+		update_post_meta( $post_id, 'kss_article_price', $price );
+	} else {
+		delete_post_meta( $post_id, 'kss_article_price' );
+	}
+
+	if ( $credit_cost > 0 ) {
+		update_post_meta( $post_id, 'kss_credit_cost', $credit_cost );
+	} else {
+		delete_post_meta( $post_id, 'kss_credit_cost' );
+	}
+
+	delete_post_meta( $post_id, 'kss_show_gifting' );
+	delete_post_meta( $post_id, 'kss_gift_price' );
+	delete_post_meta( $post_id, 'kss_pdf_upload' );
+}, 20 );
 	
 /* Load DM-Sans */
 	function touchpointcrm_fonts() {
