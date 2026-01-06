@@ -80,8 +80,9 @@ class LibraryService {
         global $wpdb;
 
         // Get member's membership info
-        $membership = $this->memberships->get_user_membership($member_id);
-        $membership_level = $membership ? $membership->level_name : '';
+        $memberships = $this->memberships->findActive($member_id);
+        $membership = !empty($memberships) ? $memberships[0] : null;
+        $membership_level = $membership->membership_name ?? '';
 
         // Use default category if none specified
         if (!$category_id) {

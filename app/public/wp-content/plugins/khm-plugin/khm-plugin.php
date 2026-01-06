@@ -448,6 +448,22 @@ register_activation_hook(__FILE__, function () {
         }
     }
 
+    // Initialize credit download system tables
+    if ( class_exists('KHM\\Services\\CreditDownloadService') ) {
+        try {
+            $memberships = new KHM\Services\MembershipRepository();
+            $levels = new KHM\Services\LevelRepository();
+            $credits = new KHM\Services\CreditService($memberships, $levels);
+            $library = new KHM\Services\LibraryService($memberships);
+            $download_service = new KHM\Services\CreditDownloadService($memberships, $credits, $library);
+            $download_service->create_tables();
+            error_log('KHM Credit Download System tables created successfully');
+        } catch (\Exception $e) {
+            error_log('Failed to create credit download system tables: ' . $e->getMessage());
+            $activation_errors[] = 'Credit download system tables failed: ' . $e->getMessage();
+        }
+    }
+
     // Initialize credit system
     do_action('khm_plugin_activated');
 
@@ -516,6 +532,10 @@ add_action('rest_api_init', function () {
     // Register invoice routes
     if ( class_exists('KHM\\Rest\\InvoiceController') ) {
         ( new KHM\Rest\InvoiceController() )->register();
+    }
+    // Register download routes (credit-based PDF downloads)
+    if ( class_exists('KHM\\Rest\\DownloadController') ) {
+        ( new KHM\Rest\DownloadController() )->register();
     }
     // Register 4A ingestion routes
     if ( class_exists('KHM\\Rest\\FourAIngestionController') ) {

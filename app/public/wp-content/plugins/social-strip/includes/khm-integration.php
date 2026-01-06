@@ -112,6 +112,8 @@ class KSS_KHM_Integration {
         // Pass data to JavaScript
         wp_localize_script('kss-khm-integration', 'khm_ajax', [
             'ajax_url' => admin_url('admin-ajax.php'),
+            'rest_url' => esc_url_raw(rest_url()),
+            'rest_nonce' => wp_create_nonce('wp_rest'),
             'nonce' => wp_create_nonce('kss_khm_integration'),
             'current_user_id' => get_current_user_id(),
             'gift_url' => home_url('/gift/'),

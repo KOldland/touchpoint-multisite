@@ -45,6 +45,7 @@
     
     /**
      * Handle credit-based download
+     * Uses REST API to check eligibility, shows confirmation modal, then processes download
      */
     function handleCreditDownload($button) {
         const postId = $button.data('post-id');
@@ -57,35 +58,146 @@
         // Show loading state
         setButtonLoading($button, true);
         
+        // First, check eligibility via REST API
         $.ajax({
-            url: khm_ajax.ajax_url,
-            type: 'POST',
-            data: {
-                action: 'kss_download_with_credit',
-                post_id: postId,
-                nonce: khm_ajax.nonce
+            url: khm_ajax.rest_url + 'khm/v1/download/check/' + postId,
+            type: 'GET',
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', khm_ajax.rest_nonce);
             },
             success: function(response) {
                 setButtonLoading($button, false);
                 
-                if (response.success) {
-                    showMessage('Download started! Credits remaining: ' + response.data.credits_remaining, 'success');
-                    
-                    // Create download link
-                    if (response.data.download_url) {
-                        window.location.href = response.data.download_url;
-                    }
+                if (!response.success) {
+                    showMessage(response.error || 'Failed to check eligibility', 'error');
+                    return;
+                }
+                
+                // If user can't download, show error
+                if (!response.can_download) {
+                    showMessage(response.message, 'error');
+                    return;
+                }
+                
+                // If it's free (re-download), proceed immediately
+                if (response.is_free) {
+                    processConfirmedDownload(postId, $button);
+                    return;
+                }
+                
+                // Show confirmation modal for credit deduction
+                showDownloadConfirmationModal(response, $button);
+            },
+            error: function(xhr) {
+                setButtonLoading($button, false);
+                const errorMsg = xhr.responseJSON?.message || 'Network error. Please try again.';
+                showMessage(errorMsg, 'error');
+            }
+        });
+    }
+    
+    /**
+     * Show download confirmation modal
+     */
+    function showDownloadConfirmationModal(data, $button) {
+        // Remove existing modal
+        $('#kss-download-modal').remove();
+        
+        const modalHtml = `
+            <div id="kss-download-modal" class="kss-modal khm-modal-overlay">
+                <div class="kss-modal-content khm-modal">
+                    <div class="kss-modal-header khm-modal-header">
+                        <h3>Confirm Download</h3>
+                        <button class="kss-modal-close khm-modal-close">&times;</button>
+                    </div>
+                    <div class="kss-modal-body khm-modal-body">
+                        <div class="download-article-info">
+                            <h4>${data.post_title}</h4>
+                        </div>
+                        
+                        <div class="download-credit-info">
+                            <p><strong>Credit Cost:</strong> ${data.credits_required} credit${data.credits_required > 1 ? 's' : ''}</p>
+                            <p><strong>Your Balance:</strong> ${data.user_credits} credit${data.user_credits !== 1 ? 's' : ''}</p>
+                            <p class="remaining-after">After download: <strong>${data.user_credits - data.credits_required}</strong> credits remaining</p>
+                        </div>
+                        
+                        <p class="download-notice">${data.message}</p>
+                        
+                        <div class="kss-modal-actions khm-modal-actions">
+                            <button class="btn-cancel kss-modal-close">Cancel</button>
+                            <button class="btn-confirm-download">Download PDF</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to page
+        $('body').append(modalHtml);
+        
+        const $modal = $('#kss-download-modal');
+        
+        // Bind events
+        $modal.on('click', '.kss-modal-close, .btn-cancel', function() {
+            $modal.fadeOut(function() { $(this).remove(); });
+        });
+        
+        $modal.on('click', function(e) {
+            if (e.target === this) {
+                $modal.fadeOut(function() { $(this).remove(); });
+            }
+        });
+        
+        $modal.on('click', '.btn-confirm-download', function() {
+            $modal.fadeOut(function() { $(this).remove(); });
+            processConfirmedDownload(data.post_id, $button);
+        });
+        
+        // Handle ESC key
+        $(document).on('keydown.downloadModal', function(e) {
+            if (e.key === 'Escape') {
+                $modal.fadeOut(function() { $(this).remove(); });
+                $(document).off('keydown.downloadModal');
+            }
+        });
+        
+        // Show modal
+        $modal.fadeIn();
+    }
+    
+    /**
+     * Process confirmed download - deduct credits and trigger PDF download
+     */
+    function processConfirmedDownload(postId, $button) {
+        setButtonLoading($button, true);
+        
+        $.ajax({
+            url: khm_ajax.rest_url + 'khm/v1/download/' + postId,
+            type: 'POST',
+            data: JSON.stringify({ confirm: true }),
+            contentType: 'application/json',
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', khm_ajax.rest_nonce);
+            },
+            success: function(response) {
+                setButtonLoading($button, false);
+                
+                if (response.success && response.download_url) {
+                    showMessage(response.message || 'Download started!', 'success');
                     
                     // Update credits display
-                    updateCreditsDisplay(response.data.credits_remaining);
+                    updateCreditsDisplay(response.credits_remaining);
                     
+                    // Trigger download
+                    window.location.href = response.download_url;
                 } else {
-                    showMessage(response.data.error || 'Download failed', 'error');
+                    showMessage(response.error || 'Download failed', 'error');
                 }
             },
-            error: function() {
+            error: function(xhr) {
                 setButtonLoading($button, false);
-                showMessage('Network error. Please try again.', 'error');
+                const errorMsg = xhr.responseJSON?.error || 'Network error. Please try again.';
+                showMessage(errorMsg, 'error');
             }
         });
     }

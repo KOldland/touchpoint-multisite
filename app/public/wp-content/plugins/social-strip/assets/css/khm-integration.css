@@ -525,3 +525,133 @@
         color: #ecf0f1;
     }
 }
+
+/* Download Confirmation Modal Styles */
+#kss-download-modal .kss-modal-content {
+    max-width: 450px;
+}
+
+#kss-download-modal .kss-modal-header {
+    background: linear-gradient(135deg, #6d0b0b 0%, #8b1a1a 100%);
+}
+
+#kss-download-modal .kss-modal-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.download-article-info {
+    background: #f8f9fa;
+    padding: 15px 20px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    border-left: 4px solid #6d0b0b;
+}
+
+.download-article-info h4 {
+    margin: 0;
+    color: #343a40;
+    font-size: 1.1rem;
+    line-height: 1.4;
+}
+
+.download-credit-info {
+    background: #e8f4fd;
+    padding: 15px 20px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+}
+
+.download-credit-info p {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    color: #333;
+}
+
+.download-credit-info p:last-child {
+    margin-bottom: 0;
+}
+
+.download-credit-info .remaining-after {
+    color: #28a745;
+    font-weight: 500;
+}
+
+.download-notice {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 20px;
+    padding: 10px 15px;
+    background: #fff3cd;
+    border-radius: 4px;
+    border-left: 3px solid #ffc107;
+}
+
+.kss-modal-actions,
+.khm-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.kss-modal-actions button,
+.khm-modal-actions button {
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+}
+
+.kss-modal-actions .btn-cancel,
+.khm-modal-actions .btn-cancel {
+    background: #e9ecef;
+    color: #495057;
+}
+
+.kss-modal-actions .btn-cancel:hover,
+.khm-modal-actions .btn-cancel:hover {
+    background: #dee2e6;
+}
+
+.kss-modal-actions .btn-confirm-download,
+.khm-modal-actions .btn-confirm-download {
+    background: linear-gradient(135deg, #6d0b0b 0%, #8b1a1a 100%);
+    color: white;
+}
+
+.kss-modal-actions .btn-confirm-download:hover,
+.khm-modal-actions .btn-confirm-download:hover {
+    background: linear-gradient(135deg, #8b1a1a 0%, #a52525 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(109, 11, 11, 0.25);
+}
+
+/* Dark Mode Support for Download Modal */
+@media (prefers-color-scheme: dark) {
+    .download-article-info {
+        background: #34495e;
+    }
+    
+    .download-article-info h4 {
+        color: #ecf0f1;
+    }
+    
+    .download-credit-info {
+        background: #2c3e50;
+        border: 1px solid #4a5f7a;
+    }
+    
+    .download-credit-info p {
+        color: #ecf0f1;
+    }
+    
+    .download-notice {
+        background: #463a1f;
+        color: #ffe066;
+    }
+}

@@ -47,9 +47,19 @@ class CreditService {
         ));
 
         if ($credits === null) {
-            // No record for this month, create one
-            $this->allocateMonthlyCredits($user_id);
-            return $this->getUserCredits($user_id);
+            // No record for this month, try to create one
+            if ($this->allocateMonthlyCredits($user_id)) {
+                // Allocation succeeded, fetch the new balance
+                $credits = $wpdb->get_var($wpdb->prepare(
+                    "SELECT current_balance FROM {$table} 
+                     WHERE user_id = %d AND allocation_month = %s",
+                    $user_id,
+                    $current_month
+                ));
+                return (int) ($credits ?? 0);
+            }
+            // User has no active membership, return 0
+            return 0;
         }
 
         return (int) $credits;
