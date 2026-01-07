@@ -79,9 +79,9 @@
                     return;
                 }
                 
-                // If it's free (re-download), proceed immediately
+                // If it's free (re-download), show re-download confirmation modal
                 if (response.is_free) {
-                    processConfirmedDownload(postId, $button);
+                    showRedownloadConfirmationModal(response, $button);
                     return;
                 }
                 
@@ -98,34 +98,35 @@
     
     /**
      * Show download confirmation modal
+     * Uses Touchpoint Design System
      */
     function showDownloadConfirmationModal(data, $button) {
         // Remove existing modal
         $('#kss-download-modal').remove();
         
         const modalHtml = `
-            <div id="kss-download-modal" class="kss-modal khm-modal-overlay">
-                <div class="kss-modal-content khm-modal">
-                    <div class="kss-modal-header khm-modal-header">
-                        <h3>Confirm Download</h3>
-                        <button class="kss-modal-close khm-modal-close">&times;</button>
+            <div id="kss-download-modal" class="khm-modal-backdrop">
+                <div class="khm-modal" style="min-width: 400px; max-width: 480px;">
+                    <div class="khm-modal-header">
+                        <h3 class="khm-modal-title">Confirm Download</h3>
+                        <button class="khm-modal-close">&times;</button>
                     </div>
-                    <div class="kss-modal-body khm-modal-body">
-                        <div class="download-article-info">
+                    <div class="khm-modal-content">
+                        <div class="tp-modal-title-strip">
                             <h4>${data.post_title}</h4>
                         </div>
                         
-                        <div class="download-credit-info">
+                        <div class="tp-credit-info">
                             <p><strong>Credit Cost:</strong> ${data.credits_required} credit${data.credits_required > 1 ? 's' : ''}</p>
                             <p><strong>Your Balance:</strong> ${data.user_credits} credit${data.user_credits !== 1 ? 's' : ''}</p>
-                            <p class="remaining-after">After download: <strong>${data.user_credits - data.credits_required}</strong> credits remaining</p>
+                            <p class="tp-credit-remaining"><strong>After download:</strong> ${data.user_credits - data.credits_required} credits remaining</p>
                         </div>
                         
-                        <p class="download-notice">${data.message}</p>
+                        <p class="tp-modal-notice">${data.message}</p>
                         
-                        <div class="kss-modal-actions khm-modal-actions">
-                            <button class="btn-cancel kss-modal-close">Cancel</button>
-                            <button class="btn-confirm-download">Download PDF</button>
+                        <div class="tp-modal-actions">
+                            <button class="btn-cancel tp-btn tp-btn-cancel">Cancel</button>
+                            <button class="btn-confirm-download tp-btn tp-btn-primary">Download PDF</button>
                         </div>
                     </div>
                 </div>
@@ -137,32 +138,119 @@
         
         const $modal = $('#kss-download-modal');
         
-        // Bind events
-        $modal.on('click', '.kss-modal-close, .btn-cancel', function() {
-            $modal.fadeOut(function() { $(this).remove(); });
+        // Bind close events
+        $modal.on('click', '.khm-modal-close, .btn-cancel', function() {
+            $modal.removeClass('show');
+            setTimeout(() => $modal.remove(), 300);
         });
         
+        // Click outside to close
         $modal.on('click', function(e) {
             if (e.target === this) {
-                $modal.fadeOut(function() { $(this).remove(); });
+                $modal.removeClass('show');
+                setTimeout(() => $modal.remove(), 300);
             }
         });
         
+        // Confirm download
         $modal.on('click', '.btn-confirm-download', function() {
-            $modal.fadeOut(function() { $(this).remove(); });
+            $modal.removeClass('show');
+            setTimeout(() => $modal.remove(), 300);
             processConfirmedDownload(data.post_id, $button);
         });
         
         // Handle ESC key
         $(document).on('keydown.downloadModal', function(e) {
             if (e.key === 'Escape') {
-                $modal.fadeOut(function() { $(this).remove(); });
+                $modal.removeClass('show');
+                setTimeout(() => $modal.remove(), 300);
                 $(document).off('keydown.downloadModal');
             }
         });
         
-        // Show modal
-        $modal.fadeIn();
+        // Show modal with animation
+        requestAnimationFrame(() => {
+            $modal.addClass('show');
+        });
+    }
+    
+    /**
+     * Show re-download confirmation modal (for free re-downloads)
+     * Uses Touchpoint Design System
+     */
+    function showRedownloadConfirmationModal(data, $button) {
+        // Remove existing modal
+        $('#kss-download-modal').remove();
+        
+        const modalHtml = `
+            <div id="kss-download-modal" class="khm-modal-backdrop">
+                <div class="khm-modal" style="min-width: 400px; max-width: 480px;">
+                    <div class="khm-modal-header">
+                        <h3 class="khm-modal-title">Re-Download PDF</h3>
+                        <button class="khm-modal-close">&times;</button>
+                    </div>
+                    <div class="khm-modal-content">
+                        <div class="tp-modal-title-strip">
+                            <h4>${data.post_title}</h4>
+                        </div>
+                        
+                        <div class="tp-credit-success">
+                            <p class="tp-success-title">✓ Free Re-Download</p>
+                            <p>You have already downloaded this PDF, so you may re-download again without using any credits.</p>
+                        </div>
+                        
+                        <div class="tp-balance-info">
+                            <p><strong>Your Credit Balance:</strong> ${data.user_credits} credit${data.user_credits !== 1 ? 's' : ''}</p>
+                        </div>
+                        
+                        <div class="tp-modal-actions">
+                            <button class="btn-cancel tp-btn tp-btn-cancel">Cancel</button>
+                            <button class="btn-confirm-download tp-btn tp-btn-success">Download PDF</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to page
+        $('body').append(modalHtml);
+        
+        const $modal = $('#kss-download-modal');
+        
+        // Bind close events
+        $modal.on('click', '.khm-modal-close, .btn-cancel', function() {
+            $modal.removeClass('show');
+            setTimeout(() => $modal.remove(), 300);
+        });
+        
+        // Click outside to close
+        $modal.on('click', function(e) {
+            if (e.target === this) {
+                $modal.removeClass('show');
+                setTimeout(() => $modal.remove(), 300);
+            }
+        });
+        
+        // Confirm download
+        $modal.on('click', '.btn-confirm-download', function() {
+            $modal.removeClass('show');
+            setTimeout(() => $modal.remove(), 300);
+            processConfirmedDownload(data.post_id, $button);
+        });
+        
+        // Handle ESC key
+        $(document).on('keydown.redownloadModal', function(e) {
+            if (e.key === 'Escape') {
+                $modal.removeClass('show');
+                setTimeout(() => $modal.remove(), 300);
+                $(document).off('keydown.redownloadModal');
+            }
+        });
+        
+        // Show modal with animation
+        requestAnimationFrame(() => {
+            $modal.addClass('show');
+        });
     }
     
     /**
@@ -188,8 +276,8 @@
                     // Update credits display
                     updateCreditsDisplay(response.credits_remaining);
                     
-                    // Trigger download
-                    window.location.href = response.download_url;
+                    // Open PDF in new tab
+                    window.open(response.download_url, '_blank');
                 } else {
                     showMessage(response.error || 'Download failed', 'error');
                 }

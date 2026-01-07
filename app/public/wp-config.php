@@ -128,7 +128,7 @@ define( 'KHM_EDITOR_DISABLED_PLUGINS', array(
 // Temporarily disable KH ad rendering.
 define( 'KHM_DISABLE_ADS', true );
 // Temporarily disable KHM data calls in Social Strip.
-define( 'KSS_DISABLE_KHM', true );
+// define( 'KSS_DISABLE_KHM', true );
 
 define( 'WP_ENVIRONMENT_TYPE', 'local' );
 /* That's all, stop editing! Happy publishing. */

@@ -6,21 +6,16 @@ $icon_base = $widget_data['icon_base'];
 
 <div class="kss-social-strip kss-vertical" data-post-id="<?= esc_attr($post_id); ?>">
     
-    <?php if ($widget_data['is_logged_in'] && $widget_data['credits']['can_download']): ?>
-        <!-- Credit Download Button -->
+    <?php if ($widget_data['is_logged_in']): ?>
+        <!-- Credit Download Button - always clickable for logged-in users, modal will handle eligibility -->
         <button class="kss-download-credit kss-icon" 
                 data-post-id="<?= esc_attr($post_id); ?>" 
                 title="Download (<?= esc_attr($widget_data['credits']['required']); ?> credit<?= $widget_data['credits']['required'] == 1 ? '' : 's'; ?>) - <?= $widget_data['credits']['available']; ?> remaining">
             <img src="<?= esc_url($icon_base . 'download.png'); ?>" alt="Download">
         </button>
-    <?php elseif (!$widget_data['is_logged_in']): ?>
+    <?php else: ?>
         <!-- Login Required for Download -->
         <button class="kss-icon disabled" title="Login required for download">
-            <img src="<?= esc_url($icon_base . 'download.png'); ?>" alt="Download">
-        </button>
-    <?php else: ?>
-        <!-- Insufficient Credits -->
-        <button class="kss-icon disabled" title="Download (<?= esc_attr($widget_data['credits']['required']); ?> credit<?= $widget_data['credits']['required'] == 1 ? '' : 's'; ?>) - <?= $widget_data['credits']['available']; ?> remaining">
             <img src="<?= esc_url($icon_base . 'download.png'); ?>" alt="Download">
         </button>
     <?php endif; ?>

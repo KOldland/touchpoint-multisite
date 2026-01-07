@@ -34,80 +34,79 @@ class DownloadController {
     }
 
     public function register(): void {
-        add_action('rest_api_init', function() {
-            // Check download eligibility (before showing confirmation modal)
-            register_rest_route('khm/v1', '/download/check/(?P<post_id>\d+)', [
-                'methods' => 'GET',
-                'callback' => [$this, 'check_eligibility'],
-                'permission_callback' => function() { return is_user_logged_in(); },
-                'args' => [
-                    'post_id' => [
-                        'required' => true,
-                        'type' => 'integer',
-                        'validate_callback' => function($param) {
-                            return is_numeric($param) && $param > 0;
-                        }
-                    ],
+        // Register routes directly - this method is called from within rest_api_init
+        // Check download eligibility (before showing confirmation modal)
+        register_rest_route('khm/v1', '/download/check/(?P<post_id>\d+)', [
+            'methods' => 'GET',
+            'callback' => [$this, 'check_eligibility'],
+            'permission_callback' => function() { return is_user_logged_in(); },
+            'args' => [
+                'post_id' => [
+                    'required' => true,
+                    'type' => 'integer',
+                    'validate_callback' => function($param) {
+                        return is_numeric($param) && $param > 0;
+                    }
                 ],
-            ]);
+            ],
+        ]);
 
-            // Process download (deduct credits and return PDF URL)
-            register_rest_route('khm/v1', '/download/(?P<post_id>\d+)', [
-                'methods' => 'POST',
-                'callback' => [$this, 'process_download'],
-                'permission_callback' => function() { return is_user_logged_in(); },
-                'args' => [
-                    'post_id' => [
-                        'required' => true,
-                        'type' => 'integer',
-                        'validate_callback' => function($param) {
-                            return is_numeric($param) && $param > 0;
-                        }
-                    ],
-                    'confirm' => [
-                        'required' => false,
-                        'type' => 'boolean',
-                        'default' => false,
-                    ],
+        // Process download (deduct credits and return PDF URL)
+        register_rest_route('khm/v1', '/download/(?P<post_id>\d+)', [
+            'methods' => 'POST',
+            'callback' => [$this, 'process_download'],
+            'permission_callback' => function() { return is_user_logged_in(); },
+            'args' => [
+                'post_id' => [
+                    'required' => true,
+                    'type' => 'integer',
+                    'validate_callback' => function($param) {
+                        return is_numeric($param) && $param > 0;
+                    }
                 ],
-            ]);
+                'confirm' => [
+                    'required' => false,
+                    'type' => 'boolean',
+                    'default' => false,
+                ],
+            ],
+        ]);
 
-            // Stream PDF file directly
-            register_rest_route('khm/v1', '/download/(?P<post_id>\d+)/pdf', [
-                'methods' => 'GET',
-                'callback' => [$this, 'stream_pdf'],
-                'permission_callback' => [$this, 'verify_download_token'],
-                'args' => [
-                    'post_id' => [
-                        'required' => true,
-                        'type' => 'integer',
-                    ],
-                    'token' => [
-                        'required' => true,
-                        'type' => 'string',
-                    ],
+        // Stream PDF file directly
+        register_rest_route('khm/v1', '/download/(?P<post_id>\d+)/pdf', [
+            'methods' => 'GET',
+            'callback' => [$this, 'stream_pdf'],
+            'permission_callback' => [$this, 'verify_download_token'],
+            'args' => [
+                'post_id' => [
+                    'required' => true,
+                    'type' => 'integer',
                 ],
-            ]);
+                'token' => [
+                    'required' => true,
+                    'type' => 'string',
+                ],
+            ],
+        ]);
 
-            // Get download history
-            register_rest_route('khm/v1', '/download/history', [
-                'methods' => 'GET',
-                'callback' => [$this, 'get_history'],
-                'permission_callback' => function() { return is_user_logged_in(); },
-                'args' => [
-                    'limit' => [
-                        'required' => false,
-                        'type' => 'integer',
-                        'default' => 20,
-                    ],
-                    'offset' => [
-                        'required' => false,
-                        'type' => 'integer',
-                        'default' => 0,
-                    ],
+        // Get download history
+        register_rest_route('khm/v1', '/download/history', [
+            'methods' => 'GET',
+            'callback' => [$this, 'get_history'],
+            'permission_callback' => function() { return is_user_logged_in(); },
+            'args' => [
+                'limit' => [
+                    'required' => false,
+                    'type' => 'integer',
+                    'default' => 20,
                 ],
-            ]);
-        });
+                'offset' => [
+                    'required' => false,
+                    'type' => 'integer',
+                    'default' => 0,
+                ],
+            ],
+        ]);
     }
 
     /**
@@ -207,10 +206,12 @@ class DownloadController {
 
     /**
      * Stream PDF file
+     * Note: This outputs directly and exits to avoid WP_REST_Response corrupting binary data
      */
-    public function stream_pdf(WP_REST_Request $request): WP_REST_Response {
+    public function stream_pdf(WP_REST_Request $request) {
         $post_id = (int) $request->get_param('post_id');
-        $user_id = get_current_user_id();
+        // Use user ID from validated token (set in verify_download_token)
+        $user_id = $request->get_param('token_user_id') ?: get_current_user_id();
 
         // Generate PDF
         $result = $this->pdf_service->generateArticlePDF($post_id, $user_id);
@@ -222,14 +223,22 @@ class DownloadController {
             ], 500);
         }
 
-        // Return PDF response
-        $response = new WP_REST_Response($result['pdf_data'], 200);
-        $response->header('Content-Type', 'application/pdf');
-        $response->header('Content-Disposition', 'attachment; filename="' . $result['filename'] . '"');
-        $response->header('Content-Length', strlen($result['pdf_data']));
-        $response->header('Cache-Control', 'private, max-age=0, must-revalidate');
+        // Output PDF directly - WP_REST_Response corrupts binary data
+        // Clean any output buffers
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
         
-        return $response;
+        // Set headers
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . $result['filename'] . '"');
+        header('Content-Length: ' . strlen($result['pdf_data']));
+        header('Cache-Control: private, max-age=0, must-revalidate');
+        header('Pragma: public');
+        
+        // Output PDF data
+        echo $result['pdf_data'];
+        exit;
     }
 
     /**
@@ -282,15 +291,12 @@ class DownloadController {
 
     /**
      * Verify download token (permission callback for PDF stream)
+     * Note: We verify the token signature itself rather than requiring login,
+     * since the redirect from download may not preserve cookies
      */
     public function verify_download_token(WP_REST_Request $request): bool {
-        if (!is_user_logged_in()) {
-            return false;
-        }
-
         $token = $request->get_param('token');
         $post_id = (int) $request->get_param('post_id');
-        $user_id = get_current_user_id();
 
         if (!$token) {
             return false;
@@ -321,10 +327,13 @@ class DownloadController {
             return false;
         }
 
-        // Verify user and post match
-        if ((int) $token_user_id !== $user_id || (int) $token_post_id !== $post_id) {
+        // Verify post matches
+        if ((int) $token_post_id !== $post_id) {
             return false;
         }
+
+        // Store user ID for use in stream_pdf
+        $request->set_param('token_user_id', (int) $token_user_id);
 
         return true;
     }

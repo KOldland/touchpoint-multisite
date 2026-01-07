@@ -1,7 +1,7 @@
 /**
  * KHM Unified Modal System
  * Responsive modal for sharing, gifting, eCommerce, and general purpose use
- * Based on TouchPoint Marketing Suite specifications
+ * TouchPoint Marketing Suite Design System
  */
 
 /* Base Modal Structure */
@@ -29,9 +29,11 @@
 }
 
 .khm-modal {
-    background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
     max-width: 90vw;
     max-height: 90vh;
     width: auto;
@@ -41,6 +43,7 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    font-family: 'DM Sans', sans-serif;
 }
 
 .khm-modal-backdrop.show .khm-modal {
@@ -49,26 +52,28 @@
 
 /* Modal Header */
 .khm-modal-header {
-    padding: 24px 24px 16px;
-    border-bottom: 1px solid #e5e5e5;
+    padding: 0.75rem 1.5rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     flex-shrink: 0;
-    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    background: #ffffff;
 }
 
 .khm-modal-title {
-    font-size: 20px;
-    font-weight: 600;
-    color: #333;
+    font-family: Georgia, serif;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #000;
     margin: 0;
     flex: 1;
 }
 
 .khm-modal-subtitle {
-    font-size: 14px;
-    color: #666;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.875rem;
+    color: #6a6a6a;
     margin: 4px 0 0;
     font-weight: 400;
 }
@@ -79,23 +84,24 @@
     font-size: 24px;
     cursor: pointer;
     padding: 8px;
-    margin: -8px;
-    color: #666;
-    transition: color 0.2s ease, transform 0.2s ease;
+    margin: -8px -8px 0 0;
+    color: #6a6a6a;
+    transition: color 0.2s ease;
     border-radius: 4px;
+    font-family: 'DM Sans', sans-serif;
 }
 
 .khm-modal-close:hover {
-    color: #333;
-    transform: scale(1.1);
+    color: #000;
 }
 
 /* Modal Content */
 .khm-modal-content {
-    padding: 24px;
+    padding: 1.5rem;
     overflow-y: auto;
     flex: 1;
-    min-height: 0; /* Important for flexbox scrolling */
+    min-height: 0;
+    font-family: 'DM Sans', sans-serif;
 }
 
 .khm-modal-content::-webkit-scrollbar {
@@ -117,13 +123,13 @@
 
 /* Modal Footer */
 .khm-modal-footer {
-    padding: 16px 24px 24px;
+    padding: 1rem 1.5rem 1.5rem;
     border-top: 1px solid #e5e5e5;
     display: flex;
     gap: 12px;
     justify-content: flex-end;
     flex-shrink: 0;
-    background: #fafafa;
+    background: #f8f8f8;
 }
 
 .khm-modal-footer.centered {
@@ -132,6 +138,148 @@
 
 .khm-modal-footer.space-between {
     justify-content: space-between;
+}
+
+/* ============================================
+   TOUCHPOINT DOWNLOAD MODAL STYLES
+   ============================================ */
+
+/* Article Title with Red Accent Strip */
+.tp-modal-title-strip {
+    border-left: 4px solid #6b0b0b;
+    padding-left: 1rem;
+    margin-bottom: 1rem;
+}
+
+.tp-modal-title-strip h4 {
+    font-family: Georgia, serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #000;
+    margin: 0;
+    line-height: 1.4;
+}
+
+/* Credit Info Block - Gold accent */
+.tp-credit-info {
+    background-color: #fef9e6;
+    padding: 1rem;
+    border-left: 3px solid #e3b000;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    border-radius: 0 4px 4px 0;
+}
+
+.tp-credit-info p {
+    margin: 0 0 0.5rem;
+    color: #333;
+    font-family: 'DM Sans', sans-serif;
+}
+
+.tp-credit-info p:last-child {
+    margin-bottom: 0;
+}
+
+.tp-credit-info strong {
+    color: #000;
+}
+
+.tp-credit-info .tp-credit-remaining {
+    color: #2a7f47;
+    font-weight: 600;
+}
+
+/* Success/Free Download Block - Green accent */
+.tp-credit-success {
+    background-color: #e6f9e9;
+    border-left: 3px solid #2a7f47;
+    padding: 1rem;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    border-radius: 0 4px 4px 0;
+}
+
+.tp-credit-success p {
+    margin: 0 0 0.5rem;
+    color: #1a5c30;
+    font-family: 'DM Sans', sans-serif;
+}
+
+.tp-credit-success p:last-child {
+    margin-bottom: 0;
+}
+
+.tp-credit-success .tp-success-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+/* Balance Display Block - Neutral */
+.tp-balance-info {
+    background-color: #ffffff;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 1.5rem;
+}
+
+.tp-balance-info p {
+    margin: 0;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    color: #333;
+}
+
+/* Modal Notice Text */
+.tp-modal-notice {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.875rem;
+    color: #6a6a6a;
+    margin-bottom: 1.5rem;
+}
+
+/* Modal Action Buttons */
+.tp-modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.tp-btn {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    border-radius: 4px;
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.tp-btn-cancel {
+    background-color: #ccc;
+    color: #000;
+}
+
+.tp-btn-cancel:hover {
+    background-color: #b8b8b8;
+}
+
+.tp-btn-primary {
+    background-color: #6b0b0b;
+    color: #fff;
+}
+
+.tp-btn-primary:hover {
+    background-color: #500808;
+}
+
+.tp-btn-success {
+    background-color: #2a7f47;
+    color: #fff;
+}
+
+.tp-btn-success:hover {
+    background-color: #1f6035;
 }
 
 /* Modal Sizes */

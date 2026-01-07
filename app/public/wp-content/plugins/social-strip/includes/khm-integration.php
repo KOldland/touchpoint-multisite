@@ -21,8 +21,12 @@ class KSS_KHM_Integration {
      * Constructor - Initialize the integration
      */
     public function __construct() {
-        // Wait for KHM to be ready
-        add_action('khm_marketing_suite_ready', [$this, 'register_with_khm']);
+        // Check if KHM is already ready (action already fired), otherwise wait for it
+        if (function_exists('khm_is_marketing_suite_ready') && khm_is_marketing_suite_ready()) {
+            $this->register_with_khm();
+        } else {
+            add_action('khm_marketing_suite_ready', [$this, 'register_with_khm']);
+        }
     }
 
     /**
@@ -375,7 +379,11 @@ class KSS_KHM_Integration {
             $member_level = $is_member ? ($membership->level_name ?? 'Member') : 'Guest';
 
             // Get member discount for articles
-            $article_price = $original_data['price'] ?? 5.99;
+            // Get price from ACF/post meta first
+            $acf_price_for_discount = function_exists('get_field') ? get_field('kss_article_price', $post_id) : 0;
+            $meta_price_for_discount = get_post_meta($post_id, 'kss_article_price', true);
+            $article_price = $acf_price_for_discount ? floatval($acf_price_for_discount) : ($meta_price_for_discount ? floatval($meta_price_for_discount) : ($original_data['price'] ?? 5.99));
+            
             if ($article_price > 0 && function_exists('khm_get_member_discount')) {
                 $discount_data = khm_get_member_discount($user_id, $article_price, 'article');
                 $member_discount = $discount_data['discount_percent'] ?? 0;
@@ -427,18 +435,8 @@ class KSS_KHM_Integration {
             $member_price = $original_price * (1 - $member_discount / 100);
         }
 
-        // Try to get pricing from KHM service
-        if (function_exists('khm_call_service')) {
-            try {
-                $pricing = khm_call_service('get_article_pricing', $post_id, $user_id);
-                if ($pricing) {
-                    $original_price = $pricing['regular_price'] ?? $original_price;
-                    $member_price = $pricing['member_price'] ?? $member_price;
-                }
-            } catch (Exception $e) {
-                // Use calculated prices
-            }
-        }
+        // Note: We use the original price from ACF/post meta, not KHM service pricing
+        // to maintain connection with eCommerce inputs
 
         $enhanced_data['pricing'] = [
             'original_price' => $original_price,
@@ -447,6 +445,12 @@ class KSS_KHM_Integration {
             'has_discount' => $member_discount > 0,
             'discount_amount' => $original_price - $member_price,
             'is_purchasable' => $original_price > 0,
+        ];
+
+        // Gift pricing - same as member price
+        $enhanced_data['gift'] = [
+            'can_gift' => $is_logged_in,
+            'price' => $member_price,
         ];
 
         // Share data with affiliate support
@@ -459,6 +463,12 @@ class KSS_KHM_Integration {
             'url' => $share_url,
             'excerpt' => $share_excerpt,
             'has_affiliate' => $is_logged_in && $is_member,
+        ];
+
+        // Gift functionality
+        $enhanced_data['gift'] = [
+            'can_gift' => $is_logged_in && $is_member && $original_price > 0,
+            'price' => $member_price,
         ];
 
         // Feature visibility flags - core membership-based controls

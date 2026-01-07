@@ -7,7 +7,7 @@ $icon_base = $widget_data['icon_base'];
 <hr class="kss-divider">
 <div class="kss-social-strip kss-horizontal">
 
-    <?php if ($widget_data['features']['can_download']): ?>
+    <?php if ($widget_data['is_logged_in']): ?>
         <div class="kss-action">
             <button class="kss-download-credit kss-icon"
                     data-post-id="<?= esc_attr($post_id); ?>"
@@ -16,19 +16,12 @@ $icon_base = $widget_data['icon_base'];
             </button>
             <span class="kss-label">Download PDF (<?= esc_html($widget_data['credits']['required']); ?> credit<?= $widget_data['credits']['required'] == 1 ? '' : 's'; ?>)</span>
         </div>
-    <?php elseif (!$widget_data['is_logged_in']): ?>
+    <?php else: ?>
         <div class="kss-action">
             <button class="kss-icon disabled" title="Login required for download">
                 <img src="<?= esc_url($icon_base . 'download.png'); ?>" alt="Download">
             </button>
             <span class="kss-label">Login to Download</span>
-        </div>
-    <?php else: ?>
-        <div class="kss-action">
-            <button class="kss-icon disabled" title="Insufficient credits">
-                <img src="<?= esc_url($icon_base . 'download.png'); ?>" alt="Download">
-            </button>
-            <span class="kss-label">Insufficient Credits</span>
         </div>
     <?php endif; ?>
 

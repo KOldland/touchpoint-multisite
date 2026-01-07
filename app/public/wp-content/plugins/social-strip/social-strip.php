@@ -78,6 +78,14 @@ function kss_enqueue_social_strip_assets() {
         array('kss-social-strip'),
         filemtime(plugin_dir_path(__FILE__) . 'assets/css/social-sharing-modal.css')
     );
+    
+    // Enqueue KHM modal styles (for download confirmation modal)
+    wp_enqueue_style(
+        'kss-khm-modal',
+        plugin_dir_url(__FILE__) . 'assets/css/modal.css',
+        array('kss-social-strip'),
+        filemtime(plugin_dir_path(__FILE__) . 'assets/css/modal.css')
+    );
 
     wp_enqueue_script(
         'kss-social-strip',
