@@ -60,3 +60,4 @@
     </p>
   <?php endif; ?>
 </div>
+<div class="sr-abstract-end-anchor" aria-hidden="true"></div>

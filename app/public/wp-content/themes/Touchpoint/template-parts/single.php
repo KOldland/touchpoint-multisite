@@ -32,6 +32,7 @@
 
   <div class="page-content">
     <?php echo do_shortcode('[abstract_block]'); ?>
+    <div class="sr-abstract-end-anchor" aria-hidden="true"></div>
     <?php the_content(); ?>
     <?php wp_link_pages(); ?>
 

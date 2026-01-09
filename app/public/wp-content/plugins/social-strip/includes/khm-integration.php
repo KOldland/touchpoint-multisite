@@ -253,17 +253,24 @@ class KSS_KHM_Integration {
 
         if (!$user_id || !$post_id) {
             wp_send_json_error('Invalid parameters');
+            return;
         }
 
         // Use library service if available
         if (function_exists('khm_call_service')) {
-            $result = khm_call_service('save_to_library', $user_id, $post_id);
-            
-            if ($result) {
-                wp_send_json_success([
-                    'message' => 'Saved to library!',
-                    'is_saved' => true
-                ]);
+            try {
+                $result = khm_call_service('save_to_library', $user_id, $post_id);
+                
+                if ($result) {
+                    wp_send_json_success([
+                        'message' => 'Saved to library!',
+                        'is_saved' => true
+                    ]);
+                    return;
+                }
+            } catch (Exception $e) {
+                wp_send_json_error('Service error: ' . $e->getMessage());
+                return;
             }
         }
         
@@ -380,9 +387,9 @@ class KSS_KHM_Integration {
 
             // Get member discount for articles
             // Get price from ACF/post meta first
-            $acf_price_for_discount = function_exists('get_field') ? get_field('kss_article_price', $post_id) : 0;
+            $acf_price_for_discount = function_exists('get_field') ? get_field('kss_article_price', $post_id) : '';
             $meta_price_for_discount = get_post_meta($post_id, 'kss_article_price', true);
-            $article_price = $acf_price_for_discount ? floatval($acf_price_for_discount) : ($meta_price_for_discount ? floatval($meta_price_for_discount) : ($original_data['price'] ?? 5.99));
+            $article_price = $acf_price_for_discount !== '' ? floatval( $acf_price_for_discount ) : ( $meta_price_for_discount !== '' ? floatval( $meta_price_for_discount ) : ( $original_data['price'] ?? 0 ) );
             
             if ($article_price > 0 && function_exists('khm_get_member_discount')) {
                 $discount_data = khm_get_member_discount($user_id, $article_price, 'article');
@@ -401,15 +408,18 @@ class KSS_KHM_Integration {
         $user_credits = 0;
         $can_download_with_credits = false;
 
+        $credit_cost = get_post_meta( $post_id, 'kss_credit_cost', true );
+        $credit_cost = $credit_cost !== '' ? (int) $credit_cost : 0;
+
         if ($is_logged_in && function_exists('khm_get_user_credits')) {
             $user_credits = khm_get_user_credits($user_id);
-            $can_download_with_credits = $user_credits >= 1;
+            $can_download_with_credits = $credit_cost === 0 ? true : $user_credits >= $credit_cost;
         }
 
         $enhanced_data['credits'] = [
             'available' => $user_credits,
             'can_download' => $can_download_with_credits,
-            'cost_per_download' => 1,
+            'cost_per_download' => $credit_cost,
         ];
 
         // Get library status
@@ -428,7 +438,7 @@ class KSS_KHM_Integration {
         ];
 
         // Get comprehensive pricing information
-        $original_price = $original_data['price'] ?? 5.99;
+        $original_price = $original_data['price'] ?? 0;
         $member_price = $original_price;
 
         if ($is_member && $member_discount > 0) {

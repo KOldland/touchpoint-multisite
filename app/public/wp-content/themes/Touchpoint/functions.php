@@ -227,6 +227,34 @@ add_action( 'enqueue_block_editor_assets', function() {
 	);
 } );
 
+add_action( 'enqueue_block_editor_assets', function() {
+	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+	if ( ! $screen || 'post' !== $screen->post_type ) {
+		return;
+	}
+
+	wp_add_inline_script(
+		'wp-edit-post',
+		"window.wp&&wp.domReady(function(){var select=wp.data&&wp.data.select?wp.data.select('core/edit-post'):null;var dispatch=wp.data&&wp.data.dispatch?wp.data.dispatch('core/edit-post'):null;if(!select||!dispatch||!dispatch.toggleEditorPanelEnabled){return;}var enabled=select.isEditorPanelEnabled?select.isEditorPanelEnabled('taxonomy-panel-post_tag'):true;if(enabled===false){dispatch.toggleEditorPanelEnabled('taxonomy-panel-post_tag');}});"
+	);
+
+	wp_enqueue_script(
+		'touchpoint-editor-seo-sync',
+		get_stylesheet_directory_uri() . '/js/editor-seo-sync.js',
+		array( 'wp-data', 'wp-dom-ready' ),
+		filemtime( get_stylesheet_directory() . '/js/editor-seo-sync.js' ),
+		true
+	);
+
+	wp_enqueue_script(
+		'touchpoint-editor-guidance',
+		get_stylesheet_directory_uri() . '/js/editor-guidance.js',
+		array( 'wp-block-editor', 'wp-compose', 'wp-data', 'wp-element', 'wp-hooks', 'wp-notices' ),
+		filemtime( get_stylesheet_directory() . '/js/editor-guidance.js' ),
+		true
+	);
+} );
+
 add_action( 'init', function() {
 	register_post_meta( 'post', '_lead_category_id', array(
 		'type'              => 'integer',
@@ -238,6 +266,43 @@ add_action( 'init', function() {
 		'sanitize_callback' => 'absint',
 	) );
 } );
+
+function touchpointcrm_register_article_template() {
+	$post_type = get_post_type_object( 'post' );
+	if ( ! $post_type ) {
+		return;
+	}
+
+	$post_type->template = array(
+		array( 'acf/abstract', array() ),
+		array( 'core/heading', array(
+			'level'   => 2,
+			'content' => 'Use H2 for primary sub-headings. H3 for section sub-headings.',
+		) ),
+		array( 'core/paragraph', array(
+			'placeholder' => 'Start your article here...',
+		) ),
+		array( 'core/pullquote', array(
+			'value'    => '"Put a citable stat approx every 500 words..."',
+			'citation' => 'Always cite your source',
+		) ),
+		array( 'core/heading', array(
+			'level'   => 2,
+			'content' => 'Use H2 to start a new segment of your article.',
+		) ),
+		array( 'core/paragraph', array(
+			'placeholder' => 'Continue your article here. Repeat this flow until complete.',
+		) ),
+		array( 'core/pullquote', array(
+			'value'    => '"Put a citable stat approx every 500 words..."',
+			'citation' => 'Always cite your source',
+		) ),
+		array( 'acf/footnotes', array() ),
+	);
+
+	$post_type->template_lock = false;
+}
+add_action( 'init', 'touchpointcrm_register_article_template', 20 );
 
 add_action( 'init', function() {
 	register_post_meta( 'post', 'kss_article_price', array(
@@ -260,6 +325,68 @@ add_action( 'init', function() {
 	) );
 } );
 
+add_action( 'init', function() {
+	register_taxonomy_for_object_type( 'post_tag', 'post' );
+} );
+
+add_action( 'init', function() {
+	$seo_meta = array(
+		'_khm_seo_title' => 'sanitize_text_field',
+		'_khm_seo_description' => 'sanitize_textarea_field',
+		'_khm_seo_keywords' => 'sanitize_text_field',
+		'_khm_seo_robots' => 'sanitize_text_field',
+		'_khm_seo_canonical' => 'esc_url_raw',
+		'_khm_seo_focus_keyword' => 'sanitize_text_field',
+	);
+
+	foreach ( $seo_meta as $key => $sanitize_callback ) {
+		register_post_meta( 'post', $key, array(
+			'type'              => 'string',
+			'single'            => true,
+			'show_in_rest'      => true,
+			'auth_callback'     => function() {
+				return current_user_can( 'edit_posts' );
+			},
+			'sanitize_callback' => $sanitize_callback,
+		) );
+	}
+} );
+
+add_action( 'init', function() {
+	register_post_meta( 'post', 'authors', array(
+		'type'              => 'array',
+		'single'            => true,
+		'show_in_rest'      => array(
+			'schema' => array(
+				'type'  => 'array',
+				'items' => array(
+					'type' => 'integer',
+				),
+			),
+		),
+		'auth_callback'     => function() {
+			return current_user_can( 'edit_posts' );
+		},
+		'sanitize_callback' => function( $value ) {
+			$value = is_array( $value ) ? $value : array( $value );
+			return array_values( array_filter( array_map( 'absint', $value ) ) );
+		},
+	) );
+} );
+
+add_filter( 'wp_insert_post_data', function( $data, $postarr ) {
+	if ( empty( $data['post_type'] ) || 'post' !== $data['post_type'] ) {
+		return $data;
+	}
+	if ( empty( $data['post_title'] ) || 'auto-draft' === $data['post_status'] ) {
+		return $data;
+	}
+	if ( empty( $postarr['post_name'] ) && ! empty( $data['post_name'] ) && preg_match( '/^\d+(?:-\d+)?$/', $data['post_name'] ) ) {
+		$data['post_name'] = sanitize_title( $data['post_title'] );
+	}
+	return $data;
+}, 10, 2 );
+
 add_action( 'rest_after_insert_post', function( $post, $request, $creating ) {
 	if ( ! $post instanceof WP_Post ) {
 		return;
@@ -273,6 +400,17 @@ add_action( 'rest_after_insert_post', function( $post, $request, $creating ) {
 	$meta = (array) $request->get_param( 'meta' );
 	if ( ! empty( $meta['_lead_category_id'] ) ) {
 		update_post_meta( $post->ID, '_lead_category_id', (int) $meta['_lead_category_id'] );
+	}
+
+	$acf = (array) $request->get_param( 'acf' );
+	$raw_authors = $acf['authors'] ?? $acf['field_multi_author_relationship'] ?? null;
+	if ( null !== $raw_authors ) {
+		$authors = is_array( $raw_authors ) ? $raw_authors : array( $raw_authors );
+		$authors = array_values( array_filter( array_map( 'absint', $authors ) ) );
+		if ( function_exists( 'update_field' ) ) {
+			update_field( 'field_multi_author_relationship', $authors, $post->ID );
+		}
+		update_post_meta( $post->ID, 'authors', $authors );
 	}
 }, 10, 3 );
 
@@ -658,7 +796,7 @@ add_action( 'add_meta_boxes', function() {
 			$credit_cost = get_post_meta( $post->ID, 'kss_credit_cost', true );
 
 			echo '<p style="margin-top:12px;"><label for="kss_credit_cost">' . esc_html__( 'Download Credit Cost', 'touchpoint' ) . '</label></p>';
-			echo '<input type="number" step="1" min="1" class="widefat" id="kss_credit_cost" name="kss_credit_cost" value="' . esc_attr( $credit_cost ) . '">';
+			echo '<input type="number" step="1" min="0" class="widefat" id="kss_credit_cost" name="kss_credit_cost" value="' . esc_attr( $credit_cost ) . '">';
 
 			echo '<p style="margin-top:12px;">' . esc_html__( 'Gifting uses the same price as Article Price.', 'touchpoint' ) . '</p>';
 		},

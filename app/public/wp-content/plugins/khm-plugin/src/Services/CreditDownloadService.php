@@ -64,14 +64,14 @@ class CreditDownloadService {
 
     /**
      * Get the credit cost for an article
-     * Reads from kss_credit_cost post meta, defaults to 1
+     * Reads from kss_credit_cost post meta, defaults to 0
      *
      * @param int $post_id
      * @return int
      */
     public function getArticleCreditCost(int $post_id): int {
         $cost = get_post_meta($post_id, 'kss_credit_cost', true);
-        return $cost ? (int) $cost : 1;
+        return $cost !== '' ? (int) $cost : 0;
     }
 
     /**

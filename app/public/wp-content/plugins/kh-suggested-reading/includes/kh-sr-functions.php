@@ -3,7 +3,15 @@
 	function kh_suggested_reading_get_posts( $post_id = null, $limit = 6, $offset = 0 ) {
 
 	if ( ! $post_id ) {
+		$post_id = get_queried_object_id();
+	}
+
+	if ( ! $post_id ) {
 		$post_id = get_the_ID();
+	}
+
+	if ( ! $post_id ) {
+		return [];
 	}
 
 	$cache_key = 'kh_sr_' . $post_id . '_' . $limit . '_' . $offset;
@@ -20,7 +28,9 @@
 	
 	if ( ! empty( $manual ) && is_array( $manual ) ) {
 		$result = array_slice( $manual, 0, $limit );
-		set_transient( $cache_key, $result, MINUTE_IN_SECONDS * 10 );
+		if ( ! empty( $result ) ) {
+			set_transient( $cache_key, $result, MINUTE_IN_SECONDS * 10 );
+		}
 		return $result;
 	}
 
@@ -42,7 +52,9 @@
 			'post_status'    => 'publish',
 			'post_type'      => 'post',
 		] );
-		set_transient( $cache_key, $result, MINUTE_IN_SECONDS * 10 );
+		if ( ! empty( $result ) ) {
+			set_transient( $cache_key, $result, MINUTE_IN_SECONDS * 10 );
+		}
 		return $result;
 	}
 
@@ -113,7 +125,9 @@
 		$suggested = array_merge( $suggested, $fillers );
 	}
 
-	set_transient( $cache_key, $suggested, MINUTE_IN_SECONDS * 10 );
+	if ( ! empty( $suggested ) ) {
+		set_transient( $cache_key, $suggested, MINUTE_IN_SECONDS * 10 );
+	}
 	return $suggested;
 }
 	

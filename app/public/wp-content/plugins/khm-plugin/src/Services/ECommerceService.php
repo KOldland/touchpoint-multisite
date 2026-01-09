@@ -40,7 +40,7 @@ class ECommerceService {
         $products_sql = "CREATE TABLE {$this->products_table} (
             id int(11) NOT NULL AUTO_INCREMENT,
             post_id int(11) NOT NULL,
-            regular_price decimal(10,2) NOT NULL DEFAULT 5.99,
+            regular_price decimal(10,2) NOT NULL DEFAULT 0.00,
             member_price decimal(10,2) DEFAULT NULL,
             member_discount_percent int(11) DEFAULT 20,
             is_purchasable tinyint(1) DEFAULT 1,
@@ -433,7 +433,7 @@ class ECommerceService {
 
         $data = [
             'post_id' => $post_id,
-            'regular_price' => $pricing['regular_price'] ?? 5.99,
+            'regular_price' => $pricing['regular_price'] ?? 0,
             'member_price' => $pricing['member_price'] ?? null,
             'member_discount_percent' => $pricing['member_discount_percent'] ?? 20,
             'is_purchasable' => $pricing['is_purchasable'] ?? 1,
@@ -457,7 +457,8 @@ class ECommerceService {
     private function create_default_product(int $post_id): object {
         global $wpdb;
 
-        $default_price = get_post_meta($post_id, '_article_price', true) ?: 5.99;
+        $default_price = get_post_meta( $post_id, 'kss_article_price', true );
+        $default_price = $default_price !== '' ? (float) $default_price : 0;
 
         $data = [
             'post_id' => $post_id,

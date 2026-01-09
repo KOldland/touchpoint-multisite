@@ -43,3 +43,18 @@ samp {
 blockquote {
   font-style: italic;
 }
+
+.editor-styles-wrapper .touchpoint-guidance-paragraph-long {
+  outline: 2px solid #d48a1e;
+  background-color: rgba(212, 138, 30, 0.08);
+}
+
+.editor-styles-wrapper .touchpoint-guidance-heading-rogue {
+  outline: 2px solid #c62828;
+  background-color: rgba(198, 40, 40, 0.08);
+}
+
+.editor-styles-wrapper .touchpoint-guidance-heading-skip {
+  outline: 2px solid #d48a1e;
+  background-color: rgba(212, 138, 30, 0.08);
+}

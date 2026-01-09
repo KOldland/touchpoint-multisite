@@ -34,4 +34,12 @@ add_action( 'wp_enqueue_scripts', function() {
 		[],
 		'1.0'
 	);
+
+	wp_enqueue_script(
+		'kh-suggested-reading-script',
+		plugin_dir_url( __FILE__ ) . 'assets/js/kh-suggested-reading.js',
+		[],
+		'1.0',
+		true
+	);
 });

@@ -117,10 +117,41 @@ add_action('admin_init', function () {
 });
 
 // Register Elementor widgets when Elementor is available.
-// Register Elementor widgets when Elementor is available.
-add_action('elementor/widgets/register', function( $widgets_manager ) {
+// Try BOTH hooks for maximum compatibility
+add_action('elementor/widgets/widgets_registered', function( $widgets_manager ) {
+    if ( ! did_action( 'elementor/loaded' ) ) {
+        return;
+    }
+    
     if ( ! class_exists( '\Elementor\Widget_Base' ) ) {
         return;
+    }
+
+    $widgets_dir = __DIR__ . '/src/Elementor/Widgets/';
+
+    // Load widget files directly to ensure they're available
+    $widget_files = [
+        'Account_Widget.php',
+        'Checkout_Widget.php',
+        'Member_Widget.php',
+        'Levels_Widget.php',
+        'Creative_Widget.php',
+        'CreativeList_Widget.php',
+        'AffiliateDashboard_Widget.php',
+        'MemberLibrary_Widget.php',
+        'PortalDashboard_Widget.php',
+        'PortalCredits_Widget.php',
+        'PortalDownloads_Widget.php',
+        'PortalMembership_Widget.php',
+        'PortalAccount_Widget.php',
+        'TestPortalDashboard_Widget.php',
+    ];
+
+    foreach ($widget_files as $file) {
+        $filepath = $widgets_dir . $file;
+        if (file_exists($filepath)) {
+            require_once $filepath;
+        }
     }
 
     // Account widget
@@ -161,7 +192,84 @@ add_action('elementor/widgets/register', function( $widgets_manager ) {
     if ( class_exists( '\KHM\Elementor\Widgets\MemberLibrary_Widget' ) ) {
         $widgets_manager->register( new \KHM\Elementor\Widgets\MemberLibrary_Widget() );
     }
+
+    // Portal widgets - modular member portal sections
+    if ( class_exists( '\KHM\Elementor\Widgets\PortalDashboard_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\PortalDashboard_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\PortalDashboard_Widget() );
+        }
+    }
+    if ( class_exists( '\KHM\Elementor\Widgets\PortalCredits_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\PortalCredits_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\PortalCredits_Widget() );
+        }
+    }
+    if ( class_exists( '\KHM\Elementor\Widgets\PortalDownloads_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\PortalDownloads_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\PortalDownloads_Widget() );
+        }
+    }
+    if ( class_exists( '\KHM\Elementor\Widgets\PortalMembership_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\PortalMembership_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\PortalMembership_Widget() );
+        }
+    }
+    if ( class_exists( '\KHM\Elementor\Widgets\PortalAccount_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\PortalAccount_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\PortalAccount_Widget() );
+        }
+    }
+    
+    // TEST WIDGET - no namespace, exactly like KH Suggested Reading
+    if ( class_exists( 'TestPortalDashboard_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new TestPortalDashboard_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new TestPortalDashboard_Widget() );
+        }
+    }
+    
+    // TEST v2 - same widget, different name to force fresh registration
+    if ( class_exists( 'TestPortalDashboard_Widget' ) ) {
+        $test_widget = new TestPortalDashboard_Widget();
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( $test_widget );
+        }
+    }
 });
+
+// Force portal widgets to load in editor config
+add_filter('elementor/editor/localize_settings', function($settings) {
+    if (!isset($settings['widgets'])) {
+        return $settings;
+    }
+    
+    // Ensure portal widgets have full config in editor
+    $portal_widgets = ['khm_portal_dashboard', 'khm_portal_credits', 'khm_portal_downloads', 'khm_portal_membership', 'khm_portal_account'];
+    
+    foreach ($portal_widgets as $widget_name) {
+        if (isset($settings['widgets'][$widget_name]) && !isset($settings['widgets'][$widget_name]['title'])) {
+            // Widget is in cache but missing metadata - force load it
+            $widgets_manager = \Elementor\Plugin::$instance->widgets_manager;
+            $widget = $widgets_manager->get_widget_types($widget_name);
+            if ($widget) {
+                $settings['widgets'][$widget_name] = $widget->get_config();
+            }
+        }
+    }
+    
+    return $settings;
+}, 20);
 
 // Register custom Touchpoint category (separate hook Elementor expects).
 add_action( 'elementor/elements/categories_registered', function( $elements_manager ) {
@@ -171,10 +279,12 @@ add_action( 'elementor/elements/categories_registered', function( $elements_mana
             [
                 'title' => __( 'Touchpoint', 'khm-membership' ),
                 'icon'  => 'fa fa-plug',
-            ]
+                'active' => true,
+            ],
+            1 // Priority position - show near the top
         );
     }
-} );
+}, 1 ); // Run early to ensure category is available
 
 function khm_create_main_admin_menu() {
     // Check if main menu already exists
@@ -537,6 +647,10 @@ add_action('rest_api_init', function () {
     if ( class_exists('KHM\\Rest\\DownloadController') ) {
         ( new KHM\Rest\DownloadController() )->register();
     }
+    // Register member portal routes
+    if ( class_exists('KHM\\Rest\\MemberPortalController') ) {
+        ( new KHM\Rest\MemberPortalController() )->register();
+    }
     // Register 4A ingestion routes
     if ( class_exists('KHM\\Rest\\FourAIngestionController') ) {
         ( new KHM\Rest\FourAIngestionController() )->register();
@@ -630,8 +744,26 @@ add_action('init', function () {
         if ( class_exists('KHM\\Frontend\\CommerceFrontend') ) {
             $commerce_frontend = new KHM\Frontend\CommerceFrontend();
         }
+
+        // Register member portal shortcode
+        if ( class_exists('KHM\\PublicFrontend\\MemberPortalShortcode') ) {
+            $member_portal = new KHM\PublicFrontend\MemberPortalShortcode();
+            $member_portal->register();
+        }
+        
+        // Register portal shortcodes (modular sections)
+        if ( class_exists('KHM\\PublicFrontend\\PortalShortcodes') ) {
+            $portal_shortcodes = new KHM\PublicFrontend\PortalShortcodes();
+        }
     }
 });
+
+// Register portal shortcodes early on init hook
+add_action('init', function() {
+    if ( class_exists('KHM\\PublicFrontend\\PortalShortcodes') ) {
+        new KHM\PublicFrontend\PortalShortcodes();
+    }
+}, 5);
 
 // Register admin menu and pages
 add_action('init', function () {
@@ -856,6 +988,9 @@ if (!function_exists('kss_get_enhanced_widget_data')) {
             'user_id' => $user_id,
             'is_logged_in' => $user_id > 0,
         ];
+
+        $credit_cost = get_post_meta( $post_id, 'kss_credit_cost', true );
+        $credit_cost = $credit_cost !== '' ? (int) $credit_cost : 0;
         
         // Only proceed with KHM integration if user is logged in and KHM is available
         if ($user_id > 0 && function_exists('khm_get_user_membership')) {
@@ -867,18 +1002,27 @@ if (!function_exists('kss_get_enhanced_widget_data')) {
             // Download functionality (credits)
             $data['credits'] = [
                 'available' => $credits,
-                'required' => 1,
-                'can_download' => $credits >= 1
+                'required' => $credit_cost,
+                'can_download' => $credit_cost === 0 ? true : $credits >= $credit_cost,
             ];
             
             // Save to Library functionality
+            $is_saved = false;
+            if (function_exists('khm_call_service')) {
+                try {
+                    $is_saved = khm_call_service('is_saved_to_library', $user_id, $post_id) ?: false;
+                } catch (Exception $e) {
+                    $is_saved = false;
+                }
+            }
             $data['library'] = [
-                'is_saved' => false, // TODO: Check if article is already saved
+                'is_saved' => $is_saved,
                 'can_save' => true
             ];
             
             // Buy functionality (pricing)
-            $base_price = get_post_meta($post_id, '_article_price', true) ?: 5.99;
+            $base_price = get_post_meta( $post_id, 'kss_article_price', true );
+            $base_price = $base_price !== '' ? (float) $base_price : 0;
             $discount_info = khm_get_member_discount($user_id, $base_price, 'article');
             
             $data['pricing'] = [
@@ -901,11 +1045,12 @@ if (!function_exists('kss_get_enhanced_widget_data')) {
             ];
         } else {
             // Guest user defaults
-            $base_price = get_post_meta($post_id, '_article_price', true) ?: 5.99;
+            $base_price = get_post_meta( $post_id, 'kss_article_price', true );
+            $base_price = $base_price !== '' ? (float) $base_price : 0;
             
             $data['credits'] = [
                 'available' => 0,
-                'required' => 1,
+                'required' => $credit_cost,
                 'can_download' => false
             ];
             

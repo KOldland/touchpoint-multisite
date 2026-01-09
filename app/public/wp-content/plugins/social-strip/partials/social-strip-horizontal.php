@@ -71,10 +71,4 @@ $icon_base = $widget_data['icon_base'];
         <span class="kss-label">Share via Email & Socials</span>
     </div>
 
-    <?php if ($widget_data['features']['show_member_benefits']): ?>
-        <div class="kss-member-benefits">
-            <span class="kss-member-label"><?= esc_html($widget_data['membership']['level']); ?> Member Benefits</span>
-        </div>
-    <?php endif; ?>
-
 </div>

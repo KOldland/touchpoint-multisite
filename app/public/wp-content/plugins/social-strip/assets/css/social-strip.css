@@ -166,10 +166,10 @@
   filter: brightness(0) invert(1);
 }
 
-/* Saved State */
+/* Saved State - matches hover state */
 .kss-save-button.saved {
-  background-color: #0b6d36;
-  border-color: #0b6d36;
+  background-color: #891b34;
+  border-color: #891b34;
 }
 .kss-save-button.saved img {
   filter: brightness(0) invert(1);

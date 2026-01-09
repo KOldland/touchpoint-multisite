@@ -655,3 +655,42 @@
         color: #ffe066;
     }
 }
+/* ==========================================================================
+   Save Notification Toast
+   ========================================================================== */
+
+.kss-save-notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #1a1a1a;
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 100000;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.kss-save-notification.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.kss-notification-icon {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.kss-notification-success .kss-notification-icon {
+    color: #4caf50;
+}
+
+.kss-notification-error .kss-notification-icon {
+    color: #f44336;
+}

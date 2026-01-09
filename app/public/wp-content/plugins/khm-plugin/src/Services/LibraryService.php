@@ -79,6 +79,11 @@ class LibraryService {
     public function save_to_library(int $member_id, int $post_id, int $category_id = null): bool {
         global $wpdb;
 
+        // Check if already saved - if so, return true (success, already saved)
+        if ($this->is_saved($member_id, $post_id)) {
+            return true;
+        }
+
         // Get member's membership info
         $memberships = $this->memberships->findActive($member_id);
         $membership = !empty($memberships) ? $memberships[0] : null;

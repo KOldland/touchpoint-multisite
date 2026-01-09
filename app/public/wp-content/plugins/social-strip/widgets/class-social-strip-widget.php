@@ -68,8 +68,8 @@ class KSS_Social_Strip_Widget extends Widget_Base {
             $pdf_url = add_query_arg( 'kh_pdf', '1', get_permalink( $post_id ) );
         }
 
-        $price     = $acf_price ? floatval($acf_price) : ( $meta_price ? floatval( $meta_price ) : (isset($settings['article_price']) ? floatval($settings['article_price']) : 0) );
-        $credit_cost = $meta_credit_cost ? (int) $meta_credit_cost : 1;
+        $price = $acf_price !== '' ? floatval( $acf_price ) : ( $meta_price !== '' ? floatval( $meta_price ) : ( isset( $settings['article_price'] ) ? floatval( $settings['article_price'] ) : 0 ) );
+        $credit_cost = $meta_credit_cost !== '' ? (int) $meta_credit_cost : 0;
         $icon_base = plugin_dir_url(__DIR__) . 'assets/';
         
         // Pass data to partials
@@ -87,7 +87,7 @@ class KSS_Social_Strip_Widget extends Widget_Base {
 
         $khm_disabled = defined( 'KSS_DISABLE_KHM' ) && KSS_DISABLE_KHM;
         $enhanced_data = ( ! $khm_disabled && ! $is_elementor_ajax && ! $is_elementor_edit && function_exists( 'kss_get_enhanced_widget_data' ) )
-            ? kss_get_enhanced_widget_data( $post_id )
+            ? kss_get_enhanced_widget_data( $post_id, $data )
             : [];
 
         $defaults = [
@@ -96,14 +96,19 @@ class KSS_Social_Strip_Widget extends Widget_Base {
             'post_url'    => get_permalink( $post_id ),
             'user_id'     => get_current_user_id(),
             'is_logged_in'=> is_user_logged_in(),
-            'credits'     => [ 'available' => 0, 'required' => 1, 'can_download' => false ],
+            'credits'     => [ 'available' => 0, 'required' => $credit_cost, 'can_download' => false ],
             'library'     => [ 'is_saved' => false, 'can_save' => false ],
             'pricing'     => [ 'base_price' => $price, 'member_price' => $price, 'discount_percent' => 0, 'currency' => '£' ],
             'gift'        => [ 'can_gift' => true, 'price' => $price ],
             'membership'  => [ 'is_member' => false, 'level' => null ],
-            'features'    => [ 'can_download' => true, 'can_save' => true, 'can_buy' => true, 'can_gift' => true, 'show_member_benefits' => false ],
+            'features'    => [
+                'can_download' => true,
+                'can_save' => true,
+                'can_buy' => $price > 0,
+                'can_gift' => $price > 0,
+                'show_member_benefits' => false,
+            ],
             'share'       => [ 'title' => get_the_title( $post_id ), 'url' => get_permalink( $post_id ), 'excerpt' => wp_trim_words( get_post_field( 'post_excerpt', $post_id ) ?: get_post_field( 'post_content', $post_id ), 30 ) ],
-            'credits'     => [ 'available' => 0, 'required' => $credit_cost, 'can_download' => false ],
         ];
 
         $widget_data = array_replace_recursive( $defaults, $data, $enhanced_data );

@@ -1,0 +1,847 @@
+/**
+ * KHM Portal Widgets - Touchpoint Design System
+ * Modular Elementor widgets for member portal sections
+ */
+
+:root {
+    --khm-accent: #6b0b0b;
+    --khm-accent-hover: #520909;
+    --khm-bg: #ffffff;
+    --khm-bg-alt: #f8f6f3;
+    --khm-text: #000000;
+    --khm-text-light: #666666;
+    --khm-border: #e5e5e5;
+    --khm-success: #2e7d32;
+    --khm-warning: #f9a825;
+    --khm-error: #c62828;
+    --khm-radius: 8px;
+    --khm-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* ==========================================================================
+   Shared Styles
+   ========================================================================== */
+
+.khm-portal-login-required {
+    text-align: center;
+    padding: 3rem 2rem;
+    background: var(--khm-bg-alt);
+    border-radius: var(--khm-radius);
+    color: var(--khm-text-light);
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Typography */
+.khm-portal-dashboard h2,
+.khm-portal-dashboard h3,
+.khm-portal-credits h3,
+.khm-portal-downloads h3,
+.khm-portal-membership h3,
+.khm-portal-account h3,
+.khm-section-title {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 400;
+    color: var(--khm-text);
+    margin-bottom: 1rem;
+}
+
+.khm-portal-dashboard,
+.khm-portal-credits,
+.khm-portal-downloads,
+.khm-portal-membership,
+.khm-portal-account {
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--khm-text);
+    line-height: 1.6;
+}
+
+/* ==========================================================================
+   Dashboard Widget
+   ========================================================================== */
+
+.khm-dashboard-welcome {
+    margin-bottom: 2rem;
+}
+
+.khm-dashboard-welcome h2 {
+    font-size: 1.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.khm-membership-badge {
+    display: inline-block;
+    background: var(--khm-accent);
+    color: #fff;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.khm-dashboard-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.khm-stat-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem;
+    background: var(--khm-bg);
+    border: 1px solid var(--khm-border);
+    border-radius: var(--khm-radius);
+    box-shadow: var(--khm-shadow);
+}
+
+.khm-stat-icon {
+    font-size: 2rem;
+    line-height: 1;
+    color: #000000;
+}
+
+.khm-stat-icon.dashicons {
+    width: 2rem;
+    height: 2rem;
+    font-size: 2rem;
+}
+
+.khm-stat-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.khm-stat-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--khm-accent);
+}
+
+.khm-stat-label {
+    font-size: 0.85rem;
+    color: var(--khm-text-light);
+}
+
+.khm-quick-actions {
+    margin-bottom: 2rem;
+}
+
+.khm-action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.khm-action-btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background: var(--khm-accent);
+    color: #fff;
+    text-decoration: none;
+    border-radius: var(--khm-radius);
+    font-weight: 500;
+    transition: background 0.2s ease;
+}
+
+.khm-action-btn:hover {
+    background: var(--khm-accent-hover);
+    color: #fff;
+}
+
+.khm-action-btn.khm-action-secondary {
+    background: transparent;
+    color: var(--khm-accent);
+    border: 1px solid var(--khm-accent);
+}
+
+.khm-action-btn.khm-action-secondary:hover {
+    background: var(--khm-accent);
+    color: #fff;
+}
+
+.khm-recent-activity {
+    margin-bottom: 2rem;
+}
+
+.khm-activity-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.khm-activity-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--khm-border);
+}
+
+.khm-activity-item:last-child {
+    border-bottom: none;
+}
+
+.khm-activity-title {
+    font-weight: 500;
+}
+
+.khm-activity-date {
+    font-size: 0.85rem;
+    color: var(--khm-text-light);
+}
+
+/* ==========================================================================
+   Credits Widget
+   ========================================================================== */
+
+.khm-credits-balance {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: var(--khm-bg);
+    border: 1px solid var(--khm-border);
+    border-radius: var(--khm-radius);
+    box-shadow: var(--khm-shadow);
+    margin-bottom: 2rem;
+}
+
+.khm-balance-display {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.khm-balance-icon {
+    font-size: 2.5rem;
+    line-height: 1;
+    color: #000000;
+}
+
+.khm-balance-icon.dashicons {
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: 2.5rem;
+}
+
+.khm-balance-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.khm-balance-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--khm-accent);
+}
+
+.khm-balance-label {
+    font-size: 0.9rem;
+    color: var(--khm-text-light);
+}
+
+.khm-topup-btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background: var(--khm-accent);
+    color: #fff;
+    text-decoration: none;
+    border-radius: var(--khm-radius);
+    font-weight: 500;
+    transition: background 0.2s ease;
+}
+
+.khm-topup-btn:hover {
+    background: var(--khm-accent-hover);
+    color: #fff;
+}
+
+.khm-credits-history {
+    margin-bottom: 2rem;
+}
+
+.khm-transactions-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.khm-transactions-table th,
+.khm-transactions-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--khm-border);
+}
+
+.khm-transactions-table th {
+    font-weight: 600;
+    color: var(--khm-text-light);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.khm-credit-positive {
+    color: var(--khm-success);
+    font-weight: 600;
+}
+
+.khm-credit-negative {
+    color: var(--khm-error);
+    font-weight: 600;
+}
+
+.khm-empty-message {
+    color: var(--khm-text-light);
+    font-style: italic;
+}
+
+/* ==========================================================================
+   Downloads Widget
+   ========================================================================== */
+
+.khm-downloads-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.khm-download-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: var(--khm-bg);
+    border: 1px solid var(--khm-border);
+    border-radius: var(--khm-radius);
+}
+
+.khm-download-info {
+    flex: 1;
+    min-width: 200px;
+}
+
+.khm-download-title {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 1.1rem;
+    font-weight: 400;
+    margin: 0 0 0.25rem 0;
+}
+
+.khm-download-title a {
+    color: var(--khm-text);
+    text-decoration: none;
+}
+
+.khm-download-title a:hover {
+    color: var(--khm-accent);
+}
+
+.khm-download-meta {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.85rem;
+    color: var(--khm-text-light);
+}
+
+.khm-redownload-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--khm-bg-alt);
+    color: var(--khm-text);
+    border: 1px solid var(--khm-border);
+    border-radius: var(--khm-radius);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.khm-redownload-btn:hover {
+    background: var(--khm-accent);
+    color: #fff;
+    border-color: var(--khm-accent);
+}
+
+.khm-empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    background: var(--khm-bg-alt);
+    border-radius: var(--khm-radius);
+}
+
+.khm-empty-icon {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 1rem;
+}
+
+.khm-empty-state p {
+    color: var(--khm-text-light);
+    margin-bottom: 1.5rem;
+}
+
+.khm-browse-btn,
+.khm-join-btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background: var(--khm-accent);
+    color: #fff;
+    text-decoration: none;
+    border-radius: var(--khm-radius);
+    font-weight: 500;
+}
+
+.khm-browse-btn:hover,
+.khm-join-btn:hover {
+    background: var(--khm-accent-hover);
+    color: #fff;
+}
+
+/* ==========================================================================
+   Membership Widget
+   ========================================================================== */
+
+.khm-membership-card {
+    padding: 1.5rem;
+    background: var(--khm-bg);
+    border: 1px solid var(--khm-border);
+    border-radius: var(--khm-radius);
+    box-shadow: var(--khm-shadow);
+}
+
+.khm-membership-status {
+    margin-bottom: 1rem;
+}
+
+.khm-status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+.khm-status-active {
+    background: #e8f5e9;
+    color: var(--khm-success);
+}
+
+.khm-status-paused {
+    background: #fff8e1;
+    color: var(--khm-warning);
+}
+
+.khm-status-cancelled {
+    background: #ffebee;
+    color: var(--khm-error);
+}
+
+.khm-membership-level h3 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.khm-membership-level p {
+    color: var(--khm-text-light);
+    margin-bottom: 1rem;
+}
+
+.khm-level-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.khm-feature {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+}
+
+.khm-feature-icon {
+    font-size: 1.25rem;
+    color: #000000;
+}
+
+.khm-membership-renewal {
+    padding: 1rem;
+    background: var(--khm-bg-alt);
+    border-radius: var(--khm-radius);
+    margin-bottom: 1.5rem;
+}
+
+.khm-renewal-label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--khm-text-light);
+    margin-bottom: 0.25rem;
+}
+
+.khm-renewal-date {
+    font-weight: 600;
+}
+
+.khm-membership-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.khm-upgrade-btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background: var(--khm-accent);
+    color: #fff;
+    text-decoration: none;
+    border-radius: var(--khm-radius);
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+}
+
+.khm-upgrade-btn:hover {
+    background: var(--khm-accent-hover);
+    color: #fff;
+}
+
+.khm-pause-btn,
+.khm-resume-btn {
+    padding: 0.75rem 1.5rem;
+    background: transparent;
+    color: var(--khm-text);
+    border: 1px solid var(--khm-border);
+    border-radius: var(--khm-radius);
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+}
+
+.khm-pause-btn:hover,
+.khm-resume-btn:hover {
+    background: var(--khm-bg-alt);
+    border-color: var(--khm-text-light);
+}
+
+.khm-cancel-btn {
+    padding: 0.75rem 1.5rem;
+    background: transparent;
+    color: var(--khm-error);
+    border: 1px solid var(--khm-error);
+    border-radius: var(--khm-radius);
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+}
+
+.khm-cancel-btn:hover {
+    background: var(--khm-error);
+    color: #fff;
+}
+
+.khm-no-membership {
+    text-align: center;
+    padding: 3rem 2rem;
+    background: var(--khm-bg-alt);
+    border-radius: var(--khm-radius);
+}
+
+/* ==========================================================================
+   Account Widget
+   ========================================================================== */
+
+.khm-account-section {
+    padding: 1.5rem;
+    background: var(--khm-bg);
+    border: 1px solid var(--khm-border);
+    border-radius: var(--khm-radius);
+    margin-bottom: 1.5rem;
+}
+
+.khm-account-section h3 {
+    font-size: 1.25rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--khm-border);
+}
+
+.khm-avatar-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.khm-user-avatar {
+    border-radius: 50%;
+}
+
+.khm-avatar-hint {
+    font-size: 0.85rem;
+    color: var(--khm-text-light);
+    margin: 0;
+}
+
+.khm-form-row {
+    margin-bottom: 1.25rem;
+}
+
+.khm-form-row label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
+}
+
+.khm-form-row input[type="text"],
+.khm-form-row input[type="email"],
+.khm-form-row input[type="password"] {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--khm-border);
+    border-radius: var(--khm-radius);
+    font-size: 1rem;
+    font-family: inherit;
+    transition: border-color 0.2s ease;
+}
+
+.khm-form-row input:focus {
+    outline: none;
+    border-color: var(--khm-accent);
+}
+
+.khm-checkbox-row label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-weight: 400;
+}
+
+.khm-checkbox-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--khm-accent);
+}
+
+.khm-save-btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background: var(--khm-accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--khm-radius);
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.khm-save-btn:hover {
+    background: var(--khm-accent-hover);
+}
+
+.khm-save-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.khm-form-message {
+    display: inline-block;
+    margin-left: 1rem;
+    font-size: 0.9rem;
+}
+
+.khm-form-message.success {
+    color: var(--khm-success);
+}
+
+.khm-form-message.error {
+    color: var(--khm-error);
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .khm-dashboard-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .khm-credits-balance {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .khm-balance-display {
+        flex-direction: column;
+    }
+
+    .khm-download-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .khm-membership-actions {
+        flex-direction: column;
+    }
+
+    .khm-membership-actions button,
+    .khm-membership-actions a {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+/* ==========================================================================
+   Dashicons Integration - Flat Icon Styling
+   ========================================================================== */
+
+/* Button icons */
+.khm-btn-icon.dashicons {
+    width: 1.25rem;
+    height: 1.25rem;
+    font-size: 1.25rem;
+    vertical-align: middle;
+    margin-top: -2px;
+    margin-right: 0.25rem;
+}
+
+/* Balance icon */
+.khm-balance-icon.dashicons {
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: 2.5rem;
+}
+
+/* Empty state icons */
+.khm-empty-icon.dashicons {
+    width: 3rem;
+    height: 3rem;
+    font-size: 3rem;
+    margin: 0 auto 1rem;
+}
+
+/* Feature icons */
+.khm-feature-icon.dashicons {
+    width: 1.25rem;
+    height: 1.25rem;
+    font-size: 1.25rem;
+    vertical-align: middle;
+    margin-top: -2px;
+}
+
+/* Stat card icons */
+.khm-stat-icon.dashicons {
+    width: 2rem;
+    height: 2rem;
+    font-size: 2rem;
+}
+
+/* ==========================================================================
+   Notification Toast
+   ========================================================================== */
+
+.khm-portal-notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #1a1a1a;
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 100000;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.khm-portal-notification.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.khm-portal-notification .dashicons {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+}
+
+.khm-notification-success .dashicons {
+    color: #4caf50;
+}
+
+.khm-notification-error .dashicons {
+    color: #f44336;
+}
+
+/* ==========================================================================
+   Remove Button Styling
+   ========================================================================== */
+
+.khm-remove-btn {
+    background: transparent;
+    border: 1px solid #999;
+    color: #666;
+    padding: 0.5rem 1rem;
+    border-radius: var(--khm-radius, 8px);
+    cursor: pointer;
+    font-size: 0.875rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    transition: all 0.2s ease;
+}
+
+.khm-remove-btn:hover {
+    background: #f44336;
+    border-color: #f44336;
+    color: #fff;
+}
+
+.khm-remove-btn .dashicons {
+    width: 1rem;
+    height: 1rem;
+    font-size: 1rem;
+}
+
+/* ==========================================================================
+   Modal Warning Style
+   ========================================================================== */
+
+.tp-modal-warning {
+    text-align: center;
+    padding: 1.5rem;
+}
+
+.tp-modal-warning p {
+    margin: 0.5rem 0;
+}
+
+.tp-warning-note {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.tp-btn-danger {
+    background: #f44336 !important;
+    color: #fff !important;
+}
+
+.tp-btn-danger:hover {
+    background: #d32f2f !important;
+}

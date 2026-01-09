@@ -56,16 +56,4 @@ $icon_base = $widget_data['icon_base'];
         <img src="<?= esc_url($icon_base . 'share.png'); ?>" alt="Share Article">
     </button>
     
-    <?php if ($widget_data['is_logged_in'] && $widget_data['membership']['is_member']): ?>
-        <!-- Member Status Indicator -->
-        <div class="kss-member-indicator">
-            <?= esc_html($widget_data['membership']['level']); ?> Member
-        </div>
-    <?php elseif (!$widget_data['is_logged_in']): ?>
-        <!-- Guest Status Indicator -->
-        <div class="kss-guest-indicator">
-            Login for member benefits
-        </div>
-    <?php endif; ?>
-    
 </div>

@@ -302,6 +302,12 @@
             return;
         }
         
+        // If already saved, show confirmation before removing
+        if (isSaved) {
+            showRemoveFromLibraryConfirmation($button, postId);
+            return;
+        }
+        
         // Show loading state
         setButtonLoading($button, true);
         
@@ -309,7 +315,7 @@
             url: khm_ajax.ajax_url,
             type: 'POST',
             data: {
-                action: isSaved ? 'kss_remove_from_library' : 'kss_save_to_library',
+                action: 'kss_save_to_library',
                 post_id: postId,
                 nonce: khm_ajax.nonce
             },
@@ -317,14 +323,14 @@
                 setButtonLoading($button, false);
                 
                 if (response.success) {
-                    // Toggle saved state
-                    $button.toggleClass('saved');
+                    // Add saved class
+                    $button.addClass('saved');
                     
-                    const message = isSaved ? 'Removed from library' : 'Saved to library';
-                    showMessage(message, 'success');
+                    // Show subtle flash notification
+                    showSaveFlashNotification('Saved to library', 'success');
                     
                     // Update button appearance
-                    updateSaveButton($button, !isSaved);
+                    updateSaveButton($button, true);
                     
                 } else {
                     showMessage(response.data.error || 'Save failed', 'error');
@@ -335,6 +341,150 @@
                 showMessage('Network error. Please try again.', 'error');
             }
         });
+    }
+    
+    /**
+     * Show confirmation modal before removing from library
+     */
+    function showRemoveFromLibraryConfirmation($button, postId) {
+        // Remove existing modal
+        $('#kss-remove-library-modal').remove();
+        
+        const postTitle = document.title || 'this article';
+        
+        const modalHtml = `
+            <div id="kss-remove-library-modal" class="khm-modal-backdrop">
+                <div class="khm-modal" style="min-width: 400px; max-width: 480px;">
+                    <div class="khm-modal-header">
+                        <h3 class="khm-modal-title">Remove from Library</h3>
+                        <button class="khm-modal-close">&times;</button>
+                    </div>
+                    <div class="khm-modal-content">
+                        <div class="tp-modal-warning">
+                            <p>Are you sure you want to remove this article from your library?</p>
+                            <p class="tp-warning-note">You can always save it again later.</p>
+                        </div>
+                        
+                        <div class="tp-modal-actions">
+                            <button class="btn-cancel tp-btn tp-btn-cancel">Cancel</button>
+                            <button class="btn-confirm-remove tp-btn tp-btn-danger">Remove</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to page
+        $('body').append(modalHtml);
+        
+        const $modal = $('#kss-remove-library-modal');
+        
+        // Bind close events
+        $modal.on('click', '.khm-modal-close, .btn-cancel', function() {
+            $modal.removeClass('show');
+            setTimeout(() => $modal.remove(), 300);
+        });
+        
+        // Click outside to close
+        $modal.on('click', function(e) {
+            if (e.target === this) {
+                $modal.removeClass('show');
+                setTimeout(() => $modal.remove(), 300);
+            }
+        });
+        
+        // Confirm remove
+        $modal.on('click', '.btn-confirm-remove', function() {
+            $modal.removeClass('show');
+            setTimeout(() => $modal.remove(), 300);
+            processRemoveFromLibrary($button, postId);
+        });
+        
+        // Handle ESC key
+        $(document).on('keydown.removeLibraryModal', function(e) {
+            if (e.key === 'Escape') {
+                $modal.removeClass('show');
+                setTimeout(() => $modal.remove(), 300);
+                $(document).off('keydown.removeLibraryModal');
+            }
+        });
+        
+        // Show modal with animation
+        requestAnimationFrame(() => {
+            $modal.addClass('show');
+        });
+    }
+    
+    /**
+     * Process actual removal from library
+     */
+    function processRemoveFromLibrary($button, postId) {
+        setButtonLoading($button, true);
+        
+        $.ajax({
+            url: khm_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'kss_remove_from_library',
+                post_id: postId,
+                nonce: khm_ajax.nonce
+            },
+            success: function(response) {
+                setButtonLoading($button, false);
+                
+                if (response.success) {
+                    // Remove saved class
+                    $button.removeClass('saved');
+                    
+                    // Show subtle flash notification
+                    showSaveFlashNotification('Removed from library', 'success');
+                    
+                    // Update button appearance
+                    updateSaveButton($button, false);
+                    
+                } else {
+                    showMessage(response.data.error || 'Remove failed', 'error');
+                }
+            },
+            error: function() {
+                setButtonLoading($button, false);
+                showMessage('Network error. Please try again.', 'error');
+            }
+        });
+    }
+    
+    /**
+     * Show subtle flash notification for save/remove actions
+     */
+    function showSaveFlashNotification(message, type) {
+        // Remove existing notification
+        $('.kss-save-notification').remove();
+        
+        const iconClass = type === 'success' ? '✓' : '✕';
+        
+        const notificationHtml = `
+            <div class="kss-save-notification kss-notification-${type}">
+                <span class="kss-notification-icon">${iconClass}</span>
+                <span class="kss-notification-text">${message}</span>
+            </div>
+        `;
+        
+        $('body').append(notificationHtml);
+        
+        const $notification = $('.kss-save-notification');
+        
+        // Animate in
+        requestAnimationFrame(() => {
+            $notification.addClass('show');
+        });
+        
+        // Auto-hide after 2 seconds
+        setTimeout(() => {
+            $notification.removeClass('show');
+            setTimeout(() => {
+                $notification.remove();
+            }, 300);
+        }, 2000);
     }
     
     /**

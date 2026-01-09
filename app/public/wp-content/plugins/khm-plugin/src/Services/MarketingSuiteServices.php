@@ -647,7 +647,9 @@ class MarketingSuiteServices {
         }
 
         // Get article pricing (you may need to adjust this based on your pricing logic)
-        $gift_price = apply_filters('khm_gift_article_price', 5.00, $post_id); // Default $5
+        $base_price = get_post_meta( $post_id, 'kss_article_price', true );
+        $base_price = $base_price !== '' ? (float) $base_price : 0;
+        $gift_price = apply_filters( 'khm_gift_article_price', $base_price, $post_id );
 
         // Prepare gift data
         $gift_data = [
