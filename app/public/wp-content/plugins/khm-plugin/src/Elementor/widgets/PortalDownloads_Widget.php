@@ -191,14 +191,12 @@ class PortalDownloads_Widget extends Widget_Base {
                     <?php if ($settings['allow_redownload'] === 'yes'): ?>
                     <div class="khm-download-actions">
                         <?php if ($has_downloaded): ?>
-                        <button class="khm-redownload-btn" data-post-id="<?php echo esc_attr($item->post_id); ?>">
+                        <button class="khm-redownload-btn" data-post-id="<?php echo esc_attr($item->post_id); ?>" title="<?php esc_attr_e('Re-download PDF', 'khm-membership'); ?>" aria-label="<?php esc_attr_e('Re-download PDF', 'khm-membership'); ?>">
                             <span class="khm-btn-icon dashicons dashicons-download"></span>
-                            <?php esc_html_e('Download Again', 'khm-membership'); ?>
                         </button>
                         <?php else: ?>
-                        <button class="khm-download-btn" data-post-id="<?php echo esc_attr($item->post_id); ?>" data-credits="<?php echo esc_attr($credit_cost); ?>">
+                        <button class="khm-download-btn" data-post-id="<?php echo esc_attr($item->post_id); ?>" data-credits="<?php echo esc_attr($credit_cost); ?>" title="<?php echo esc_attr(sprintf(__('Download (%d credits)', 'khm-membership'), $credit_cost)); ?>" aria-label="<?php echo esc_attr(sprintf(__('Download (%d credits)', 'khm-membership'), $credit_cost)); ?>">
                             <span class="khm-btn-icon dashicons dashicons-download"></span>
-                            <?php printf(esc_html__('Download (%d Credits)', 'khm-membership'), $credit_cost); ?>
                         </button>
                         <?php endif; ?>
                         <?php if ($is_purchased): ?>
@@ -252,6 +250,7 @@ class PortalDownloads_Widget extends Widget_Base {
 
             wp_localize_script('khm-portal-widgets', 'khmPortalWidgets', [
                 'restUrl' => esc_url_raw(rest_url('khm/v1/portal/')),
+                'downloadRestUrl' => esc_url_raw(rest_url('khm/v1/download/')),
                 'restNonce' => wp_create_nonce('wp_rest'),
             ]);
         }

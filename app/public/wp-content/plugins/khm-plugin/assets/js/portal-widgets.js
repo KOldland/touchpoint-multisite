@@ -76,7 +76,6 @@
                         <p class="tp-modal-notice">This PDF will be downloaded and saved to your library for future access.</p>
                         
                         <div class="tp-modal-actions">
-                            <button class="btn-cancel tp-btn tp-btn-cancel">Cancel</button>
                             <button class="btn-confirm-download tp-btn tp-btn-primary">Download PDF</button>
                         </div>
                     </div>
@@ -90,7 +89,7 @@
         var $modal = $('#khm-portal-download-modal');
         
         // Bind close events
-        $modal.on('click', '.khm-modal-close, .btn-cancel', function() {
+        $modal.on('click', '.khm-modal-close', function() {
             $modal.removeClass('show');
             setTimeout(function() { $modal.remove(); }, 300);
         });
@@ -131,7 +130,8 @@
     function processPortalDownload(postId, $btn) {
         var credits = $btn.data('credits');
         
-        $btn.prop('disabled', true).text('Processing...');
+        var originalTitle = $btn.attr('title') || '';
+        $btn.prop('disabled', true).attr('title', 'Processing...');
         
         $.ajax({
             url: khmPortalWidgets.restUrl + 'downloads/purchase',
@@ -154,7 +154,9 @@
                     
                     // Change button to "Download Again"
                     $btn.removeClass('khm-download-btn').addClass('khm-redownload-btn');
-                    $btn.prop('disabled', false).html('<span class="khm-btn-icon">📥</span> Download Again');
+                    $btn.prop('disabled', false)
+                        .html('<span class="khm-btn-icon dashicons dashicons-download"></span>')
+                        .attr('title', 'Re-download PDF');
                     $btn.removeData('credits');
                     
                     // Update credits display if visible
@@ -163,7 +165,9 @@
                     }
                 } else {
                     alert(response.error || 'Download failed');
-                    $btn.prop('disabled', false).html('<span class="khm-btn-icon dashicons dashicons-download"></span> Download (' + credits + ' Credits)');
+                    $btn.prop('disabled', false)
+                        .html('<span class="khm-btn-icon dashicons dashicons-download"></span>')
+                        .attr('title', 'Download (' + credits + ' credits)');
                 }
             },
             error: function(xhr) {
@@ -172,7 +176,9 @@
                     error = xhr.responseJSON.message;
                 }
                 alert(error);
-                $btn.prop('disabled', false).html('<span class="khm-btn-icon dashicons dashicons-download"></span> Download (' + credits + ' Credits)');
+                $btn.prop('disabled', false)
+                    .html('<span class="khm-btn-icon dashicons dashicons-download"></span>')
+                    .attr('title', originalTitle || ('Download (' + credits + ' credits)'));
             }
         });
     }
@@ -189,38 +195,128 @@
             
             if (!postId) return;
             
-            $btn.prop('disabled', true).text('Downloading...');
-            
-            $.ajax({
-                url: khmPortalWidgets.restUrl + 'downloads/redownload',
-                method: 'POST',
-                headers: {
-                    'X-WP-Nonce': khmPortalWidgets.restNonce
-                },
-                data: {
-                    post_id: postId
-                },
-                success: function(response) {
-                    if (response.success && response.download_url) {
-                        // Trigger download
-                        var link = document.createElement('a');
-                        link.href = response.download_url;
-                        link.download = '';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        
-                        $btn.prop('disabled', false).html('<span class="khm-btn-icon dashicons dashicons-download"></span> Download Again');
-                    } else {
-                        alert(response.error || 'Download failed');
-                        $btn.prop('disabled', false).html('<span class="khm-btn-icon dashicons dashicons-download"></span> Download Again');
-                    }
-                },
-                error: function() {
-                    alert('Download failed. Please try again.');
-                    $btn.prop('disabled', false).html('<span class="khm-btn-icon dashicons dashicons-download"></span> Download Again');
+            handlePortalRedownload(postId, $btn);
+        });
+    }
+
+    function handlePortalRedownload(postId, $btn) {
+        if (!khmPortalWidgets || !khmPortalWidgets.downloadRestUrl) {
+            return;
+        }
+
+        var originalTitle = $btn.attr('title') || 'Re-download PDF';
+        $btn.prop('disabled', true).attr('title', 'Checking...');
+
+        $.ajax({
+            url: khmPortalWidgets.downloadRestUrl + 'check/' + postId,
+            type: 'GET',
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', khmPortalWidgets.restNonce);
+            },
+            success: function(response) {
+                $btn.prop('disabled', false).attr('title', originalTitle);
+
+                if (!response.success || !response.can_download) {
+                    alert(response.message || 'Download unavailable');
+                    return;
                 }
-            });
+
+                showPortalRedownloadModal(response, $btn, postId);
+            },
+            error: function() {
+                $btn.prop('disabled', false).attr('title', originalTitle);
+                alert('Download failed. Please try again.');
+            }
+        });
+    }
+
+    function showPortalRedownloadModal(data, $button, postId) {
+        $('#khm-portal-download-modal').remove();
+
+        var modalHtml = `
+            <div id="khm-portal-download-modal" class="khm-modal-backdrop">
+                <div class="khm-modal" style="min-width: 400px; max-width: 480px;">
+                    <div class="khm-modal-header">
+                        <h3 class="khm-modal-title">Ready to Re-download?</h3>
+                        <button class="khm-modal-close">&times;</button>
+                    </div>
+                    <div class="khm-modal-content">
+                        <div class="tp-modal-title-strip">
+                            <h4>${data.post_title || 'Download PDF'}</h4>
+                        </div>
+                        <p>You have already downloaded this PDF, so you may re-download again without using any credits.</p>
+                        <div class="tp-modal-actions">
+                            <button class="btn-confirm-download tp-btn tp-btn-success">Download PDF</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        $('body').append(modalHtml);
+
+        var $modal = $('#khm-portal-download-modal');
+        requestAnimationFrame(function() {
+            $modal.addClass('show');
+        });
+
+        $modal.on('click', '.khm-modal-close', function() {
+            $modal.removeClass('show');
+            setTimeout(function() { $modal.remove(); }, 300);
+        });
+
+        $modal.on('click', function(e) {
+            if (e.target === this) {
+                $modal.removeClass('show');
+                setTimeout(function() { $modal.remove(); }, 300);
+            }
+        });
+
+        $modal.on('click', '.btn-confirm-download', function() {
+            $modal.removeClass('show');
+            setTimeout(function() { $modal.remove(); }, 300);
+            processPortalRedownload(postId, $button);
+        });
+
+        $(document).on('keydown.portalRedownloadModal', function(e) {
+            if (e.key === 'Escape') {
+                $modal.removeClass('show');
+                setTimeout(function() { $modal.remove(); }, 300);
+                $(document).off('keydown.portalRedownloadModal');
+            }
+        });
+    }
+
+    function processPortalRedownload(postId, $button) {
+        if (!khmPortalWidgets || !khmPortalWidgets.downloadRestUrl) {
+            return;
+        }
+
+        var originalTitle = $button.attr('title') || 'Re-download PDF';
+        $button.prop('disabled', true).attr('title', 'Downloading...');
+
+        $.ajax({
+            url: khmPortalWidgets.downloadRestUrl + postId,
+            type: 'POST',
+            data: JSON.stringify({ confirm: true }),
+            contentType: 'application/json',
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', khmPortalWidgets.restNonce);
+            },
+            success: function(response) {
+                if (response.download_url) {
+                    window.location.href = response.download_url;
+                    showToast('PDF ready for download!', 'success');
+                } else {
+                    alert(response.message || 'Download failed');
+                }
+            },
+            error: function() {
+                alert('Download failed. Please try again.');
+            },
+            complete: function() {
+                $button.prop('disabled', false).attr('title', originalTitle);
+            }
         });
     }
 
@@ -501,7 +597,6 @@
                         </div>
                         
                         <div class="tp-modal-actions">
-                            <button class="btn-cancel tp-btn tp-btn-cancel">Cancel</button>
                             <button class="btn-confirm-remove tp-btn tp-btn-danger">Remove</button>
                         </div>
                     </div>
@@ -515,7 +610,7 @@
         var $modal = $('#khm-portal-remove-modal');
         
         // Bind close events
-        $modal.on('click', '.khm-modal-close, .btn-cancel', function() {
+        $modal.on('click', '.khm-modal-close', function() {
             $modal.removeClass('show');
             setTimeout(function() { $modal.remove(); }, 300);
         });

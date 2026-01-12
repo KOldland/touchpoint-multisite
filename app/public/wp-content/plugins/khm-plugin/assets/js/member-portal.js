@@ -206,7 +206,7 @@
         // Re-download button
         $(document).on('click', '.khm-redownload-btn', function() {
             const postId = $(this).data('post-id');
-            regeneratePdf(postId, $(this));
+            handlePortalRedownload(postId, $(this));
         });
     }
 
@@ -306,32 +306,116 @@
                         Downloaded ${downloadDate} • ${item.download_count || 1} ${item.download_count === 1 ? 'time' : 'times'}
                     </div>
                 </div>
-                <a href="${item.url}" class="khm-btn khm-btn-sm khm-btn-secondary" target="_blank">
+                <a href="${item.url}" class="khm-btn khm-btn-sm khm-btn-secondary" target="_blank" title="View article" aria-label="View article">
                     <span class="dashicons dashicons-external"></span>
-                    View
                 </a>
-                <button class="khm-btn khm-btn-sm khm-btn-primary khm-redownload-btn" data-post-id="${item.post_id}">
+                <button class="khm-btn khm-btn-sm khm-btn-primary khm-redownload-btn" data-post-id="${item.post_id}" title="Re-download PDF" aria-label="Re-download PDF">
                     <span class="dashicons dashicons-download"></span>
-                    Download
                 </button>
             </div>
         `;
     }
 
-    function regeneratePdf(postId, $btn) {
-        const $icon = $btn.find('.dashicons');
-        const originalClass = $icon.attr('class');
-        
-        $btn.prop('disabled', true);
-        $icon.attr('class', 'dashicons dashicons-update-alt khm-spin');
+    function handlePortalRedownload(postId, $btn) {
+        if (!khmPortal || !khmPortal.downloadRestUrl) {
+            return;
+        }
+
+        const originalTitle = $btn.attr('title') || 'Re-download PDF';
+        $btn.prop('disabled', true).attr('title', 'Checking...');
 
         $.ajax({
-            url: khmPortal.restUrl + 'downloads/' + postId + '/regenerate',
-            method: 'POST',
-            headers: { 'X-WP-Nonce': khmPortal.restNonce },
+            url: khmPortal.downloadRestUrl + 'check/' + postId,
+            type: 'GET',
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', khmPortal.restNonce);
+            },
+            success: function(response) {
+                $btn.prop('disabled', false).attr('title', originalTitle);
+
+                if (!response.success || !response.can_download) {
+                    showToast(response.message || khmPortal.strings.error, 'error');
+                    return;
+                }
+
+                showPortalRedownloadModal(response, $btn, postId);
+            },
+            error: function(xhr) {
+                $btn.prop('disabled', false).attr('title', originalTitle);
+                const message = xhr.responseJSON?.message || khmPortal.strings.error;
+                showToast(message, 'error');
+            }
+        });
+    }
+
+    function showPortalRedownloadModal(data, $button, postId) {
+        $('#khm-portal-download-modal').remove();
+
+        const modalHtml = `
+            <div id="khm-portal-download-modal" class="khm-modal-backdrop">
+                <div class="khm-modal" style="min-width: 400px; max-width: 480px;">
+                    <div class="khm-modal-header">
+                        <h3 class="khm-modal-title">Ready to Re-download?</h3>
+                        <button class="khm-modal-close">&times;</button>
+                    </div>
+                    <div class="khm-modal-content">
+                        <div class="tp-modal-title-strip">
+                            <h4>${data.post_title || 'Download PDF'}</h4>
+                        </div>
+                        <p>You have already downloaded this PDF, so you may re-download again without using any credits.</p>
+                        <div class="tp-modal-actions">
+                            <button class="btn-confirm-download tp-btn tp-btn-success">Download PDF</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        $('body').append(modalHtml);
+        const $modal = $('#khm-portal-download-modal');
+        requestAnimationFrame(() => $modal.addClass('show'));
+
+        $modal.on('click', '.khm-modal-close', function() {
+            $modal.removeClass('show');
+            setTimeout(() => $modal.remove(), 300);
+        });
+
+        $modal.on('click', function(e) {
+            if (e.target === this) {
+                $modal.removeClass('show');
+                setTimeout(() => $modal.remove(), 300);
+            }
+        });
+
+        $modal.on('click', '.btn-confirm-download', function() {
+            $modal.removeClass('show');
+            setTimeout(() => $modal.remove(), 300);
+            processPortalRedownload(postId, $button);
+        });
+
+        $(document).on('keydown.portalRedownloadModal', function(e) {
+            if (e.key === 'Escape') {
+                $modal.removeClass('show');
+                setTimeout(() => $modal.remove(), 300);
+                $(document).off('keydown.portalRedownloadModal');
+            }
+        });
+    }
+
+    function processPortalRedownload(postId, $button) {
+        const originalTitle = $button.attr('title') || 'Re-download PDF';
+        $button.prop('disabled', true).attr('title', 'Downloading...');
+
+        $.ajax({
+            url: khmPortal.downloadRestUrl + postId,
+            type: 'POST',
+            data: JSON.stringify({ confirm: true }),
+            contentType: 'application/json',
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', khmPortal.restNonce);
+            },
             success: function(response) {
                 if (response.download_url) {
-                    // Trigger download
                     window.location.href = response.download_url;
                     showToast('PDF ready for download!', 'success');
                 } else {
@@ -343,8 +427,7 @@
                 showToast(message, 'error');
             },
             complete: function() {
-                $btn.prop('disabled', false);
-                $icon.attr('class', originalClass);
+                $button.prop('disabled', false).attr('title', originalTitle);
             }
         });
     }

@@ -15,19 +15,22 @@
         refreshStripStatus();
 
         // Download with Credits functionality
-        $('.kss-download-credit').on('click', function(e) {
+        $(document).off('click.kssDownload', '.kss-download-credit');
+        $(document).on('click.kssDownload', '.kss-download-credit', function(e) {
             e.preventDefault();
             handleCreditDownload($(this));
         });
         
         // Save to Library functionality
-        $('.kss-save-button').on('click', function(e) {
+        $(document).off('click.kssSave', '.kss-save-button');
+        $(document).on('click.kssSave', '.kss-save-button', function(e) {
             e.preventDefault();
             handleSaveToLibrary($(this));
         });
         
         // Buy PDF functionality
-        $(document).on('click', '.kss-buy-button', function(e) {
+        $(document).off('click.kssBuy', '.kss-buy-button');
+        $(document).on('click.kssBuy', '.kss-buy-button', function(e) {
             e.preventDefault();
             e.stopImmediatePropagation();
             e.stopPropagation();
@@ -35,13 +38,15 @@
         });
         
         // Gift functionality
-        $('.kss-gift-button').on('click', function(e) {
+        $(document).off('click.kssGift', '.kss-gift-button');
+        $(document).on('click.kssGift', '.kss-gift-button', function(e) {
             e.preventDefault();
             handleGiftArticle($(this));
         });
         
         // Direct PDF download (for purchased articles)
-        $('.kss-direct-download').on('click', function(e) {
+        $(document).off('click.kssDirect', '.kss-direct-download');
+        $(document).on('click.kssDirect', '.kss-direct-download', function(e) {
             e.preventDefault();
             handleDirectDownload($(this));
         });
@@ -194,7 +199,6 @@
                         <p class="tp-modal-notice">${data.message}</p>
                         
                         <div class="tp-modal-actions">
-                            <button class="btn-cancel tp-btn tp-btn-cancel">Cancel</button>
                             <button class="btn-confirm-download tp-btn tp-btn-primary">Download PDF</button>
                         </div>
                     </div>
@@ -208,7 +212,7 @@
         const $modal = $('#kss-download-modal');
         
         // Bind close events
-        $modal.on('click', '.khm-modal-close, .btn-cancel', function() {
+        $modal.on('click', '.khm-modal-close', function() {
             $modal.removeClass('show');
             setTimeout(() => $modal.remove(), 300);
         });
@@ -273,7 +277,6 @@
                         </div>
                         
                         <div class="tp-modal-actions">
-                            <button class="btn-cancel tp-btn tp-btn-cancel">Cancel</button>
                             <button class="btn-confirm-download tp-btn tp-btn-success">Download PDF</button>
                         </div>
                     </div>
@@ -287,7 +290,7 @@
         const $modal = $('#kss-download-modal');
         
         // Bind close events
-        $modal.on('click', '.khm-modal-close, .btn-cancel', function() {
+        $modal.on('click', '.khm-modal-close', function() {
             $modal.removeClass('show');
             setTimeout(() => $modal.remove(), 300);
         });
@@ -435,7 +438,6 @@
                         </div>
                         
                         <div class="tp-modal-actions">
-                            <button class="btn-cancel tp-btn tp-btn-cancel">Cancel</button>
                             <button class="btn-confirm-remove tp-btn tp-btn-danger">Remove</button>
                         </div>
                     </div>
@@ -449,7 +451,7 @@
         const $modal = $('#kss-remove-library-modal');
         
         // Bind close events
-        $modal.on('click', '.khm-modal-close, .btn-cancel', function() {
+        $modal.on('click', '.khm-modal-close', function() {
             $modal.removeClass('show');
             setTimeout(() => $modal.remove(), 300);
         });
@@ -814,7 +816,6 @@
                             </div>
                             
                             <div class="form-actions">
-                                <button type="button" class="btn-cancel">Cancel</button>
                                 <button type="submit" class="btn-send-gift">Send Gift</button>
                             </div>
                         </form>
@@ -843,7 +844,7 @@
         const $modal = $('#kss-gift-modal');
         
         // Close modal
-        $modal.on('click', '.kss-modal-close, .btn-cancel', function() {
+        $modal.on('click', '.kss-modal-close', function() {
             closeGiftModal();
         });
         

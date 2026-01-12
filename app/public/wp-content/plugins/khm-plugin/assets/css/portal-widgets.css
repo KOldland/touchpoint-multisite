@@ -375,8 +375,11 @@
 .khm-redownload-btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
-    padding: 0.5rem 1rem;
+    width: 40px;
+    height: 40px;
+    padding: 0;
     background: var(--khm-bg-alt);
     color: var(--khm-text);
     border: 1px solid var(--khm-border);
@@ -399,12 +402,23 @@
     gap: 0.75rem;
 }
 
+.khm-download-actions .khm-btn-icon {
+    margin: 0;
+}
+
+.khm-download-actions .khm-remove-btn {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+}
+
 .khm-purchased-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 40px;
+    height: 40px;
     border-radius: 999px;
     background: #2e7d32;
     color: #fff;

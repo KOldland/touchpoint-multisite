@@ -70,6 +70,7 @@ class MemberPortalShortcode {
 
         wp_localize_script('khm-member-portal', 'khmPortal', [
             'restUrl' => esc_url_raw(rest_url('khm/v1/portal/')),
+            'downloadRestUrl' => esc_url_raw(rest_url('khm/v1/download/')),
             'restNonce' => wp_create_nonce('wp_rest'),
             'userId' => get_current_user_id(),
             'strings' => [
