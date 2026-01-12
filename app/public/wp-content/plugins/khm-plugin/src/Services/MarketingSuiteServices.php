@@ -12,6 +12,7 @@ use KHM\Services\LibraryService;
 use KHM\Services\ECommerceService;
 use KHM\Services\GiftService;
 use KHM\Services\EmailService;
+use KHM\Services\CreditDownloadService;
 
 /**
  * Marketing Suite Services
@@ -77,6 +78,7 @@ class MarketingSuiteServices {
         PluginRegistry::register_service('generate_article_pdf', [$this, 'generate_article_pdf']);
         PluginRegistry::register_service('create_download_url', [$this, 'create_download_url']);
         PluginRegistry::register_service('download_with_credits', [$this, 'download_with_credits']);
+        PluginRegistry::register_service('has_downloaded', [$this, 'has_downloaded']);
         
         // Library Services  
         PluginRegistry::register_service('save_to_library', [$this, 'save_to_library']);
@@ -334,6 +336,18 @@ class MarketingSuiteServices {
             'download_url' => $download_url,
             'credits_remaining' => $this->get_user_credits($user_id)
         ];
+    }
+
+    /**
+     * Check if user has already downloaded an article
+     *
+     * @param int $user_id
+     * @param int $post_id
+     * @return bool
+     */
+    public function has_downloaded(int $user_id, int $post_id): bool {
+        $download_service = new CreditDownloadService($this->memberships, $this->credits, $this->library);
+        return $download_service->hasDownloaded($user_id, $post_id);
     }
 
     /**

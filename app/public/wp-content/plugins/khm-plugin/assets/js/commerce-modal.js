@@ -10,18 +10,24 @@
 
     const CommerceModal = {
         stripe: null,
-        cardElement: null,
+        elements: null,
+        paymentElement: null,
         modal: null,
-        currentTab: 'quick-buy',
-        cartData: null,
+        currentPostId: null,
+        currentUserName: '',
+        currentUserEmail: '',
+        fallbackArticle: null,
+        clientSecret: null,
+        isSubmitting: false,
 
         init: function() {
-            if (typeof Stripe === 'undefined' || !khm_ajax.stripe_key) {
+            const config = window.khmCommerce || {};
+            if (typeof Stripe === 'undefined' || !config.stripe_key) {
                 console.error('Commerce Modal: Stripe.js not loaded or key missing');
                 return;
             }
 
-            this.stripe = Stripe(khm_ajax.stripe_key);
+            this.stripe = Stripe(config.stripe_key);
             this.createModal();
             this.bindEvents();
         },
@@ -35,42 +41,31 @@
                             <button class="khm-modal-close" aria-label="Close">&times;</button>
                         </div>
                         
-                        <div class="khm-modal-tabs">
-                            <button class="khm-tab-btn active" data-tab="quick-buy">Quick Buy</button>
-                            <button class="khm-tab-btn" data-tab="cart" style="display: none;">
-                                Cart (<span id="khm-cart-count">0</span>)
-                            </button>
-                        </div>
-                        
                         <div class="khm-modal-content">
-                            <!-- Quick Buy Tab -->
-                            <div id="khm-tab-quick-buy" class="khm-tab-content active">
-                                <div class="khm-article-summary">
-                                    <h4 id="khm-article-title"></h4>
-                                    <div class="khm-price-display">
-                                        <span class="khm-member-price"></span>
-                                        <span class="khm-regular-price"></span>
-                                    </div>
-                                    <div class="khm-purchase-options">
-                                        <label>
-                                            <input type="checkbox" id="khm-auto-download" checked>
-                                            Auto-download PDF after purchase
-                                        </label>
-                                        <label>
-                                            <input type="checkbox" id="khm-auto-save" checked>
-                                            Save to my library
-                                        </label>
+                            <div id="khm-purchase-success" class="khm-success-state" style="display: none;">
+                                <h4>Purchase Confirmed</h4>
+                                <p>Your purchase was successful. Would you like to download the PDF now?</p>
+                                <div class="khm-modal-actions">
+                                    <button id="khm-download-now" class="khm-btn-primary">Download Now</button>
+                                    <button id="khm-download-later" class="khm-btn-secondary">Download Later</button>
+                                </div>
+                                <div id="khm-purchase-followup" class="khm-messages"></div>
+                            </div>
+                            <div class="khm-article-summary">
+                                <div class="khm-article-header">
+                                    <div class="khm-article-thumb" id="khm-article-thumb"></div>
+                                    <div class="khm-article-text">
+                                        <h4 id="khm-article-title"></h4>
+                                        <div class="khm-price-display">
+                                            <span class="khm-member-price"></span>
+                                            <span class="khm-regular-price"></span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                            
-                            <!-- Cart Tab -->
-                            <div id="khm-tab-cart" class="khm-tab-content">
-                                <div id="khm-cart-items"></div>
-                                <div class="khm-cart-total">
-                                    <strong>Total: <span id="khm-cart-total">£0.00</span></strong>
-                                </div>
-                            </div>
+                            <p class="khm-article-note">
+                                Purchase this article for permanent access online and unlimited PDF downloads.
+                            </p>
                             
                             <!-- Payment Section (shared) -->
                             <div class="khm-payment-section">
@@ -78,13 +73,10 @@
                                 
                                 <div class="khm-billing-fields">
                                     <input type="text" id="khm-billing-name" placeholder="Full Name" required>
-                                    <input type="email" id="khm-billing-email" placeholder="Email" required>
                                 </div>
                                 
                                 <div class="khm-card-field">
-                                    <div id="khm-card-element">
-                                        <!-- Stripe Elements will mount here -->
-                                    </div>
+                                    <div id="khm-payment-element"></div>
                                     <div id="khm-card-errors" class="khm-error"></div>
                                 </div>
                                 
@@ -92,7 +84,6 @@
                                     <button id="khm-complete-purchase" class="khm-btn-primary">
                                         Complete Purchase
                                     </button>
-                                    <button class="khm-modal-close khm-btn-secondary">Cancel</button>
                                 </div>
                                 
                                 <div id="khm-purchase-messages" class="khm-messages"></div>
@@ -104,41 +95,37 @@
             
             $('body').append(modalHTML);
             this.modal = $('#khm-commerce-modal');
-            this.setupStripeElements();
         },
 
-        setupStripeElements: function() {
-            const elements = this.stripe.elements();
-            
-            this.cardElement = elements.create('card', {
-                style: {
-                    base: {
-                        fontSize: '16px',
-                        color: '#32325d',
-                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                        '::placeholder': { color: '#aab7c4' }
-                    },
-                    invalid: { color: '#fa755a', iconColor: '#fa755a' }
-                }
-            });
+        setupStripeElements: async function() {
+            if (!this.clientSecret) {
+                return;
+            }
 
-            this.cardElement.mount('#khm-card-element');
-            
-            this.cardElement.on('change', (event) => {
-                const displayError = $('#khm-card-errors');
-                if (event.error) {
-                    displayError.text(event.error.message).show();
-                } else {
-                    displayError.text('').hide();
-                }
+            if (this.paymentElement) {
+                this.paymentElement.unmount();
+                this.paymentElement = null;
+            }
+
+            this.elements = this.stripe.elements({ clientSecret: this.clientSecret });
+            this.paymentElement = this.elements.create('payment', {
+                layout: 'tabs'
             });
+            this.paymentElement.mount('#khm-payment-element');
         },
 
         bindEvents: function() {
             // Modal triggers from social strip
             $(document).on('click', '.kss-buy-button', (e) => {
                 e.preventDefault();
-                const postId = $(e.target).closest('[data-post-id]').data('post-id');
+                const $button = $(e.target).closest('.kss-buy-button');
+                const isPurchased = $button.hasClass('purchased') ||
+                    $button.data('purchased') === 1 ||
+                    $button.data('purchased') === '1';
+                if (isPurchased) {
+                    return;
+                }
+                const postId = $button.data('post-id');
                 this.openQuickBuy(postId);
             });
 
@@ -149,190 +136,259 @@
                 }
             });
 
-            // Tab switching
-            $(document).on('click', '.khm-tab-btn', (e) => {
-                const tab = $(e.target).data('tab');
-                this.switchTab(tab);
-            });
-
             // Purchase completion
             $(document).on('click', '#khm-complete-purchase', (e) => {
                 e.preventDefault();
                 this.processPurchase();
             });
 
-            // Cart updates
-            $(document).on('click', '.khm-remove-item', (e) => {
-                const postId = $(e.target).data('post-id');
-                this.removeFromCart(postId);
+            // Success modal actions
+            $(document).on('click', '#khm-download-now', (e) => {
+                e.preventDefault();
+                const urls = this.pendingDownloads || [];
+                if (urls.length) {
+                    urls.forEach(url => {
+                        window.open(url, '_blank');
+                    });
+                    this.closeModal();
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1200);
+                } else {
+                    $('#khm-purchase-followup').html('<div class="error">Download link not ready. Please check your member dashboard.</div>');
+                }
+            });
+
+            $(document).on('click', '#khm-download-later', (e) => {
+                e.preventDefault();
+                $('#khm-purchase-followup')
+                    .show()
+                    .html('<div class="khm-download-later"><p>Reminder! Your purchased articles are available in the member dashboard.</p><button id="khm-continue-browsing" class="khm-btn-secondary">Continue Browsing</button></div>');
+            });
+
+            $(document).on('click', '#khm-continue-browsing', (e) => {
+                e.preventDefault();
+                this.closeModal();
+                window.location.reload();
             });
         },
 
-        openQuickBuy: function(postId) {
-            this.currentTab = 'quick-buy';
+        openQuickBuy: function(postId, meta) {
+            this.currentPostId = postId;
+            this.fallbackArticle = meta || null;
+            if (this.fallbackArticle) {
+                this.populateArticleData(this.fallbackArticle);
+            }
             this.loadArticleData(postId);
-            this.showModal();
-        },
-
-        openCart: function() {
-            this.currentTab = 'cart';
-            this.loadCartData();
-            this.switchTab('cart');
+            this.createPaymentIntent(postId);
             this.showModal();
         },
 
         loadArticleData: function(postId) {
+            const config = window.khmCommerce || {};
             $.ajax({
-                url: khm_ajax.ajax_url,
+                url: config.ajax_url,
                 type: 'POST',
                 data: {
                     action: 'khm_get_article_data',
                     post_id: postId,
-                    nonce: khm_ajax.nonce
+                    nonce: config.nonce
                 },
                 success: (response) => {
                     if (response.success) {
                         this.populateArticleData(response.data);
                     }
+                },
+                error: () => {
+                    if (this.fallbackArticle) {
+                        this.populateArticleData(this.fallbackArticle);
+                    }
+                }
+            });
+        },
+        createPaymentIntent: function(postId) {
+            const config = window.khmCommerce || {};
+            if (!config.ajax_url || !config.nonce) {
+                return;
+            }
+
+            $('#khm-card-errors').text('').hide();
+
+            $.ajax({
+                url: config.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'khm_create_commerce_intent',
+                    post_id: postId,
+                    nonce: config.nonce
+                },
+                success: (response) => {
+                    if (response.success && response.data && response.data.client_secret) {
+                        this.clientSecret = response.data.client_secret;
+                        this.setupStripeElements();
+                    } else {
+                        const errorMessage = typeof response.data === 'string'
+                            ? response.data
+                            : (response.data && response.data.error ? response.data.error : 'Unable to prepare payment.');
+                        this.showError(errorMessage);
+                    }
+                },
+                error: () => {
+                    this.showError('Unable to prepare payment. Please refresh and try again.');
                 }
             });
         },
 
         populateArticleData: function(data) {
-            $('#khm-article-title').text(data.title);
-            $('.khm-member-price').text(data.member_price_formatted);
+            this.currentUserName = data.user_name || '';
+            this.currentUserEmail = data.user_email || '';
+            const resolvedTitle = data.title || this.resolveArticleTitle();
+            $('#khm-article-title').text(resolvedTitle);
+
+            const $thumb = $('#khm-article-thumb');
+            if (data.image_url) {
+                $thumb
+                    .css('background-image', `url("${data.image_url}")`)
+                    .addClass('has-image')
+                    .removeClass('is-empty');
+            } else {
+                $thumb
+                    .css('background-image', '')
+                    .removeClass('has-image')
+                    .addClass('is-empty');
+            }
+            if (data.member_price_formatted) {
+                $('.khm-member-price').text(data.member_price_formatted).show();
+            } else {
+                $('.khm-member-price').hide();
+            }
             
-            if (data.regular_price !== data.member_price) {
+            if (data.regular_price_formatted && data.regular_price !== data.member_price) {
                 $('.khm-regular-price').text(data.regular_price_formatted).show();
+            } else {
+                $('.khm-regular-price').hide();
             }
             
             // Pre-fill user data
-            $('#khm-billing-name').val(data.user_name);
-            $('#khm-billing-email').val(data.user_email);
+            $('#khm-billing-name').val(this.currentUserName);
         },
+        resolveArticleTitle: function() {
+            const ogTitle = document.querySelector('meta[property="og:title"]');
+            if (ogTitle && ogTitle.content) {
+                return ogTitle.content;
+            }
 
-        loadCartData: function() {
-            $.ajax({
-                url: khm_ajax.ajax_url,
-                type: 'POST',
-                data: {
-                    action: 'khm_get_cart_data',
-                    nonce: khm_ajax.nonce
-                },
-                success: (response) => {
-                    if (response.success) {
-                        this.populateCartData(response.data);
-                        this.updateCartCount(response.data.count);
-                    }
-                }
-            });
-        },
+            if (document.title) {
+                return document.title.replace(/\s*\|\s*.*$/, '');
+            }
 
-        populateCartData: function(cartData) {
-            this.cartData = cartData;
-            const cartHTML = cartData.items.map(item => `
-                <div class="khm-cart-item" data-post-id="${item.post_id}">
-                    <h5>${item.title}</h5>
-                    <span class="khm-price">${item.price_formatted}</span>
-                    <button class="khm-remove-item" data-post-id="${item.post_id}">Remove</button>
-                </div>
-            `).join('');
-            
-            $('#khm-cart-items').html(cartHTML);
-            $('#khm-cart-total').text(cartData.total_formatted);
+            return 'Article';
         },
 
         processPurchase: async function() {
             const purchaseBtn = $('#khm-complete-purchase');
+            if (this.isSubmitting) {
+                return;
+            }
+            this.isSubmitting = true;
+            console.log('[KHM Commerce] Starting purchase', {
+                postId: this.currentPostId,
+                hasElements: !!this.elements,
+                hasClientSecret: !!this.clientSecret
+            });
             purchaseBtn.prop('disabled', true).text('Processing...');
 
             try {
-                // Create payment method
-                const {paymentMethod, error} = await this.stripe.createPaymentMethod({
-                    type: 'card',
-                    card: this.cardElement,
-                    billing_details: {
-                        name: $('#khm-billing-name').val(),
-                        email: $('#khm-billing-email').val()
-                    }
-                });
-
-                if (error) {
-                    this.showError(error.message);
+                if (!this.currentPostId) {
+                    this.showError('Missing article details. Please refresh and try again.');
                     return;
                 }
 
-                // Process purchase
-                const purchaseData = {
-                    action: 'khm_process_commerce_purchase',
-                    payment_method_id: paymentMethod.id,
-                    purchase_type: this.currentTab,
-                    auto_download: $('#khm-auto-download').is(':checked'),
-                    auto_save: $('#khm-auto-save').is(':checked'),
-                    nonce: khm_ajax.nonce
-                };
-
-                if (this.currentTab === 'quick-buy') {
-                    purchaseData.post_id = this.getCurrentPostId();
+                const config = window.khmCommerce || {};
+                if (!this.elements || !this.clientSecret) {
+                    throw new Error('Payment form is not ready. Please refresh and try again.');
                 }
 
-                $.ajax({
-                    url: khm_ajax.ajax_url,
-                    type: 'POST',
-                    data: purchaseData,
-                    success: (response) => {
-                        if (response.success) {
-                            this.handlePurchaseSuccess(response.data);
-                        } else {
-                            this.showError(response.data.error || 'Purchase failed');
+                const confirmation = await this.stripe.confirmPayment({
+                    elements: this.elements,
+                    redirect: 'if_required',
+                    confirmParams: {
+                        payment_method_data: {
+                            billing_details: {
+                                name: $('#khm-billing-name').val(),
+                                email: this.currentUserEmail || undefined
+                            }
                         }
-                    },
-                    error: () => {
-                        this.showError('Network error. Please try again.');
-                    },
-                    complete: () => {
-                        purchaseBtn.prop('disabled', false).text('Complete Purchase');
                     }
                 });
+                console.log('[KHM Commerce] Stripe confirmation response', confirmation);
+
+                if (confirmation.error) {
+                    const maybeIntent = confirmation.error.payment_intent;
+                    if (confirmation.error.code === 'payment_intent_unexpected_state' &&
+                        maybeIntent &&
+                        maybeIntent.status === 'succeeded') {
+                        console.log('[KHM Commerce] Intent already succeeded, finalizing', maybeIntent.id);
+                        await this.finalizePurchase(maybeIntent.id);
+                        return;
+                    }
+                    throw new Error(confirmation.error.message);
+                }
+
+                if (!confirmation.paymentIntent || confirmation.paymentIntent.status !== 'succeeded') {
+                    throw new Error('Payment could not be completed.');
+                }
+
+                console.log('[KHM Commerce] Intent succeeded, finalizing', confirmation.paymentIntent.id);
+                await this.finalizePurchase(confirmation.paymentIntent.id);
 
             } catch (err) {
-                this.showError(err.message);
+                console.error('[KHM Commerce] Purchase failed', err);
+                const fallbackMessage = err && err.responseJSON && err.responseJSON.data
+                    ? err.responseJSON.data
+                    : (err && err.responseText ? err.responseText : null);
+                const message = (err && err.message) ? err.message : (fallbackMessage || 'Payment failed. Please try again.');
+                this.showError(message);
+            } finally {
+                this.isSubmitting = false;
                 purchaseBtn.prop('disabled', false).text('Complete Purchase');
             }
         },
+        finalizePurchase: async function(paymentIntentId) {
+            const config = window.khmCommerce || {};
+            console.log('[KHM Commerce] Finalize purchase request', {
+                paymentIntentId,
+                postId: this.currentPostId
+            });
+            const finalizeResponse = await $.ajax({
+                url: config.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'khm_finalize_commerce_purchase',
+                    payment_intent_id: paymentIntentId,
+                    post_id: this.currentPostId,
+                    billing_name: $('#khm-billing-name').val(),
+                    billing_email: this.currentUserEmail,
+                    nonce: config.nonce
+                }
+            });
+            console.log('[KHM Commerce] Finalize response', finalizeResponse);
 
-        handlePurchaseSuccess: function(data) {
-            // Show success message
-            this.showSuccess('Purchase completed successfully!');
-            
-            // Handle downloads
-            if (data.download_urls && data.download_urls.length > 0) {
-                data.download_urls.forEach(url => {
-                    window.open(url, '_blank');
-                });
+            if (!finalizeResponse.success) {
+                const finalizeMessage = typeof finalizeResponse.data === 'string'
+                    ? finalizeResponse.data
+                    : (finalizeResponse.data && finalizeResponse.data.error ? finalizeResponse.data.error : 'Purchase failed');
+                throw new Error(finalizeMessage);
             }
-            
-            // Update UI
-            this.updateCartCount(0);
-            
-            // Close modal after delay
-            setTimeout(() => {
-                this.closeModal();
-            }, 2000);
+
+            this.handlePurchaseSuccess(finalizeResponse.data);
         },
 
-        switchTab: function(tab) {
-            $('.khm-tab-btn').removeClass('active');
-            $('.khm-tab-content').removeClass('active');
-            
-            $(`.khm-tab-btn[data-tab="${tab}"]`).addClass('active');
-            $(`#khm-tab-${tab}`).addClass('active');
-            
-            this.currentTab = tab;
-            
-            if (tab === 'cart') {
-                this.loadCartData();
-            }
+        handlePurchaseSuccess: function(data) {
+            this.pendingDownloads = data.download_urls || [];
+            this.clearMessages();
+            $('.khm-article-summary, .khm-article-note, .khm-payment-section').hide();
+            $('#khm-purchase-success').show();
         },
 
         showModal: function() {
@@ -344,32 +400,9 @@
             this.modal.fadeOut(300);
             $('body').removeClass('khm-modal-open');
             this.clearMessages();
-        },
-
-        updateCartCount: function(count) {
-            $('#khm-cart-count').text(count);
-            $('.khm-tab-btn[data-tab="cart"]').toggle(count > 0);
-        },
-
-        getCurrentPostId: function() {
-            return $('.kss-social-strip').data('post-id');
-        },
-
-        removeFromCart: function(postId) {
-            $.ajax({
-                url: khm_ajax.ajax_url,
-                type: 'POST',
-                data: {
-                    action: 'kss_remove_from_cart',
-                    post_id: postId,
-                    nonce: khm_ajax.nonce
-                },
-                success: (response) => {
-                    if (response.success) {
-                        this.loadCartData();
-                    }
-                }
-            });
+            $('#khm-purchase-success').hide();
+            $('.khm-article-summary, .khm-article-note, .khm-payment-section').show();
+            $('#khm-purchase-followup').empty();
         },
 
         showError: function(message) {
@@ -382,6 +415,7 @@
 
         clearMessages: function() {
             $('#khm-purchase-messages').empty();
+            $('#khm-card-errors').text('').hide();
         }
     };
 
@@ -392,9 +426,9 @@
 
     // Make cart functionality available globally
     window.KHMCommerce = {
-        openCart: () => CommerceModal.openCart(),
-        openQuickBuy: (postId) => CommerceModal.openQuickBuy(postId),
-        updateCartCount: (count) => CommerceModal.updateCartCount(count)
+        openCart: () => {},
+        openQuickBuy: (postId, meta) => CommerceModal.openQuickBuy(postId, meta),
+        updateCartCount: () => {}
     };
 
 })(jQuery);

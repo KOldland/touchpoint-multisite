@@ -30,6 +30,8 @@ class OrderRepository implements OrderRepositoryInterface {
     public function create( array $data ): object {
         global $wpdb;
 
+        $this->ensure_table_exists();
+
         // Generate code if not provided
         if ( empty($data['code']) ) {
             $data['code'] = $this->generateCode();
@@ -114,6 +116,8 @@ class OrderRepository implements OrderRepositoryInterface {
     public function update( int $orderId, array $data ): object {
         global $wpdb;
 
+        $this->ensure_table_exists();
+
         // Reuse create() sanitisation for updates.
         if ( isset( $data['failure_code'] ) ) {
             $data['failure_code'] = sanitize_text_field( $data['failure_code'] );
@@ -158,6 +162,8 @@ class OrderRepository implements OrderRepositoryInterface {
     public function find( int $orderId ): ?object {
         global $wpdb;
 
+        $this->ensure_table_exists();
+
         $order = $wpdb->get_row(
             $wpdb->prepare(
                 // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is a known safe, plugin-owned table string.
@@ -174,6 +180,8 @@ class OrderRepository implements OrderRepositoryInterface {
      */
     public function findByCode( string $code ): ?object {
         global $wpdb;
+
+        $this->ensure_table_exists();
 
         $order = $wpdb->get_row(
             $wpdb->prepare(
@@ -192,6 +200,8 @@ class OrderRepository implements OrderRepositoryInterface {
     public function findByPaymentTransactionId( string $txnId ): ?object {
         global $wpdb;
 
+        $this->ensure_table_exists();
+
         $order = $wpdb->get_row(
             $wpdb->prepare(
                 // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is a known safe, plugin-owned table string.
@@ -208,6 +218,8 @@ class OrderRepository implements OrderRepositoryInterface {
      */
     public function findLastBySubscriptionId( string $subscriptionId ): ?object {
         global $wpdb;
+
+        $this->ensure_table_exists();
 
         $order = $wpdb->get_row(
             $wpdb->prepare(
@@ -227,6 +239,8 @@ class OrderRepository implements OrderRepositoryInterface {
      */
     public function findByUser( int $userId, array $filters = [] ): array {
         global $wpdb;
+
+        $this->ensure_table_exists();
 
         $where = [ 'user_id = %d' ];
         $values = [ $userId ];
@@ -274,6 +288,8 @@ class OrderRepository implements OrderRepositoryInterface {
     public function getWithRelations( int $orderId ): ?array {
         global $wpdb;
 
+        $this->ensure_table_exists();
+
         $row = $wpdb->get_row(
             $wpdb->prepare(
                 "SELECT o.*,
@@ -302,6 +318,8 @@ class OrderRepository implements OrderRepositoryInterface {
      */
     public function getManyWithRelations( array $ids ): array {
         global $wpdb;
+
+        $this->ensure_table_exists();
 
         $ids = array_values(
             array_filter(
@@ -344,6 +362,8 @@ class OrderRepository implements OrderRepositoryInterface {
      */
     public function paginate( array $args = [] ): array {
         global $wpdb;
+
+        $this->ensure_table_exists();
 
         $defaults = [
             'search'   => '',
@@ -444,6 +464,8 @@ class OrderRepository implements OrderRepositoryInterface {
     public function updateStatus( int $orderId, string $status, string $notes = '' ): bool {
         global $wpdb;
 
+        $this->ensure_table_exists();
+
         $data = [ 'status' => $status ];
 
         if ( ! empty($notes) ) {
@@ -475,6 +497,8 @@ class OrderRepository implements OrderRepositoryInterface {
     public function updateNotes( int $orderId, string $notes ): bool {
         global $wpdb;
 
+        $this->ensure_table_exists();
+
         $result = $wpdb->update(
             $this->tableName,
             [ 'notes' => $notes ],
@@ -497,6 +521,8 @@ class OrderRepository implements OrderRepositoryInterface {
      */
     public function recordRefund( int $orderId, float $amount, string $reason = '', ?string $refundedAt = null ): bool {
         global $wpdb;
+
+        $this->ensure_table_exists();
 
         $data = [
             'refund_amount' => $amount,
@@ -540,6 +566,61 @@ class OrderRepository implements OrderRepositoryInterface {
         return false !== $result;
     }
 
+    private function ensure_table_exists(): void {
+        global $wpdb;
+
+        $table_name = $this->tableName;
+        $existing = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name));
+        if ($existing === $table_name) {
+            return;
+        }
+
+        $charset_collate = $wpdb->get_charset_collate();
+        $sql = "CREATE TABLE {$table_name} (
+            id int(11) NOT NULL AUTO_INCREMENT,
+            code varchar(32) NOT NULL,
+            user_id int(11) NOT NULL,
+            membership_id int(11) DEFAULT NULL,
+            subtotal decimal(10,2) DEFAULT 0.00,
+            tax decimal(10,2) DEFAULT 0.00,
+            total decimal(10,2) DEFAULT 0.00,
+            currency varchar(10) DEFAULT 'GBP',
+            status varchar(50) DEFAULT 'pending',
+            gateway varchar(50) DEFAULT 'stripe',
+            gateway_environment varchar(20) DEFAULT 'production',
+            payment_transaction_id varchar(255) DEFAULT NULL,
+            subscription_transaction_id varchar(255) DEFAULT NULL,
+            discount_code varchar(255) DEFAULT NULL,
+            discount_amount decimal(10,2) DEFAULT NULL,
+            trial_days int(11) DEFAULT NULL,
+            trial_amount decimal(10,2) DEFAULT NULL,
+            first_payment_only tinyint(1) DEFAULT 0,
+            recurring_discount_type varchar(20) DEFAULT NULL,
+            recurring_discount_amount decimal(10,2) DEFAULT NULL,
+            failure_code varchar(100) DEFAULT NULL,
+            failure_message text,
+            failure_at datetime DEFAULT NULL,
+            refund_amount decimal(10,2) DEFAULT NULL,
+            refund_reason text,
+            refunded_at datetime DEFAULT NULL,
+            notes text,
+            item_type varchar(100) DEFAULT NULL,
+            items longtext,
+            timestamp datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY code (code),
+            KEY idx_user_id (user_id),
+            KEY idx_status (status),
+            KEY idx_gateway (gateway),
+            KEY idx_membership_id (membership_id),
+            KEY idx_payment_transaction_id (payment_transaction_id),
+            KEY idx_timestamp (timestamp)
+        ) {$charset_collate};";
+
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        dbDelta($sql);
+    }
+
     /**
      * Delete an order (soft delete).
      */
@@ -559,6 +640,8 @@ class OrderRepository implements OrderRepositoryInterface {
      */
     public function generateCode(): string {
         global $wpdb;
+
+        $this->ensure_table_exists();
 
         do {
             $code = strtoupper(wp_generate_password(10, false));

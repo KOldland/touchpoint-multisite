@@ -31,7 +31,7 @@ function kh_register_multiple_authors_cpt() {
 		'menu_position'        => 5,
 		'menu_icon'            => 'dashicons-admin-users',
 		'supports'             => [],
-		'show_in_rest'         => false,
+		'show_in_rest'         => true,
 	]);
 }
 
@@ -273,12 +273,75 @@ function kh_get_post_authors( $post_id ) {
 	$authors = array();
 	if ( function_exists( 'get_field' ) ) {
 		$authors = get_field( 'authors', $post_id );
+		if ( empty( $authors ) ) {
+			$authors = get_field( 'authors', $post_id, false );
+		}
+		if ( empty( $authors ) ) {
+			$authors = get_field( 'field_multi_author_relationship', $post_id, false );
+		}
 	}
 
 	if ( empty( $authors ) ) {
 		$raw = get_post_meta( $post_id, 'authors', true );
 		if ( is_array( $raw ) ) {
 			$authors = $raw;
+		} elseif ( is_string( $raw ) && $raw !== '' ) {
+			$raw_ids = preg_split( '/[,\s]+/', $raw, -1, PREG_SPLIT_NO_EMPTY );
+			if ( $raw_ids ) {
+				$authors = $raw_ids;
+			}
+		} elseif ( is_numeric( $raw ) ) {
+			$authors = array( (int) $raw );
+		}
+	}
+
+	if ( empty( $authors ) ) {
+		$raw = get_post_meta( $post_id, 'field_multi_author_relationship', true );
+		if ( is_array( $raw ) ) {
+			$authors = $raw;
+		} elseif ( is_string( $raw ) && $raw !== '' ) {
+			$raw_ids = preg_split( '/[,\s]+/', $raw, -1, PREG_SPLIT_NO_EMPTY );
+			if ( $raw_ids ) {
+				$authors = $raw_ids;
+			}
+		} elseif ( is_numeric( $raw ) ) {
+			$authors = array( (int) $raw );
+		}
+	}
+
+	if ( empty( $authors ) || ! is_array( $authors ) ) {
+		$post = get_post( $post_id );
+		if ( $post && $post->post_author ) {
+			$user = get_user_by( 'ID', $post->post_author );
+			if ( $user && $user->display_name ) {
+				$display_name = $user->display_name;
+				$author_post = null;
+
+				$matches = get_posts( array(
+					'post_type'      => 'multi_author',
+					'post_status'    => 'any',
+					'posts_per_page' => 1,
+					'fields'         => 'ids',
+					'meta_query'     => array(
+						array(
+							'key'   => 'author_name',
+							'value' => $display_name,
+						),
+					),
+				) );
+
+				if ( ! empty( $matches ) ) {
+					$author_post = get_post( $matches[0] );
+				}
+
+				if ( ! $author_post ) {
+					$author_post = get_page_by_title( $display_name, OBJECT, 'multi_author' );
+				}
+
+				if ( $author_post ) {
+					$authors = array( $author_post );
+				}
+			}
 		}
 	}
 
@@ -293,10 +356,21 @@ function kh_get_post_authors( $post_id ) {
 			continue;
 		}
 		$author_id = is_numeric( $author ) ? (int) $author : 0;
-		if ( $author_id ) {
-			$author_post = get_post( $author_id );
+		if ( ! $author_id ) {
+			continue;
+		}
+		$author_post = get_post( $author_id );
+		if ( $author_post && 'multi_author' === $author_post->post_type ) {
+			$normalized[] = $author_post;
+			continue;
+		}
+
+		$user = get_user_by( 'ID', $author_id );
+		if ( $user && $user->display_name ) {
+			$author_post = get_page_by_title( $user->display_name, OBJECT, 'multi_author' );
 			if ( $author_post ) {
 				$normalized[] = $author_post;
+				continue;
 			}
 		}
 	}

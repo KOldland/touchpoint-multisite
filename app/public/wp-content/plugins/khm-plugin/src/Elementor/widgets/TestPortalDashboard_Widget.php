@@ -19,7 +19,7 @@ class TestPortalDashboard_Widget extends Widget_Base {
 	}
 
 	public function get_categories() {
-		return [ 'general' ];
+		return [ 'touchpoint' ];
 	}
 	
 	public function get_keywords() {

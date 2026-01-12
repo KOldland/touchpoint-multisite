@@ -34,9 +34,13 @@ $icon_base = $widget_data['icon_base'];
     <?php endif; ?>
 
     <?php if ($widget_data['features']['can_buy']): ?>
-        <button class="kss-buy-button kss-add-to-cart"
+        <?php $is_purchased = $widget_data['purchase']['is_purchased'] ?? false; ?>
+        <button class="kss-buy-button <?= $is_purchased ? 'purchased' : ''; ?>"
                 data-post-id="<?= esc_attr($post_id); ?>"
-                title="Buy (<?= $widget_data['pricing']['currency'] . number_format($widget_data['pricing']['member_price'], 2); ?>)">
+                data-title="<?= esc_attr(get_the_title($post_id)); ?>"
+                data-image="<?= esc_url(get_the_post_thumbnail_url($post_id, 'medium') ?: ''); ?>"
+                data-purchased="<?= $is_purchased ? '1' : '0'; ?>"
+                title="<?= $is_purchased ? 'Purchased' : 'Buy (' . $widget_data['pricing']['currency'] . number_format($widget_data['pricing']['member_price'], 2) . ')'; ?>">
             <img src="<?= esc_url($icon_base . 'buy.png'); ?>" alt="Buy PDF">
         </button>
 

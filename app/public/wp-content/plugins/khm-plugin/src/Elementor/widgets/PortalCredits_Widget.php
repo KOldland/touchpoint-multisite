@@ -28,7 +28,7 @@ class PortalCredits_Widget extends Widget_Base {
     }
 
     public function get_categories() {
-        return ['general', 'touchpoint', 'theme-elements'];
+        return ['touchpoint', 'touchpoint', 'theme-elements'];
     }
 
     public function get_keywords() {
@@ -139,9 +139,16 @@ class PortalCredits_Widget extends Widget_Base {
 
         // Get data
         $credits = $credits_service->getUserCredits($user_id);
-        $transactions = $settings['show_history'] === 'yes' 
-            ? $this->get_credit_transactions($user_id, (int)$settings['history_limit'])
+        $limit = (int) $settings['history_limit'];
+        $page = isset($_GET['khm_tx_page']) ? max(1, (int) $_GET['khm_tx_page']) : 1;
+        $offset = ($page - 1) * $limit;
+        $transactions = $settings['show_history'] === 'yes'
+            ? $this->get_transactions($user_id, $limit, $offset)
             : [];
+        $total_transactions = $settings['show_history'] === 'yes'
+            ? $this->get_transaction_total($user_id)
+            : 0;
+        $total_pages = $limit > 0 ? (int) ceil($total_transactions / $limit) : 1;
 
         $this->enqueue_portal_styles();
         $accent_color = $settings['accent_color'] ?? '#6b0b0b';
@@ -180,17 +187,31 @@ class PortalCredits_Widget extends Widget_Base {
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($transactions as $tx): ?>
+                    <?php foreach ($transactions as $tx): ?>
                         <tr>
-                            <td><?php echo esc_html(date_i18n(get_option('date_format'), strtotime($tx->created_at))); ?></td>
-                            <td><?php echo esc_html($tx->reason); ?></td>
-                            <td class="<?php echo $tx->amount > 0 ? 'khm-credit-positive' : 'khm-credit-negative'; ?>">
-                                <?php echo $tx->amount > 0 ? '+' : ''; ?><?php echo esc_html($tx->amount); ?>
+                            <td><?php echo esc_html(date_i18n(get_option('date_format'), strtotime($tx['date']))); ?></td>
+                            <td><?php echo esc_html($tx['description']); ?></td>
+                            <td class="<?php echo esc_attr($tx['amount_class']); ?>">
+                                <?php echo esc_html($tx['amount_display']); ?>
                             </td>
                         </tr>
-                        <?php endforeach; ?>
+                    <?php endforeach; ?>
                     </tbody>
                 </table>
+                <?php if ($total_pages > 1): ?>
+                <div class="khm-transactions-pagination">
+                    <?php
+                    $base_url = remove_query_arg('khm_tx_page');
+                    for ($i = 1; $i <= $total_pages; $i++):
+                        $url = add_query_arg('khm_tx_page', $i, $base_url);
+                        $class = $i === $page ? 'is-active' : '';
+                    ?>
+                        <a class="khm-page-link <?php echo esc_attr($class); ?>" href="<?php echo esc_url($url); ?>">
+                            <?php echo esc_html($i); ?>
+                        </a>
+                    <?php endfor; ?>
+                </div>
+                <?php endif; ?>
             </div>
             <?php elseif ($settings['show_history'] === 'yes'): ?>
             <div class="khm-credits-history">
@@ -203,19 +224,124 @@ class PortalCredits_Widget extends Widget_Base {
         <?php
     }
 
-    private function get_credit_transactions(int $user_id, int $limit): array {
+    private function get_transactions(int $user_id, int $limit, int $offset = 0): array {
         global $wpdb;
-        $table = $wpdb->prefix . 'khm_credit_transactions';
-        
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$table}'") !== $table) {
-            return [];
+        $transactions = [];
+
+        $usage_table = $wpdb->prefix . 'khm_credit_usage';
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$usage_table}'") === $usage_table) {
+            $usage = $wpdb->get_results($wpdb->prepare(
+                "SELECT credits_used, purpose, object_id, created_at
+                 FROM {$usage_table}
+                 WHERE user_id = %d
+                 ORDER BY created_at DESC
+                 LIMIT %d OFFSET %d",
+                $user_id,
+                $limit,
+                $offset
+            ));
+
+            foreach ($usage as $row) {
+                $credits = (int) $row->credits_used;
+                if ($credits === 0) {
+                    continue;
+                }
+
+                $label = $this->format_credit_reason($row->purpose ?? '', $row->object_id ?? 0);
+                $amount_display = '-' . abs($credits) . ' credits';
+                $transactions[] = [
+                    'date' => $row->created_at,
+                    'description' => $label,
+                    'amount_display' => $amount_display,
+                    'amount_class' => 'khm-credit-negative',
+                ];
+            }
         }
 
-        return $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table} WHERE user_id = %d ORDER BY created_at DESC LIMIT %d",
-            $user_id,
-            $limit
-        ));
+        $purchases_table = $wpdb->prefix . 'khm_purchases';
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$purchases_table}'") === $purchases_table) {
+            $purchases = $wpdb->get_results($wpdb->prepare(
+                "SELECT pr.post_id, pr.purchase_price, pr.created_at, p.post_title
+                 FROM {$purchases_table} pr
+                 LEFT JOIN {$wpdb->posts} p ON pr.post_id = p.ID
+                 WHERE pr.user_id = %d AND pr.status = 'completed'
+                 ORDER BY pr.created_at DESC
+                 LIMIT %d OFFSET %d",
+                $user_id,
+                $limit,
+                $offset
+            ));
+
+            foreach ($purchases as $purchase) {
+                $price = (float) ($purchase->purchase_price ?? 0);
+                $transactions[] = [
+                    'date' => $purchase->created_at,
+                    'description' => sprintf(
+                        /* translators: %s is the article title */
+                        __('Purchased: %s', 'khm-membership'),
+                        $purchase->post_title ?: __('Article', 'khm-membership')
+                    ),
+                    'amount_display' => '-' . $this->format_price($price),
+                    'amount_class' => 'khm-credit-negative',
+                ];
+            }
+        }
+
+        usort($transactions, function($a, $b) {
+            return strtotime($b['date']) <=> strtotime($a['date']);
+        });
+
+        return array_slice($transactions, 0, $limit);
+    }
+
+    private function get_transaction_total(int $user_id): int {
+        global $wpdb;
+        $total = 0;
+
+        $usage_table = $wpdb->prefix . 'khm_credit_usage';
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$usage_table}'") === $usage_table) {
+            $count = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$usage_table} WHERE user_id = %d",
+                $user_id
+            ));
+            $total += $count;
+        }
+
+        $purchases_table = $wpdb->prefix . 'khm_purchases';
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$purchases_table}'") === $purchases_table) {
+            $count = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$purchases_table} WHERE user_id = %d AND status = 'completed'",
+                $user_id
+            ));
+            $total += $count;
+        }
+
+        return $total;
+    }
+
+    private function format_credit_reason(string $purpose, int $object_id = 0): string {
+        $purpose = trim($purpose);
+        if ($purpose === 'article_download' && $object_id) {
+            $title = get_the_title($object_id);
+            if ($title) {
+                return sprintf(__('Downloaded: %s', 'khm-membership'), $title);
+            }
+        }
+
+        if ($purpose !== '') {
+            return ucwords(str_replace('_', ' ', $purpose));
+        }
+
+        return __('Credit Usage', 'khm-membership');
+    }
+
+    private function format_price(float $amount): string {
+        $currency = get_option('khm_currency', 'GBP');
+        if (function_exists('khm_format_price')) {
+            return khm_format_price($amount, $currency);
+        }
+
+        return number_format_i18n($amount, 2);
     }
 
     private function enqueue_portal_styles() {

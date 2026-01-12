@@ -165,6 +165,16 @@ class MemberPortalController {
                 'limit' => ['type' => 'integer', 'default' => 10],
             ],
         ]);
+
+        // Gift voucher redemption
+        register_rest_route('khm/v1', '/portal/gift/redeem', [
+            'methods' => 'POST',
+            'callback' => [$this, 'redeem_gift_voucher'],
+            'permission_callback' => [$this, 'check_auth'],
+            'args' => [
+                'token' => ['type' => 'string', 'required' => true],
+            ],
+        ]);
     }
 
     /**
@@ -236,6 +246,49 @@ class MemberPortalController {
                 }, $downloads),
             ],
             'activity' => $activity,
+        ], 200);
+    }
+
+    /**
+     * POST /portal/gift/redeem - Redeem a gift voucher and add to library
+     */
+    public function redeem_gift_voucher(WP_REST_Request $request): WP_REST_Response {
+        $user_id = get_current_user_id();
+        $token = sanitize_text_field($request->get_param('token'));
+
+        if (!$token) {
+            return new WP_REST_Response([
+                'success' => false,
+                'error' => 'Voucher code is required.',
+            ], 400);
+        }
+
+        if (!function_exists('khm_call_service')) {
+            return new WP_REST_Response([
+                'success' => false,
+                'error' => 'Gift service not available.',
+            ], 500);
+        }
+
+        $result = khm_call_service('redeem_gift', $token, 'library_save', $user_id);
+
+        if (empty($result['success'])) {
+            return new WP_REST_Response([
+                'success' => false,
+                'error' => $result['error'] ?? 'Unable to redeem voucher.',
+            ], 400);
+        }
+
+        $post_id = $result['post_id'] ?? 0;
+        $post = $post_id ? get_post($post_id) : null;
+
+        return new WP_REST_Response([
+            'success' => true,
+            'post_id' => $post_id,
+            'post_title' => $post ? $post->post_title : null,
+            'message' => $post
+                ? sprintf('Voucher redeemed! "%s" has been added to your library.', $post->post_title)
+                : 'Voucher redeemed! Article added to your library.',
         ], 200);
     }
 
@@ -378,10 +431,28 @@ class MemberPortalController {
             'category' => $category,
         ]);
 
+        $purchased_lookup = [];
+        if (!empty($items)) {
+            global $wpdb;
+            $post_ids = array_map(static function($item) {
+                return (int) $item->post_id;
+            }, $items);
+
+            $placeholders = implode(',', array_fill(0, count($post_ids), '%d'));
+            $sql = "SELECT post_id FROM {$wpdb->prefix}khm_purchases
+                 WHERE user_id = %d AND status = 'completed' AND post_id IN ({$placeholders})";
+            $args = array_merge([$sql, $user_id], $post_ids);
+            $query = call_user_func_array([$wpdb, 'prepare'], $args);
+            $purchased_ids = $wpdb->get_col($query);
+            foreach ($purchased_ids as $post_id) {
+                $purchased_lookup[(int) $post_id] = true;
+            }
+        }
+
         $categories = $this->library->get_member_categories($user_id);
         $stats = $this->library->get_library_stats($user_id);
 
-        $formatted = array_map(function($item) {
+        $formatted = array_map(function($item) use ($purchased_lookup) {
             $post = get_post($item->post_id);
             return [
                 'id' => $item->id,
@@ -395,6 +466,7 @@ class MemberPortalController {
                 'is_read' => (bool) ($item->is_read ?? false),
                 'notes' => $item->notes ?? '',
                 'saved_at' => $item->created_at,
+                'is_purchased' => !empty($purchased_lookup[(int) $item->post_id]),
             ];
         }, $items);
 

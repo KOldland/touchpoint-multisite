@@ -126,6 +126,35 @@ class StripeGateway implements GatewayInterface {
     }
 
     /**
+     * Create a PaymentIntent for Payment Element flows.
+     */
+    public function createPaymentIntent( $order ): Result {
+        try {
+            $this->loadStripeLibrary();
+
+            $params = [
+                'amount' => $this->toStripeAmount($order->total),
+                'currency' => $order->currency ?? 'usd',
+                'metadata' => $this->getMetadata($order),
+                'payment_method_types' => [ 'card' ],
+            ];
+
+            $params = apply_filters('khm_stripe_payment_intent_params', $params, $order);
+
+            $paymentIntent = \Stripe\PaymentIntent::create($params);
+
+            return Result::success('Payment intent created', [
+                'intent_id' => $paymentIntent->id,
+                'client_secret' => $paymentIntent->client_secret,
+                'status' => $paymentIntent->status,
+            ]);
+        } catch ( \Exception $e ) {
+            error_log('Stripe create PaymentIntent error: ' . $e->getMessage());
+            return Result::failure('Unable to create payment.', 'gateway_error');
+        }
+    }
+
+    /**
      * Void a previously authorized payment.
      */
     public function void( $order ): Result {
@@ -182,6 +211,26 @@ class StripeGateway implements GatewayInterface {
         } catch ( \Exception $e ) {
             error_log('Stripe refund error: ' . $e->getMessage());
             return Result::failure('Refund failed', 'gateway_error');
+        }
+    }
+
+    /**
+     * Retrieve a PaymentIntent from Stripe.
+     */
+    public function retrievePaymentIntent( string $intentId ): ?\Stripe\PaymentIntent {
+        if ( empty($this->secretKey) ) {
+            return null;
+        }
+
+        try {
+            $this->loadStripeLibrary();
+            \Stripe\Stripe::setApiKey($this->secretKey);
+            \Stripe\Stripe::setApiVersion($this->apiVersion);
+
+            return \Stripe\PaymentIntent::retrieve($intentId);
+        } catch ( \Exception $e ) {
+            error_log('Stripe retrieve PaymentIntent error: ' . $e->getMessage());
+            return null;
         }
     }
 
@@ -444,6 +493,9 @@ class StripeGateway implements GatewayInterface {
             'user_id' => $order->user_id ?? 0,
             'membership_id' => $order->membership_id ?? 0,
         ];
+        if ( ! empty($order->post_id) ) {
+            $metadata['post_id'] = $order->post_id;
+        }
 
         return apply_filters('khm_stripe_metadata', $metadata, $order);
     }
@@ -597,4 +649,3 @@ class StripeGateway implements GatewayInterface {
         }
     }
 }
-

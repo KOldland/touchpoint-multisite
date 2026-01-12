@@ -16,6 +16,7 @@
         initRemoveButtons();
         initMembershipActions();
         initAccountForms();
+        initVoucherForms();
     }
 
     /**
@@ -221,6 +222,82 @@
                 }
             });
         });
+    }
+
+    /**
+     * Voucher redemption form
+     */
+    function initVoucherForms() {
+        $(document).on('submit', '.khm-voucher-form', function(e) {
+            e.preventDefault();
+
+            var $form = $(this);
+            var $input = $form.find('.khm-voucher-code');
+            var code = $input.val().trim();
+            if (!code) {
+                var emptyMessage = (window.khmPortalWidgets && khmPortalWidgets.strings && khmPortalWidgets.strings.error)
+                    ? khmPortalWidgets.strings.error
+                    : 'Please enter a voucher code.';
+                setVoucherMessage($form, emptyMessage, 'error');
+                return;
+            }
+
+            redeemVoucher($form, code);
+        });
+    }
+
+    function redeemVoucher($form, code) {
+        var $button = $form.find('button[type="submit"]');
+        var originalLabel = $button.text();
+        var loadingLabel = (window.khmPortalWidgets && khmPortalWidgets.strings && khmPortalWidgets.strings.loading)
+            ? khmPortalWidgets.strings.loading
+            : 'Loading...';
+        $button.prop('disabled', true).text(loadingLabel);
+
+        $.ajax({
+            url: khmPortalWidgets.restUrl + 'gift/redeem',
+            method: 'POST',
+            headers: {
+                'X-WP-Nonce': khmPortalWidgets.restNonce
+            },
+            data: {
+                token: code
+            },
+            success: function(response) {
+                if (response.success) {
+                    setVoucherMessage($form, response.message || 'Voucher redeemed! Article added to your library.', 'success');
+                    $form.find('.khm-voucher-code').val('');
+                } else {
+                    var failMessage = (window.khmPortalWidgets && khmPortalWidgets.strings && khmPortalWidgets.strings.error)
+                        ? khmPortalWidgets.strings.error
+                        : 'Unable to redeem voucher.';
+                    setVoucherMessage($form, response.error || failMessage, 'error');
+                }
+            },
+            error: function(xhr) {
+                var errorMessage = (window.khmPortalWidgets && khmPortalWidgets.strings && khmPortalWidgets.strings.error)
+                    ? khmPortalWidgets.strings.error
+                    : 'Unable to redeem voucher.';
+                var message = (xhr.responseJSON && xhr.responseJSON.message)
+                    ? xhr.responseJSON.message
+                    : errorMessage;
+                setVoucherMessage($form, message, 'error');
+            },
+            complete: function() {
+                $button.prop('disabled', false).text(originalLabel);
+            }
+        });
+    }
+
+    function setVoucherMessage($form, message, status) {
+        var $message = $form.find('.khm-form-message');
+        if (!$message.length) {
+            return;
+        }
+        $message
+            .removeClass('success error')
+            .addClass(status)
+            .text(message);
     }
 
     /**

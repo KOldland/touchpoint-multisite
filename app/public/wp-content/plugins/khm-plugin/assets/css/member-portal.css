@@ -302,6 +302,14 @@
     box-shadow: var(--khm-shadow-sm);
 }
 
+.khm-voucher-section .khm-form {
+    max-width: 420px;
+}
+
+.khm-voucher-section .khm-btn {
+    align-self: flex-start;
+}
+
 /* Recent List */
 .khm-recent-list {
     display: flex;
@@ -433,6 +441,19 @@
 .khm-library-actions {
     display: flex;
     gap: 0.5rem;
+}
+
+.khm-library-purchased-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: #2e7d32;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 700;
 }
 
 /* Downloads List */

@@ -37,6 +37,8 @@ class KSS_KHM_Integration {
             return;
         }
 
+        add_filter('khm_force_load_commerce_modal', '__return_true');
+
         $success = khm_register_plugin('social-strip', [
             'name' => 'Social Strip',
             'version' => '1.1',
@@ -113,6 +115,34 @@ class KSS_KHM_Integration {
             '1.1'
         );
 
+        // Ensure commerce modal assets load for purchase flow.
+        $commerce_js = WP_PLUGIN_DIR . '/khm-plugin/assets/js/commerce-modal.js';
+        $commerce_css = WP_PLUGIN_DIR . '/khm-plugin/assets/css/commerce-modal.css';
+        if (file_exists($commerce_js) && file_exists($commerce_css)) {
+            wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
+
+            wp_enqueue_script(
+                'khm-commerce-modal',
+                plugins_url('khm-plugin/assets/js/commerce-modal.js'),
+                ['jquery', 'stripe-js'],
+                filemtime($commerce_js),
+                true
+            );
+
+            wp_enqueue_style(
+                'khm-commerce-modal',
+                plugins_url('khm-plugin/assets/css/commerce-modal.css'),
+                [],
+                filemtime($commerce_css)
+            );
+
+            wp_localize_script('khm-commerce-modal', 'khmCommerce', [
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('khm_commerce'),
+                'stripe_key' => get_option('khm_stripe_publishable_key', ''),
+            ]);
+        }
+
         // Pass data to JavaScript
         wp_localize_script('kss-khm-integration', 'khm_ajax', [
             'ajax_url' => admin_url('admin-ajax.php'),
@@ -122,6 +152,10 @@ class KSS_KHM_Integration {
             'current_user_id' => get_current_user_id(),
             'gift_url' => home_url('/gift/'),
             'checkout_url' => home_url('/checkout/'),
+            'commerce_js' => plugins_url('khm-plugin/assets/js/commerce-modal.js'),
+            'commerce_css' => plugins_url('khm-plugin/assets/css/commerce-modal.css'),
+            'commerce_nonce' => wp_create_nonce('khm_commerce'),
+            'stripe_key' => get_option('khm_stripe_publishable_key', ''),
             'messages' => [
                 'credit_used' => __('Credit used successfully!', 'social-strip'),
                 'purchase_complete' => __('Purchase completed!', 'social-strip'),
@@ -437,6 +471,20 @@ class KSS_KHM_Integration {
             'can_save' => $is_logged_in,
         ];
 
+        // Purchase status
+        $is_purchased = false;
+        if ($is_logged_in && function_exists('khm_call_service')) {
+            try {
+                $is_purchased = (bool) khm_call_service('has_purchased', $user_id, $post_id);
+            } catch (Exception $e) {
+                $is_purchased = false;
+            }
+        }
+
+        $enhanced_data['purchase'] = [
+            'is_purchased' => $is_purchased,
+        ];
+
         // Get comprehensive pricing information
         $original_price = $original_data['price'] ?? 0;
         $member_price = $original_price;
@@ -598,24 +646,26 @@ class KSS_KHM_Integration {
      * Handle secure PDF download with token
      */
     public function handle_secure_pdf_download() {
+        $post_id = intval($_GET['post_id'] ?? 0);
+        $user_id = intval($_GET['user_id'] ?? 0);
         $token = sanitize_text_field($_GET['token'] ?? '');
-        
-        if (!$token) {
-            wp_die('Invalid download token');
+        $expires = intval($_GET['expires'] ?? 0);
+
+        if (!$post_id || !$user_id || !$token || !$expires) {
+            wp_die('Invalid or expired download link');
         }
 
-        // Verify and process the download token
-        if (function_exists('khm_call_service')) {
-            $result = khm_call_service('process_download_token', $token);
-            
-            if ($result && $result['success']) {
-                // Redirect to the actual PDF file
-                wp_redirect($result['file_url']);
-                exit;
-            }
+        try {
+            $pdf_service = new \KHM\Services\PDFService();
+            $pdf_service->handleDownloadRequest([
+                'post_id' => $post_id,
+                'user_id' => $user_id,
+                'token' => $token,
+                'expires' => $expires,
+            ]);
+        } catch (\Throwable $e) {
+            wp_die('Unable to process download');
         }
-        
-        wp_die('Invalid or expired download link');
     }
 
     /**

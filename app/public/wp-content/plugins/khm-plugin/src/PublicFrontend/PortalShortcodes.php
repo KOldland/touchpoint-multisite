@@ -50,7 +50,7 @@ class PortalShortcodes {
         // Get data
         $memberships = $memberships_repo->findActive($user_id);
         $membership = !empty($memberships) ? $memberships[0] : null;
-        $level = ($membership && $membership->level_id) ? $levels_repo->get($membership->level_id) : null;
+        $level = ($membership && $membership->membership_id) ? $levels_repo->get($membership->membership_id, true) : null;
         $credits = $credits_service->getUserCredits($user_id);
         $library_stats = $library_service->get_library_stats($user_id);
         $recent_downloads = $downloads_service->getUserDownloads($user_id, ['limit' => 5]);
@@ -62,9 +62,6 @@ class PortalShortcodes {
             <?php if ($atts['show_welcome'] === 'yes'): ?>
             <div class="khm-dashboard-welcome">
                 <h2><?php printf(esc_html__('Welcome back, %s', 'khm-membership'), esc_html($user->display_name)); ?></h2>
-                <?php if ($level): ?>
-                <p class="khm-membership-badge"><?php echo esc_html($level->name); ?> Member</p>
-                <?php endif; ?>
             </div>
             <?php endif; ?>
 
@@ -151,9 +148,16 @@ class PortalShortcodes {
 
         // Get data
         $credits = $credits_service->getUserCredits($user_id);
-        $transactions = $atts['show_history'] === 'yes' 
-            ? $this->get_credit_transactions($user_id, (int)$atts['history_limit'])
+        $limit = (int) $atts['history_limit'];
+        $page = isset($_GET['khm_tx_page']) ? max(1, (int) $_GET['khm_tx_page']) : 1;
+        $offset = ($page - 1) * $limit;
+        $transactions = $atts['show_history'] === 'yes'
+            ? $this->get_transactions($user_id, $limit, $offset)
             : [];
+        $total_transactions = $atts['show_history'] === 'yes'
+            ? $this->get_transaction_total($user_id)
+            : 0;
+        $total_pages = $limit > 0 ? (int) ceil($total_transactions / $limit) : 1;
 
         $this->enqueue_portal_styles();
         $accent_color = $atts['accent_color'] ?? '#6b0b0b';
@@ -192,17 +196,31 @@ class PortalShortcodes {
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($transactions as $tx): ?>
+                    <?php foreach ($transactions as $tx): ?>
                         <tr>
-                            <td><?php echo esc_html(date_i18n(get_option('date_format'), strtotime($tx->created_at))); ?></td>
-                            <td><?php echo esc_html($tx->reason); ?></td>
-                            <td class="<?php echo $tx->amount > 0 ? 'khm-credit-positive' : 'khm-credit-negative'; ?>">
-                                <?php echo $tx->amount > 0 ? '+' : ''; ?><?php echo esc_html($tx->amount); ?>
+                            <td><?php echo esc_html(date_i18n(get_option('date_format'), strtotime($tx['date']))); ?></td>
+                            <td><?php echo esc_html($tx['description']); ?></td>
+                            <td class="<?php echo esc_attr($tx['amount_class']); ?>">
+                                <?php echo esc_html($tx['amount_display']); ?>
                             </td>
                         </tr>
-                        <?php endforeach; ?>
+                    <?php endforeach; ?>
                     </tbody>
                 </table>
+                <?php if ($total_pages > 1): ?>
+                <div class="khm-transactions-pagination">
+                    <?php
+                    $base_url = remove_query_arg('khm_tx_page');
+                    for ($i = 1; $i <= $total_pages; $i++):
+                        $url = add_query_arg('khm_tx_page', $i, $base_url);
+                        $class = $i === $page ? 'is-active' : '';
+                    ?>
+                        <a class="khm-page-link <?php echo esc_attr($class); ?>" href="<?php echo esc_url($url); ?>">
+                            <?php echo esc_html($i); ?>
+                        </a>
+                    <?php endfor; ?>
+                </div>
+                <?php endif; ?>
             </div>
             <?php elseif ($atts['show_history'] === 'yes'): ?>
             <div class="khm-credits-history">
@@ -245,6 +263,23 @@ class PortalShortcodes {
             'limit' => (int)$atts['per_page'],
         ]);
 
+        $purchased_lookup = [];
+        if (!empty($library_items)) {
+            global $wpdb;
+            $post_ids = array_map(static function($item) {
+                return (int) $item->post_id;
+            }, $library_items);
+            $placeholders = implode(',', array_fill(0, count($post_ids), '%d'));
+            $sql = "SELECT post_id FROM {$wpdb->prefix}khm_purchases
+                WHERE user_id = %d AND status = 'completed' AND post_id IN ({$placeholders})";
+            $args = array_merge([$sql, $user_id], $post_ids);
+            $query = call_user_func_array([$wpdb, 'prepare'], $args);
+            $purchased_ids = $wpdb->get_col($query);
+            foreach ($purchased_ids as $post_id) {
+                $purchased_lookup[(int) $post_id] = true;
+            }
+        }
+
         $this->enqueue_portal_styles();
         $this->enqueue_portal_scripts();
         $accent_color = $atts['accent_color'] ?? '#6b0b0b';
@@ -261,6 +296,7 @@ class PortalShortcodes {
                     
                     // Check if this article has been downloaded
                     $has_downloaded = $downloads_service->hasDownloaded($user_id, $item->post_id);
+                    $is_purchased = !empty($purchased_lookup[(int) $item->post_id]);
                     $credit_cost = $downloads_service->getArticleCreditCost($item->post_id);
                 ?>
                 <div class="khm-download-item">
@@ -298,10 +334,14 @@ class PortalShortcodes {
                             <?php printf(esc_html__('Download (%d Credits)', 'khm-membership'), $credit_cost); ?>
                         </button>
                         <?php endif; ?>
-                        <button class="khm-remove-btn" data-post-id="<?php echo esc_attr($item->post_id); ?>" data-title="<?php echo esc_attr(get_the_title($item->post_id)); ?>">
-                            <span class="khm-btn-icon dashicons dashicons-trash"></span>
-                            <?php esc_html_e('Remove', 'khm-membership'); ?>
-                        </button>
+                        <?php if ($is_purchased): ?>
+                            <span class="khm-purchased-badge" title="<?php esc_attr_e('Purchased', 'khm-membership'); ?>">$</span>
+                        <?php else: ?>
+                            <button class="khm-remove-btn" data-post-id="<?php echo esc_attr($item->post_id); ?>" data-title="<?php echo esc_attr(get_the_title($item->post_id)); ?>">
+                                <span class="khm-btn-icon dashicons dashicons-trash"></span>
+                                <?php esc_html_e('Remove', 'khm-membership'); ?>
+                            </button>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <?php endforeach; ?>
@@ -347,7 +387,7 @@ class PortalShortcodes {
         // Get membership data
         $memberships = $memberships_repo->findActive($user_id);
         $membership = !empty($memberships) ? $memberships[0] : null;
-        $level = ($membership && $membership->level_id) ? $levels_repo->get($membership->level_id) : null;
+        $level = ($membership && $membership->membership_id) ? $levels_repo->get($membership->membership_id, true) : null;
 
         // Check for paused membership if no active
         if (!$membership) {
@@ -359,7 +399,7 @@ class PortalShortcodes {
             ));
             if ($paused) {
                 $membership = $paused;
-                $level = $levels_repo->get($paused->level_id);
+                $level = $levels_repo->get($paused->membership_id, true);
             }
         }
 
@@ -398,15 +438,45 @@ class PortalShortcodes {
                 </div>
                 <?php endif; ?>
 
-                <?php if ($atts['show_renewal'] === 'yes' && !empty($membership->expires_at)): ?>
+                <?php 
+                // Calculate renewal date - either from expires_at or calculate for recurring
+                $renewal_date = null;
+                $renewal_label = '';
+                
+                if (!empty($membership->expires_at)) {
+                    $renewal_date = $membership->expires_at;
+                    $renewal_label = $membership->status === 'active' 
+                        ? esc_html__('Renews on', 'khm-membership') 
+                        : esc_html__('Access until', 'khm-membership');
+                } elseif ($membership->status === 'active' && !empty($membership->startdate)) {
+                    // For recurring memberships without expiration, calculate next renewal
+                    // Based on billing cycle from level or default to monthly
+                    $billing_period = $level->billing_period ?? 'Month';
+                    $start = new \DateTime($membership->startdate);
+                    $now = new \DateTime();
+                    
+                    // Calculate how many periods have passed
+                    if (strtolower($billing_period) === 'year') {
+                        $interval = new \DateInterval('P1Y');
+                    } else {
+                        $interval = new \DateInterval('P1M'); // Default monthly
+                    }
+                    
+                    // Find next renewal after now
+                    while ($start <= $now) {
+                        $start->add($interval);
+                    }
+                    
+                    $renewal_date = $start->format('Y-m-d H:i:s');
+                    $renewal_label = esc_html__('Next renewal', 'khm-membership');
+                }
+                ?>
+                
+                <?php if ($atts['show_renewal'] === 'yes' && $renewal_date): ?>
                 <div class="khm-membership-renewal">
-                    <span class="khm-renewal-label">
-                        <?php echo $membership->status === 'active' 
-                            ? esc_html__('Renews on', 'khm-membership') 
-                            : esc_html__('Access until', 'khm-membership'); ?>
-                    </span>
+                    <span class="khm-renewal-label"><?php echo $renewal_label; ?></span>
                     <span class="khm-renewal-date">
-                        <?php echo esc_html(date_i18n(get_option('date_format'), strtotime($membership->expires_at))); ?>
+                        <?php echo esc_html(date_i18n(get_option('date_format'), strtotime($renewal_date))); ?>
                     </span>
                 </div>
                 <?php endif; ?>
@@ -595,19 +665,123 @@ class PortalShortcodes {
         return ob_get_clean();
     }
 
-    private function get_credit_transactions(int $user_id, int $limit): array {
+    private function get_transactions(int $user_id, int $limit, int $offset = 0): array {
         global $wpdb;
-        $table = $wpdb->prefix . 'khm_credit_transactions';
-        
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$table}'") !== $table) {
-            return [];
+        $transactions = [];
+
+        $usage_table = $wpdb->prefix . 'khm_credit_usage';
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$usage_table}'") === $usage_table) {
+            $usage = $wpdb->get_results($wpdb->prepare(
+                "SELECT credits_used, purpose, object_id, created_at
+                 FROM {$usage_table}
+                 WHERE user_id = %d
+                 ORDER BY created_at DESC
+                 LIMIT %d OFFSET %d",
+                $user_id,
+                $limit,
+                $offset
+            ));
+
+            foreach ($usage as $row) {
+                $credits = (int) $row->credits_used;
+                if ($credits === 0) {
+                    continue;
+                }
+
+                $label = $this->format_credit_reason($row->purpose ?? '', $row->object_id ?? 0);
+                $transactions[] = [
+                    'date' => $row->created_at,
+                    'description' => $label,
+                    'amount_display' => '-' . abs($credits) . ' credits',
+                    'amount_class' => 'khm-credit-negative',
+                ];
+            }
         }
 
-        return $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table} WHERE user_id = %d ORDER BY created_at DESC LIMIT %d",
-            $user_id,
-            $limit
-        ));
+        $purchases_table = $wpdb->prefix . 'khm_purchases';
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$purchases_table}'") === $purchases_table) {
+            $purchases = $wpdb->get_results($wpdb->prepare(
+                "SELECT pr.post_id, pr.purchase_price, pr.created_at, p.post_title
+                 FROM {$purchases_table} pr
+                 LEFT JOIN {$wpdb->posts} p ON pr.post_id = p.ID
+                 WHERE pr.user_id = %d AND pr.status = 'completed'
+                 ORDER BY pr.created_at DESC
+                 LIMIT %d OFFSET %d",
+                $user_id,
+                $limit,
+                $offset
+            ));
+
+            foreach ($purchases as $purchase) {
+                $price = (float) ($purchase->purchase_price ?? 0);
+                $transactions[] = [
+                    'date' => $purchase->created_at,
+                    'description' => sprintf(
+                        /* translators: %s is the article title */
+                        __('Purchased: %s', 'khm-membership'),
+                        $purchase->post_title ?: __('Article', 'khm-membership')
+                    ),
+                    'amount_display' => '-' . $this->format_price($price),
+                    'amount_class' => 'khm-credit-negative',
+                ];
+            }
+        }
+
+        usort($transactions, function($a, $b) {
+            return strtotime($b['date']) <=> strtotime($a['date']);
+        });
+
+        return array_slice($transactions, 0, $limit);
+    }
+
+    private function get_transaction_total(int $user_id): int {
+        global $wpdb;
+        $total = 0;
+
+        $usage_table = $wpdb->prefix . 'khm_credit_usage';
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$usage_table}'") === $usage_table) {
+            $count = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$usage_table} WHERE user_id = %d",
+                $user_id
+            ));
+            $total += $count;
+        }
+
+        $purchases_table = $wpdb->prefix . 'khm_purchases';
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$purchases_table}'") === $purchases_table) {
+            $count = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$purchases_table} WHERE user_id = %d AND status = 'completed'",
+                $user_id
+            ));
+            $total += $count;
+        }
+
+        return $total;
+    }
+
+    private function format_credit_reason(string $purpose, int $object_id = 0): string {
+        $purpose = trim($purpose);
+        if ($purpose === 'article_download' && $object_id) {
+            $title = get_the_title($object_id);
+            if ($title) {
+                return sprintf(__('Downloaded: %s', 'khm-membership'), $title);
+            }
+        }
+
+        if ($purpose !== '') {
+            return ucwords(str_replace('_', ' ', $purpose));
+        }
+
+        return __('Credit Usage', 'khm-membership');
+    }
+
+    private function format_price(float $amount): string {
+        $currency = get_option('khm_currency', 'GBP');
+        if (function_exists('khm_format_price')) {
+            return khm_format_price($amount, $currency);
+        }
+
+        return number_format_i18n($amount, 2);
     }
 
     private function enqueue_portal_styles() {

@@ -14,12 +14,22 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function khm_is_editor_request() {
     $uri = $_SERVER['REQUEST_URI'] ?? '';
+    $query_action = $_GET['action'] ?? '';
+
+    // Don't disable plugins for Elementor editor sessions.
+    if ( $query_action === 'elementor' || strpos( $uri, 'action=elementor' ) !== false ) {
+        return false;
+    }
+
     if ( strpos( $uri, '/wp-admin/post-new.php' ) !== false || strpos( $uri, '/wp-admin/post.php' ) !== false ) {
         return true;
     }
 
     if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
         $referer = $_SERVER['HTTP_REFERER'] ?? '';
+        if ( strpos( $referer, 'action=elementor' ) !== false ) {
+            return false;
+        }
         if ( strpos( $referer, '/wp-admin/post-new.php' ) !== false || strpos( $referer, '/wp-admin/post.php' ) !== false ) {
             return true;
         }

@@ -111,6 +111,16 @@ class AdminMenu {
             'khm-email-preview',
             [ $this, 'render_email_preview' ]
         );
+
+        // Elementor cache reset
+        add_submenu_page(
+            'khm-membership',
+            __('Reset Elementor Cache', 'khm-membership'),
+            __('Elementor Cache', 'khm-membership'),
+            'manage_khm',
+            'khm-elementor-cache',
+            [ $this, 'render_elementor_cache' ]
+        );
     }
 
     /**
@@ -236,5 +246,9 @@ class AdminMenu {
      */
     public function render_email_preview(): void {
         require_once __DIR__ . '/pages/email-preview.php';
+    }
+
+    public function render_elementor_cache(): void {
+        require_once __DIR__ . '/pages/elementor-cache.php';
     }
 }

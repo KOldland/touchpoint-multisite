@@ -166,12 +166,30 @@
   filter: brightness(0) invert(1);
 }
 
-/* Saved State - matches hover state */
+/* Saved State - green to match downloaded state */
 .kss-save-button.saved {
-  background-color: #891b34;
-  border-color: #891b34;
+  background-color: #2e7d32 !important;
+  border-color: #2e7d32 !important;
 }
 .kss-save-button.saved img {
+  filter: brightness(0) invert(1) !important;
+}
+
+/* Downloaded State - green to indicate already downloaded */
+.kss-download-credit.downloaded {
+  background-color: #2e7d32;
+  border-color: #2e7d32;
+}
+.kss-download-credit.downloaded img {
+  filter: brightness(0) invert(1);
+}
+
+/* Purchased State - green to indicate already purchased */
+.kss-buy-button.purchased {
+  background-color: #2e7d32;
+  border-color: #2e7d32;
+}
+.kss-buy-button.purchased img {
   filter: brightness(0) invert(1);
 }
 

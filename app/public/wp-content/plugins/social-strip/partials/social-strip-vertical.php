@@ -7,10 +7,16 @@ $icon_base = $widget_data['icon_base'];
 <div class="kss-social-strip kss-vertical" data-post-id="<?= esc_attr($post_id); ?>">
     
     <?php if ($widget_data['is_logged_in']): ?>
+        <?php 
+        $has_downloaded = $widget_data['credits']['has_downloaded'] ?? false;
+        $download_title = $has_downloaded 
+            ? 'Redownload (already downloaded)' 
+            : 'Download (' . $widget_data['credits']['required'] . ' credit' . ($widget_data['credits']['required'] == 1 ? '' : 's') . ') - ' . $widget_data['credits']['available'] . ' remaining';
+        ?>
         <!-- Credit Download Button - always clickable for logged-in users, modal will handle eligibility -->
-        <button class="kss-download-credit kss-icon" 
+        <button class="kss-download-credit kss-icon <?= $has_downloaded ? 'downloaded' : ''; ?>" 
                 data-post-id="<?= esc_attr($post_id); ?>" 
-                title="Download (<?= esc_attr($widget_data['credits']['required']); ?> credit<?= $widget_data['credits']['required'] == 1 ? '' : 's'; ?>) - <?= $widget_data['credits']['available']; ?> remaining">
+                title="<?= esc_attr($download_title); ?>">
             <img src="<?= esc_url($icon_base . 'download.png'); ?>" alt="Download">
         </button>
     <?php else: ?>
@@ -34,10 +40,14 @@ $icon_base = $widget_data['icon_base'];
         </button>
     <?php endif; ?>
 
+    <?php $is_purchased = $widget_data['purchase']['is_purchased'] ?? false; ?>
     <!-- Buy Button -->
-    <button class="kss-buy-button kss-add-to-cart" 
-            data-post-id="<?= esc_attr($post_id); ?>" 
-            title="Buy (<?= $widget_data['pricing']['currency'] . number_format($widget_data['pricing']['member_price'], 2); ?>)">
+    <button class="kss-buy-button <?= $is_purchased ? 'purchased' : ''; ?>"
+            data-post-id="<?= esc_attr($post_id); ?>"
+            data-title="<?= esc_attr(get_the_title($post_id)); ?>"
+            data-image="<?= esc_url(get_the_post_thumbnail_url($post_id, 'medium') ?: ''); ?>"
+            data-purchased="<?= $is_purchased ? '1' : '0'; ?>"
+            title="<?= $is_purchased ? 'Purchased' : 'Buy (' . $widget_data['pricing']['currency'] . number_format($widget_data['pricing']['member_price'], 2) . ')'; ?>">
         <img src="<?= esc_url($icon_base . 'buy.png'); ?>" alt="Buy PDF">
     </button>
     

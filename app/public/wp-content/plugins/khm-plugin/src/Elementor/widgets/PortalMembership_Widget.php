@@ -27,7 +27,7 @@ class PortalMembership_Widget extends Widget_Base {
     }
 
     public function get_categories() {
-        return ['general', 'touchpoint', 'theme-elements'];
+        return ['touchpoint', 'touchpoint', 'theme-elements'];
     }
 
     public function get_keywords() {

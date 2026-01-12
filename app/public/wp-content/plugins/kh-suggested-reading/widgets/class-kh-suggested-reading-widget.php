@@ -19,7 +19,7 @@ class KH_Suggested_Reading_Widget extends Widget_Base {
 	}
 
 	public function get_categories() {
-		return [ 'general' ];
+		return [ 'touchpoint' ];
 	}
 
 	protected function register_controls() {

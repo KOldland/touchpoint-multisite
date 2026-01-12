@@ -16,7 +16,7 @@ class Elementor_Fancy_Author_Widget extends Widget_Base {
 	}
 
 	public function get_categories() {
-		return ['general'];
+		return ['touchpoint'];
 	}
 
 	public function render() {

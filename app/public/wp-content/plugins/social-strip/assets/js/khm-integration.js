@@ -25,8 +25,10 @@
         });
         
         // Buy PDF functionality
-        $('.kss-buy-button.kss-add-to-cart').on('click', function(e) {
+        $(document).on('click', '.kss-buy-button', function(e) {
             e.preventDefault();
+            e.stopImmediatePropagation();
+            e.stopPropagation();
             handleBuyArticle($(this));
         });
         
@@ -491,6 +493,10 @@
      * Handle buy article - now opens unified modal
      */
     function handleBuyArticle($button) {
+        if ($button.hasClass('purchased') || $button.data('purchased') === 1 || $button.data('purchased') === '1') {
+            showSaveFlashNotification('Already purchased. Download from your member dashboard.', 'success');
+            return;
+        }
         const postId = $button.data('post-id');
         
         if (!postId) {
@@ -498,14 +504,87 @@
             return;
         }
 
-        // Check if the commerce modal is available
+        const fallbackMeta = {
+            title: $button.data('title') || '',
+            image_url: $button.data('image') || ''
+        };
+
         if (typeof window.KHMCommerce !== 'undefined' && window.KHMCommerce.openQuickBuy) {
-            // Open the unified commerce modal for quick buy
-            window.KHMCommerce.openQuickBuy(postId);
-        } else {
-            // Fallback to old cart behavior
-            handleBuyArticleFallback($button);
+            window.KHMCommerce.openQuickBuy(postId, fallbackMeta);
+            return;
         }
+
+        loadCommerceModalAssets()
+            .then(() => {
+                if (window.KHMCommerce && window.KHMCommerce.openQuickBuy) {
+                    window.KHMCommerce.openQuickBuy(postId, fallbackMeta);
+                } else {
+                    showMessage('Purchase modal failed to load. Please refresh and try again.', 'error');
+                }
+            })
+            .catch(() => {
+                showMessage('Purchase modal failed to load. Please refresh and try again.', 'error');
+            });
+    }
+
+    function loadCommerceModalAssets() {
+        if (loadCommerceModalAssets.promise) {
+            return loadCommerceModalAssets.promise;
+        }
+
+        loadCommerceModalAssets.promise = new Promise((resolve, reject) => {
+            if (!khm_ajax || !khm_ajax.commerce_js || !khm_ajax.commerce_css) {
+                reject();
+                return;
+            }
+
+            if (typeof window.khmCommerce === 'undefined') {
+                window.khmCommerce = {
+                    ajax_url: khm_ajax.ajax_url,
+                    nonce: khm_ajax.commerce_nonce,
+                    stripe_key: khm_ajax.stripe_key
+                };
+            }
+
+            if (!document.querySelector('link[data-khm-commerce]')) {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = khm_ajax.commerce_css;
+                link.setAttribute('data-khm-commerce', 'true');
+                document.head.appendChild(link);
+            }
+
+            const existingScript = document.querySelector('script[data-khm-commerce]');
+            if (existingScript) {
+                waitForCommerce(resolve, reject);
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.src = khm_ajax.commerce_js;
+            script.defer = true;
+            script.setAttribute('data-khm-commerce', 'true');
+            script.onload = () => waitForCommerce(resolve, reject);
+            script.onerror = () => reject();
+            document.head.appendChild(script);
+        });
+
+        return loadCommerceModalAssets.promise;
+    }
+
+    function waitForCommerce(resolve, reject) {
+        const start = Date.now();
+        const timer = setInterval(() => {
+            if (window.KHMCommerce && window.KHMCommerce.openQuickBuy) {
+                clearInterval(timer);
+                resolve();
+                return;
+            }
+            if (Date.now() - start > 3000) {
+                clearInterval(timer);
+                reject();
+            }
+        }, 100);
     }
 
     /**

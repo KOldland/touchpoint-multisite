@@ -284,6 +284,20 @@ class MemberPortalShortcode {
                 </div>
             </div>
 
+            <div class="khm-dashboard-section khm-voucher-section">
+                <h3 class="khm-subsection-title"><?php esc_html_e('Redeem Gift Voucher', 'khm-membership'); ?></h3>
+                <p class="khm-section-desc"><?php esc_html_e('Enter a voucher code to add a gifted article to your library.', 'khm-membership'); ?></p>
+                <form class="khm-form khm-voucher-form" id="khm-voucher-form">
+                    <div class="khm-form-row">
+                        <label for="khm-voucher-code"><?php esc_html_e('Voucher Code', 'khm-membership'); ?></label>
+                        <input type="text" id="khm-voucher-code" class="khm-input khm-voucher-code" placeholder="<?php esc_attr_e('Paste your voucher code', 'khm-membership'); ?>" required>
+                    </div>
+                    <button type="submit" class="khm-btn khm-btn-primary">
+                        <?php esc_html_e('Redeem Voucher', 'khm-membership'); ?>
+                    </button>
+                </form>
+            </div>
+
             <!-- Recent Downloads -->
             <?php if (!empty($downloads)): ?>
             <div class="khm-dashboard-section">

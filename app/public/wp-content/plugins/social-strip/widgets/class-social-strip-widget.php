@@ -7,7 +7,7 @@ class KSS_Social_Strip_Widget extends Widget_Base {
     public function get_name() { return 'kss_social_strip'; }
     public function get_title() { return 'KSS Social Strip'; }
     public function get_icon() { return 'eicon-share'; }
-    public function get_categories() { return ['general']; }
+    public function get_categories() { return ['touchpoint']; }
 
     protected function register_controls() {
         $this->_register_controls();

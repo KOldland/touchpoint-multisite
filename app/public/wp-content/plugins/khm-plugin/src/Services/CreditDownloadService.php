@@ -22,6 +22,7 @@ class CreditDownloadService {
     private CreditService $credits;
     private LibraryService $library;
     private string $downloads_table;
+    private string $purchases_table;
 
     public function __construct(
         MembershipRepository $memberships,
@@ -33,6 +34,7 @@ class CreditDownloadService {
         $this->credits = $credits;
         $this->library = $library;
         $this->downloads_table = $wpdb->prefix . 'khm_credit_downloads';
+        $this->purchases_table = $wpdb->prefix . 'khm_purchases';
     }
 
     /**
@@ -140,8 +142,19 @@ class CreditDownloadService {
     public function checkDownloadEligibility(int $user_id, int $post_id): array {
         $has_active = $this->hasActiveMembership($user_id);
         $has_downloaded = $this->hasDownloaded($user_id, $post_id);
+        $has_purchased = $this->hasPurchased($user_id, $post_id);
         $article_cost = $this->getArticleCreditCost($post_id);
         $user_credits = $this->credits->getUserCredits($user_id);
+
+        if ($has_purchased) {
+            return [
+                'can_download' => true,
+                'is_free' => true,
+                'credits_required' => 0,
+                'reason' => 'purchased',
+                'user_credits' => $user_credits
+            ];
+        }
 
         // Must have membership to use credit system
         if (!$has_active && !$has_downloaded) {
@@ -204,6 +217,44 @@ class CreditDownloadService {
             'reason' => 'insufficient_credits',
             'user_credits' => $user_credits
         ];
+    }
+
+    /**
+     * Record a purchase-based download without charging credits.
+     */
+    public function recordPurchaseDownload(int $user_id, int $post_id): bool {
+        global $wpdb;
+
+        $record = $this->getDownloadRecord($user_id, $post_id);
+        if ($record) {
+            $wpdb->query($wpdb->prepare(
+                "UPDATE {$this->downloads_table}
+                 SET download_count = download_count + 1,
+                     last_download_at = %s
+                 WHERE user_id = %d AND post_id = %d",
+                current_time('mysql'),
+                $user_id,
+                $post_id
+            ));
+
+            return true;
+        }
+
+        $result = $wpdb->insert(
+            $this->downloads_table,
+            [
+                'user_id' => $user_id,
+                'post_id' => $post_id,
+                'credits_used' => 0,
+                'download_count' => 1,
+                'first_download_at' => current_time('mysql'),
+                'last_download_at' => current_time('mysql'),
+                'membership_active_at_purchase' => $this->hasActiveMembership($user_id) ? 1 : 0
+            ],
+            ['%d', '%d', '%d', '%d', '%s', '%s', '%d']
+        );
+
+        return $result !== false;
     }
 
     /**
@@ -334,9 +385,14 @@ class CreditDownloadService {
         );
 
         $downloads = $wpdb->get_results($wpdb->prepare(
-            "SELECT d.*, p.post_title, p.post_excerpt
+            "SELECT d.*, p.post_title, p.post_excerpt,
+                    CASE WHEN pr.id IS NULL THEN 0 ELSE 1 END AS is_purchased
              FROM {$this->downloads_table} d
              LEFT JOIN {$wpdb->posts} p ON d.post_id = p.ID
+             LEFT JOIN {$this->purchases_table} pr
+                ON pr.user_id = d.user_id
+               AND pr.post_id = d.post_id
+               AND pr.status = 'completed'
              WHERE d.user_id = %d
              {$order_clause}
              LIMIT %d OFFSET %d",
@@ -361,6 +417,19 @@ class CreditDownloadService {
             "SELECT COUNT(*) FROM {$this->downloads_table} WHERE user_id = %d",
             $user_id
         ));
+    }
+
+    private function hasPurchased(int $user_id, int $post_id): bool {
+        global $wpdb;
+
+        $count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->purchases_table}
+             WHERE user_id = %d AND post_id = %d AND status = 'completed'",
+            $user_id,
+            $post_id
+        ));
+
+        return $count > 0;
     }
 
     /**

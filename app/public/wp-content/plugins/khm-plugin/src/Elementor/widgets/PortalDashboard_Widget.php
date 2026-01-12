@@ -30,7 +30,7 @@ class PortalDashboard_Widget extends Widget_Base {
     }
 
     public function get_categories() {
-        return ['general', 'touchpoint', 'theme-elements'];
+        return ['touchpoint', 'touchpoint', 'theme-elements'];
     }
 
     public function get_keywords() {
@@ -150,7 +150,8 @@ class PortalDashboard_Widget extends Widget_Base {
         // Get data
         $memberships = $memberships_repo->findActive($user_id);
         $membership = !empty($memberships) ? $memberships[0] : null;
-        $level = $membership ? $levels_repo->get($membership->level_id) : null;
+        $level_id = ($membership && isset($membership->level_id)) ? (int) $membership->level_id : 0;
+        $level = $level_id > 0 ? $levels_repo->get($level_id) : null;
         $credits = $credits_service->getUserCredits($user_id);
         $library_stats = $library_service->get_library_stats($user_id);
         $recent_downloads = $downloads_service->getUserDownloads($user_id, ['limit' => 5]);

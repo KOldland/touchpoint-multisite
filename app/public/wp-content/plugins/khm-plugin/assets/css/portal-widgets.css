@@ -56,6 +56,29 @@
 }
 
 /* ==========================================================================
+   Voucher Widget
+   ========================================================================== */
+
+.khm-portal-voucher .khm-dashboard-section {
+    background: var(--khm-bg);
+    border-radius: var(--khm-radius);
+    padding: 1.5rem;
+    border: 1px solid var(--khm-border);
+    box-shadow: var(--khm-shadow);
+}
+
+.khm-portal-voucher .khm-section-desc {
+    color: var(--khm-text-light);
+    margin-bottom: 1rem;
+}
+
+.khm-portal-voucher .khm-voucher-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* ==========================================================================
    Dashboard Widget
    ========================================================================== */
 
@@ -247,7 +270,7 @@
 .khm-topup-btn {
     display: inline-block;
     padding: 0.75rem 1.5rem;
-    background: var(--khm-accent);
+    background: var(--khm-success);
     color: #fff;
     text-decoration: none;
     border-radius: var(--khm-radius);
@@ -256,7 +279,7 @@
 }
 
 .khm-topup-btn:hover {
-    background: var(--khm-accent-hover);
+    background: #1b5e20;
     color: #fff;
 }
 
@@ -304,33 +327,33 @@
    ========================================================================== */
 
 .khm-downloads-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+    background: var(--khm-bg);
+    border-radius: var(--khm-radius);
+    overflow: hidden;
+    box-shadow: var(--khm-shadow);
 }
 
 .khm-download-item {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap;
     gap: 1rem;
     padding: 1rem 1.25rem;
-    background: var(--khm-bg);
-    border: 1px solid var(--khm-border);
-    border-radius: var(--khm-radius);
+    border-bottom: 1px solid var(--khm-border);
+}
+
+.khm-download-item:last-child {
+    border-bottom: none;
 }
 
 .khm-download-info {
     flex: 1;
-    min-width: 200px;
+    min-width: 0;
 }
 
 .khm-download-title {
-    font-family: Georgia, 'Times New Roman', serif;
-    font-size: 1.1rem;
-    font-weight: 400;
-    margin: 0 0 0.25rem 0;
+    font-weight: 500;
+    color: var(--khm-text);
+    margin: 0;
 }
 
 .khm-download-title a {
@@ -343,12 +366,12 @@
 }
 
 .khm-download-meta {
-    display: flex;
-    gap: 1rem;
-    font-size: 0.85rem;
+    font-size: 0.8125rem;
     color: var(--khm-text-light);
+    margin-top: 0.25rem;
 }
 
+.khm-download-btn,
 .khm-redownload-btn {
     display: inline-flex;
     align-items: center;
@@ -363,10 +386,51 @@
     transition: all 0.2s ease;
 }
 
+.khm-download-btn:hover,
 .khm-redownload-btn:hover {
     background: var(--khm-accent);
     color: #fff;
     border-color: var(--khm-accent);
+}
+
+.khm-download-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.khm-purchased-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: #2e7d32;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.khm-remove-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.6rem;
+    background: #6d0b0b;
+    color: #fff;
+    border: 1px solid #6d0b0b;
+    border-radius: var(--khm-radius);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    margin-left: auto;
+}
+
+.khm-remove-btn:hover {
+    background: #6d0b0b !important;
+    color: #fff;
+    border-color: #6d0b0b !important;
 }
 
 .khm-empty-state {
@@ -844,4 +908,58 @@
 
 .tp-btn-danger:hover {
     background: #d32f2f !important;
+}
+.khm-remove-btn .khm-btn-icon {
+    margin-right: 0;
+}
+
+.khm-cancel-btn {
+    background: #6d0b0b;
+    border-color: #6d0b0b;
+    color: #fff;
+}
+
+.khm-cancel-btn:hover {
+    background: #5a0909;
+    border-color: #5a0909;
+}
+
+.khm-portal-voucher .khm-voucher-btn {
+    background: var(--khm-success);
+}
+
+.khm-portal-voucher .khm-voucher-btn:hover {
+    background: #1b5e20;
+}
+
+.khm-transactions-pagination {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.khm-page-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 0.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--khm-border);
+    color: var(--khm-text);
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+}
+
+.khm-page-link:hover {
+    border-color: #6d0b0b;
+    color: #6d0b0b;
+}
+
+.khm-page-link.is-active {
+    background: var(--khm-accent);
+    border-color: var(--khm-accent);
+    color: #fff;
 }

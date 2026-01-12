@@ -13,8 +13,11 @@ use KHM\Services\MembershipRepository;
 use KHM\Services\OrderRepository;
 use KHM\Services\EmailService;
 use KHM\Public\CheckoutShortcode;
+use KHM\Gateways\StripeGateway;
 
 class CommerceFrontend {
+
+    private static bool $booted = false;
 
     private ECommerceService $ecommerce;
     private MembershipRepository $memberships;
@@ -23,6 +26,11 @@ class CommerceFrontend {
     private CheckoutShortcode $checkout;
 
     public function __construct() {
+        if (self::$booted) {
+            return;
+        }
+        self::$booted = true;
+
         $this->memberships = new MembershipRepository();
         $this->orders = new OrderRepository();
         $this->email = new EmailService(__DIR__ . '/../../');
@@ -42,7 +50,9 @@ class CommerceFrontend {
         // AJAX handlers
         add_action('wp_ajax_khm_get_article_data', [$this, 'ajax_get_article_data']);
         add_action('wp_ajax_khm_get_cart_data', [$this, 'ajax_get_cart_data']);
+        add_action('wp_ajax_khm_create_commerce_intent', [$this, 'ajax_create_intent']);
         add_action('wp_ajax_khm_process_commerce_purchase', [$this, 'ajax_process_purchase']);
+        add_action('wp_ajax_khm_finalize_commerce_purchase', [$this, 'ajax_finalize_purchase']);
         add_action('wp_ajax_kss_remove_from_cart', [$this, 'ajax_remove_from_cart']);
         
         // Auto-download hook
@@ -76,7 +86,7 @@ class CommerceFrontend {
         );
 
         // Localize script with necessary data
-        wp_localize_script('khm-commerce-modal', 'khm_ajax', [
+        wp_localize_script('khm-commerce-modal', 'khmCommerce', [
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('khm_commerce'),
             'stripe_key' => get_option('khm_stripe_publishable_key', ''),
@@ -87,8 +97,9 @@ class CommerceFrontend {
      * Check if we should load assets
      */
     private function should_load_assets(): bool {
-        // Load if social strip is active or if specifically requested
-        return function_exists('kss_get_enhanced_widget_data') || 
+        // Load on singular content to support buy buttons, or when explicitly forced.
+        return is_singular() ||
+               function_exists('kss_get_enhanced_widget_data') ||
                apply_filters('khm_force_load_commerce_modal', false);
     }
 
@@ -122,6 +133,7 @@ class CommerceFrontend {
         $data = [
             'post_id' => $post_id,
             'title' => $post->post_title,
+            'image_url' => get_the_post_thumbnail_url($post_id, 'large') ?: '',
             'member_price' => $pricing['member_price'],
             'regular_price' => $pricing['regular_price'],
             'member_price_formatted' => '£' . number_format($pricing['member_price'], 2),
@@ -184,8 +196,8 @@ class CommerceFrontend {
 
         $payment_method_id = sanitize_text_field($_POST['payment_method_id'] ?? '');
         $purchase_type = sanitize_text_field($_POST['purchase_type'] ?? 'quick-buy');
-        $auto_download = isset($_POST['auto_download']) && $_POST['auto_download'] === 'true';
-        $auto_save = isset($_POST['auto_save']) && $_POST['auto_save'] === 'true';
+        $billing_name = sanitize_text_field($_POST['billing_name'] ?? '');
+        $billing_email = sanitize_email($_POST['billing_email'] ?? '');
 
         if (!$payment_method_id) {
             wp_send_json_error('Payment method required');
@@ -204,44 +216,228 @@ class CommerceFrontend {
                 $this->ecommerce->add_to_cart($user_id, $post_id);
             }
 
-            // Process the purchase using ECommerceService
-            $purchase_data = [
-                'payment_method_id' => $payment_method_id,
-                'auto_download_pdf' => $auto_download,
-                'auto_save_to_library' => $auto_save,
-                'billing_name' => sanitize_text_field($_POST['billing_name'] ?? ''),
-                'billing_email' => sanitize_email($_POST['billing_email'] ?? ''),
-            ];
+            $cart = $this->ecommerce->get_cart($user_id);
+            if (empty($cart['items'])) {
+                wp_send_json_error('Cart is empty');
+            }
 
-            $result = $this->ecommerce->process_purchase($user_id, $purchase_data);
+            $total = (float) ($cart['member_subtotal'] ?? 0);
+            if ($total <= 0) {
+                $result = $this->ecommerce->process_purchase($user_id, [
+                    'payment_method' => 'free',
+                    'billing_name' => $billing_name,
+                    'billing_email' => $billing_email,
+                    'auto_download_pdf' => true,
+                    'auto_save_to_library' => true,
+                ]);
 
-            if ($result['success']) {
-                // Prepare success response
-                $response_data = [
-                    'message' => 'Purchase completed successfully!',
-                    'order_id' => $result['order_id'] ?? null,
-                    'download_urls' => []
-                ];
-
-                // Handle auto-download
-                if ($auto_download && !empty($result['purchased_items'])) {
-                    foreach ($result['purchased_items'] as $item) {
-                        $download_result = $this->generate_download_url($item['post_id'], $user_id);
-                        if ($download_result['success']) {
-                            $response_data['download_urls'][] = $download_result['download_url'];
-                        }
-                    }
+                if (!$result['success']) {
+                    wp_send_json_error($result['error'] ?? 'Purchase failed');
                 }
 
-                wp_send_json_success($response_data);
-            } else {
+                wp_send_json_success($this->build_purchase_response($user_id, $result));
+            }
+
+            if (empty(get_option('khm_stripe_secret_key', ''))) {
+                wp_send_json_error('Stripe is not configured.');
+            }
+
+            $gateway = $this->get_gateway();
+            $primary_title = $cart['items'][0]['title'] ?? 'Article Purchase';
+            $order = (object) [
+                'user_id' => $user_id,
+                'total' => $total,
+                'currency' => strtolower($cart['currency'] ?? 'gbp'),
+                'payment_method_id' => $payment_method_id,
+                'membership_level_name' => $primary_title,
+            ];
+
+            $charge = $gateway->charge($order);
+            if ($charge->isFailure()) {
+                wp_send_json_error($charge->getMessage() ?: 'Payment failed');
+            }
+
+            $status = $charge->get('status');
+            $payment_intent = $charge->get('payment_intent');
+
+            if ($status === 'requires_action' && $payment_intent && !empty($payment_intent->client_secret)) {
+                wp_send_json_success([
+                    'requires_action' => true,
+                    'client_secret' => $payment_intent->client_secret,
+                ]);
+            }
+
+            if ($status !== 'succeeded') {
+                wp_send_json_error('Payment could not be completed.');
+            }
+
+            $result = $this->ecommerce->process_purchase($user_id, [
+                'payment_method' => 'stripe',
+                'transaction_id' => $charge->get('transaction_id'),
+                'billing_name' => $billing_name,
+                'billing_email' => $billing_email,
+                'auto_download_pdf' => true,
+                'auto_save_to_library' => true,
+            ]);
+
+            if (!$result['success']) {
                 wp_send_json_error($result['error'] ?? 'Purchase failed');
             }
+
+            wp_send_json_success($this->build_purchase_response($user_id, $result));
 
         } catch (\Exception $e) {
             error_log('Commerce purchase error: ' . $e->getMessage());
             wp_send_json_error('Payment processing failed. Please try again.');
         }
+    }
+
+    /**
+     * Create a PaymentIntent for the commerce modal.
+     */
+    public function ajax_create_intent(): void {
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('User not logged in');
+        }
+
+        $nonce_ok = check_ajax_referer('khm_commerce', 'nonce', false);
+        if (!$nonce_ok) {
+            error_log('KHM Commerce create intent: invalid nonce.');
+            wp_send_json_error('Invalid security token. Please refresh and try again.');
+        }
+
+        if (empty(get_option('khm_stripe_secret_key', ''))) {
+            wp_send_json_error('Stripe is not configured.');
+        }
+
+        $post_id = intval($_POST['post_id'] ?? 0);
+        error_log('KHM Commerce create intent: user=' . $user_id . ' post=' . $post_id);
+        if ($post_id) {
+            $this->ecommerce->clear_cart($user_id);
+            $this->ecommerce->add_to_cart($user_id, $post_id);
+        }
+
+        $cart = $this->ecommerce->get_cart($user_id);
+        if (empty($cart['items'])) {
+            error_log('KHM Commerce create intent: cart empty for user=' . $user_id);
+            wp_send_json_error('Cart is empty');
+        }
+
+        $total = (float) ($cart['member_subtotal'] ?? 0);
+        if ($total <= 0) {
+            error_log('KHM Commerce create intent: zero total for user=' . $user_id . ' post=' . $post_id);
+            wp_send_json_error('Unable to process free purchases here.');
+        }
+
+        $primary_title = $cart['items'][0]['title'] ?? 'Article Purchase';
+        $order = (object) [
+            'user_id' => $user_id,
+            'total' => $total,
+            'currency' => strtolower($cart['currency'] ?? 'gbp'),
+            'membership_level_name' => $primary_title,
+            'post_id' => $cart['items'][0]['post_id'] ?? 0,
+        ];
+
+        $gateway = $this->get_gateway();
+        $result = $gateway->createPaymentIntent($order);
+
+        if ($result->isFailure()) {
+            error_log('KHM Commerce create intent: gateway error ' . $result->getMessage());
+            wp_send_json_error($result->getMessage() ?: 'Unable to prepare payment.');
+        }
+
+        wp_send_json_success([
+            'client_secret' => $result->get('client_secret'),
+            'intent_id' => $result->get('intent_id'),
+        ]);
+    }
+
+    /**
+     * Finalize a purchase after Stripe requires additional authentication.
+     */
+    public function ajax_finalize_purchase(): void {
+        check_ajax_referer('khm_commerce', 'nonce');
+
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('User not logged in');
+        }
+
+        $payment_intent_id = sanitize_text_field($_POST['payment_intent_id'] ?? '');
+        $post_id = intval($_POST['post_id'] ?? 0);
+        $billing_name = sanitize_text_field($_POST['billing_name'] ?? '');
+        $billing_email = sanitize_email($_POST['billing_email'] ?? '');
+
+        if (!$payment_intent_id) {
+            error_log('KHM Commerce finalize: missing intent for user=' . $user_id);
+            wp_send_json_error('Payment intent required');
+        }
+        if (!$post_id) {
+            error_log('KHM Commerce finalize: missing post_id for user=' . $user_id . ' intent=' . $payment_intent_id);
+            wp_send_json_error('Article ID required');
+        }
+
+        try {
+            if (empty(get_option('khm_stripe_secret_key', ''))) {
+                error_log('KHM Commerce finalize: Stripe not configured');
+                wp_send_json_error('Stripe is not configured.');
+            }
+
+            $this->ecommerce->clear_cart($user_id);
+            $added = $this->ecommerce->add_to_cart($user_id, $post_id);
+            if (!$added) {
+                error_log('KHM Commerce finalize: add_to_cart failed for user=' . $user_id . ' post=' . $post_id);
+                wp_send_json_error('Unable to prepare purchase for this article.');
+            }
+
+            $gateway = $this->get_gateway();
+            $intent = $gateway->retrievePaymentIntent($payment_intent_id);
+
+            if (!$intent || $intent->status !== 'succeeded') {
+                $status = $intent ? $intent->status : 'missing';
+                error_log('KHM Commerce finalize: intent not succeeded. status=' . $status . ' intent=' . $payment_intent_id);
+                wp_send_json_error('Payment could not be confirmed.');
+            }
+
+            $result = $this->ecommerce->process_purchase($user_id, [
+                'payment_method' => 'stripe',
+                'transaction_id' => $payment_intent_id,
+                'billing_name' => $billing_name,
+                'billing_email' => $billing_email,
+                'auto_download_pdf' => true,
+                'auto_save_to_library' => true,
+            ]);
+
+            if (!$result['success']) {
+                error_log('KHM Commerce finalize: process_purchase failed for user=' . $user_id . ' post=' . $post_id);
+                wp_send_json_error($result['error'] ?? 'Purchase failed');
+            }
+
+            wp_send_json_success($this->build_purchase_response($user_id, $result));
+        } catch (\Exception $e) {
+            error_log('Commerce finalize error: ' . $e->getMessage());
+            wp_send_json_error('Payment processing failed. Please try again.');
+        }
+    }
+
+    private function build_purchase_response(int $user_id, array $result): array {
+        $response_data = [
+            'message' => 'Purchase completed successfully!',
+            'order_id' => $result['order_id'] ?? null,
+            'download_urls' => []
+        ];
+
+        if (!empty($result['purchased_items'])) {
+            foreach ($result['purchased_items'] as $item) {
+                $download_result = $this->generate_download_url($item['post_id'], $user_id);
+                if ($download_result['success']) {
+                    $response_data['download_urls'][] = $download_result['download_url'];
+                }
+            }
+        }
+
+        return $response_data;
     }
 
     /**
@@ -293,11 +489,14 @@ class CommerceFrontend {
                 if ($pdf_result['success']) {
                     $download_url = khm_call_service('create_download_url', $post_id, $user_id, 24);
                     
-                    return [
+                    $response = [
                         'success' => true,
                         'download_url' => $download_url,
-                        'pdf_path' => $pdf_result['file_path']
                     ];
+                    if (!empty($pdf_result['file_path'])) {
+                        $response['pdf_path'] = $pdf_result['file_path'];
+                    }
+                    return $response;
                 }
             }
             
@@ -306,5 +505,13 @@ class CommerceFrontend {
             error_log('Download URL generation error: ' . $e->getMessage());
             return ['success' => false, 'error' => 'Download generation failed'];
         }
+    }
+
+    private function get_gateway(): StripeGateway {
+        return new StripeGateway([
+            'secret_key' => get_option('khm_stripe_secret_key', ''),
+            'publishable_key' => get_option('khm_stripe_publishable_key', ''),
+            'environment' => get_option('khm_stripe_environment', 'sandbox'),
+        ]);
     }
 }

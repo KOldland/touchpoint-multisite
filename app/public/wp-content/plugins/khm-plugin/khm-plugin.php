@@ -117,13 +117,11 @@ add_action('admin_init', function () {
 });
 
 // Register Elementor widgets when Elementor is available.
-// Try BOTH hooks for maximum compatibility
-add_action('elementor/widgets/widgets_registered', function( $widgets_manager ) {
-    if ( ! did_action( 'elementor/loaded' ) ) {
-        return;
-    }
-    
+function khm_register_elementor_widgets( $widgets_manager ) {
     if ( ! class_exists( '\Elementor\Widget_Base' ) ) {
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( '[KHM Elementor] Widget_Base not loaded; skipping widget registration.' );
+        }
         return;
     }
 
@@ -144,12 +142,13 @@ add_action('elementor/widgets/widgets_registered', function( $widgets_manager ) 
         'PortalDownloads_Widget.php',
         'PortalMembership_Widget.php',
         'PortalAccount_Widget.php',
+        'PortalVoucher_Widget.php',
         'TestPortalDashboard_Widget.php',
     ];
 
-    foreach ($widget_files as $file) {
+    foreach ( $widget_files as $file ) {
         $filepath = $widgets_dir . $file;
-        if (file_exists($filepath)) {
+        if ( file_exists( $filepath ) ) {
             require_once $filepath;
         }
     }
@@ -229,6 +228,13 @@ add_action('elementor/widgets/widgets_registered', function( $widgets_manager ) 
             $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\PortalAccount_Widget() );
         }
     }
+    if ( class_exists( '\KHM\Elementor\Widgets\PortalVoucher_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\PortalVoucher_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\PortalVoucher_Widget() );
+        }
+    }
     
     // TEST WIDGET - no namespace, exactly like KH Suggested Reading
     if ( class_exists( 'TestPortalDashboard_Widget' ) ) {
@@ -246,33 +252,108 @@ add_action('elementor/widgets/widgets_registered', function( $widgets_manager ) 
             $widgets_manager->register( $test_widget );
         }
     }
-});
+
+    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+        $registered = method_exists( $widgets_manager, 'get_widget_types' )
+            ? count( $widgets_manager->get_widget_types() )
+            : 'unknown';
+        error_log( '[KHM Elementor] Widgets registered. Total widget types: ' . $registered );
+    }
+}
+
+// Register as early as possible in Elementor widget boot.
+add_action( 'elementor/widgets/register', 'khm_register_elementor_widgets', 1 );
+add_action( 'elementor/widgets/widgets_registered', 'khm_register_elementor_widgets', 10 );
+
+// Ensure core Elementor Pro theme builder widgets are available on early widget init.
+add_action( 'elementor/widgets/register', function( $widgets_manager ) {
+    if ( ! class_exists( '\ElementorPro\Modules\ThemeBuilder\Widgets\Post_Content' ) ) {
+        return;
+    }
+
+    $widgets = [
+        'Site_Logo',
+        'Site_Title',
+        'Page_Title',
+        'Post_Title',
+        'Post_Excerpt',
+        'Post_Content',
+        'Post_Featured_Image',
+        'Archive_Title',
+    ];
+
+    foreach ( $widgets as $widget ) {
+        $class = '\\ElementorPro\\Modules\\ThemeBuilder\\Widgets\\' . $widget;
+        if ( class_exists( $class ) ) {
+            $widgets_manager->register( new $class() );
+        }
+    }
+}, 0 );
+add_action( 'elementor/init', function() {
+    if ( ! class_exists( '\Elementor\Plugin' ) ) {
+        return;
+    }
+    $widgets_manager = \Elementor\Plugin::$instance->widgets_manager;
+    if ( $widgets_manager ) {
+        khm_register_elementor_widgets( $widgets_manager );
+    }
+}, 5 );
+
+// Ensure KHM widgets stay enabled even if Elementor Element Manager disables them.
+add_filter( 'elementor/widgets/is_widget_enabled', function( $should_register, $widget_instance ) {
+    if ( ! $widget_instance || ! method_exists( $widget_instance, 'get_name' ) ) {
+        return $should_register;
+    }
+
+    $name = $widget_instance->get_name();
+    if ( strpos( $name, 'khm_' ) === 0 || $name === 'test_portal_dashboard_v2' ) {
+        return true;
+    }
+
+    return $should_register;
+}, 999, 2 );
 
 // Force portal widgets to load in editor config
 add_filter('elementor/editor/localize_settings', function($settings) {
-    if (!isset($settings['widgets'])) {
+    if ( ! class_exists( '\Elementor\Plugin' ) ) {
         return $settings;
     }
-    
-    // Ensure portal widgets have full config in editor
-    $portal_widgets = ['khm_portal_dashboard', 'khm_portal_credits', 'khm_portal_downloads', 'khm_portal_membership', 'khm_portal_account'];
-    
-    foreach ($portal_widgets as $widget_name) {
-        if (isset($settings['widgets'][$widget_name]) && !isset($settings['widgets'][$widget_name]['title'])) {
-            // Widget is in cache but missing metadata - force load it
-            $widgets_manager = \Elementor\Plugin::$instance->widgets_manager;
-            $widget = $widgets_manager->get_widget_types($widget_name);
-            if ($widget) {
-                $settings['widgets'][$widget_name] = $widget->get_config();
-            }
+
+    $widgets_manager = \Elementor\Plugin::$instance->widgets_manager;
+    if ( ! $widgets_manager || ! method_exists( $widgets_manager, 'get_widget_types' ) ) {
+        return $settings;
+    }
+
+    if ( empty( $settings['widgets'] ) || ! is_array( $settings['widgets'] ) ) {
+        $settings['widgets'] = [];
+    }
+
+    if ( did_action( 'elementor/widgets/register' ) === 0 ) {
+        return $settings;
+    }
+
+    $injected = 0;
+    foreach ( $widgets_manager->get_widget_types() as $key => $widget ) {
+        if ( strpos( $key, 'khm_' ) === 0 || $key === 'test_portal_dashboard_v2' ) {
+            $settings['widgets'][ $key ] = $widget->get_config();
+            $injected++;
         }
     }
-    
+
+    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+        error_log( '[KHM Elementor] Injected into editor localize_settings: ' . $injected );
+    }
+
     return $settings;
 }, 20);
 
-// Register custom Touchpoint category (separate hook Elementor expects).
-add_action( 'elementor/elements/categories_registered', function( $elements_manager ) {
+// Register Touchpoint category for Elementor.
+add_action( 'elementor/init', function() {
+    if ( ! class_exists( '\Elementor\Plugin' ) ) {
+        return;
+    }
+
+    $elements_manager = \Elementor\Plugin::$instance->elements_manager;
     if ( method_exists( $elements_manager, 'add_category' ) ) {
         $elements_manager->add_category(
             'touchpoint',
@@ -281,10 +362,125 @@ add_action( 'elementor/elements/categories_registered', function( $elements_mana
                 'icon'  => 'fa fa-plug',
                 'active' => true,
             ],
-            1 // Priority position - show near the top
+            1
         );
     }
-}, 1 ); // Run early to ensure category is available
+} );
+
+// Ensure Elementor Pro theme builder widgets exist even if widgets register fired early.
+add_action( 'elementor_pro/init', function() {
+    if ( ! class_exists( '\Elementor\Plugin' ) || ! class_exists( '\ElementorPro\Plugin' ) ) {
+        return;
+    }
+
+    $widgets_manager = \Elementor\Plugin::$instance->widgets_manager;
+    if ( ! $widgets_manager || ! method_exists( $widgets_manager, 'get_widget_types' ) ) {
+        return;
+    }
+
+    if ( $widgets_manager->get_widget_types( 'theme-post-content' ) ) {
+        return;
+    }
+
+    $theme_builder = \ElementorPro\Plugin::instance()->modules_manager->get_modules( 'theme-builder' );
+    if ( ! $theme_builder || ! method_exists( $theme_builder, 'get_widgets' ) ) {
+        return;
+    }
+
+    foreach ( $theme_builder->get_widgets() as $widget ) {
+        $class = '\\ElementorPro\\Modules\\ThemeBuilder\\Widgets\\' . $widget;
+        if ( class_exists( $class ) ) {
+            $widgets_manager->register( new $class() );
+        }
+    }
+}, 20 );
+
+// Force KHM widgets into Elementor editor document config.
+add_filter( 'elementor/document/config', function( $config, $post_id ) {
+    if ( ! class_exists( '\Elementor\Plugin' ) ) {
+        return $config;
+    }
+
+    if ( empty( $config['widgets'] ) || ! is_array( $config['widgets'] ) ) {
+        $config['widgets'] = [];
+    }
+
+    $widgets_manager = \Elementor\Plugin::$instance->widgets_manager;
+    if ( ! method_exists( $widgets_manager, 'get_widget_types' ) ) {
+        return $config;
+    }
+
+    if ( did_action( 'elementor/widgets/register' ) === 0 ) {
+        return $config;
+    }
+
+    foreach ( $widgets_manager->get_widget_types() as $key => $widget ) {
+        if ( strpos( $key, 'khm_' ) === 0 || $key === 'test_portal_dashboard_v2' ) {
+            $config['widgets'][ $key ] = $widget->get_config();
+        }
+    }
+
+    return $config;
+}, 1000, 2 );
+
+// Inject KHM widgets into ElementorConfig on the editor screen.
+add_action( 'admin_enqueue_scripts', function( $hook ) {
+    if ( ! defined( 'ELEMENTOR_VERSION' ) ) {
+        return;
+    }
+
+    $action = $_GET['action'] ?? '';
+    if ( $action !== 'elementor' ) {
+        return;
+    }
+
+    if ( ! class_exists( '\Elementor\Plugin' ) ) {
+        return;
+    }
+
+    $widgets_manager = \Elementor\Plugin::$instance->widgets_manager;
+    if ( ! method_exists( $widgets_manager, 'get_widget_types' ) ) {
+        return;
+    }
+
+    if ( did_action( 'elementor/widgets/register' ) === 0 ) {
+        return;
+    }
+
+    $widgets_payload = [];
+    foreach ( $widgets_manager->get_widget_types() as $key => $widget ) {
+        if ( strpos( $key, 'khm_' ) === 0 || $key === 'test_portal_dashboard_v2' ) {
+            $widgets_payload[ $key ] = $widget->get_config();
+        }
+    }
+
+    if ( empty( $widgets_payload ) ) {
+        return;
+    }
+
+    wp_register_script( 'khm-elementor-inject', '', [], null, true );
+    wp_enqueue_script( 'khm-elementor-inject' );
+
+    $script = '(function(){'
+        . 'var injected=' . wp_json_encode( $widgets_payload ) . ';'
+        . 'function apply(){'
+        . 'if(!window.ElementorConfig||!ElementorConfig.initial_document){return false;}'
+        . 'ElementorConfig.initial_document.widgets=ElementorConfig.initial_document.widgets||{};'
+        . 'Object.keys(injected).forEach(function(key){ElementorConfig.initial_document.widgets[key]=injected[key];});'
+        . 'if(window.elementor&&elementor.config&&elementor.config.document){'
+        . 'elementor.config.document.widgets=ElementorConfig.initial_document.widgets;'
+        . '}'
+        . 'window.khmElementorInjected=true;'
+        . 'window.khmElementorInjectedCount=Object.keys(injected).length;'
+        . 'return true;'
+        . '}'
+        . 'if(apply()){return;}'
+        . 'var tries=0;'
+        . 'var timer=setInterval(function(){tries++;if(apply()||tries>200){clearInterval(timer);}},25);'
+        . '})();';
+
+    wp_add_inline_script( 'khm-elementor-inject', $script );
+}, 20 );
 
 function khm_create_main_admin_menu() {
     // Check if main menu already exists

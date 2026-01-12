@@ -123,12 +123,11 @@ class ECommerceService {
         }
 
         $regular_price = (float) $product->regular_price;
-        $member_discount_percent = (int) $product->member_discount_percent;
-        
-        // Calculate member price
+
+        // Flat fee: ignore member discounts unless an explicit member price is set.
         $member_price = $product->member_price;
         if ($member_price === null) {
-            $member_price = $regular_price * (1 - ($member_discount_percent / 100));
+            $member_price = $regular_price;
         }
 
         // Determine which price applies to this user
@@ -151,7 +150,7 @@ class ECommerceService {
             'member_price' => (float) $member_price,
             'current_price' => $current_price,
             'discount_amount' => $discount_amount,
-            'discount_percent' => $member_discount_percent,
+            'discount_percent' => 0,
             'is_member' => $is_member,
             'is_purchasable' => (bool) $product->is_purchasable,
             'purchase_gives_pdf' => (bool) $product->purchase_gives_pdf,
@@ -321,7 +320,9 @@ class ECommerceService {
             'currency' => 'GBP',
             'status' => 'pending',
             'item_type' => 'article_purchase',
-            'items' => $cart['items']
+            'items' => $cart['items'],
+            'gateway' => $purchase_data['payment_method'] ?? 'stripe',
+            'gateway_environment' => get_option('khm_stripe_environment', 'sandbox'),
         ];
 
         $order = $this->orders->create($order_data);
@@ -347,6 +348,8 @@ class ECommerceService {
             if ($purchase_result) {
                 $purchased_items[] = $item;
                 
+                $this->record_purchase_download($user_id, $item['post_id']);
+
                 // Auto-process based on product settings
                 $this->auto_process_purchase($user_id, $item['post_id'], $purchase_data);
             } else {
@@ -359,7 +362,14 @@ class ECommerceService {
             $this->clear_cart($user_id);
             
             // Update order status
-            $this->orders->update($order->id, ['status' => 'completed']);
+            $update_data = ['status' => 'completed'];
+            if (!empty($purchase_data['transaction_id'])) {
+                $update_data['payment_transaction_id'] = $purchase_data['transaction_id'];
+            }
+            if (!empty($purchase_data['payment_method'])) {
+                $update_data['gateway'] = $purchase_data['payment_method'];
+            }
+            $this->orders->update($order->id, $update_data);
             
             do_action('khm_purchase_completed', $user_id, $purchased_items, $order);
         }
@@ -371,6 +381,16 @@ class ECommerceService {
             'failed_items' => $failed_items,
             'total' => $cart['member_subtotal']
         ];
+    }
+
+    private function record_purchase_download(int $user_id, int $post_id): void {
+        $memberships = $this->memberships;
+        $levels = new LevelRepository();
+        $credits = new CreditService($memberships, $levels);
+        $library = new LibraryService($memberships);
+        $downloads = new CreditDownloadService($memberships, $credits, $library);
+
+        $downloads->recordPurchaseDownload($user_id, $post_id);
     }
 
     /**

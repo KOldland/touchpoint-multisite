@@ -37,6 +37,7 @@
         bindCreditsEvents();
         bindMembershipEvents();
         bindAccountEvents();
+        bindVoucherEvents();
     }
 
     /**
@@ -143,6 +144,16 @@
         const savedDate = item.saved_at 
             ? new Date(item.saved_at).toLocaleDateString() 
             : '';
+        const purchasedBadge = item.is_purchased
+            ? '<span class="khm-library-purchased-badge" title="Purchased">$</span>'
+            : '';
+        const removeButton = item.is_purchased
+            ? ''
+            : `
+                <button class="khm-btn khm-btn-sm khm-btn-secondary khm-library-remove" data-post-id="${item.post_id}" title="Remove">
+                    <span class="dashicons dashicons-trash"></span>
+                </button>
+            `;
 
         return `
             <div class="khm-library-item" data-post-id="${item.post_id}">
@@ -159,9 +170,8 @@
                                     <span class="dashicons dashicons-download"></span>
                                 </button>
                             ` : ''}
-                            <button class="khm-btn khm-btn-sm khm-btn-secondary khm-library-remove" data-post-id="${item.post_id}" title="Remove">
-                                <span class="dashicons dashicons-trash"></span>
-                            </button>
+                            ${purchasedBadge}
+                            ${removeButton}
                         </div>
                     </div>
                 </div>
@@ -197,6 +207,53 @@
         $(document).on('click', '.khm-redownload-btn', function() {
             const postId = $(this).data('post-id');
             regeneratePdf(postId, $(this));
+        });
+    }
+
+    /**
+     * ================================
+     * VOUCHER REDEMPTION
+     * ================================
+     */
+
+    function bindVoucherEvents() {
+        $(document).on('submit', '.khm-voucher-form', function(e) {
+            e.preventDefault();
+            const code = $(this).find('.khm-voucher-code').val().trim();
+            if (!code) {
+                showToast(khmPortal.strings.error, 'error');
+                return;
+            }
+            redeemVoucher(code, $(this));
+        });
+    }
+
+    function redeemVoucher(code, $form) {
+        const $button = $form.find('button[type="submit"]');
+        $button.prop('disabled', true).text(khmPortal.strings.loading);
+
+        $.ajax({
+            url: khmPortal.restUrl + 'gift/redeem',
+            method: 'POST',
+            headers: { 'X-WP-Nonce': khmPortal.restNonce },
+            data: { token: code },
+            success: function(response) {
+                if (response.success) {
+                    showToast(response.message || 'Voucher redeemed! Article added to your library.', 'success');
+                    $form.find('.khm-voucher-code').val('');
+                } else {
+                    showToast(response.error || khmPortal.strings.error, 'error');
+                }
+            },
+            error: function(xhr) {
+                const msg = xhr.responseJSON && xhr.responseJSON.message
+                    ? xhr.responseJSON.message
+                    : khmPortal.strings.error;
+                showToast(msg, 'error');
+            },
+            complete: function() {
+                $button.prop('disabled', false).text('Redeem Voucher');
+            }
         });
     }
 
