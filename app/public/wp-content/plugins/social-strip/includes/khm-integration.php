@@ -450,10 +450,21 @@ class KSS_KHM_Integration {
             $can_download_with_credits = $credit_cost === 0 ? true : $user_credits >= $credit_cost;
         }
 
+        $has_downloaded = false;
+        if ($is_logged_in && function_exists('khm_call_service')) {
+            try {
+                $has_downloaded = (bool) khm_call_service('has_downloaded', $user_id, $post_id);
+            } catch (Exception $e) {
+                $has_downloaded = false;
+            }
+        }
+
         $enhanced_data['credits'] = [
             'available' => $user_credits,
             'can_download' => $can_download_with_credits,
             'cost_per_download' => $credit_cost,
+            'required' => $credit_cost,
+            'has_downloaded' => $has_downloaded,
         ];
 
         // Get library status
@@ -761,6 +772,54 @@ class KSS_KHM_Integration {
             ]);
         }
     }
+
+    /**
+     * Handle status refresh for social strip buttons.
+     */
+    public function handle_get_strip_status() {
+        check_ajax_referer('kss_khm_integration', 'nonce');
+
+        $user_id = get_current_user_id();
+        $post_id = intval($_POST['post_id'] ?? 0);
+
+        if (!$user_id || !$post_id) {
+            wp_send_json_success([
+                'is_purchased' => false,
+                'has_downloaded' => false,
+                'is_saved' => false,
+            ]);
+        }
+
+        $is_purchased = false;
+        $has_downloaded = false;
+        $is_saved = false;
+
+        if (function_exists('khm_call_service')) {
+            try {
+                $is_purchased = (bool) khm_call_service('has_purchased', $user_id, $post_id);
+            } catch (Exception $e) {
+                $is_purchased = false;
+            }
+
+            try {
+                $has_downloaded = (bool) khm_call_service('has_downloaded', $user_id, $post_id);
+            } catch (Exception $e) {
+                $has_downloaded = false;
+            }
+
+            try {
+                $is_saved = (bool) khm_call_service('is_saved_to_library', $user_id, $post_id);
+            } catch (Exception $e) {
+                $is_saved = false;
+            }
+        }
+
+        wp_send_json_success([
+            'is_purchased' => $is_purchased,
+            'has_downloaded' => $has_downloaded,
+            'is_saved' => $is_saved,
+        ]);
+    }
 }
 
 // Backward compatibility - maintain the original functions
@@ -807,6 +866,14 @@ add_action('wp_ajax_kss_track_download', function() {
         $integration_instance = new KSS_KHM_Integration();
     }
     $integration_instance->handle_track_download();
+});
+
+add_action('wp_ajax_kss_get_strip_status', function() {
+    static $integration_instance = null;
+    if ($integration_instance === null) {
+        $integration_instance = new KSS_KHM_Integration();
+    }
+    $integration_instance->handle_get_strip_status();
 });
 
 // Add affiliate URL generation handler

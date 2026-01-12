@@ -12,6 +12,8 @@
     });
     
     function initKHMIntegration() {
+        refreshStripStatus();
+
         // Download with Credits functionality
         $('.kss-download-credit').on('click', function(e) {
             e.preventDefault();
@@ -42,6 +44,71 @@
         $('.kss-direct-download').on('click', function(e) {
             e.preventDefault();
             handleDirectDownload($(this));
+        });
+    }
+
+    function refreshStripStatus() {
+        if (typeof khm_ajax === 'undefined') {
+            return;
+        }
+
+        const postIds = new Set();
+        $('.kss-social-strip button[data-post-id]').each(function() {
+            const postId = $(this).data('post-id');
+            if (postId) {
+                postIds.add(postId);
+            }
+        });
+
+        if (!postIds.size) {
+            return;
+        }
+
+        postIds.forEach((postId) => {
+            $.ajax({
+                url: khm_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'kss_get_strip_status',
+                    post_id: postId,
+                    nonce: khm_ajax.nonce
+                },
+                success: function(response) {
+                    if (!response || !response.success) {
+                        return;
+                    }
+
+                    const data = response.data || {};
+
+                    const $downloadButtons = $('.kss-download-credit[data-post-id="' + postId + '"]');
+                    if (data.has_downloaded) {
+                        $downloadButtons.addClass('downloaded').attr('title', 'Redownload (already downloaded)');
+                        $downloadButtons.closest('.kss-action').find('.kss-label').text('Redownload PDF');
+                    } else {
+                        $downloadButtons.removeClass('downloaded');
+                    }
+
+                    const $buyButtons = $('.kss-buy-button[data-post-id="' + postId + '"]');
+                    if (data.is_purchased) {
+                        $buyButtons.addClass('purchased')
+                            .attr('data-purchased', '1')
+                            .attr('title', 'Purchased');
+                        $buyButtons.closest('.kss-action').find('.kss-label').text('Purchased');
+                    } else {
+                        $buyButtons.removeClass('purchased')
+                            .attr('data-purchased', '0');
+                    }
+
+                    if (typeof data.is_saved !== 'undefined') {
+                        const $saveButtons = $('.kss-save-button[data-post-id="' + postId + '"]');
+                        if (data.is_saved) {
+                            $saveButtons.addClass('saved').attr('title', 'Saved to Library');
+                        } else {
+                            $saveButtons.removeClass('saved').attr('title', 'Save to Library');
+                        }
+                    }
+                }
+            });
         });
     }
     
