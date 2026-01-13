@@ -75,6 +75,11 @@ class KSS_KHM_Integration {
             // Gift functionality AJAX handlers
             add_action('wp_ajax_kss_send_gift', [$this, 'handle_send_gift']);
             add_action('wp_ajax_kss_get_gift_data', [$this, 'handle_get_gift_data']);
+            add_action('wp_ajax_kss_create_gift_intent', [$this, 'handle_create_gift_intent']);
+            add_action('wp_ajax_kss_finalize_gift', [$this, 'handle_finalize_gift']);
+
+            // Share via email (member-to-member)
+            add_action('wp_ajax_kss_send_share_email', [$this, 'handle_send_share_email']);
             
             // Add PDF download handler for non-logged in users with tokens
             add_action('wp_ajax_nopriv_khm_download_pdf', [$this, 'handle_secure_pdf_download']);
@@ -525,12 +530,21 @@ class KSS_KHM_Integration {
         // Share data with affiliate support
         $share_title = get_the_title($post_id);
         $share_url = get_permalink($post_id);
-        $share_excerpt = wp_trim_words(get_the_excerpt($post_id), 20);
+        $share_excerpt = get_post_field('post_excerpt', $post_id);
+        if ($share_excerpt === '') {
+            $share_excerpt = wp_strip_all_tags(get_post_field('post_content', $post_id));
+        }
+        $share_image = get_the_post_thumbnail_url($post_id, 'medium') ?: '';
+        $share_categories = wp_get_post_terms($post_id, 'category', ['fields' => 'names']);
+        $share_tags = wp_get_post_terms($post_id, 'post_tag', ['fields' => 'names']);
 
         $enhanced_data['share'] = [
             'title' => $share_title,
             'url' => $share_url,
             'excerpt' => $share_excerpt,
+            'image' => $share_image,
+            'categories' => is_array($share_categories) ? $share_categories : [],
+            'tags' => is_array($share_tags) ? $share_tags : [],
             'has_affiliate' => $is_logged_in && $is_member,
         ];
 
@@ -564,55 +578,117 @@ class KSS_KHM_Integration {
             wp_send_json_error('Login required to send gifts');
         }
 
-        // Validate required fields
-        $required_fields = ['post_id', 'recipient_name', 'recipient_email', 'personal_message'];
-        foreach ($required_fields as $field) {
-            if (empty($_POST[$field])) {
-                wp_send_json_error("Missing required field: {$field}");
-            }
-        }
-
         try {
-            if (function_exists('khm_call_service')) {
-                // Create gift data
-                $gift_data = [
-                    'post_id' => intval($_POST['post_id']),
-                    'sender_id' => $user_id,
-                    'recipient_name' => sanitize_text_field($_POST['recipient_name']),
-                    'recipient_email' => sanitize_email($_POST['recipient_email']),
-                    'personal_message' => sanitize_textarea_field($_POST['personal_message']),
-                    'sender_name' => wp_get_current_user()->display_name,
-                    'sender_email' => wp_get_current_user()->user_email,
-                    'gift_type' => sanitize_text_field($_POST['gift_type'] ?? 'article_access'),
-                    'include_pdf' => isset($_POST['include_pdf']) ? (bool)$_POST['include_pdf'] : true,
-                    'save_to_library' => isset($_POST['save_to_library']) ? (bool)$_POST['save_to_library'] : true
-                ];
+            $post_id = intval($_POST['post_id'] ?? 0);
+            $recipient_email = sanitize_email($_POST['recipient_email'] ?? '');
+            $recipient_name = sanitize_text_field($_POST['recipient_name'] ?? '');
+            $gift_message = sanitize_textarea_field($_POST['gift_message'] ?? ($_POST['personal_message'] ?? ''));
 
-                $result = khm_call_service('create_gift', $gift_data);
-                
-                if ($result && $result['success']) {
-                    // Send gift email
-                    $email_result = khm_call_service('send_gift_email', $result['gift_token'], $gift_data);
-                    
-                    if ($email_result && $email_result['success']) {
-                        do_action('kss_gift_sent', $gift_data['post_id'], $user_id, $result['gift_token']);
-                        
-                        wp_send_json_success([
-                            'message' => 'Gift sent successfully!',
-                            'gift_token' => $result['gift_token']
-                        ]);
-                    } else {
-                        wp_send_json_error('Gift created but email failed: ' . $email_result['error']);
-                    }
-                } else {
-                    wp_send_json_error($result['error'] ?? 'Failed to create gift');
-                }
-            } else {
-                wp_send_json_error('Failed to process gift request');
+            if (!$post_id || !$recipient_email || !is_email($recipient_email)) {
+                wp_send_json_error('Missing or invalid recipient email');
             }
+
+            if (!$recipient_name) {
+                $recipient_name = $this->derive_recipient_name($recipient_email);
+            }
+
+            if (!function_exists('khm_call_service')) {
+                wp_send_json_error('Gift service not available');
+            }
+
+            $pricing = khm_call_service('get_article_pricing', $post_id, $user_id);
+            $price = (float) ($pricing['member_price'] ?? 0);
+
+            $gift_service = new \KHM\Services\GiftService(
+                new \KHM\Services\MembershipRepository(),
+                new \KHM\Services\OrderRepository(),
+                new \KHM\Services\EmailService(__DIR__ . '/../../khm-plugin/')
+            );
+
+            $gift_result = $gift_service->create_gift([
+                'post_id' => $post_id,
+                'sender_id' => $user_id,
+                'sender_name' => wp_get_current_user()->display_name,
+                'sender_email' => wp_get_current_user()->user_email,
+                'recipient_email' => $recipient_email,
+                'recipient_name' => $recipient_name,
+                'gift_message' => $gift_message,
+                'gift_price' => $price,
+                'payment_method' => 'manual'
+            ]);
+
+            if (empty($gift_result['success'])) {
+                wp_send_json_error($gift_result['error'] ?? 'Failed to create gift');
+            }
+
+            $email_result = $gift_service->send_gift_email((int) $gift_result['gift_id']);
+            if (!empty($email_result['success'])) {
+                wp_send_json_success([
+                    'message' => 'Gift sent successfully!',
+                    'gift_token' => $gift_result['redemption_token'] ?? ''
+                ]);
+            }
+
+            wp_send_json_error('Gift created but email failed.');
         } catch (Exception $e) {
             wp_send_json_error('Gift service not available');
         }
+    }
+
+    /**
+     * Handle share email (member-to-member) AJAX
+     */
+    public function handle_send_share_email() {
+        check_ajax_referer('kss_modal_nonce', 'nonce');
+
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('Login required to send emails');
+        }
+
+        $post_id = intval($_POST['post_id'] ?? 0);
+        $recipient_email = sanitize_email($_POST['recipient_email'] ?? '');
+        $message = sanitize_textarea_field($_POST['message'] ?? '');
+
+        if (!$post_id || empty($recipient_email) || empty($message)) {
+            wp_send_json_error('Missing required fields');
+        }
+
+        $post = get_post($post_id);
+        if (!$post) {
+            wp_send_json_error('Article not found');
+        }
+
+        $user = wp_get_current_user();
+        $sender_name = $user->display_name ?: 'Member';
+        $article_title = $post->post_title;
+        $article_url = get_permalink($post_id);
+
+        $subject = $article_title;
+        $body_lines = [
+            $message,
+            '',
+            $article_title,
+            $article_url,
+            '',
+            'Shared by ' . $sender_name
+        ];
+        $body = implode("\n", $body_lines);
+
+        $headers = [];
+        if (!empty($user->user_email)) {
+            $headers[] = 'Reply-To: ' . $sender_name . ' <' . $user->user_email . '>';
+        }
+
+        $sent = wp_mail($recipient_email, $subject, $body, $headers);
+
+        if (!$sent) {
+            wp_send_json_error('Email could not be sent');
+        }
+
+        wp_send_json_success([
+            'recipient' => $recipient_email
+        ]);
     }
 
     /**
@@ -639,18 +715,236 @@ class KSS_KHM_Integration {
         // Get pricing for gift
         if (function_exists('khm_call_service')) {
             $pricing = khm_call_service('get_article_pricing', $post_id, $user_id);
-            
+            if (empty($pricing) || empty($pricing['is_purchasable'])) {
+                wp_send_json_error('Article not available for gifting');
+            }
+            $user = wp_get_current_user();
+            $first = get_user_meta($user_id, 'first_name', true);
+            $last = get_user_meta($user_id, 'last_name', true);
+            $sender_name = trim($first . ' ' . $last);
+            if ($sender_name === '') {
+                $sender_name = $user->display_name;
+            }
+
             wp_send_json_success([
-                'post_title' => $post->post_title,
-                'post_excerpt' => wp_trim_words($post->post_content, 30),
-                'post_url' => get_permalink($post_id),
-                'pricing' => $pricing,
-                'sender_name' => wp_get_current_user()->display_name,
-                'sender_email' => wp_get_current_user()->user_email
+                'post' => [
+                    'id' => $post_id,
+                    'title' => $post->post_title,
+                    'image_url' => get_the_post_thumbnail_url($post_id, 'medium_large') ?: '',
+                ],
+                'pricing' => [
+                    'member_price' => (float) ($pricing['member_price'] ?? 0),
+                    'currency' => '£'
+                ],
+                'sender' => [
+                    'name' => $sender_name,
+                ],
+                'default_message' => 'This is a really good piece of insight that I think you will find valuable.'
             ]);
         } else {
             wp_send_json_error('Pricing service not available');
         }
+    }
+
+    /**
+     * Create a PaymentIntent for a gift checkout.
+     */
+    public function handle_create_gift_intent() {
+        check_ajax_referer('kss_khm_integration', 'nonce');
+
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('Login required');
+        }
+
+        $post_id = intval($_POST['post_id'] ?? 0);
+        $recipient_count = max(0, intval($_POST['recipient_count'] ?? 0));
+        if (!$post_id || $recipient_count < 1) {
+            wp_send_json_error('Invalid request');
+        }
+
+        if (empty(get_option('khm_stripe_secret_key', ''))) {
+            wp_send_json_error('Stripe is not configured.');
+        }
+
+        if (!function_exists('khm_call_service')) {
+            wp_send_json_error('Pricing service not available');
+        }
+
+        $pricing = khm_call_service('get_article_pricing', $post_id, $user_id);
+        $price = (float) ($pricing['member_price'] ?? 0);
+        if ($price <= 0) {
+            wp_send_json_error('Invalid gift price');
+        }
+
+        $total = $price * $recipient_count;
+        $post = get_post($post_id);
+        if (!$post) {
+            wp_send_json_error('Article not found');
+        }
+
+        $gateway = new \KHM\Gateways\StripeGateway([
+            'secret_key' => get_option('khm_stripe_secret_key', ''),
+            'publishable_key' => get_option('khm_stripe_publishable_key', ''),
+            'environment' => get_option('khm_stripe_environment', 'sandbox'),
+        ]);
+
+        $order = (object) [
+            'user_id' => $user_id,
+            'total' => $total,
+            'currency' => 'gbp',
+            'membership_level_name' => 'Gift: ' . $post->post_title,
+            'post_id' => $post_id,
+        ];
+
+        $result = $gateway->createPaymentIntent($order);
+        if ($result->isFailure()) {
+            wp_send_json_error($result->getMessage() ?: 'Unable to prepare payment.');
+        }
+
+        wp_send_json_success([
+            'client_secret' => $result->get('client_secret'),
+            'intent_id' => $result->get('intent_id'),
+            'total' => $total,
+            'currency' => 'GBP'
+        ]);
+    }
+
+    /**
+     * Finalize gift purchase after payment success.
+     */
+    public function handle_finalize_gift() {
+        check_ajax_referer('kss_khm_integration', 'nonce');
+
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('Login required');
+        }
+
+        $post_id = intval($_POST['post_id'] ?? 0);
+        $intent_id = sanitize_text_field($_POST['payment_intent_id'] ?? '');
+        $recipients = $_POST['recipients'] ?? [];
+        $gift_message = sanitize_textarea_field($_POST['gift_message'] ?? '');
+        $sender_name = sanitize_text_field($_POST['sender_name'] ?? '');
+
+        if (!$post_id || !$intent_id) {
+            wp_send_json_error('Invalid request');
+        }
+
+        if (empty($recipients) || !is_array($recipients)) {
+            wp_send_json_error('No recipients provided');
+        }
+
+        $clean_recipients = [];
+        foreach ($recipients as $email) {
+            $email = sanitize_email($email);
+            if ($email && is_email($email)) {
+                $clean_recipients[] = strtolower($email);
+            }
+        }
+        $clean_recipients = array_values(array_unique($clean_recipients));
+        if (empty($clean_recipients)) {
+            wp_send_json_error('No valid recipients provided');
+        }
+
+        if (!function_exists('khm_call_service')) {
+            wp_send_json_error('Pricing service not available');
+        }
+
+        $pricing = khm_call_service('get_article_pricing', $post_id, $user_id);
+        $price = (float) ($pricing['member_price'] ?? 0);
+        if ($price <= 0) {
+            wp_send_json_error('Invalid gift price');
+        }
+        $expected_total = $price * count($clean_recipients);
+
+        $gateway = new \KHM\Gateways\StripeGateway([
+            'secret_key' => get_option('khm_stripe_secret_key', ''),
+            'publishable_key' => get_option('khm_stripe_publishable_key', ''),
+            'environment' => get_option('khm_stripe_environment', 'sandbox'),
+        ]);
+        $intent = $gateway->retrievePaymentIntent($intent_id);
+        if (!$intent || $intent->status !== 'succeeded') {
+            wp_send_json_error('Payment could not be confirmed.');
+        }
+        if (!empty($intent->currency) && strtolower($intent->currency) !== 'gbp') {
+            wp_send_json_error('Payment currency mismatch.');
+        }
+        if ((int) $intent->amount !== (int) round($expected_total * 100)) {
+            wp_send_json_error('Payment amount mismatch.');
+        }
+
+        $user = wp_get_current_user();
+        $sender_name = $sender_name ?: $user->display_name;
+        $sender_email = $user->user_email;
+
+        $gift_service = new \KHM\Services\GiftService(
+            new \KHM\Services\MembershipRepository(),
+            new \KHM\Services\OrderRepository(),
+            new \KHM\Services\EmailService(__DIR__ . '/../../khm-plugin/')
+        );
+
+        $sent = [];
+        $gift_details = [];
+        $failed = [];
+
+        foreach ($clean_recipients as $recipient_email) {
+            $recipient_name = $this->derive_recipient_name($recipient_email);
+            $gift_result = $gift_service->create_gift([
+                'post_id' => $post_id,
+                'sender_id' => $user_id,
+                'sender_name' => $sender_name,
+                'sender_email' => $sender_email,
+                'recipient_email' => $recipient_email,
+                'recipient_name' => $recipient_name,
+                'gift_message' => $gift_message,
+                'gift_price' => $price,
+                'payment_method' => 'stripe'
+            ]);
+
+            if (empty($gift_result['success'])) {
+                $failed[] = $recipient_email;
+                continue;
+            }
+
+            $email_result = $gift_service->send_gift_email((int) $gift_result['gift_id']);
+            if (!empty($email_result['success'])) {
+                do_action('kss_gift_purchased', $user_id, $post_id, [
+                    'gift_id' => (int) $gift_result['gift_id'],
+                    'recipient_email' => $recipient_email,
+                    'redemption_token' => $gift_result['redemption_token'] ?? null,
+                ], $price);
+                $sent[] = $recipient_email;
+                $gift_details[] = [
+                    'email' => $recipient_email,
+                    'token' => $gift_result['redemption_token'] ?? '',
+                ];
+            } else {
+                $failed[] = $recipient_email;
+            }
+        }
+
+        if (!empty($failed)) {
+            wp_send_json_error([
+                'error' => 'Some gifts could not be sent.',
+                'failed' => $failed,
+                'sent' => $sent
+            ]);
+        }
+
+        wp_send_json_success([
+            'sent' => $sent,
+            'count' => count($sent),
+            'gifts' => $gift_details,
+            'message' => 'Gift sent successfully! The recipient will receive an email shortly.'
+        ]);
+    }
+
+    private function derive_recipient_name(string $email): string {
+        $local = explode('@', $email)[0] ?? '';
+        $local = str_replace(['.', '_', '-'], ' ', $local);
+        $local = trim($local);
+        return $local !== '' ? ucwords($local) : 'Reader';
     }
 
     /**

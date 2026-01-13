@@ -62,6 +62,9 @@ $icon_base = $widget_data['icon_base'];
     <button class="ssm-share-trigger" 
             data-title="<?= esc_attr($widget_data['share']['title']); ?>" 
             data-url="<?= esc_url($widget_data['share']['url']); ?>" 
+            data-excerpt="<?= esc_attr($widget_data['share']['excerpt']); ?>"
+            data-image="<?= esc_url($widget_data['share']['image'] ?? get_the_post_thumbnail_url($post_id, 'medium')); ?>"
+            data-post-id="<?= esc_attr($post_id); ?>"
             title="Share">
         <img src="<?= esc_url($icon_base . 'share.png'); ?>" alt="Share Article">
     </button>

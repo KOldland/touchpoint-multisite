@@ -241,6 +241,10 @@
                 if (response.success) {
                     showToast(response.message || 'Voucher redeemed! Article added to your library.', 'success');
                     $form.find('.khm-voucher-code').val('');
+                    loadDownloads();
+                    if (window.kssRefreshStripStatus) {
+                        window.kssRefreshStripStatus();
+                    }
                 } else {
                     showToast(response.error || khmPortal.strings.error, 'error');
                 }

@@ -977,3 +977,101 @@
     border-color: var(--khm-accent);
     color: #fff;
 }
+
+.khm-modal-actions .btn-cancel,
+.tp-modal-actions .btn-cancel,
+.tp-modal-actions .tp-btn-cancel {
+    display: none;
+}
+
+/* ==========================================================================
+   Gifts Sent Widget
+   ========================================================================== */
+
+.khm-portal-gifts {
+    margin-top: 1.5rem;
+}
+
+.khm-section-divider {
+    height: 1px;
+    background: var(--khm-border);
+    margin: 0.75rem 0 1.5rem;
+}
+
+.khm-section-divider-strong {
+    height: 1px;
+    background: #2c2c2c;
+    margin: 2rem 0 2rem;
+}
+
+.khm-gifts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.khm-gift-item {
+    border: 1px solid var(--khm-border);
+    border-radius: var(--khm-radius);
+    background: var(--khm-bg);
+    box-shadow: var(--khm-shadow);
+    overflow: hidden;
+}
+
+.khm-gift-summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.khm-gift-summary::-webkit-details-marker {
+    display: none;
+}
+
+.khm-gift-summary::after {
+    content: '▸';
+    font-size: 1.5rem;
+    color: var(--khm-text-light);
+    transition: transform 0.2s ease;
+}
+
+.khm-gift-item[open] .khm-gift-summary::after {
+    transform: rotate(90deg);
+}
+
+.khm-gift-title {
+    font-weight: 600;
+    color: var(--khm-text);
+}
+
+.khm-gift-date {
+    color: var(--khm-text-light);
+    font-size: 0.95rem;
+}
+
+.khm-gift-details {
+    padding: 0 1.25rem 1rem;
+    border-top: 1px solid var(--khm-border);
+    background: var(--khm-bg-alt);
+}
+
+.khm-gift-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    font-size: 0.95rem;
+}
+
+.khm-gift-label {
+    color: var(--khm-text-light);
+}
+
+.khm-gift-code {
+    font-weight: 600;
+    letter-spacing: 0.03em;
+}

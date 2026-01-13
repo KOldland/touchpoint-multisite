@@ -378,7 +378,7 @@ class MemberPortalShortcode {
      */
     private function render_credits_tab(int $user_id): void {
         $credits = $this->credits->getUserCredits($user_id);
-        $history = function_exists('khm_get_credit_history') ? khm_get_credit_history($user_id, 20) : [];
+        $history = function_exists('khm_get_credit_history') ? khm_get_credit_history($user_id, 5) : [];
         ?>
         <div class="khm-portal-tab khm-portal-credits">
             <h2 class="khm-section-title"><?php esc_html_e('Credits', 'khm-membership'); ?></h2>

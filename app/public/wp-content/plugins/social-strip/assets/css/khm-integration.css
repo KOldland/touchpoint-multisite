@@ -86,7 +86,7 @@
     padding: 12px 20px;
     border-radius: 4px;
     font-weight: 500;
-    z-index: 9999;
+    z-index: 10050;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     max-width: 300px;
     word-wrap: break-word;
@@ -105,9 +105,9 @@
 }
 
 .kss-message-info {
-    background: #d1ecf1;
-    color: #0c5460;
-    border: 1px solid #bee5eb;
+    background: #e8f5e9;
+    color: #1b5e20;
+    border: 1px solid #2e7d32;
 }
 
 /* Enhanced Button Styling */
@@ -241,9 +241,9 @@
     }
     
     .kss-message-info {
-        background: #1a2e3d;
-        color: #b4c7e8;
-        border-color: #2d475a;
+        background: #1f3b24;
+        color: #c8e6c9;
+        border-color: #2e7d32;
     }
     
     .kss-social-strip .loading .spinner {
@@ -270,7 +270,7 @@
     margin: 5% auto;
     padding: 0;
     border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
     width: 90%;
     max-width: 600px;
     max-height: 90vh;
@@ -293,10 +293,10 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px;
-    border-bottom: 1px solid #e9ecef;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #fff;
+    color: #1f2937;
     border-radius: 8px 8px 0 0;
 }
 
@@ -304,23 +304,30 @@
     margin: 0;
     font-size: 1.5rem;
     font-weight: 600;
+    color: #1f2937;
 }
 
 .kss-modal-close {
-    color: rgba(255, 255, 255, 0.8);
-    font-size: 28px;
+    color: #6b7280;
+    font-size: 24px;
     font-weight: bold;
     cursor: pointer;
-    transition: color 0.3s ease;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background-color 0.2s, color 0.2s;
 }
 
 .kss-modal-close:hover {
-    color: white;
-    transform: scale(1.1);
+    background-color: #f3f4f6;
+    color: #374151;
 }
 
 .kss-modal-body {
-    padding: 30px;
+    padding: 24px;
 }
 
 .gift-article-info {
@@ -474,6 +481,247 @@
     transform: none;
 }
 
+/* New Gift Modal Layout */
+.kss-gift-modal .kss-modal-body {
+    padding: 24px;
+}
+
+.kss-gift-summary {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.kss-gift-article {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+}
+
+.kss-gift-thumb {
+    width: 72px;
+    height: 72px;
+    border-radius: 12px;
+    background: #e9ecef;
+    background-size: cover;
+    background-position: center;
+    flex-shrink: 0;
+}
+
+.kss-gift-thumb.is-empty {
+    background: #e2e2e2;
+}
+
+.kss-gift-title-wrap h3 {
+    margin: 0 0 6px;
+    font-size: 1rem;
+    color: #1d1d1d;
+}
+
+.kss-gift-price {
+    color: #2e7d32;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.kss-gift-note {
+    margin: 12px 0 20px;
+    color: #6b7280;
+    font-size: 0.95rem;
+}
+
+.kss-gift-form .kss-gift-field {
+    margin-bottom: 16px;
+}
+
+.kss-gift-form label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    color: #2c2c2c;
+}
+
+.kss-gift-form input,
+.kss-gift-form textarea {
+    width: 100%;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 14px;
+}
+
+.kss-gift-email-input {
+    display: flex;
+    gap: 8px;
+}
+
+.kss-gift-add-email {
+    width: 40px;
+    border: none;
+    border-radius: 8px;
+    background: #2e7d32;
+    color: #fff;
+    font-weight: 700;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+.kss-gift-add-email:hover {
+    background: #256628;
+}
+
+.kss-gift-helper {
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: #6b7280;
+}
+
+.kss-gift-recipient-list {
+    border: 1px dashed #d1d5db;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 16px;
+    min-height: 44px;
+}
+
+.kss-gift-recipient {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid #eef1f4;
+    font-size: 0.92rem;
+}
+
+.kss-gift-recipient:last-child {
+    border-bottom: none;
+}
+
+.kss-gift-remove {
+    border: none;
+    background: transparent;
+    color: #9b1c1c;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+.kss-gift-empty {
+    color: #9aa0a6;
+    font-size: 0.9rem;
+}
+
+.kss-gift-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0 18px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 1rem;
+}
+
+.kss-gift-total strong {
+    color: #2e7d32;
+    font-weight: 700;
+}
+
+.kss-gift-payment h4 {
+    margin: 0 0 12px;
+    font-size: 1rem;
+}
+
+.kss-gift-errors {
+    display: none;
+    margin-top: 10px;
+    color: #b42318;
+    font-size: 0.9rem;
+}
+
+.kss-gift-payment .btn-send-gift {
+    width: 100%;
+    background: #2e7d32;
+    box-shadow: none;
+    padding: 12px 18px;
+    border-radius: 8px;
+}
+
+.kss-gift-payment .btn-send-gift:hover:not(:disabled) {
+    background: #256628;
+    transform: none;
+    box-shadow: none;
+}
+
+.kss-gift-confirm .kss-modal-body {
+    padding: 24px;
+}
+
+.kss-gift-confirm-message {
+    margin: 0 0 16px;
+    font-size: 0.98rem;
+    color: #2f2f2f;
+}
+
+.kss-gift-confirm-table table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin-bottom: 18px;
+}
+
+.kss-gift-confirm-table th,
+.kss-gift-confirm-table td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.kss-gift-confirm-table th {
+    font-weight: 600;
+    color: #1f2937;
+    background: #f7f7f7;
+}
+
+.kss-gift-confirm-table code {
+    display: inline-block;
+    padding: 4px 6px;
+    background: #f2f4f7;
+    border-radius: 4px;
+    font-family: "Courier New", monospace;
+}
+
+.kss-gift-confirm-note {
+    display: none;
+    margin: 0 0 12px;
+    font-size: 0.9rem;
+    color: #2e7d32;
+}
+
+.kss-gift-confirm-note.is-visible {
+    display: block;
+}
+
+.kss-gift-confirm .kss-modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.kss-gift-confirm .btn-send-gift {
+    background: #2e7d32;
+    box-shadow: none;
+}
+
+.kss-gift-confirm .btn-send-gift:hover:not(:disabled) {
+    background: #256628;
+}
+
+@media (max-width: 768px) {
+    .kss-gift-confirm .kss-modal-actions {
+        flex-direction: column;
+    }
+}
+
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
     .kss-modal-content {
@@ -495,6 +743,19 @@
     }
     
     .form-actions button {
+        width: 100%;
+    }
+
+    .kss-gift-article {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .kss-gift-email-input {
+        flex-direction: column;
+    }
+
+    .kss-gift-add-email {
         width: 100%;
     }
 }
@@ -609,13 +870,7 @@
 
 .kss-modal-actions .btn-cancel,
 .khm-modal-actions .btn-cancel {
-    background: #e9ecef;
-    color: #495057;
-}
-
-.kss-modal-actions .btn-cancel:hover,
-.khm-modal-actions .btn-cancel:hover {
-    background: #dee2e6;
+    display: none;
 }
 
 .kss-modal-actions .btn-confirm-download,
@@ -693,4 +948,8 @@
 
 .kss-notification-error .kss-notification-icon {
     color: #f44336;
+}
+
+.kss-notification-info .kss-notification-icon {
+    color: #2e7d32;
 }

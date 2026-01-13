@@ -70,7 +70,7 @@ class PortalCredits_Widget extends Widget_Base {
             [
                 'label' => __('History Items', 'khm-membership'),
                 'type' => Controls_Manager::NUMBER,
-                'default' => 10,
+                'default' => 5,
                 'min' => 1,
                 'max' => 50,
                 'condition' => [
@@ -139,16 +139,19 @@ class PortalCredits_Widget extends Widget_Base {
 
         // Get data
         $credits = $credits_service->getUserCredits($user_id);
-        $limit = (int) $settings['history_limit'];
+        $limit = min((int) $settings['history_limit'], 5);
         $page = isset($_GET['khm_tx_page']) ? max(1, (int) $_GET['khm_tx_page']) : 1;
-        $offset = ($page - 1) * $limit;
-        $transactions = $settings['show_history'] === 'yes'
-            ? $this->get_transactions($user_id, $limit, $offset)
-            : [];
         $total_transactions = $settings['show_history'] === 'yes'
             ? $this->get_transaction_total($user_id)
             : 0;
         $total_pages = $limit > 0 ? (int) ceil($total_transactions / $limit) : 1;
+        if ($page > $total_pages && $total_pages > 0) {
+            $page = $total_pages;
+        }
+        $offset = ($page - 1) * $limit;
+        $transactions = $settings['show_history'] === 'yes'
+            ? $this->get_transactions($user_id, $limit, $offset)
+            : [];
 
         $this->enqueue_portal_styles();
         $accent_color = $settings['accent_color'] ?? '#6b0b0b';
@@ -198,25 +201,25 @@ class PortalCredits_Widget extends Widget_Base {
                     <?php endforeach; ?>
                     </tbody>
                 </table>
-                <?php if ($total_pages > 1): ?>
-                <div class="khm-transactions-pagination">
-                    <?php
-                    $base_url = remove_query_arg('khm_tx_page');
-                    for ($i = 1; $i <= $total_pages; $i++):
-                        $url = add_query_arg('khm_tx_page', $i, $base_url);
-                        $class = $i === $page ? 'is-active' : '';
-                    ?>
-                        <a class="khm-page-link <?php echo esc_attr($class); ?>" href="<?php echo esc_url($url); ?>">
-                            <?php echo esc_html($i); ?>
-                        </a>
-                    <?php endfor; ?>
-                </div>
-                <?php endif; ?>
             </div>
             <?php elseif ($settings['show_history'] === 'yes'): ?>
             <div class="khm-credits-history">
                 <h3><?php esc_html_e('Transaction History', 'khm-membership'); ?></h3>
                 <p class="khm-empty-message"><?php esc_html_e('No transactions yet.', 'khm-membership'); ?></p>
+            </div>
+            <?php endif; ?>
+            <?php if ($settings['show_history'] === 'yes' && $total_pages > 1): ?>
+            <div class="khm-transactions-pagination">
+                <?php
+                $base_url = remove_query_arg('khm_tx_page');
+                for ($i = 1; $i <= $total_pages; $i++):
+                    $url = add_query_arg('khm_tx_page', $i, $base_url);
+                    $class = $i === $page ? 'is-active' : '';
+                ?>
+                    <a class="khm-page-link <?php echo esc_attr($class); ?>" href="<?php echo esc_url($url); ?>">
+                        <?php echo esc_html($i); ?>
+                    </a>
+                <?php endfor; ?>
             </div>
             <?php endif; ?>
 
@@ -287,6 +290,36 @@ class PortalCredits_Widget extends Widget_Base {
             }
         }
 
+        $gifts_table = $wpdb->prefix . 'khm_gifts';
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$gifts_table}'") === $gifts_table) {
+            $gifts = $wpdb->get_results($wpdb->prepare(
+                "SELECT g.post_id, g.gift_price, g.recipient_email, g.created_at, p.post_title
+                 FROM {$gifts_table} g
+                 LEFT JOIN {$wpdb->posts} p ON g.post_id = p.ID
+                 WHERE g.sender_id = %d AND g.status IN ('sent', 'redeemed')
+                 ORDER BY g.created_at DESC
+                 LIMIT %d OFFSET %d",
+                $user_id,
+                $limit,
+                $offset
+            ));
+
+            foreach ($gifts as $gift) {
+                $price = (float) ($gift->gift_price ?? 0);
+                $recipient = $gift->recipient_email ? sprintf(' (%s)', $gift->recipient_email) : '';
+                $transactions[] = [
+                    'date' => $gift->created_at,
+                    'description' => sprintf(
+                        /* translators: %s is the article title */
+                        __('Gift sent: %s', 'khm-membership'),
+                        ($gift->post_title ?: __('Article', 'khm-membership')) . $recipient
+                    ),
+                    'amount_display' => '-' . $this->format_price($price),
+                    'amount_class' => 'khm-credit-negative',
+                ];
+            }
+        }
+
         usort($transactions, function($a, $b) {
             return strtotime($b['date']) <=> strtotime($a['date']);
         });
@@ -311,6 +344,15 @@ class PortalCredits_Widget extends Widget_Base {
         if ($wpdb->get_var("SHOW TABLES LIKE '{$purchases_table}'") === $purchases_table) {
             $count = (int) $wpdb->get_var($wpdb->prepare(
                 "SELECT COUNT(*) FROM {$purchases_table} WHERE user_id = %d AND status = 'completed'",
+                $user_id
+            ));
+            $total += $count;
+        }
+
+        $gifts_table = $wpdb->prefix . 'khm_gifts';
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$gifts_table}'") === $gifts_table) {
+            $count = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$gifts_table} WHERE sender_id = %d AND status IN ('sent', 'redeemed')",
                 $user_id
             ));
             $total += $count;

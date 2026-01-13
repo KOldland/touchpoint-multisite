@@ -33,96 +33,51 @@ function kss_render_unified_modal() {
             </div>
             
             <div class="kss-modal-content">
-                <div class="kss-modal-section">
-                    <h4>Social Media</h4>
-                    <div class="kss-social-buttons">
-                        <button class="kss-share-btn kss-facebook" data-platform="facebook">
-                            <span class="kss-icon">📘</span> Facebook
-                        </button>
-                        <button class="kss-share-btn kss-twitter" data-platform="twitter">
-                            <span class="kss-icon">🐦</span> Twitter
-                        </button>
-                        <button class="kss-share-btn kss-linkedin" data-platform="linkedin">
-                            <span class="kss-icon">💼</span> LinkedIn
-                        </button>
-                        <button class="kss-share-btn kss-pinterest" data-platform="pinterest">
-                            <span class="kss-icon">📌</span> Pinterest
-                        </button>
-                    </div>
+                <div class="kss-share-tabs">
+                    <button class="kss-tab-btn is-active" type="button" data-tab="email">Email</button>
+                    <button class="kss-tab-btn" type="button" data-tab="linkedin">LinkedIn</button>
                 </div>
 
-                <div class="kss-modal-section">
-                    <h4>Direct Sharing</h4>
-                    <div class="kss-direct-share">
-                        <button class="kss-share-btn kss-email" data-platform="email">
-                            <span class="kss-icon">✉️</span> Email
-                        </button>
-                        <button class="kss-share-btn kss-copy-link" data-platform="copy">
-                            <span class="kss-icon">🔗</span> Copy Link
-                        </button>
-                        <button class="kss-share-btn kss-whatsapp" data-platform="whatsapp">
-                            <span class="kss-icon">💬</span> WhatsApp
-                        </button>
-                    </div>
-                </div>
-
-                <div class="kss-modal-section kss-gift-section" style="display: none;">
-                    <h4>Send as Gift</h4>
-                    <form class="kss-gift-form">
+                <div class="kss-tab-panel is-active" data-tab="email">
+                    <form class="kss-share-email-form">
                         <div class="kss-form-group">
-                            <label for="kss-gift-recipient-name">Recipient Name</label>
-                            <input type="text" id="kss-gift-recipient-name" name="recipient_name" required>
-                        </div>
-                        <div class="kss-form-group">
-                            <label for="kss-gift-recipient-email">Recipient Email</label>
-                            <input type="email" id="kss-gift-recipient-email" name="recipient_email" required>
-                        </div>
-                        <div class="kss-form-group">
-                            <label for="kss-gift-message">Personal Message</label>
-                            <textarea id="kss-gift-message" name="personal_message" rows="3" placeholder="Add a personal message..."></textarea>
-                        </div>
-                        <div class="kss-form-group kss-gift-options">
-                            <label>
-                                <input type="checkbox" name="include_pdf" checked> Include PDF download
-                            </label>
-                            <label>
-                                <input type="checkbox" name="save_to_library" checked> Save to recipient's library
-                            </label>
-                        </div>
-                        <button type="submit" class="kss-btn kss-btn-primary">Send Gift</button>
-                    </form>
-                </div>
-
-                <div class="kss-modal-section kss-preview-section" style="display: none;">
-                    <h4>Preview</h4>
-                    <div class="kss-preview-container">
-                        <div class="kss-preview-platform">
-                            <select class="kss-preview-selector">
-                                <option value="twitter">Twitter Preview</option>
-                                <option value="facebook">Facebook Preview</option>
-                                <option value="linkedin">LinkedIn Preview</option>
-                                <option value="pinterest">Pinterest Preview</option>
-                                <option value="whatsapp">WhatsApp Preview</option>
-                                <option value="email">Email Preview</option>
-                            </select>
-                        </div>
-                        <div class="kss-preview-content">
-                            <div class="kss-preview-text"></div>
-                            <div class="kss-preview-hashtags"></div>
-                            <div class="kss-preview-limits">
-                                <span class="kss-char-count">0</span> / <span class="kss-char-limit">280</span> characters
+                            <label for="kss-share-recipient-email">Recipient Email</label>
+                            <div class="kss-input-with-button">
+                                <input type="email" id="kss-share-recipient-email" name="recipient_email" required>
+                                <button type="button" class="kss-contact-btn" aria-label="Open contacts">
+                                    <span class="kss-contact-icon">👤</span>
+                                </button>
                             </div>
                         </div>
+                        <div class="kss-form-group">
+                            <label for="kss-share-message">Message</label>
+                            <textarea id="kss-share-message" name="message" rows="4"></textarea>
+                        </div>
+                        <button type="submit" class="kss-btn kss-btn-primary">Send Email</button>
+                    </form>
+
+                    <div class="kss-share-confirm" style="display: none;">
+                        <p class="kss-share-confirm-message"></p>
+                        <button type="button" class="kss-btn kss-btn-secondary kss-copy-share">Copy Message</button>
+                        <div class="kss-share-confirm-note"></div>
                     </div>
-                    <button class="kss-btn kss-preview-toggle" type="button">Show Preview</button>
                 </div>
 
-                <div class="kss-modal-section kss-url-section">
-                    <h4>Article URL</h4>
-                    <div class="kss-url-container">
-                        <input type="text" class="kss-article-url" readonly>
-                        <button class="kss-copy-url-btn" type="button">Copy</button>
+                <div class="kss-tab-panel" data-tab="linkedin">
+                    <div class="kss-linkedin-preview">
+                        <div class="kss-linkedin-thumb"></div>
+                        <div class="kss-linkedin-content">
+                            <div class="kss-linkedin-title"></div>
+                            <div class="kss-linkedin-excerpt"></div>
+                        </div>
                     </div>
+                    <div class="kss-form-group">
+                        <label for="kss-linkedin-message">Intro Text</label>
+                        <textarea id="kss-linkedin-message" rows="3">This is a really great read from Service Business Review - well worth a read!</textarea>
+                    </div>
+                    <button class="kss-share-btn kss-linkedin" data-platform="linkedin" type="button">
+                        Share on LinkedIn
+                    </button>
                 </div>
             </div>
 
@@ -205,6 +160,153 @@ function kss_render_unified_modal() {
         color: #333;
     }
 
+    .kss-share-tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .kss-tab-btn {
+        background: transparent;
+        border: none;
+        padding: 10px 14px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #777;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+    }
+
+    .kss-tab-btn.is-active {
+        color: #222;
+        border-color: #6d0b0b;
+    }
+
+    .kss-tab-panel {
+        display: none;
+    }
+
+    .kss-tab-panel.is-active {
+        display: block;
+    }
+
+    .kss-form-group {
+        margin-bottom: 16px;
+    }
+
+    .kss-form-group label {
+        display: block;
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 6px;
+        color: #333;
+    }
+
+    .kss-form-group input,
+    .kss-form-group textarea {
+        width: 100%;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 14px;
+        font-family: inherit;
+    }
+
+    .kss-input-with-button {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .kss-input-with-button input {
+        flex: 1;
+    }
+
+    .kss-contact-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        border: 1px solid #ddd;
+        background: #f8f6f3;
+        cursor: pointer;
+    }
+
+    .kss-contact-btn:hover {
+        background: #efedea;
+    }
+
+    .kss-contact-icon {
+        font-size: 18px;
+        line-height: 1;
+    }
+
+    .kss-contact-note {
+        font-size: 13px;
+        color: #888;
+        margin-bottom: 16px;
+    }
+
+    .kss-share-confirm {
+        margin-top: 16px;
+        padding: 14px;
+        border-radius: 8px;
+        background: #f8f6f3;
+        border: 1px solid #e5e5e5;
+    }
+
+    .kss-share-confirm-message {
+        margin: 0 0 10px;
+        font-weight: 600;
+    }
+
+    .kss-share-confirm-note {
+        margin-top: 10px;
+        font-size: 13px;
+        color: #2e7d32;
+        display: none;
+    }
+
+    .kss-share-confirm-note.is-visible {
+        display: block;
+    }
+
+    .kss-linkedin-preview {
+        border: 1px solid #e5e5e5;
+        border-radius: 8px;
+        padding: 14px;
+        margin-bottom: 16px;
+        background: #fafafa;
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    .kss-linkedin-thumb {
+        width: 72px;
+        height: 72px;
+        border-radius: 8px;
+        background: #e5e5e5 center/cover no-repeat;
+        flex-shrink: 0;
+    }
+
+    .kss-linkedin-content {
+        flex: 1;
+    }
+
+    .kss-linkedin-title {
+        font-weight: 600;
+        margin-bottom: 6px;
+    }
+
+    .kss-linkedin-excerpt {
+        color: #666;
+        font-size: 14px;
+    }
+
     .kss-social-buttons,
     .kss-direct-share {
         display: grid;
@@ -217,10 +319,10 @@ function kss_render_unified_modal() {
         align-items: center;
         gap: 8px;
         padding: 12px 16px;
-        border: 1px solid #ddd;
+        border: 1px solid #2e7d32;
         border-radius: 8px;
-        background: white;
-        color: #333;
+        background: #2e7d32;
+        color: #fff;
         text-decoration: none;
         cursor: pointer;
         transition: all 0.2s ease;
@@ -228,16 +330,15 @@ function kss_render_unified_modal() {
     }
 
     .kss-share-btn:hover {
-        background: #f8f9fa;
-        border-color: #007cba;
-        color: #007cba;
+        background: #1b5e20;
+        border-color: #1b5e20;
+        color: #fff;
     }
 
-    .kss-share-btn.kss-facebook:hover { background: #1877f2; color: white; }
-    .kss-share-btn.kss-twitter:hover { background: #1da1f2; color: white; }
-    .kss-share-btn.kss-linkedin:hover { background: #0077b5; color: white; }
-    .kss-share-btn.kss-pinterest:hover { background: #bd081c; color: white; }
-    .kss-share-btn.kss-whatsapp:hover { background: #25d366; color: white; }
+    #kss-unified-modal .kss-share-btn:hover {
+        transform: none !important;
+        box-shadow: none !important;
+    }
 
     .kss-form-group {
         margin-bottom: 16px;
@@ -273,9 +374,9 @@ function kss_render_unified_modal() {
 
     .kss-btn {
         padding: 10px 20px;
-        border: 1px solid #007cba;
+        border: 1px solid #2e7d32;
         border-radius: 4px;
-        background: #007cba;
+        background: #2e7d32;
         color: white;
         cursor: pointer;
         font-size: 14px;
@@ -283,7 +384,17 @@ function kss_render_unified_modal() {
     }
 
     .kss-btn:hover {
-        background: #005a87;
+        background: #1b5e20;
+    }
+
+    .kss-btn-secondary {
+        background: #f3f3f3;
+        border-color: #ddd;
+        color: #333;
+    }
+
+    .kss-btn-secondary:hover {
+        background: #e8e8e8;
     }
 
     .kss-url-container {
@@ -423,392 +534,151 @@ function kss_render_unified_modal() {
     <script>
     (function($) {
         'use strict';
-        
-        // Initialize modal functionality
+
         $(document).ready(function() {
             initUnifiedModal();
         });
-        
+
         function initUnifiedModal() {
             const $modal = $('#kss-unified-modal');
-            
-            // Close modal handlers
+
+            $(document).on('click', '.ssm-share-trigger', function(e) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                const $btn = $(this);
+                const data = {
+                    title: $btn.data('title') || '',
+                    url: $btn.data('url') || '',
+                    excerpt: $btn.data('excerpt') || '',
+                    featured_image: $btn.data('image') || '',
+                    post_id: $btn.data('post-id') || 0
+                };
+                openModal(data);
+            });
+
             $modal.find('.kss-modal-close').on('click', closeModal);
             $modal.on('click', function(e) {
                 if (e.target === this) {
                     closeModal();
                 }
             });
-            
-            // Share button handlers
+
+            $modal.find('.kss-tab-btn').on('click', function() {
+                const tab = $(this).data('tab');
+                $modal.find('.kss-tab-btn').removeClass('is-active');
+                $(this).addClass('is-active');
+                $modal.find('.kss-tab-panel').removeClass('is-active');
+                $modal.find(`.kss-tab-panel[data-tab="${tab}"]`).addClass('is-active');
+            });
+
             $modal.find('.kss-share-btn').on('click', function(e) {
                 e.preventDefault();
                 const platform = $(this).data('platform');
                 handleShare(platform);
             });
-            
-            // Copy link handler
-            $modal.find('.kss-copy-url-btn').on('click', function() {
-                const $urlInput = $modal.find('.kss-article-url');
-                $urlInput.select();
-                document.execCommand('copy');
-                
-                const $btn = $(this);
-                const originalText = $btn.text();
-                $btn.text('Copied!');
-                setTimeout(() => $btn.text(originalText), 2000);
-            });
-            
-            // Gift form handler
-            $modal.find('.kss-gift-form').on('submit', function(e) {
+
+            $modal.find('.kss-share-email-form').on('submit', function(e) {
                 e.preventDefault();
-                handleGiftSubmission($(this));
+                handleShareEmail($(this));
             });
-            
-            // Preview functionality handlers
-            $modal.find('.kss-preview-toggle').on('click', function() {
-                const $btn = $(this);
-                const $previewContainer = $modal.find('.kss-preview-container');
-                
-                if ($previewContainer.is(':visible')) {
-                    $previewContainer.slideUp();
-                    $btn.text('Show Preview').removeClass('active');
-                } else {
-                    $previewContainer.slideDown();
-                    $btn.text('Hide Preview').addClass('active');
-                    updatePreview();
+
+            $modal.on('click', '.kss-copy-share', function() {
+                const $confirm = $modal.find('.kss-share-confirm');
+                const copyText = $confirm.data('copyText') || '';
+                if (!copyText) {
+                    return;
                 }
-            });
-            
-            $modal.find('.kss-preview-selector').on('change', function() {
-                updatePreview();
+                navigator.clipboard.writeText(copyText).then(() => {
+                    $modal.find('.kss-share-confirm-note').text('Message copied to clipboard.').addClass('is-visible');
+                });
             });
         }
-        
+
         function openModal(data) {
             const $modal = $('#kss-unified-modal');
-            
-            // Populate modal with data
+
             $modal.find('.kss-article-title').text(data.title || '');
             $modal.find('.kss-article-excerpt').text(data.excerpt || '');
-            $modal.find('.kss-article-url').val(data.url || '');
-            
-            // Show/hide gift section based on KHM availability
-            if (data.khm_available && data.is_logged_in) {
-                $modal.find('.kss-gift-section').show();
-            } else {
-                $modal.find('.kss-gift-section').hide();
-            }
-            
-            // Show preview section and reset state
-            $modal.find('.kss-preview-section').show();
-            $modal.find('.kss-preview-container').hide();
-            $modal.find('.kss-preview-toggle').text('Show Preview').removeClass('active');
-            
-            // Store current data
+            $modal.find('.kss-linkedin-title').text(data.title || '');
+            $modal.find('.kss-linkedin-excerpt').text(data.excerpt || '');
+            const thumbUrl = data.featured_image || '';
+            $modal.find('.kss-linkedin-thumb').css('background-image', thumbUrl ? `url('${thumbUrl}')` : 'none');
+            $modal.find('#kss-linkedin-message').val('This is a really great read from Service Business Review - well worth a read!');
+            $modal.find('#kss-share-message').val(data.default_message || 'This is a really good piece of insight that I think you will find valuable.');
+            $modal.find('#kss-share-recipient-email').val('');
+            $modal.find('.kss-share-confirm').hide();
+            $modal.find('.kss-share-confirm-note').removeClass('is-visible').text('');
+            $modal.find('.kss-tab-btn').removeClass('is-active').first().addClass('is-active');
+            $modal.find('.kss-tab-panel').removeClass('is-active').first().addClass('is-active');
+
             $modal.data('current-article', data);
-            
-            // Show modal
             $modal.show();
         }
-        
+
         function closeModal() {
             $('#kss-unified-modal').hide();
         }
-        
+
         function handleShare(platform) {
             const $modal = $('#kss-unified-modal');
-            const data = $modal.data('current-article');
-            
-            if (!data) return;
-            
-            // Generate hashtags from categories and tags
-            const hashtags = generateHashtags(data.categories || [], data.tags || []);
-            
-            // Create platform-optimized content
-            const optimizedContent = createOptimizedContent(data, platform, hashtags);
-            
-            let shareUrl = '';
-            
-            switch (platform) {
-                case 'facebook':
-                    // Facebook doesn't use hashtags in URL, but supports rich content
-                    shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(data.url)}`;
-                    break;
-                case 'twitter':
-                    shareUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(data.url)}&text=${encodeURIComponent(optimizedContent.text)}`;
-                    break;
-                case 'linkedin':
-                    // LinkedIn supports title and summary
-                    const linkedinParams = {
-                        url: data.url,
-                        title: optimizedContent.title,
-                        summary: optimizedContent.text
-                    };
-                    shareUrl = `https://www.linkedin.com/sharing/share-offsite/?${new URLSearchParams(linkedinParams).toString()}`;
-                    break;
-                case 'pinterest':
-                    const pinterestParams = {
-                        url: data.url,
-                        description: optimizedContent.text,
-                        media: data.featured_image || ''
-                    };
-                    shareUrl = `https://pinterest.com/pin/create/button/?${new URLSearchParams(pinterestParams).toString()}`;
-                    break;
-                case 'whatsapp':
-                    shareUrl = `https://wa.me/?text=${encodeURIComponent(optimizedContent.text + ' ' + data.url)}`;
-                    break;
-                case 'email':
-                    const emailParams = {
-                        subject: optimizedContent.title,
-                        body: optimizedContent.text + '\n\n' + data.url + '\n\n' + hashtags.join(' ')
-                    };
-                    shareUrl = `mailto:?${new URLSearchParams(emailParams).toString()}`;
-                    break;
-                case 'copy':
-                    const copyText = optimizedContent.text + '\n' + data.url + '\n' + hashtags.join(' ');
-                    navigator.clipboard.writeText(copyText).then(() => {
-                        showMessage('Content copied to clipboard!');
-                    });
+            const data = $modal.data('current-article') || {};
+
+            if (window.kssEnhanced && typeof window.kssEnhanced.handleShare === 'function') {
+                if (platform === 'linkedin') {
+                    const intro = ($('#kss-linkedin-message').val() || '').trim();
+                    const originalExcerpt = data.excerpt || '';
+                    data.excerpt = intro ? `${intro}\n\n${originalExcerpt}` : originalExcerpt;
+                    $modal.data('current-article', data);
+                    window.kssEnhanced.handleShare(platform);
+                    data.excerpt = originalExcerpt;
+                    $modal.data('current-article', data);
                     return;
-            }
-            
-            if (shareUrl) {
-                window.open(shareUrl, '_blank', 'width=600,height=400');
-            }
-        }
-        
-        /**
-         * Generate hashtags from categories and tags
-         */
-        function generateHashtags(categories, tags) {
-            const hashtags = [];
-            
-            // Convert categories to hashtags
-            categories.forEach(category => {
-                const hashtag = '#' + category.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-                if (hashtag.length > 2 && hashtags.length < 5) {
-                    hashtags.push(hashtag);
                 }
-            });
-            
-            // Add tags as hashtags if we have room
-            tags.forEach(tag => {
-                const hashtag = '#' + tag.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-                if (hashtag.length > 2 && hashtags.length < 8 && !hashtags.includes(hashtag)) {
-                    hashtags.push(hashtag);
-                }
-            });
-            
-            return hashtags;
-        }
-        
-        /**
-         * Create platform-optimized content with character limits
-         */
-        function createOptimizedContent(data, platform, hashtags) {
-            const platformLimits = {
-                twitter: { total: 280, url: 23 }, // Twitter auto-shortens URLs to 23 chars
-                linkedin: { title: 200, summary: 256 },
-                pinterest: { description: 500 },
-                whatsapp: { message: 1600 },
-                email: { subject: 78, body: 2000 },
-                facebook: { post: 63206 } // Very high limit
-            };
-            
-            const limits = platformLimits[platform] || { total: 1000 };
-            const hashtagText = hashtags.length > 0 ? ' ' + hashtags.join(' ') : '';
-            
-            let title = data.title;
-            let text = data.excerpt;
-            
-            switch (platform) {
-                case 'twitter':
-                    // Twitter: Optimize for 280 chars including URL and hashtags
-                    const availableChars = limits.total - limits.url - hashtagText.length - 2; // 2 for spaces
-                    if (title.length > availableChars) {
-                        title = title.substring(0, availableChars - 3) + '...';
-                    }
-                    text = title + hashtagText;
-                    break;
-                    
-                case 'linkedin':
-                    // LinkedIn: Professional tone with limited character counts
-                    if (title.length > limits.title) {
-                        title = title.substring(0, limits.title - 3) + '...';
-                    }
-                    if (text.length + hashtagText.length > limits.summary) {
-                        const availableChars = limits.summary - hashtagText.length;
-                        text = text.substring(0, availableChars - 3) + '...';
-                    }
-                    text = text + hashtagText;
-                    break;
-                    
-                case 'pinterest':
-                    // Pinterest: Description-focused with hashtags
-                    const combinedText = `${title} - ${text}${hashtagText}`;
-                    if (combinedText.length > limits.description) {
-                        const availableChars = limits.description - hashtagText.length - title.length - 3;
-                        text = text.substring(0, availableChars - 3) + '...';
-                    }
-                    text = `${title} - ${text}${hashtagText}`;
-                    break;
-                    
-                case 'whatsapp':
-                    // WhatsApp: Casual tone, emojis work well
-                    text = `📰 ${title}\n\n${text}${hashtagText}`;
-                    if (text.length > limits.message) {
-                        const availableChars = limits.message - hashtagText.length - title.length - 10;
-                        const shortExcerpt = data.excerpt.substring(0, availableChars - 3) + '...';
-                        text = `📰 ${title}\n\n${shortExcerpt}${hashtagText}`;
-                    }
-                    break;
-                    
-                case 'email':
-                    // Email: Formal subject line, detailed body
-                    if (title.length > limits.subject) {
-                        title = title.substring(0, limits.subject - 3) + '...';
-                    }
-                    text = `I thought you might be interested in this article:\n\n${data.excerpt}`;
-                    if (text.length > limits.body) {
-                        text = text.substring(0, limits.body - 3) + '...';
-                    }
-                    break;
-                    
-                case 'facebook':
-                    // Facebook: Engaging tone with hashtags
-                    text = `${title}\n\n${text}${hashtagText}`;
-                    break;
-                    
-                default:
-                    text = `${title}\n\n${text}${hashtagText}`;
-            }
-            
-            return {
-                title: title,
-                text: text,
-                hashtags: hashtags
-            };
-        }
-        
-        /**
-         * Update preview content based on selected platform
-         */
-        function updatePreview() {
-            const $modal = $('#kss-unified-modal');
-            const data = $modal.data('current-article');
-            const platform = $modal.find('.kss-preview-selector').val();
-            
-            if (!data || !platform) return;
-            
-            // Generate hashtags and optimized content
-            const hashtags = generateHashtags(data.categories || [], data.tags || []);
-            const optimizedContent = createOptimizedContent(data, platform, hashtags);
-            
-            // Update preview display
-            $modal.find('.kss-preview-text').text(optimizedContent.text);
-            $modal.find('.kss-preview-hashtags').text(optimizedContent.hashtags.join(' '));
-            
-            // Update character count
-            const totalLength = optimizedContent.text.length;
-            const platformLimits = {
-                twitter: 280,
-                linkedin: 256,
-                pinterest: 500,
-                whatsapp: 1600,
-                email: 2000,
-                facebook: 63206
-            };
-            
-            const limit = platformLimits[platform] || 1000;
-            const $charCount = $modal.find('.kss-char-count');
-            const $charLimit = $modal.find('.kss-char-limit');
-            
-            $charCount.text(totalLength);
-            $charLimit.text(limit);
-            
-            // Add over-limit styling if needed
-            if (totalLength > limit) {
-                $charCount.addClass('over-limit');
-            } else {
-                $charCount.removeClass('over-limit');
+                window.kssEnhanced.handleShare(platform);
             }
         }
-        
-        function handleGiftSubmission($form) {
+
+        function handleShareEmail($form) {
             const $modal = $('#kss-unified-modal');
-            const data = $modal.data('current-article');
-            
-            if (!data || !data.post_id) {
-                showMessage('Error: No article selected', 'error');
+            const data = $modal.data('current-article') || {};
+            const recipient = ($form.find('#kss-share-recipient-email').val() || '').trim();
+            const message = ($form.find('#kss-share-message').val() || '').trim();
+
+            if (!recipient || !message) {
                 return;
             }
-            
-            const formData = new FormData($form[0]);
-            formData.append('action', 'kss_send_gift');
-            formData.append('post_id', data.post_id);
-            formData.append('nonce', window.khm_ajax?.nonce || '');
-            
-            // Show loading
-            const $submitBtn = $form.find('[type="submit"]');
-            const originalText = $submitBtn.text();
-            $submitBtn.text('Sending...').prop('disabled', true);
-            
+
+            $form.find('button[type="submit"]').prop('disabled', true).text('Sending...');
+
             $.ajax({
-                url: window.khm_ajax?.ajax_url || '/wp-admin/admin-ajax.php',
-                type: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-                success: function(response) {
-                    if (response.success) {
-                        showMessage('Gift sent successfully!', 'success');
-                        $form[0].reset();
-                        setTimeout(closeModal, 2000);
-                    } else {
-                        showMessage(response.data?.message || 'Failed to send gift', 'error');
-                    }
-                },
-                error: function() {
-                    showMessage('Network error. Please try again.', 'error');
-                },
-                complete: function() {
-                    $submitBtn.text(originalText).prop('disabled', false);
+                url: (window.kssKhm && kssKhm.ajaxUrl) ? kssKhm.ajaxUrl : '',
+                method: 'POST',
+                data: {
+                    action: 'kss_send_share_email',
+                    nonce: (window.kssKhm && kssKhm.nonce) ? kssKhm.nonce : '',
+                    post_id: data.post_id || data.id || 0,
+                    recipient_email: recipient,
+                    message: message
                 }
+            }).done(function(response) {
+                if (!response || !response.success) {
+                    alert(response?.data || 'Unable to send email.');
+                    return;
+                }
+
+                const url = data.url || '';
+                const copyText = `${message}
+
+${url}`;
+                $modal.find('.kss-share-confirm-message').text(`Email sent to ${recipient}.`);
+                $modal.find('.kss-share-confirm').data('copyText', copyText).show();
+            }).fail(function() {
+                alert('Unable to send email.');
+            }).always(function() {
+                $form.find('button[type="submit"]').prop('disabled', false).text('Send Email');
             });
         }
-        
-        function showMessage(message, type = 'info') {
-            // Simple message display - you can enhance this
-            console.log(`${type.toUpperCase()}: ${message}`);
-            
-            // Create a simple notification
-            const $notification = $('<div>', {
-                class: `kss-notification kss-${type}`,
-                text: message,
-                css: {
-                    position: 'fixed',
-                    top: '20px',
-                    right: '20px',
-                    padding: '12px 20px',
-                    background: type === 'error' ? '#dc3545' : '#28a745',
-                    color: 'white',
-                    borderRadius: '4px',
-                    zIndex: '10001',
-                    fontSize: '14px'
-                }
-            });
-            
-            $('body').append($notification);
-            
-            setTimeout(() => {
-                $notification.fadeOut(() => $notification.remove());
-            }, 4000);
-        }
-        
-        // Expose global function for other scripts
-        window.kssOpenModal = openModal;
-        
+
     })(jQuery);
     </script>
     <?php

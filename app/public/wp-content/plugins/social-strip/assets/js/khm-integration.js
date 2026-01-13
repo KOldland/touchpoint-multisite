@@ -13,6 +13,7 @@
     
     function initKHMIntegration() {
         refreshStripStatus();
+        window.kssRefreshStripStatus = refreshStripStatus;
 
         // Download with Credits functionality
         $(document).off('click.kssDownload', '.kss-download-credit');
@@ -531,7 +532,12 @@
         // Remove existing notification
         $('.kss-save-notification').remove();
         
-        const iconClass = type === 'success' ? '✓' : '✕';
+        let iconClass = 'i';
+        if (type === 'success') {
+            iconClass = '✓';
+        } else if (type === 'error') {
+            iconClass = '✕';
+        }
         
         const notificationHtml = `
             <div class="kss-save-notification kss-notification-${type}">
@@ -705,229 +711,476 @@
         });
     }
     
-    /**
-     * Handle gift article
-     */
-    function handleGiftArticle($button) {
-        const postId = $button.data('post-id');
-        
-        if (!postId) {
-            showMessage('Error: Invalid article ID', 'error');
-            return;
-        }
-        
-        // Open gift modal
-        openGiftModal(postId);
-    }
+    const GiftModal = {
+        stripe: null,
+        elements: null,
+        paymentElement: null,
+        clientSecret: null,
+        data: null,
+        recipients: [],
+        intentCount: 0,
 
-    /**
-     * Open gift modal with article data
-     */
-    function openGiftModal(postId) {
-        // Show loading state
-        showMessage('Loading gift options...', 'info');
-        
-        // Get gift data from server
-        $.ajax({
-            url: khm_ajax.ajax_url,
-            type: 'POST',
-            data: {
-                action: 'kss_get_gift_data',
-                post_id: postId,
-                nonce: khm_ajax.nonce
-            },
-            success: function(response) {
-                if (response.success) {
-                    // Create and show gift modal
-                    createGiftModal(response.data);
-                } else {
-                    showMessage(response.data.error || 'Failed to load gift options', 'error');
-                }
-            },
-            error: function() {
-                showMessage('Network error. Please try again.', 'error');
+        init: function(postId) {
+            if (!postId) {
+                showMessage('Error: Invalid article ID', 'error');
+                return;
             }
-        });
-    }
 
-    /**
-     * Create and display gift modal
-     */
-    function createGiftModal(data) {
-        // Remove existing modal
-        $('#kss-gift-modal').remove();
-        
-        // Create modal HTML
-        const modalHtml = `
-            <div id="kss-gift-modal" class="kss-modal">
-                <div class="kss-modal-content">
-                    <div class="kss-modal-header">
-                        <h2>Send Article as Gift</h2>
-                        <span class="kss-modal-close">&times;</span>
-                    </div>
-                    <div class="kss-modal-body">
-                        <div class="gift-article-info">
-                            <h3>${data.post.title}</h3>
-                            <p class="article-excerpt">${data.post.excerpt}</p>
-                            <div class="gift-price">
-                                Gift Price: <strong>${data.pricing.currency}${data.pricing.member_price.toFixed(2)}</strong>
-                                ${data.pricing.discount_percent > 0 ? `<small>(${data.pricing.discount_percent}% member discount applied)</small>` : ''}
-                            </div>
+            if (typeof Stripe === 'undefined' || !khm_ajax.stripe_key) {
+                showMessage('Payment system unavailable. Please refresh and try again.', 'error');
+                return;
+            }
+
+            this.stripe = this.stripe || Stripe(khm_ajax.stripe_key);
+            this.loadGiftData(postId);
+        },
+
+        loadGiftData: function(postId) {
+            showMessage('Loading gift options...', 'info');
+            $.ajax({
+                url: khm_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'kss_get_gift_data',
+                    post_id: postId,
+                    nonce: khm_ajax.nonce
+                },
+                success: (response) => {
+                    if (response.success) {
+                        this.data = response.data;
+                        this.recipients = [];
+                        this.clientSecret = null;
+                        this.intentCount = 0;
+                        this.renderModal();
+                    } else {
+                        showMessage(response.data.error || 'Failed to load gift options', 'error');
+                    }
+                },
+                error: () => {
+                    showMessage('Network error. Please try again.', 'error');
+                }
+            });
+        },
+
+        renderModal: function() {
+            $('#kss-gift-modal').remove();
+
+            const modalHtml = `
+                <div id="kss-gift-modal" class="kss-modal">
+                    <div class="kss-modal-content kss-gift-modal">
+                        <div class="kss-modal-header">
+                            <h2>Send Article as Gift</h2>
+                            <span class="kss-modal-close">&times;</span>
                         </div>
-                        
-                        <form id="gift-form">
-                            <div class="form-group">
-                                <label for="recipient-name">Recipient Name *</label>
-                                <input type="text" id="recipient-name" name="recipient_name" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="recipient-email">Recipient Email *</label>
-                                <input type="email" id="recipient-email" name="recipient_email" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="sender-name">Your Name *</label>
-                                <input type="text" id="sender-name" name="sender_name" value="${data.sender.name}" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="gift-message">Personal Message</label>
-                                <textarea id="gift-message" name="gift_message" rows="4" placeholder="Add a personal message (optional)"></textarea>
-                                
-                                <div class="message-templates">
-                                    <label>Quick Templates:</label>
-                                    <div class="template-buttons">
-                                        <button type="button" class="template-btn" data-template="birthday">Birthday</button>
-                                        <button type="button" class="template-btn" data-template="holiday">Holiday</button>
-                                        <button type="button" class="template-btn" data-template="thank_you">Thank You</button>
-                                        <button type="button" class="template-btn" data-template="thinking_of_you">Thinking of You</button>
-                                        <button type="button" class="template-btn" data-template="professional">Professional</button>
+                        <div class="kss-modal-body">
+                            <div class="kss-gift-summary">
+                                <div class="kss-gift-article">
+                                    <div class="kss-gift-thumb ${this.data.post.image_url ? 'has-image' : 'is-empty'}" style="${this.data.post.image_url ? `background-image: url('${this.data.post.image_url}')` : ''}"></div>
+                                    <div class="kss-gift-title-wrap">
+                                        <h3>${this.data.post.title}</h3>
+                                        <div class="kss-gift-price">Price per recipient: <strong>${this.data.pricing.currency}${this.data.pricing.member_price.toFixed(2)}</strong></div>
                                     </div>
                                 </div>
                             </div>
-                            
-                            <div class="form-group">
-                                <label for="payment-method">Payment Method</label>
-                                <select id="payment-method" name="payment_method">
-                                    <option value="stripe">Credit Card</option>
-                                    <option value="paypal">PayPal</option>
-                                </select>
+
+                            <div class="kss-gift-note">
+                                Purchase this article for permanent access online and unlimited PDF downloads.
                             </div>
-                            
-                            <div class="form-actions">
-                                <button type="submit" class="btn-send-gift">Send Gift</button>
-                            </div>
-                        </form>
+
+                            <form id="kss-gift-form" class="kss-gift-form">
+                                <div class="kss-gift-field">
+                                    <label for="kss-gift-message">Message</label>
+                                    <textarea id="kss-gift-message" rows="3">${this.data.default_message}</textarea>
+                                </div>
+
+                                <div class="kss-gift-field">
+                                    <label for="kss-gift-sender">Sender Name</label>
+                                    <input type="text" id="kss-gift-sender" value="${this.data.sender.name}" required>
+                                </div>
+
+                                <div class="kss-gift-field kss-gift-email-row">
+                                    <label for="kss-gift-email">Recipient Email</label>
+                                    <div class="kss-gift-email-input">
+                                        <input type="email" id="kss-gift-email" placeholder="Enter an email address">
+                                        <button type="button" class="kss-gift-add-email" aria-label="Add email">+</button>
+                                    </div>
+                                    <div class="kss-gift-helper">Each email added costs ${this.data.pricing.currency}${this.data.pricing.member_price.toFixed(2)}.</div>
+                                </div>
+
+                                <div class="kss-gift-recipient-list"></div>
+
+                                <div class="kss-gift-total">
+                                    <span>Total</span>
+                                    <strong>${this.data.pricing.currency}0.00</strong>
+                                </div>
+
+                                <div class="kss-gift-payment">
+                                    <h4>Payment Information</h4>
+                                    <div id="kss-gift-payment-element"></div>
+                                    <div id="kss-gift-errors" class="kss-gift-errors"></div>
+                                    <div class="kss-modal-actions">
+                                        <button type="submit" class="btn-send-gift" disabled>Send Gift</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
-        
-        // Add modal to page
-        $('body').append(modalHtml);
-        
-        // Store template messages for quick access
-        window.giftTemplates = data.templates;
-        
-        // Bind modal events
-        bindGiftModalEvents(data);
-        
-        // Show modal
-        $('#kss-gift-modal').fadeIn();
-    }
+            `;
 
-    /**
-     * Bind events for gift modal
-     */
-    function bindGiftModalEvents(data) {
-        const $modal = $('#kss-gift-modal');
-        
-        // Close modal
-        $modal.on('click', '.kss-modal-close', function() {
-            closeGiftModal();
-        });
-        
-        // Close on outside click
-        $modal.on('click', function(e) {
-            if (e.target === this) {
-                closeGiftModal();
-            }
-        });
-        
-        // Template buttons
-        $modal.on('click', '.template-btn', function() {
-            const template = $(this).data('template');
-            if (window.giftTemplates && window.giftTemplates[template]) {
-                $('#gift-message').val(window.giftTemplates[template]);
-            }
-        });
-        
-        // Form submission
-        $modal.on('submit', '#gift-form', function(e) {
-            e.preventDefault();
-            sendGift(data);
-        });
-    }
+            $('body').append(modalHtml);
+            this.bindModalEvents();
+            this.renderRecipients();
+            this.updateTotals();
+            $('#kss-gift-modal').fadeIn();
+        },
 
-    /**
-     * Send gift via AJAX
-     */
-    function sendGift(data) {
-        const $form = $('#gift-form');
-        const $submitBtn = $form.find('.btn-send-gift');
-        
-        // Validate form
-        if (!$form[0].checkValidity()) {
-            $form[0].reportValidity();
-            return;
-        }
-        
-        // Set loading state
-        $submitBtn.prop('disabled', true).text('Sending Gift...');
-        
-        // Prepare form data
-        const formData = {
-            action: 'kss_send_gift',
-            post_id: data.post.id,
-            recipient_name: $('#recipient-name').val(),
-            recipient_email: $('#recipient-email').val(),
-            sender_name: $('#sender-name').val(),
-            gift_message: $('#gift-message').val(),
-            payment_method: $('#payment-method').val(),
-            gift_price: data.pricing.original_price,
-            nonce: khm_ajax.nonce
-        };
-        
-        // Send AJAX request
-        $.ajax({
-            url: khm_ajax.ajax_url,
-            type: 'POST',
-            data: formData,
-            success: function(response) {
-                $submitBtn.prop('disabled', false).text('Send Gift');
-                
-                if (response.success) {
-                    showMessage('Gift sent successfully! The recipient will receive an email shortly.', 'success');
-                    closeGiftModal();
-                } else {
-                    showMessage(response.data.error || 'Failed to send gift', 'error');
+        bindModalEvents: function() {
+            const $modal = $('#kss-gift-modal');
+
+            $modal.on('click', '.kss-modal-close', () => this.closeModal());
+            $modal.on('click', (e) => {
+                if (e.target === $modal[0]) {
+                    this.closeModal();
                 }
-            },
-            error: function() {
-                $submitBtn.prop('disabled', false).text('Send Gift');
-                showMessage('Network error. Please try again.', 'error');
-            }
-        });
-    }
+            });
 
-    /**
-     * Close gift modal
-     */
-    function closeGiftModal() {
-        $('#kss-gift-modal').fadeOut(function() {
-            $(this).remove();
-        });
+            $modal.on('click', '.kss-gift-add-email', () => this.addRecipient());
+            $modal.on('keypress', '#kss-gift-email', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.addRecipient();
+                }
+            });
+            $modal.on('click', '.kss-gift-remove', (e) => {
+                const email = $(e.currentTarget).data('email');
+                this.recipients = this.recipients.filter(item => item !== email);
+                this.renderRecipients();
+                this.updateTotals();
+            });
+
+            $modal.on('submit', '#kss-gift-form', async (e) => {
+                e.preventDefault();
+                await this.submitGift();
+            });
+        },
+
+        addRecipient: function() {
+            const $input = $('#kss-gift-email');
+            const email = ($input.val() || '').trim().toLowerCase();
+            if (!email) {
+                this.showGiftError('Please enter an email address.');
+                return;
+            }
+            if (!this.isValidEmail(email)) {
+                this.showGiftError('Please enter a valid email address.');
+                return;
+            }
+            if (this.recipients.includes(email)) {
+                this.showGiftError('That email is already in the list.');
+                return;
+            }
+            this.recipients.push(email);
+            $input.val('');
+            this.renderRecipients();
+            this.updateTotals();
+        },
+
+        renderRecipients: function() {
+            const $list = $('.kss-gift-recipient-list');
+            if (!this.recipients.length) {
+                $list.html('<div class="kss-gift-empty">No recipients added yet.</div>');
+                return;
+            }
+
+            const items = this.recipients.map(email => `
+                <div class="kss-gift-recipient">
+                    <span>${email}</span>
+                    <button type="button" class="kss-gift-remove" data-email="${email}" aria-label="Remove ${email}">&times;</button>
+                </div>
+            `).join('');
+            $list.html(items);
+        },
+
+        updateTotals: function() {
+            const total = this.recipients.length * this.data.pricing.member_price;
+            $('.kss-gift-total strong').text(`${this.data.pricing.currency}${total.toFixed(2)}`);
+
+            if (!this.recipients.length) {
+                this.disableSubmit();
+                this.showGiftError('');
+                return;
+            }
+
+            this.createPaymentIntent();
+        },
+
+        async createPaymentIntent() {
+            if (!this.data) {
+                return;
+            }
+
+            const count = this.recipients.length;
+            if (!count) {
+                return;
+            }
+
+            this.intentCount += 1;
+            const intentRequestId = this.intentCount;
+            this.showGiftError('');
+
+            $.ajax({
+                url: khm_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'kss_create_gift_intent',
+                    post_id: this.data.post.id,
+                    recipient_count: count,
+                    nonce: khm_ajax.nonce
+                },
+                success: (response) => {
+                    if (intentRequestId !== this.intentCount) {
+                        return;
+                    }
+                    if (response.success && response.data && response.data.client_secret) {
+                        this.clientSecret = response.data.client_secret;
+                        this.setupStripeElements();
+                    } else {
+                        this.showGiftError(response.data?.error || 'Unable to prepare payment.');
+                    }
+                },
+                error: () => {
+                    if (intentRequestId !== this.intentCount) {
+                        return;
+                    }
+                    this.showGiftError('Unable to prepare payment. Please refresh and try again.');
+                }
+            });
+        },
+
+        setupStripeElements: function() {
+            if (!this.clientSecret) {
+                return;
+            }
+
+            if (this.paymentElement) {
+                this.paymentElement.unmount();
+                this.paymentElement = null;
+            }
+
+            this.elements = this.stripe.elements({ clientSecret: this.clientSecret });
+            this.paymentElement = this.elements.create('payment', {
+                layout: 'tabs',
+                paymentMethodOrder: ['card']
+            });
+            this.paymentElement.mount('#kss-gift-payment-element');
+
+            this.enableSubmit();
+        },
+
+        disableSubmit: function(reason) {
+            const $btn = $('#kss-gift-form .btn-send-gift');
+            $btn.prop('disabled', true);
+            if (reason) {
+                this.showGiftError(reason);
+            }
+        },
+
+        enableSubmit: function() {
+            $('#kss-gift-form .btn-send-gift').prop('disabled', false);
+        },
+
+        showGiftError: function(message) {
+            const $error = $('#kss-gift-errors');
+            if (!$error.length) {
+                return;
+            }
+            if (!message) {
+                $error.text('').hide();
+                return;
+            }
+            $error.text(message).show();
+        },
+
+        async submitGift() {
+            if (!this.recipients.length) {
+                this.showGiftError('Please add at least one recipient.');
+                return;
+            }
+
+            const senderName = ($('#kss-gift-sender').val() || '').trim();
+            if (!senderName) {
+                this.showGiftError('Please enter the sender name.');
+                return;
+            }
+
+            if (!this.clientSecret || !this.paymentElement) {
+                this.showGiftError('Payment details are not ready yet.');
+                return;
+            }
+
+            const $btn = $('#kss-gift-form .btn-send-gift');
+            $btn.prop('disabled', true).text('Processing...');
+
+            const { error, paymentIntent } = await this.stripe.confirmPayment({
+                elements: this.elements,
+                confirmParams: {
+                    payment_method_data: {
+                        billing_details: {
+                            name: senderName
+                        }
+                    }
+                },
+                redirect: 'if_required'
+            });
+
+            if (error) {
+                this.showGiftError(error.message || 'Payment failed. Please try again.');
+                $btn.prop('disabled', false).text('Send Gift');
+                return;
+            }
+
+            if (!paymentIntent || paymentIntent.status !== 'succeeded') {
+                this.showGiftError('Payment could not be confirmed.');
+                $btn.prop('disabled', false).text('Send Gift');
+                return;
+            }
+
+            this.finalizeGift(paymentIntent.id, senderName, $btn);
+        },
+
+        finalizeGift: function(intentId, senderName, $btn) {
+            $.ajax({
+                url: khm_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'kss_finalize_gift',
+                    post_id: this.data.post.id,
+                    payment_intent_id: intentId,
+                    recipients: this.recipients,
+                    gift_message: $('#kss-gift-message').val(),
+                    sender_name: senderName,
+                    nonce: khm_ajax.nonce
+                },
+                success: (response) => {
+                    if (response.success) {
+                        this.closeModal();
+                        this.showGiftSuccess(response.data || {});
+                    } else {
+                        this.showGiftError(response.data?.error || 'Failed to send gift.');
+                        $btn.prop('disabled', false).text('Send Gift');
+                    }
+                },
+                error: () => {
+                    this.showGiftError('Network error. Please try again.');
+                    $btn.prop('disabled', false).text('Send Gift');
+                }
+            });
+        },
+
+        closeModal: function() {
+            $('#kss-gift-modal').fadeOut(function() {
+                $(this).remove();
+            });
+        },
+
+        showGiftSuccess: function(data) {
+            $('#kss-gift-success').remove();
+
+            const gifts = Array.isArray(data.gifts) ? data.gifts : [];
+            const message = data.message || 'Gift sent successfully! The recipient will receive an email shortly.';
+
+            const rows = gifts.map((gift) => `
+                <tr>
+                    <td>${gift.email || ''}</td>
+                    <td><code>${gift.token || ''}</code></td>
+                </tr>
+            `).join('');
+
+            const modalHtml = `
+                <div id="kss-gift-success" class="kss-modal">
+                    <div class="kss-modal-content kss-gift-confirm">
+                        <div class="kss-modal-header">
+                            <h2>Gift Sent</h2>
+                            <span class="kss-modal-close">&times;</span>
+                        </div>
+                        <div class="kss-modal-body">
+                            <p class="kss-gift-confirm-message">${message}</p>
+                            <div class="kss-gift-confirm-table">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Recipient</th>
+                                            <th>Voucher Code</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${rows || '<tr><td colspan="2">No recipients found.</td></tr>'}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="kss-gift-confirm-note" id="kss-gift-confirm-note"></div>
+                            <div class="kss-modal-actions">
+                                <button type="button" class="kss-copy-gift btn-send-gift">Copy Details</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            $('body').append(modalHtml);
+
+            const $modal = $('#kss-gift-success');
+            $modal.fadeIn();
+
+            $modal.on('click', '.kss-modal-close', () => {
+                $modal.fadeOut(function() {
+                    $(this).remove();
+                });
+            });
+
+            $modal.on('click', (e) => {
+                if (e.target === $modal[0]) {
+                    $modal.fadeOut(function() {
+                        $(this).remove();
+                    });
+                }
+            });
+
+            $modal.on('click', '.kss-copy-gift', () => {
+                const lines = gifts.map((gift) => `${gift.email || ''} - ${gift.token || ''}`);
+                const text = `${message}\n\n${lines.join('\n')}`;
+                this.copyToClipboard(text);
+                $('#kss-gift-confirm-note').text('Gift details copied to clipboard.').addClass('is-visible');
+            });
+        },
+
+        copyToClipboard: function(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text);
+                return;
+            }
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.top = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+            } catch (err) {
+                // ignore
+            }
+            document.body.removeChild(textarea);
+        },
+
+        isValidEmail: function(email) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        }
+    };
+
+    function handleGiftArticle($button) {
+        GiftModal.init($button.data('post-id'));
     }
 
     /**
@@ -1026,23 +1279,7 @@
      * Show user message
      */
     function showMessage(message, type) {
-        type = type || 'info';
-        
-        // Remove existing messages
-        $('.kss-message').remove();
-        
-        // Create message element
-        const $message = $('<div class="kss-message kss-message-' + type + '">' + message + '</div>');
-        
-        // Add to page
-        $('body').prepend($message);
-        
-        // Auto-hide after 3 seconds
-        setTimeout(function() {
-            $message.fadeOut(function() {
-                $(this).remove();
-            });
-        }, 3000);
+        showSaveFlashNotification(message, type || 'info');
     }
     
     /**

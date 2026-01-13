@@ -915,7 +915,13 @@
         grid-template-columns: 1fr;
     }
 
-    .khm-balance-value {
-        font-size: 2.5rem;
-    }
+.khm-balance-value {
+    font-size: 2.5rem;
+}
+}
+
+.khm-modal-actions .btn-cancel,
+.tp-modal-actions .btn-cancel,
+.tp-modal-actions .tp-btn-cancel {
+    display: none;
 }

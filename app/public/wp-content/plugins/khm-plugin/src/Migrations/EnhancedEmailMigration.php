@@ -261,8 +261,8 @@ class EnhancedEmailMigration {
         .header { background: #f8f9fa; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
         .content { background: white; padding: 30px; border: 1px solid #dee2e6; }
         .footer { background: #f8f9fa; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; font-size: 14px; color: #6c757d; }
-        .btn { display: inline-block; padding: 12px 24px; background: #007cba; color: white; text-decoration: none; border-radius: 4px; margin: 20px 0; }
-        .gift-message { background: #f1f3f4; padding: 20px; border-left: 4px solid #007cba; margin: 20px 0; font-style: italic; }
+        .btn { display: inline-block; padding: 12px 24px; background: #2e7d32; color: white; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .gift-message { background: #f1f3f4; padding: 20px; border-left: 4px solid #2e7d32; margin: 20px 0; font-style: italic; }
     </style>
 </head>
 <body>
@@ -287,6 +287,19 @@ class EnhancedEmailMigration {
         
         <div style="text-align: center;">
             <a href="!!redemption_url!!" class="btn">Redeem Your Gift</a>
+        </div>
+
+        <div style="background: #f5f7f9; padding: 16px; border-radius: 8px; border: 1px solid #e3e7ec; margin: 20px 0;">
+            <p style="margin: 0 0 8px; font-weight: 600;">Redeem in your member dashboard</p>
+            <p style="margin: 0 0 10px; font-size: 14px;">
+                Create a free account, then paste this voucher code into the "Redeem Gift Voucher" box.
+            </p>
+            <div style="font-size: 16px; font-weight: 700; letter-spacing: 0.5px; background: #ffffff; border: 1px dashed #cbd5e1; padding: 10px 12px; border-radius: 6px; text-align: center;">
+                !!redemption_code!!
+            </div>
+            <p style="margin: 10px 0 0; font-size: 13px;">
+                Dashboard: <a href="!!dashboard_url!!">!!dashboard_url!!</a>
+            </p>
         </div>
         
         <p><small>This gift will expire on !!expiry_date!!. Make sure to redeem it before then!</small></p>

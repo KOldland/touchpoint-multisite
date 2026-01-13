@@ -217,12 +217,16 @@ class GiftService {
                 'recipient_name' => $gift->recipient_name,
                 'sender_name' => $gift->sender_name,
                 'post_title' => $post->post_title,
+                'article_title' => $post->post_title,
                 'post_excerpt' => get_the_excerpt($post),
                 'gift_message_section' => !empty($gift->gift_message) 
                     ? '<div style="background: #e8f4f8; padding: 15px; border-radius: 6px; margin: 20px 0;"><p style="margin: 0; font-style: italic; color: #495057;">"' . esc_html($gift->gift_message) . '"</p><p style="margin: 10px 0 0 0; font-size: 14px; color: #6c757d;">— ' . esc_html($gift->sender_name) . '</p></div>'
                     : '',
                 'redemption_url' => $redemption_url,
+                'redemption_code' => $gift->redemption_token,
                 'expires_at' => date('F j, Y', strtotime($gift->expires_at)),
+                'expiry_date' => date('F j, Y', strtotime($gift->expires_at)),
+                'dashboard_url' => home_url('/members-portal/'),
                 'site_name' => get_bloginfo('name'),
                 'site_url' => home_url()
             ];
@@ -343,6 +347,7 @@ class GiftService {
                 $library_result = $this->save_gift_to_library($gift->post_id, $user_id);
                 if ($library_result['success']) {
                     $response['saved_to_library'] = true;
+                    $this->record_gift_purchase($gift, $user_id, $redemption_type);
                 } else {
                     $response['library_error'] = $library_result['error'];
                 }
@@ -483,6 +488,54 @@ class GiftService {
             'success' => false,
             'error' => 'Library service not available'
         ];
+    }
+
+    /**
+     * Record a completed purchase entry for gift redemptions.
+     */
+    private function record_gift_purchase(object $gift, int $user_id, string $redemption_type): void {
+        global $wpdb;
+
+        $purchases_table = $wpdb->prefix . 'khm_purchases';
+        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $purchases_table)) !== $purchases_table) {
+            return;
+        }
+
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$purchases_table} WHERE user_id = %d AND post_id = %d AND status = 'completed'",
+            $user_id,
+            $gift->post_id
+        ));
+        if ($existing) {
+            return;
+        }
+
+        $purchase_data = [
+            'source' => 'gift',
+            'gift_id' => (int) $gift->id,
+            'redemption_type' => $redemption_type,
+            'redemption_token' => $gift->redemption_token ?? null,
+        ];
+
+        $wpdb->insert(
+            $purchases_table,
+            [
+                'user_id' => $user_id,
+                'post_id' => (int) $gift->post_id,
+                'order_id' => null,
+                'purchase_price' => 0,
+                'member_discount' => 0,
+                'payment_method' => 'gift',
+                'transaction_id' => null,
+                'status' => 'completed',
+                'pdf_downloaded' => in_array($redemption_type, ['download', 'both'], true) ? 1 : 0,
+                'saved_to_library' => 1,
+                'purchase_data' => wp_json_encode($purchase_data),
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql'),
+            ],
+            ['%d', '%d', '%d', '%f', '%f', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s']
+        );
     }
 
     /**
