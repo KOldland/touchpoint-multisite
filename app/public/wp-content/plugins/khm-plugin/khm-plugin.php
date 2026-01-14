@@ -70,6 +70,14 @@ require_once __DIR__ . '/includes/credit-system-helpers.php';
 require_once __DIR__ . '/src/Blocks/answer-card/answer-card.php';
 require_once __DIR__ . '/src/Blocks/answer-card/rest.php';
 
+// Load GEO Suggestion Service classes
+require_once __DIR__ . '/src/GEO/LLMClient.php';
+require_once __DIR__ . '/src/GEO/AnswerCardSchemaValidator.php';
+require_once __DIR__ . '/src/GEO/SuggestionCacheManager.php';
+require_once __DIR__ . '/src/GEO/RateLimiter.php';
+require_once __DIR__ . '/src/GEO/SuggestionAuditLogger.php';
+require_once __DIR__ . '/src/GEO/SuggestAnswerCardsEndpoint.php';
+
 // Load GEO Migration (for table creation)
 require_once __DIR__ . '/src/Migrations/GeoAnswerCardMigration.php';
 
