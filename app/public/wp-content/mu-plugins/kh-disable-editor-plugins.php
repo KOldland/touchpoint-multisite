@@ -52,7 +52,7 @@ function khm_filter_active_plugins_for_editor( $plugins ) {
     $disabled = defined( 'KHM_EDITOR_DISABLED_PLUGINS' ) && is_array( KHM_EDITOR_DISABLED_PLUGINS )
         ? KHM_EDITOR_DISABLED_PLUGINS
         : array(
-            'khm-plugin/khm-plugin.php',
+            // khm-plugin removed - needed for AnswerCard block
         );
 
     foreach ( $disabled as $plugin ) {
@@ -81,7 +81,7 @@ function khm_filter_sitewide_plugins_for_editor( $plugins ) {
     $disabled = defined( 'KHM_EDITOR_DISABLED_PLUGINS' ) && is_array( KHM_EDITOR_DISABLED_PLUGINS )
         ? KHM_EDITOR_DISABLED_PLUGINS
         : array(
-            'khm-plugin/khm-plugin.php',
+            // khm-plugin removed - needed for AnswerCard block
         );
 
     foreach ( $disabled as $plugin ) {

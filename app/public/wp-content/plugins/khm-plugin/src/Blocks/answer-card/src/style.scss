@@ -1,0 +1,204 @@
+/**
+ * AnswerCard Block - Frontend Styles
+ *
+ * Styles applied on the frontend for published content.
+ */
+
+.khm-answer-card {
+    border-left: 4px solid #2B7DAA;
+    padding: 20px 24px;
+    margin: 24px 0;
+    background: #f9fafb;
+    border-radius: 0 8px 8px 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+
+    &__question {
+        font-size: 1.25em;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin: 0 0 12px 0;
+        line-height: 1.4;
+    }
+
+    &__answer {
+        font-size: 1em;
+        line-height: 1.7;
+        color: #333;
+        margin-bottom: 16px;
+
+        p {
+            margin: 0 0 12px 0;
+
+            &:last-child {
+                margin-bottom: 0;
+            }
+        }
+    }
+
+    &__points {
+        margin: 16px 0;
+        padding: 0;
+        list-style: none;
+
+        li {
+            position: relative;
+            padding-left: 24px;
+            margin-bottom: 8px;
+            line-height: 1.5;
+
+            &::before {
+                content: '✓';
+                position: absolute;
+                left: 0;
+                top: 0;
+                color: #2B7DAA;
+                font-weight: 700;
+            }
+
+            &:last-child {
+                margin-bottom: 0;
+            }
+        }
+    }
+
+    &__citations {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid #e5e7eb;
+        font-size: 0.9em;
+
+        strong {
+            display: block;
+            margin-bottom: 8px;
+            color: #666;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        ul {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        li {
+            margin-bottom: 6px;
+
+            &:last-child {
+                margin-bottom: 0;
+            }
+        }
+
+        a {
+            color: #2B7DAA;
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: border-color 0.2s ease;
+
+            &:hover {
+                border-bottom-color: #2B7DAA;
+            }
+        }
+    }
+
+    &__entities {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid #e5e7eb;
+    }
+
+    &__entity-tag {
+        display: inline-block;
+        padding: 4px 12px;
+        background: #e8f4f8;
+        color: #2B7DAA;
+        border-radius: 16px;
+        font-size: 0.85em;
+        font-weight: 500;
+    }
+}
+
+// Dark mode support
+@media (prefers-color-scheme: dark) {
+    .khm-answer-card {
+        background: #1e2428;
+        border-left-color: #4aa3d0;
+
+        &__question {
+            color: #f5f5f5;
+        }
+
+        &__answer {
+            color: #d1d5db;
+        }
+
+        &__points li::before {
+            color: #4aa3d0;
+        }
+
+        &__citations {
+            border-top-color: #374151;
+
+            strong {
+                color: #9ca3af;
+            }
+
+            a {
+                color: #4aa3d0;
+
+                &:hover {
+                    border-bottom-color: #4aa3d0;
+                }
+            }
+        }
+
+        &__entities {
+            border-top-color: #374151;
+        }
+
+        &__entity-tag {
+            background: #1e3a4c;
+            color: #7dd3fc;
+        }
+    }
+}
+
+// Print styles
+@media print {
+    .khm-answer-card {
+        border-left-width: 2px;
+        box-shadow: none;
+        page-break-inside: avoid;
+        background: #fff;
+
+        &__citations a {
+            color: #000;
+
+            &::after {
+                content: ' (' attr(href) ')';
+                font-size: 0.8em;
+                word-break: break-all;
+            }
+        }
+    }
+}
+
+// Wide alignment
+.alignwide .khm-answer-card,
+.khm-answer-card.alignwide {
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+// Full alignment
+.alignfull .khm-answer-card,
+.khm-answer-card.alignfull {
+    max-width: none;
+    border-radius: 0;
+    border-left-width: 6px;
+}

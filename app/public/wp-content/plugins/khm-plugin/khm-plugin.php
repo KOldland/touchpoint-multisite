@@ -66,6 +66,13 @@ require_once __DIR__ . '/includes/marketing-suite-functions.php';
 // Load credit system helper functions
 require_once __DIR__ . '/includes/credit-system-helpers.php';
 
+// Load GEO AnswerCard Gutenberg Block
+require_once __DIR__ . '/src/Blocks/answer-card/answer-card.php';
+require_once __DIR__ . '/src/Blocks/answer-card/rest.php';
+
+// Load GEO Migration (for table creation)
+require_once __DIR__ . '/src/Migrations/GeoAnswerCardMigration.php';
+
 // Load Advanced Attribution System
 require_once plugin_dir_path(__FILE__) . 'src/Attribution/AttributionManager.php';
 

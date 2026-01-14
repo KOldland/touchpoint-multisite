@@ -1,0 +1,102 @@
+{
+    "$schema": "https://schemas.wp.org/trunk/block.json",
+    "apiVersion": 3,
+    "name": "khm/answer-card",
+    "version": "1.0.0",
+    "title": "AnswerCard",
+    "category": "text",
+    "icon": "editor-help",
+    "description": "A structured answer card for GEO (Generative Engine Optimization) that outputs semantic content with JSON-LD schema markup.",
+    "keywords": ["answer", "faq", "question", "geo", "seo", "schema", "structured data"],
+    "textdomain": "khm-membership",
+    "editorScript": "file:./build/index.js",
+    "editorStyle": "file:./build/index.css",
+    "style": "file:./build/index.css",
+    "attributes": {
+        "question": {
+            "type": "string",
+            "default": ""
+        },
+        "conciseAnswer": {
+            "type": "string",
+            "default": ""
+        },
+        "keyPoints": {
+            "type": "array",
+            "default": [],
+            "items": {
+                "type": "string"
+            }
+        },
+        "citations": {
+            "type": "array",
+            "default": [],
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title": { "type": "string" },
+                    "url": { "type": "string" }
+                }
+            }
+        },
+        "entities": {
+            "type": "array",
+            "default": [],
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" },
+                    "sameAs": { "type": "string" }
+                }
+            }
+        },
+        "exposeInSchema": {
+            "type": "boolean",
+            "default": true
+        },
+        "position": {
+            "type": "number",
+            "default": 0
+        }
+    },
+    "supports": {
+        "html": false,
+        "align": ["wide", "full"],
+        "anchor": true,
+        "className": true,
+        "color": {
+            "background": true,
+            "text": true,
+            "link": true
+        },
+        "spacing": {
+            "margin": true,
+            "padding": true
+        },
+        "typography": {
+            "fontSize": true,
+            "lineHeight": true
+        }
+    },
+    "example": {
+        "attributes": {
+            "question": "What is GEO (Generative Engine Optimization)?",
+            "conciseAnswer": "GEO is the practice of optimizing content to appear in AI-generated responses and featured snippets. It focuses on structured, authoritative content that AI systems can easily parse and cite.",
+            "keyPoints": [
+                "Structure content for AI parsing",
+                "Provide authoritative citations",
+                "Use semantic markup"
+            ],
+            "citations": [
+                {
+                    "title": "Introduction to GEO",
+                    "url": "https://example.com/geo-intro"
+                }
+            ],
+            "entities": [
+                { "name": "Search Engine Optimization", "sameAs": "" }
+            ],
+            "exposeInSchema": true
+        }
+    }
+}

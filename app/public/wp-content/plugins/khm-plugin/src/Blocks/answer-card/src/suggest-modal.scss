@@ -1,0 +1,236 @@
+/**
+ * Suggest AnswerCards Modal Styles
+ */
+
+.khm-suggest-modal {
+    max-width: 900px !important;
+    width: 90% !important;
+
+    .components-modal__content {
+        padding: 0;
+    }
+
+    .components-modal__header {
+        border-bottom: 1px solid #ddd;
+        padding: 16px 24px;
+        margin: 0;
+    }
+}
+
+.khm-suggest-modal__content {
+    padding: 24px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.khm-suggest-modal__intro {
+    text-align: center;
+    padding: 40px 20px;
+
+    .components-text {
+        max-width: 600px;
+        margin: 0 auto 24px;
+        line-height: 1.6;
+    }
+}
+
+.khm-suggest-modal__options {
+    max-width: 400px;
+    margin: 0 auto 24px;
+    text-align: left;
+}
+
+.khm-suggest-modal__generate-btn {
+    margin-top: 16px;
+}
+
+.khm-suggest-modal__loading {
+    text-align: center;
+    padding: 60px 20px;
+
+    .components-spinner {
+        margin-bottom: 16px;
+    }
+
+    .components-text {
+        display: block;
+        margin-bottom: 8px;
+    }
+}
+
+.khm-suggest-modal__cache-info {
+    margin-bottom: 16px;
+    padding: 8px 12px;
+    background: #f0f0f0;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.khm-suggest-modal__cards {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.khm-suggestion-card {
+    border: 2px solid #ddd;
+    transition: border-color 0.2s, box-shadow 0.2s;
+
+    &:hover {
+        border-color: #007cba;
+    }
+
+    &--selected {
+        border-color: #007cba;
+        box-shadow: 0 0 0 1px #007cba;
+    }
+
+    .components-card__header {
+        padding: 12px 16px;
+        background: #f9f9f9;
+    }
+
+    .components-card__body {
+        padding: 16px;
+    }
+
+    .components-card__footer {
+        padding: 8px 16px;
+        background: #fafafa;
+        border-top: 1px solid #eee;
+    }
+}
+
+.khm-suggestion-card__question {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.khm-suggestion-card__answer {
+    margin-bottom: 16px;
+    line-height: 1.6;
+    color: #333;
+}
+
+.khm-suggestion-card__key-points,
+.khm-suggestion-card__citations {
+    margin-bottom: 12px;
+
+    .components-text {
+        margin-bottom: 6px;
+        display: block;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    ul {
+        margin: 0 0 0 18px;
+        padding: 0;
+
+        li {
+            margin-bottom: 4px;
+            font-size: 13px;
+            color: #444;
+        }
+    }
+}
+
+.khm-suggestion-card__citations {
+    ul li a {
+        color: #007cba;
+        text-decoration: none;
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+}
+
+.khm-suggestion-card__notes {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: #fff3cd;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #856404;
+
+    .dashicon,
+    svg {
+        vertical-align: middle;
+        margin-right: 4px;
+    }
+}
+
+.khm-confidence-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+
+    &--high {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    &--medium {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    &--low {
+        background: #f8d7da;
+        color: #721c24;
+    }
+}
+
+.khm-suggest-modal__actions {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid #ddd;
+
+    .components-flex {
+        align-items: center;
+    }
+
+    .components-text {
+        font-size: 13px;
+    }
+}
+
+.khm-sidebar-notice {
+    margin-top: 12px;
+    
+    .components-notice__content {
+        font-size: 12px;
+    }
+}
+
+.edit-post-sidebar .components-panel__body {
+    .khm-sidebar-notice {
+        margin: 12px 0 0;
+    }
+}
+
+@media (max-width: 782px) {
+    .khm-suggest-modal {
+        width: 95% !important;
+    }
+
+    .khm-suggest-modal__content {
+        padding: 16px;
+    }
+
+    .khm-suggestion-card .components-card__header {
+        flex-wrap: wrap;
+
+        .components-flex-item:last-child {
+            margin-top: 8px;
+            flex-basis: 100%;
+        }
+    }
+}

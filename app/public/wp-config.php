@@ -122,8 +122,9 @@ define( 'KHM_SEO_DISABLE_ELEMENTOR', true );
 // Temporarily disable KHM SEO editor scripts to isolate editor hangs.
 define( 'KHM_SEO_DISABLE_EDITOR', true );
 // Temporarily disable heavy plugins on editor requests.
+// NOTE: khm-plugin removed from this list - needed for AnswerCard Gutenberg block
 define( 'KHM_EDITOR_DISABLED_PLUGINS', array(
-    'khm-plugin/khm-plugin.php',
+    // 'khm-plugin/khm-plugin.php', // Removed - needed for AnswerCard block
 ) );
 // Temporarily disable KH ad rendering.
 define( 'KHM_DISABLE_ADS', true );

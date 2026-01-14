@@ -1,0 +1,218 @@
+/**
+ * AnswerCard Block - Editor Styles
+ *
+ * Styles applied only in the block editor.
+ */
+
+.khm-answer-card-editor {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+
+    &__header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #eee;
+    }
+
+    &__icon {
+        font-size: 20px;
+    }
+
+    &__title {
+        font-weight: 600;
+        font-size: 14px;
+        color: #1e1e1e;
+        flex: 1;
+    }
+
+    &__badge {
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 3px;
+        font-weight: 500;
+
+        &--hidden {
+            background: #f0f0f0;
+            color: #666;
+        }
+    }
+
+    &__question {
+        .components-text-control__input {
+            font-size: 16px;
+            font-weight: 600;
+        }
+    }
+
+    &__answer-wrapper {
+        margin-bottom: 16px;
+    }
+
+    &__answer {
+        .components-textarea-control__input {
+            min-height: 100px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+    }
+
+    &__word-count {
+        font-size: 12px;
+        color: #666;
+        margin-top: 4px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        &.good {
+            color: #00a32a;
+        }
+
+        &.warning {
+            color: #dba617;
+        }
+    }
+
+    &__word-hint {
+        font-style: italic;
+        opacity: 0.8;
+    }
+
+    &__section {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid #eee;
+    }
+
+    &__section-label {
+        display: block;
+        font-weight: 600;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #1e1e1e;
+        margin-bottom: 12px;
+    }
+
+    &__list-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-bottom: 8px;
+
+        .components-base-control {
+            flex: 1;
+            margin-bottom: 0;
+        }
+    }
+
+    &__citation-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-bottom: 12px;
+        padding: 12px;
+        background: #f9f9f9;
+        border-radius: 4px;
+    }
+
+    &__citation-fields {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+
+        .components-base-control {
+            margin-bottom: 0;
+        }
+    }
+
+    &__remove-btn {
+        flex-shrink: 0;
+        margin-top: 2px;
+
+        &.is-destructive {
+            color: #cc1818;
+
+            &:hover {
+                color: #a10000;
+            }
+        }
+    }
+
+    &__add-btn {
+        margin-top: 8px;
+    }
+}
+
+// Score indicator in sidebar
+.khm-answer-card-score {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+
+    &--loading {
+        background: #f0f0f0;
+        color: #666;
+
+        .components-spinner {
+            margin: 0;
+        }
+    }
+
+    &--high {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    &--medium {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    &--low {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    &__value {
+        font-weight: 700;
+        font-size: 18px;
+    }
+}
+
+// Advanced entity editing in sidebar
+.khm-entity-advanced {
+    padding: 12px;
+    background: #f9f9f9;
+    border-radius: 4px;
+    margin-bottom: 12px;
+
+    .components-base-control {
+        margin-bottom: 8px;
+    }
+
+    .components-button {
+        margin-top: 4px;
+    }
+}
+
+// Block alignment variations
+.wp-block-khm-answer-card {
+    &.alignwide {
+        max-width: 1100px;
+    }
+
+    &.alignfull {
+        max-width: none;
+    }
+}
