@@ -80,9 +80,9 @@ require_once __DIR__ . '/src/GEO/SuggestAnswerCardsEndpoint.php';
 
 // Register GEO Suggestion Endpoint at rest_api_init
 add_action( 'rest_api_init', function() {
-    if ( class_exists( '\\KHM\\GEO\\SuggestAnswerCardsEndpoint' ) ) {
+    if ( class_exists( "KHM\GEO\SuggestAnswerCardsEndpoint" ) ) {
         try {
-            $endpoint = new \\KHM\\GEO\\SuggestAnswerCardsEndpoint();
+            $endpoint = new KHM\GEO\SuggestAnswerCardsEndpoint();
             $endpoint->register();
             if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
                 error_log( '[KHM GEO] SuggestAnswerCardsEndpoint registered.' );
@@ -154,9 +154,9 @@ function khm_enqueue_attribution_scripts() {
  * Create SuggestionAuditLogger table on plugin activation.
  */
 register_activation_hook( __FILE__, function() {
-    if ( class_exists( '\\KHM\\GEO\\SuggestionAuditLogger' ) ) {
+    if ( class_exists( "KHM\GEO\SuggestionAuditLogger" ) ) {
         try {
-            $logger = new \\KHM\\GEO\\SuggestionAuditLogger();
+            $logger = new KHM\GEO\SuggestionAuditLogger();
             $logger->create_table();
             if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
                 error_log( '[KHM GEO] SuggestionAuditLogger table created or already exists.' );
