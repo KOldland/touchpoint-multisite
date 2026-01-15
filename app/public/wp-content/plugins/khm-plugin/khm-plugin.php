@@ -78,6 +78,25 @@ require_once __DIR__ . '/src/GEO/RateLimiter.php';
 require_once __DIR__ . '/src/GEO/SuggestionAuditLogger.php';
 require_once __DIR__ . '/src/GEO/SuggestAnswerCardsEndpoint.php';
 
+// Register GEO Suggestion Endpoint at rest_api_init
+add_action( 'rest_api_init', function() {
+    if ( class_exists( '\\KHM\\GEO\\SuggestAnswerCardsEndpoint' ) ) {
+        try {
+            $endpoint = new \\KHM\\GEO\\SuggestAnswerCardsEndpoint();
+            $endpoint->register();
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( '[KHM GEO] SuggestAnswerCardsEndpoint registered.' );
+            }
+        } catch ( Exception $e ) {
+            error_log( '[KHM GEO] Failed to register SuggestAnswerCardsEndpoint: ' . $e->getMessage() );
+        }
+    } else {
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( '[KHM GEO] SuggestAnswerCardsEndpoint class not found.' );
+        }
+    }
+} );
+
 // Load GEO Migration (for table creation)
 require_once __DIR__ . '/src/Migrations/GeoAnswerCardMigration.php';
 
@@ -130,6 +149,27 @@ function khm_enqueue_attribution_scripts() {
         ));
     }
 }
+
+/**
+ * Create SuggestionAuditLogger table on plugin activation.
+ */
+register_activation_hook( __FILE__, function() {
+    if ( class_exists( '\\KHM\\GEO\\SuggestionAuditLogger' ) ) {
+        try {
+            $logger = new \\KHM\\GEO\\SuggestionAuditLogger();
+            $logger->create_table();
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( '[KHM GEO] SuggestionAuditLogger table created or already exists.' );
+            }
+        } catch ( Exception $e ) {
+            error_log( '[KHM GEO] Failed to create SuggestionAuditLogger table on activation: ' . $e->getMessage() );
+        }
+    } else {
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( '[KHM GEO] SuggestionAuditLogger class not found during plugin activation.' );
+        }
+    }
+} );
 
 // Create main admin menu if it doesn't exist
 add_action('admin_menu', 'khm_create_main_admin_menu');
