@@ -584,3 +584,81 @@ function add_admin_styles() {
     </style>';
 }
 add_action( 'admin_head', __NAMESPACE__ . '\\add_admin_styles' );
+/**
+ * Register the GEO Suggest AnswerCards plugin script and style.
+ *
+ * @return void
+ */
+function register_suggest_plugin_assets() {
+    $asset_file = __DIR__ . '/build/suggest-plugin.asset.php';
+    
+    if ( ! file_exists( $asset_file ) ) {
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( '[KHM GEO] suggest-plugin.asset.php not found at ' . $asset_file );
+        }
+        return;
+    }
+    
+    $asset_data = include $asset_file;
+    
+    wp_register_script(
+        'khm-geo-suggest-plugin',
+        plugins_url( 'build/suggest-plugin.js', __FILE__ ),
+        $asset_data['dependencies'] ?? array(),
+        $asset_data['version'] ?? '1.0.0',
+        true
+    );
+    
+    wp_register_style(
+        'khm-geo-suggest-plugin',
+        plugins_url( 'build/suggest-plugin.css', __FILE__ ),
+        array(),
+        $asset_data['version'] ?? '1.0.0'
+    );
+    
+    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+        error_log( '[KHM GEO] Suggest plugin assets registered' );
+    }
+}
+add_action( 'init', __NAMESPACE__ . '\\register_suggest_plugin_assets' );
+
+/**
+ * Enqueue the GEO Suggest AnswerCards plugin on post editor screens.
+ *
+ * @return void
+ */
+function enqueue_suggest_plugin() {
+    // Only enqueue on post editor screens
+    $screen = get_current_screen();
+    if ( ! $screen || ! in_array( $screen->id, array( 'post', 'page' ), true ) ) {
+        return;
+    }
+    
+    // Check if we're in the block editor
+    if ( ! function_exists( 'get_current_screen' ) || ! method_exists( get_current_screen(), 'is_block_editor' ) || ! get_current_screen()->is_block_editor() ) {
+        return;
+    }
+    
+    wp_enqueue_script( 'khm-geo-suggest-plugin' );
+    wp_enqueue_style( 'khm-geo-suggest-plugin' );
+    
+    // Localize script with API endpoint and nonce
+    wp_localize_script( 'khm-geo-suggest-plugin', 'khmGeoSuggest', array(
+        'apiUrl' => rest_url( 'khm-geo/v1/suggest-answercards' ),
+        'nonce' => wp_create_nonce( 'wp_rest' ),
+        'postId' => get_the_ID(),
+        'strings' => array(
+            'title' => __( 'GEO AnswerCards', 'khm-membership' ),
+            'suggestButton' => __( 'Suggest AnswerCards', 'khm-membership' ),
+            'generating' => __( 'Generating suggestions...', 'khm-membership' ),
+            'insert' => __( 'Insert Selected', 'khm-membership' ),
+            'cancel' => __( 'Cancel', 'khm-membership' ),
+            'error' => __( 'Error generating suggestions', 'khm-membership' ),
+        ),
+    ) );
+    
+    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+        error_log( '[KHM GEO] Suggest plugin enqueued on post editor' );
+    }
+}
+add_action( 'enqueue_block_editor_assets', __NAMESPACE__ . '\\enqueue_suggest_plugin' );
