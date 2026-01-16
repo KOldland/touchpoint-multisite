@@ -261,7 +261,6 @@ function sanitize_citations( $citations ) {
                 'tier'      => '',
                 'doi'       => '',
             );
-            );
         }
     }
     return $sanitized;
