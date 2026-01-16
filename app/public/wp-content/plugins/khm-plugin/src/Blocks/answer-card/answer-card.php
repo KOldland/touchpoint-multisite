@@ -652,12 +652,16 @@ function enqueue_suggest_plugin() {
     // For now, be more permissive - enqueue on any screen that might be an editor
     $is_editor_screen = false;
     if ( $screen ) {
-        // Check for various editor screen patterns
-        $is_editor_screen = in_array( $screen->id, array( 'post', 'page', 'toplevel_page_content', 'edit-post', 'khm-seo-geo-post' ), true ) ||
-                           strpos( $screen->id, 'post' ) !== false ||
-                           strpos( $screen->base, 'post' ) !== false ||
-                           ( method_exists( $screen, 'is_block_editor' ) && $screen->is_block_editor() ) ||
-                           strpos( $screen->id, 'khm-seo-geo' ) !== false; // Add this line for GEO screens
+        // Exclude specific admin pages that are not editors
+        if ( in_array( $screen->id, array( 'khm-seo_page_khm-seo-geo-post', 'khm-seo-geo-post' ), true ) ) {
+            $is_editor_screen = false;
+        } else {
+            // Check for various editor screen patterns
+            $is_editor_screen = in_array( $screen->id, array( 'post', 'page', 'toplevel_page_content', 'edit-post' ), true ) ||
+                               strpos( $screen->id, 'post' ) !== false ||
+                               strpos( $screen->base, 'post' ) !== false ||
+                               ( method_exists( $screen, 'is_block_editor' ) && $screen->is_block_editor() );
+        }
     }
     
     if ( ! $is_editor_screen ) {
