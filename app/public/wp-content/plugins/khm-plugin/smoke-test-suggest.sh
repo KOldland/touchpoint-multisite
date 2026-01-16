@@ -1,13 +1,13 @@
+#!/usr/bin/env bash
 # (edit top 3 values)
 # Save: Ctrl-O then Enter
 # Exit: Ctrl-X
-#!/usr/bin/env bash
 set -euo pipefail
 
 # === CONFIG - EDIT THESE BEFORE RUNNING ===
 SITE_URL="http://kh-staging.test"           # <-- replace with your site URL (no trailing slash)
 USERNAME="admin"                                  # <-- WP admin username
-APP_PASSWORD="gCGa XVjq 9Cmd bYfb L3UF b1vZ"                 # <-- Application password for that user
+APP_PASSWORD="YOUR_APP_PASSWORD_HERE"            # <-- Application password for that user
 # ==========================================
 
 API_ENDPOINT="${SITE_URL}/wp-json/khm-geo/v1/suggest-answercards"

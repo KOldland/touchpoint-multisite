@@ -87,7 +87,7 @@ add_action( 'rest_api_init', function() {
             if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
                 error_log( '[KHM GEO] SuggestAnswerCardsEndpoint registered.' );
             }
-        } catch ( Exception $e ) {
+        } catch ( \Exception $e ) {
             error_log( '[KHM GEO] Failed to register SuggestAnswerCardsEndpoint: ' . $e->getMessage() );
         }
     } else {
@@ -161,13 +161,27 @@ register_activation_hook( __FILE__, function() {
             if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
                 error_log( '[KHM GEO] SuggestionAuditLogger table created or already exists.' );
             }
-        } catch ( Exception $e ) {
+        } catch ( \Exception $e ) {
             error_log( '[KHM GEO] Failed to create SuggestionAuditLogger table on activation: ' . $e->getMessage() );
+            // Fail activation explicitly if the critical setup cannot be completed.
+            if ( function_exists( 'deactivate_plugins' ) && function_exists( 'plugin_basename' ) ) {
+                deactivate_plugins( plugin_basename( __FILE__ ) );
+            }
+            wp_die(
+                esc_html__( 'KHM Plugin: Failed to create the SuggestionAuditLogger database table during activation. Please check your server error logs and try again.', 'khm-membership' )
+            );
         }
     } else {
         if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
             error_log( '[KHM GEO] SuggestionAuditLogger class not found during plugin activation.' );
         }
+        // Class missing is a critical problem; do not allow activation to appear successful.
+        if ( function_exists( 'deactivate_plugins' ) && function_exists( 'plugin_basename' ) ) {
+            deactivate_plugins( plugin_basename( __FILE__ ) );
+        }
+        wp_die(
+            esc_html__( 'KHM Plugin: Required class KHM\\GEO\\SuggestionAuditLogger was not found during activation. Composer dependencies may be missing. Please run "composer install" in wp-content/plugins/khm-plugin and try again.', 'khm-membership' )
+        );
     }
 } );
 
