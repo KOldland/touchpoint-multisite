@@ -13,11 +13,11 @@ node_modules/
 vendor/
 composer.lock
 
-app/public/wp-content/uploads/
-app/public/wp-content/cache/
-app/public/wp-content/debug.log
-app/public/wp-content/upgrade/
-app/public/wp-content/upgrade-temp-backup/
+wp-content/uploads/
+wp-content/cache/
+wp-content/debug.log
+wp-content/upgrade/
+wp-content/upgrade-temp-backup/
 
 .cache/
 .sass-cache/
@@ -29,7 +29,7 @@ app/public/wp-content/upgrade-temp-backup/
 .env.development
 .env.production
 
-# app/public/wp-config.php
+wp-config.php
 
 build/
 dist/

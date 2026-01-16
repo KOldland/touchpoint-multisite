@@ -46,7 +46,7 @@ class SuggestionServiceTest extends TestCase {
 
         $valid_card = [
             'question' => str_repeat('A', 50), // 50 chars
-            'concise_answer' => str_repeat('Word ', 25), // 25 words
+            'concise_answer' => trim(str_repeat('Word ', 25)), // 25 words
             'key_points' => ['Point 1', 'Point 2', 'Point 3'],
             'citations' => [
                 ['title' => 'Source 1', 'url' => 'https://example.com/1'],
