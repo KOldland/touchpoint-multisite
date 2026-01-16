@@ -638,9 +638,10 @@ add_action( 'init', __NAMESPACE__ . '\\register_suggest_plugin_assets' );
  * @return void
  */
 function enqueue_suggest_plugin() {
-    // Only enqueue on post editor screens
-    $screen = get_current_screen();
-    $current_action = current_action();
+    // Add a debug script to the page to confirm this function runs
+    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+        echo '<script>console.log("[KHM GEO DEBUG] enqueue_suggest_plugin function called");</script>';
+    }
     
     // Debug logging
     if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
@@ -688,6 +689,11 @@ function enqueue_suggest_plugin() {
     
     wp_enqueue_script( 'khm-geo-suggest-plugin' );
     wp_enqueue_style( 'khm-geo-suggest-plugin' );
+    
+    // Add debug output to confirm enqueuing
+    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+        echo '<script>console.log("[KHM GEO DEBUG] Scripts enqueued successfully");</script>';
+    }
     
     // Determine the current post ID in the editor context.
     $post_id = 0;
