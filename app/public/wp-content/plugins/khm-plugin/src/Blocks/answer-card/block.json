@@ -35,7 +35,11 @@
                 "type": "object",
                 "properties": {
                     "title": { "type": "string" },
-                    "url": { "type": "string" }
+                    "url": { "type": "string" },
+                    "author": { "type": "string" },
+                    "publisher": { "type": "string" },
+                    "year": { "type": "number" },
+                    "tier": { "type": "string", "enum": ["tier1", "tier2", "tier3"] }
                 }
             }
         },
@@ -49,6 +53,24 @@
                     "sameAs": { "type": "string" }
                 }
             }
+        },
+        "evidence": {
+            "type": "object",
+            "default": {},
+            "properties": {
+                "tier": { "type": "string", "enum": ["tier1", "tier2", "tier3"] },
+                "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+                "context_heading": { "type": "string" },
+                "source_passage": { "type": "string" },
+                "anchor_entities": { 
+                    "type": "array", 
+                    "items": { "type": "string" } 
+                }
+            }
+        },
+        "preferred_summary": {
+            "type": "boolean",
+            "default": false
         },
         "exposeInSchema": {
             "type": "boolean",

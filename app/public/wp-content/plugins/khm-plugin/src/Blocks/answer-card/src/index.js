@@ -81,6 +81,8 @@ const Edit = ( props ) => {
         keyPoints,
         citations,
         entities,
+        evidence,
+        preferred_summary,
         exposeInSchema,
     } = attributes;
 
@@ -241,6 +243,59 @@ const Edit = ( props ) => {
                     <p className="components-base-control__help">
                         { __( 'Score is also calculated automatically when you save the post.', 'khm-membership' ) }
                     </p>
+                </PanelBody>
+
+                <PanelBody title={ __( 'Evidence & Citations', 'khm-membership' ) } initialOpen={ false }>
+                    { evidence && evidence.tier ? (
+                        <div className="khm-evidence-info">
+                            <div className="khm-evidence-tier">
+                                <strong>{ __( 'Evidence Tier:', 'khm-membership' ) }</strong>
+                                <span className={ `khm-tier-badge khm-tier-${ evidence.tier }` }>
+                                    { evidence.tier === 'tier1' ? '🏆 Study + Year' : 
+                                      evidence.tier === 'tier2' ? '📊 Benchmark' : 
+                                      '📰 Trade Publication' }
+                                </span>
+                            </div>
+                            
+                            { evidence.confidence && (
+                                <div className="khm-evidence-confidence">
+                                    <strong>{ __( 'Confidence:', 'khm-membership' ) }</strong>
+                                    <span className={ `khm-confidence-${ evidence.confidence >= 0.8 ? 'high' : evidence.confidence >= 0.6 ? 'medium' : 'low' }` }>
+                                        { Math.round( evidence.confidence * 100 ) }%
+                                    </span>
+                                </div>
+                            ) }
+                            
+                            { evidence.context_heading && (
+                                <div className="khm-evidence-context">
+                                    <strong>{ __( 'Context:', 'khm-membership' ) }</strong>
+                                    <em>{ evidence.context_heading }</em>
+                                </div>
+                            ) }
+                            
+                            { evidence.source_passage && (
+                                <div className="khm-evidence-passage">
+                                    <strong>{ __( 'Source Passage:', 'khm-membership' ) }</strong>
+                                    <blockquote className="khm-source-quote">
+                                        "{ evidence.source_passage }"
+                                    </blockquote>
+                                </div>
+                            ) }
+                        </div>
+                    ) : (
+                        <Notice status="warning" isDismissible={ false }>
+                            { __( 'No evidence information available. This card may need review.', 'khm-membership' ) }
+                        </Notice>
+                    ) }
+                    
+                    <PanelRow>
+                        <ToggleControl
+                            label={ __( 'Preferred Summary', 'khm-membership' ) }
+                            help={ __( 'Mark as the canonical summary for this evidence passage.', 'khm-membership' ) }
+                            checked={ !! preferred_summary }
+                            onChange={ ( val ) => setAttributes( { preferred_summary: val } ) }
+                        />
+                    </PanelRow>
                 </PanelBody>
 
                 <PanelBody title={ __( 'Entities (Advanced)', 'khm-membership' ) } initialOpen={ false }>

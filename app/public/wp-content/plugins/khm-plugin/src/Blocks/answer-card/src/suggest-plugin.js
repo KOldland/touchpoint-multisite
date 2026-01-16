@@ -32,7 +32,7 @@ import {
     Icon,
     RangeControl,
 } from '@wordpress/components';
-import { useState, useCallback } from '@wordpress/element';
+import { useState, useCallback, useEffect } from '@wordpress/element';
 import { help, check, edit, plus, warning } from '@wordpress/icons';
 import apiFetch from '@wordpress/api-fetch';
 
@@ -417,6 +417,24 @@ const AnswerCardSidebarContent = () => {
                 postUrl: '',
             };
         }
+    }, [] );
+
+    const { insertBlocks } = useDispatch( 'core/block-editor' );
+
+    // Safety check for block editor availability
+    const isBlockEditorAvailable = !!insertBlocks;
+
+    // Listen for custom event to open suggestions modal
+    useEffect( () => {
+        const handleOpenSuggestions = () => {
+            setIsModalOpen( true );
+        };
+
+        window.addEventListener( 'khmGeoOpenSuggestions', handleOpenSuggestions );
+
+        return () => {
+            window.removeEventListener( 'khmGeoOpenSuggestions', handleOpenSuggestions );
+        };
     }, [] );
 
     const answerCardCount = useSelect( ( select ) => {

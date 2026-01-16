@@ -541,7 +541,7 @@ class AdminManager {
 
         echo '<p><a class="button button-primary" href="' . esc_url( $hub_url ) . '">' . esc_html__( 'Boost Visibility', 'khm-seo' ) . '</a></p>';
         echo '<p><a class="button button-secondary" href="' . esc_url( $social_url ) . '">' . esc_html__( 'Social Media Manager', 'khm-seo' ) . '</a></p>';
-        echo '<p><a class="button button-secondary" href="' . esc_url( $geo_url ) . '">' . esc_html__( 'GEO Manager', 'khm-seo' ) . '</a></p>';
+        echo '<p><button class="button button-secondary khm-geo-suggestions-btn" type="button">' . esc_html__( 'GEO AnswerCards', 'khm-seo' ) . '</button></p>';
         echo '<p><a class="button button-secondary" href="' . esc_url( $health_url ) . '">' . esc_html__( 'Post Health', 'khm-seo' ) . '</a></p>';
     }
 

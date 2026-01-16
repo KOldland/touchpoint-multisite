@@ -210,6 +210,10 @@ function save_answercards_on_save_post( $post_id, $post ) {
             'entities'         => isset( $attrs['entities'] ) && is_array( $attrs['entities'] )
                                     ? sanitize_entities( $attrs['entities'] )
                                     : array(),
+            'evidence'         => isset( $attrs['evidence'] ) && is_array( $attrs['evidence'] )
+                                    ? sanitize_evidence( $attrs['evidence'] )
+                                    : array(),
+            'preferred_summary' => isset( $attrs['preferredSummary'] ) ? sanitize_text_field( $attrs['preferredSummary'] ) : '',
             'expose_in_schema' => isset( $attrs['exposeInSchema'] ) ? (bool) $attrs['exposeInSchema'] : true,
             'position'         => $position++,
             'updated_at'       => current_time( 'mysql' ),
@@ -239,13 +243,21 @@ function sanitize_citations( $citations ) {
     foreach ( $citations as $citation ) {
         if ( is_array( $citation ) ) {
             $sanitized[] = array(
-                'title' => isset( $citation['title'] ) ? sanitize_text_field( $citation['title'] ) : '',
-                'url'   => isset( $citation['url'] ) ? esc_url_raw( $citation['url'] ) : '',
+                'title'     => isset( $citation['title'] ) ? sanitize_text_field( $citation['title'] ) : '',
+                'url'       => isset( $citation['url'] ) ? esc_url_raw( $citation['url'] ) : '',
+                'author'    => isset( $citation['author'] ) ? sanitize_text_field( $citation['author'] ) : '',
+                'publisher' => isset( $citation['publisher'] ) ? sanitize_text_field( $citation['publisher'] ) : '',
+                'date'      => isset( $citation['date'] ) ? sanitize_text_field( $citation['date'] ) : '',
+                'tier'      => isset( $citation['tier'] ) ? intval( $citation['tier'] ) : null,
             );
         } elseif ( is_string( $citation ) ) {
             $sanitized[] = array(
-                'title' => '',
-                'url'   => esc_url_raw( $citation ),
+                'title'     => '',
+                'url'       => esc_url_raw( $citation ),
+                'author'    => '',
+                'publisher' => '',
+                'date'      => '',
+                'tier'      => null,
             );
         }
     }
@@ -274,6 +286,20 @@ function sanitize_entities( $entities ) {
         }
     }
     return $sanitized;
+}
+
+/**
+ * Sanitize evidence data.
+ *
+ * @param array $evidence Raw evidence array.
+ * @return array Sanitized evidence.
+ */
+function sanitize_evidence( $evidence ) {
+    return array(
+        'tier'           => isset( $evidence['tier'] ) ? intval( $evidence['tier'] ) : null,
+        'confidence'     => isset( $evidence['confidence'] ) ? floatval( $evidence['confidence'] ) : 0.5,
+        'source_passage' => isset( $evidence['sourcePassage'] ) ? sanitize_text_field( $evidence['sourcePassage'] ) : '',
+    );
 }
 
 /**
@@ -351,16 +377,18 @@ function persist_to_database( $post_id, $canonical ) {
         $wpdb->insert(
             $table,
             array(
-                'post_id'          => $post_id,
-                'question'         => $card['question'],
-                'concise_answer'   => $card['concise_answer'],
-                'key_points'       => wp_json_encode( $card['key_points'] ),
-                'citations'        => wp_json_encode( $card['citations'] ),
-                'entities'         => wp_json_encode( $card['entities'] ),
-                'expose_in_schema' => $card['expose_in_schema'] ? 1 : 0,
-                'position'         => $card['position'],
+                'post_id'           => $post_id,
+                'question'          => $card['question'],
+                'concise_answer'    => $card['concise_answer'],
+                'key_points'        => wp_json_encode( $card['key_points'] ),
+                'citations'         => wp_json_encode( $card['citations'] ),
+                'entities'          => wp_json_encode( $card['entities'] ),
+                'evidence'          => wp_json_encode( $card['evidence'] ),
+                'preferred_summary' => $card['preferred_summary'],
+                'expose_in_schema'  => $card['expose_in_schema'] ? 1 : 0,
+                'position'          => $card['position'],
             ),
-            array( '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d' )
+            array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d' )
         );
     }
 }
@@ -399,25 +427,45 @@ function output_answercard_jsonld() {
             'position' => isset( $card['position'] ) ? intval( $card['position'] ) : 0,
         );
 
-        // Add citations
+        // Add citations with enhanced CreativeWork metadata
         if ( ! empty( $card['citations'] ) && is_array( $card['citations'] ) ) {
             $cits = array();
             foreach ( $card['citations'] as $c ) {
-                if ( is_array( $c ) && ! empty( $c['url'] ) ) {
-                    $citation_item = array(
-                        '@type' => 'CreativeWork',
-                        'url'   => esc_url_raw( $c['url'] ),
-                    );
+                $citation_item = array( '@type' => 'CreativeWork' );
+
+                if ( is_array( $c ) ) {
+                    // Enhanced citation with metadata
+                    if ( ! empty( $c['url'] ) ) {
+                        $citation_item['url'] = esc_url_raw( $c['url'] );
+                    }
                     if ( ! empty( $c['title'] ) ) {
                         $citation_item['name'] = sanitize_text_field( $c['title'] );
                     }
-                    $cits[] = $citation_item;
+                    if ( ! empty( $c['author'] ) ) {
+                        $citation_item['author'] = array(
+                            '@type' => 'Person',
+                            'name'  => sanitize_text_field( $c['author'] ),
+                        );
+                    }
+                    if ( ! empty( $c['publisher'] ) ) {
+                        $citation_item['publisher'] = array(
+                            '@type' => 'Organization',
+                            'name'  => sanitize_text_field( $c['publisher'] ),
+                        );
+                    }
+                    if ( ! empty( $c['date'] ) ) {
+                        $citation_item['datePublished'] = sanitize_text_field( $c['date'] );
+                    }
+                    if ( ! empty( $c['tier'] ) ) {
+                        // Add evidence tier as custom property for internal use
+                        $citation_item['evidenceTier'] = intval( $c['tier'] );
+                    }
                 } elseif ( is_string( $c ) ) {
-                    $cits[] = array(
-                        '@type' => 'CreativeWork',
-                        'url'   => esc_url_raw( $c ),
-                    );
+                    // Fallback for simple string citations
+                    $citation_item['url'] = esc_url_raw( $c );
                 }
+
+                $cits[] = $citation_item;
             }
             if ( ! empty( $cits ) ) {
                 $part['citation'] = $cits;
@@ -654,6 +702,9 @@ function enqueue_suggest_plugin() {
             error_log( '[KHM GEO] Screen properties: id=' . $screen->id . ', base=' . $screen->base . ', is_block_editor=' . ( method_exists( $screen, 'is_block_editor' ) ? ( $screen->is_block_editor() ? 'true' : 'false' ) : 'method_not_exists' ) );
         }
     }
+    
+    // Special handling for enqueue_block_editor_assets hook
+    if ( $current_action === 'enqueue_block_editor_assets' ) {
         // If we're in the block editor enqueue hook, assume it's a valid editor screen
         $is_editor_screen = true;
     } else {
@@ -745,6 +796,19 @@ function enqueue_suggest_plugin() {
             'error' => __( 'Error generating suggestions', 'khm-membership' ),
         ),
     ) );
+    
+    // Add JavaScript to handle Boost Visibility GEO button clicks
+    wp_add_inline_script( 'khm-geo-suggest-plugin', '
+        document.addEventListener("DOMContentLoaded", function() {
+            document.addEventListener("click", function(e) {
+                if (e.target && e.target.classList.contains("khm-geo-suggestions-btn")) {
+                    e.preventDefault();
+                    // Dispatch custom event to open GEO suggestions modal
+                    window.dispatchEvent(new CustomEvent("khmGeoOpenSuggestions"));
+                }
+            });
+        });
+    ' );
     
     if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
         error_log( '[KHM GEO] Suggest plugin enqueued on editor screen, post_id: ' . $post_id . ', screen: ' . ( $screen ? $screen->id : 'null' ) );
