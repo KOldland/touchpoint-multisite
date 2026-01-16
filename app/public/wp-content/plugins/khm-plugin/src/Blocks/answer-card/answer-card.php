@@ -603,9 +603,17 @@ function register_suggest_plugin_assets() {
     
     $asset_data = include $asset_file;
     
+    $script_url = plugins_url( 'build/suggest-plugin.js', __FILE__ );
+    $style_url = plugins_url( 'build/suggest-plugin.css', __FILE__ );
+    
+    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+        error_log( '[KHM GEO] Registering suggest plugin script: ' . $script_url );
+        error_log( '[KHM GEO] Asset data: ' . print_r( $asset_data, true ) );
+    }
+    
     wp_register_script(
         'khm-geo-suggest-plugin',
-        plugins_url( 'build/suggest-plugin.js', __FILE__ ),
+        $script_url,
         $asset_data['dependencies'] ?? array(),
         $asset_data['version'] ?? '1.0.0',
         true
@@ -613,13 +621,13 @@ function register_suggest_plugin_assets() {
     
     wp_register_style(
         'khm-geo-suggest-plugin',
-        plugins_url( 'build/suggest-plugin.css', __FILE__ ),
+        $style_url,
         array(),
         $asset_data['version'] ?? '1.0.0'
     );
     
     if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-        error_log( '[KHM GEO] Suggest plugin assets registered' );
+        error_log( '[KHM GEO] Suggest plugin assets registered successfully' );
     }
 }
 add_action( 'init', __NAMESPACE__ . '\\register_suggest_plugin_assets' );
@@ -632,13 +640,38 @@ add_action( 'init', __NAMESPACE__ . '\\register_suggest_plugin_assets' );
 function enqueue_suggest_plugin() {
     // Only enqueue on post editor screens
     $screen = get_current_screen();
-    if ( ! $screen || ! in_array( $screen->id, array( 'post', 'page' ), true ) ) {
+    
+    // Debug logging
+    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+        error_log( '[KHM GEO] enqueue_suggest_plugin called, screen: ' . ( $screen ? $screen->id : 'null' ) . ', hook: ' . current_action() );
+        if ( $screen ) {
+            error_log( '[KHM GEO] Screen properties: id=' . $screen->id . ', base=' . $screen->base . ', is_block_editor=' . ( method_exists( $screen, 'is_block_editor' ) ? ( $screen->is_block_editor() ? 'true' : 'false' ) : 'method_not_exists' ) );
+        }
+    }
+    
+    // For now, be more permissive - enqueue on any screen that might be an editor
+    $is_editor_screen = false;
+    if ( $screen ) {
+        // Check for various editor screen patterns
+        $is_editor_screen = in_array( $screen->id, array( 'post', 'page', 'toplevel_page_content', 'edit-post', 'khm-seo-geo-post' ), true ) ||
+                           strpos( $screen->id, 'post' ) !== false ||
+                           strpos( $screen->base, 'post' ) !== false ||
+                           ( method_exists( $screen, 'is_block_editor' ) && $screen->is_block_editor() );
+    }
+    
+    if ( ! $is_editor_screen ) {
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( '[KHM GEO] Not an editor screen, skipping enqueue' );
+        }
         return;
     }
     
-    // Check if we're in the block editor
-    if ( ! method_exists( $screen, 'is_block_editor' ) || ! $screen->is_block_editor() ) {
-        return;
+    // Check if script is registered
+    if ( ! wp_script_is( 'khm-geo-suggest-plugin', 'registered' ) ) {
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( '[KHM GEO] Script khm-geo-suggest-plugin not registered, registering now' );
+        }
+        register_suggest_plugin_assets();
     }
     
     wp_enqueue_script( 'khm-geo-suggest-plugin' );
@@ -669,7 +702,9 @@ function enqueue_suggest_plugin() {
     ) );
     
     if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-        error_log( '[KHM GEO] Suggest plugin enqueued on post editor' );
+        error_log( '[KHM GEO] Suggest plugin enqueued on editor screen, post_id: ' . $post_id );
     }
 }
 add_action( 'enqueue_block_editor_assets', __NAMESPACE__ . '\\enqueue_suggest_plugin' );
+add_action( 'admin_enqueue_scripts', __NAMESPACE__ . '\\enqueue_suggest_plugin' );
+add_action( 'current_screen', __NAMESPACE__ . '\\enqueue_suggest_plugin' );

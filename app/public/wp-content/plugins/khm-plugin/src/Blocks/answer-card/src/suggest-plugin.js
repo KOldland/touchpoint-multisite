@@ -7,6 +7,8 @@
  * @package KHM\GEO
  */
 
+console.log('[KHM GEO] Suggest plugin JavaScript loading...');
+
 import { registerPlugin } from '@wordpress/plugins';
 import { PluginSidebar, PluginSidebarMoreMenuItem } from '@wordpress/editor';
 import { useSelect, useDispatch } from '@wordpress/data';
@@ -446,6 +448,9 @@ const AnswerCardSidebarContent = () => {
 /**
  * Register the plugin
  */
+console.log('[KHM GEO] Checking khmGeoSuggest localization:', window.khmGeoSuggest);
+console.log('[KHM GEO] Registering khm-answercard-suggestions plugin...');
+
 registerPlugin( 'khm-answercard-suggestions', {
     render: () => (
         <>
