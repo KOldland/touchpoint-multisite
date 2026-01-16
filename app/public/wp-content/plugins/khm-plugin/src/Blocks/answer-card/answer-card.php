@@ -656,7 +656,8 @@ function enqueue_suggest_plugin() {
         $is_editor_screen = in_array( $screen->id, array( 'post', 'page', 'toplevel_page_content', 'edit-post', 'khm-seo-geo-post' ), true ) ||
                            strpos( $screen->id, 'post' ) !== false ||
                            strpos( $screen->base, 'post' ) !== false ||
-                           ( method_exists( $screen, 'is_block_editor' ) && $screen->is_block_editor() );
+                           ( method_exists( $screen, 'is_block_editor' ) && $screen->is_block_editor() ) ||
+                           strpos( $screen->id, 'khm-seo-geo' ) !== false; // Add this line for GEO screens
     }
     
     if ( ! $is_editor_screen ) {
@@ -684,6 +685,10 @@ function enqueue_suggest_plugin() {
         $post_id = $post->ID;
     } elseif ( isset( $screen->post ) && $screen->post instanceof \WP_Post ) {
         $post_id = $screen->post->ID;
+    } elseif ( isset( $_GET['post_id'] ) && is_numeric( $_GET['post_id'] ) ) {
+        $post_id = intval( $_GET['post_id'] );
+    } elseif ( isset( $_GET['post'] ) && is_numeric( $_GET['post'] ) ) {
+        $post_id = intval( $_GET['post'] );
     }
     
     // Localize script with API endpoint and nonce
@@ -702,7 +707,7 @@ function enqueue_suggest_plugin() {
     ) );
     
     if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-        error_log( '[KHM GEO] Suggest plugin enqueued on editor screen, post_id: ' . $post_id );
+        error_log( '[KHM GEO] Suggest plugin enqueued on editor screen, post_id: ' . $post_id . ', screen: ' . ( $screen ? $screen->id : 'null' ) );
     }
 }
 add_action( 'enqueue_block_editor_assets', __NAMESPACE__ . '\\enqueue_suggest_plugin' );
