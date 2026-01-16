@@ -248,7 +248,8 @@ function sanitize_citations( $citations ) {
                 'author'    => isset( $citation['author'] ) ? sanitize_text_field( $citation['author'] ) : '',
                 'publisher' => isset( $citation['publisher'] ) ? sanitize_text_field( $citation['publisher'] ) : '',
                 'date'      => isset( $citation['date'] ) ? sanitize_text_field( $citation['date'] ) : '',
-                'tier'      => isset( $citation['tier'] ) ? intval( $citation['tier'] ) : null,
+                'tier'      => isset( $citation['tier'] ) ? sanitize_text_field( $citation['tier'] ) : '',
+                'doi'       => isset( $citation['doi'] ) ? sanitize_text_field( $citation['doi'] ) : '',
             );
         } elseif ( is_string( $citation ) ) {
             $sanitized[] = array(
@@ -257,7 +258,9 @@ function sanitize_citations( $citations ) {
                 'author'    => '',
                 'publisher' => '',
                 'date'      => '',
-                'tier'      => null,
+                'tier'      => '',
+                'doi'       => '',
+            );
             );
         }
     }
@@ -296,9 +299,13 @@ function sanitize_entities( $entities ) {
  */
 function sanitize_evidence( $evidence ) {
     return array(
-        'tier'           => isset( $evidence['tier'] ) ? intval( $evidence['tier'] ) : null,
-        'confidence'     => isset( $evidence['confidence'] ) ? floatval( $evidence['confidence'] ) : 0.5,
-        'source_passage' => isset( $evidence['sourcePassage'] ) ? sanitize_text_field( $evidence['sourcePassage'] ) : '',
+        'tier'            => isset( $evidence['tier'] ) ? sanitize_text_field( $evidence['tier'] ) : '',
+        'confidence'      => isset( $evidence['confidence'] ) ? floatval( $evidence['confidence'] ) : 0.0,
+        'context_heading' => isset( $evidence['contextHeading'] ) ? sanitize_text_field( $evidence['contextHeading'] ) : '',
+        'source_passage'  => isset( $evidence['sourcePassage'] ) ? sanitize_text_field( $evidence['sourcePassage'] ) : '',
+        'anchor_entities' => isset( $evidence['anchorEntities'] ) && is_array( $evidence['anchorEntities'] )
+                             ? array_map( 'sanitize_text_field', $evidence['anchorEntities'] )
+                             : array(),
     );
 }
 
@@ -333,6 +340,15 @@ function run_scoring_for_post( $post_id, $canonical ) {
             );
 
             $total_scores[] = isset( $score_data['total_score'] ) ? floatval( $score_data['total_score'] ) : 0.0;
+        }
+
+        // Set expose_in_schema=false for cards below confidence threshold
+        foreach ( $page_scores as &$score_item ) {
+            $card = $score_item['card'];
+            $evidence = $card['evidence'] ?? array();
+            if ( ! empty( $evidence['confidence'] ) && $evidence['confidence'] < 0.6 ) {
+                $score_item['card']['expose_in_schema'] = false;
+            }
         }
 
         // Calculate composite score (average across all cards)
@@ -434,7 +450,7 @@ function output_answercard_jsonld() {
                 $citation_item = array( '@type' => 'CreativeWork' );
 
                 if ( is_array( $c ) ) {
-                    // Enhanced citation with metadata
+                    // Enhanced citation with metadata (public safe fields only)
                     if ( ! empty( $c['url'] ) ) {
                         $citation_item['url'] = esc_url_raw( $c['url'] );
                     }
@@ -456,10 +472,7 @@ function output_answercard_jsonld() {
                     if ( ! empty( $c['date'] ) ) {
                         $citation_item['datePublished'] = sanitize_text_field( $c['date'] );
                     }
-                    if ( ! empty( $c['tier'] ) ) {
-                        // Add evidence tier as custom property for internal use
-                        $citation_item['evidenceTier'] = intval( $c['tier'] );
-                    }
+                    // Keep evidence tier private - don't expose in public JSON-LD
                 } elseif ( is_string( $c ) ) {
                     // Fallback for simple string citations
                     $citation_item['url'] = esc_url_raw( $c );

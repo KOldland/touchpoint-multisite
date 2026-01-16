@@ -126,100 +126,61 @@ class ScoringEngine {
      */
     protected function score_citations( $settings ) {
         $citations = $settings['citations'] ?? array();
-        $evidence = $settings['evidence'] ?? array();
+        if ( empty( $citations ) ) return 0.2;
 
-        if ( empty( $citations ) ) {
-            return 0.1; // Minimal base score for having some citations
+        // base
+        $score = 0.0;
+        $total_weight = 0.0;
+
+        // Tier weights as defined
+        $tier_weights = array( 'tier1' => 0.4, 'tier2' => 0.25, 'tier3' => 0.15 );
+
+        foreach ( $citations as $c ) {
+            $tier = strtolower( $c['tier'] ?? '' );
+            $conf = isset( $c['confidence'] ) ? floatval( $c['confidence'] ) : 0.5;
+
+            // default small weight if unknown
+            $w = isset( $tier_weights[$tier] ) ? $tier_weights[$tier] : 0.05;
+
+            // quality factor: confidence + presence of author/date/doi increases reliability
+            $quality = 0.5;
+            if ( ! empty( $c['author'] ) ) $quality += 0.15;
+            if ( ! empty( $c['publisher'] ) ) $quality += 0.1;
+            if ( ! empty( $c['date'] ) ) $quality += 0.1;
+            if ( ! empty( $c['doi'] ) ) $quality += 0.1;
+            $quality = min( 1.0, $quality + $conf * 0.3 );
+
+            $score += $w * $quality;
+            $total_weight += $w;
         }
 
-        $score = 0.1; // Base score
-        $evidence_bonus = 0;
-
-        // Evidence tier weighting (Tier 1 > Tier 2 > Tier 3)
-        $tier_weights = array(
-            1 => 0.4, // Study+Year: Highest weight
-            2 => 0.25, // Benchmark: Medium weight
-            3 => 0.15, // Trade Publication: Lower weight
-        );
-
-        if ( ! empty( $evidence['tier'] ) && isset( $tier_weights[ $evidence['tier'] ] ) ) {
-            $evidence_bonus += $tier_weights[ $evidence['tier'] ];
+        // normalize to [0,1]
+        if ( $total_weight > 0 ) {
+            $score = $score / $total_weight;
         }
 
-        // Evidence confidence multiplier
-        $confidence_multiplier = $evidence['confidence'] ?? 0.5;
-        $evidence_bonus *= max( 0.3, min( 1.0, $confidence_multiplier ) );
-
-        // Source passage quality bonus
-        if ( ! empty( $evidence['source_passage'] ) && strlen( $evidence['source_passage'] ) > 20 ) {
-            $evidence_bonus += 0.1;
-        }
-
-        $score += $evidence_bonus;
-
-        // Traditional citation scoring (reduced weight)
-        $valid_citations = 0;
-        foreach ( $citations as $citation ) {
-            if ( empty( $citation ) ) continue;
-
-            $citation = trim( $citation );
-
-            // Check if it's a URL
-            if ( filter_var( $citation, FILTER_VALIDATE_URL ) ) {
-                $score += 0.1;
-                $valid_citations++;
-            }
-            // Check if it's a reasonable text citation
-            elseif ( strlen( $citation ) > 10 ) {
-                $score += 0.05;
-                $valid_citations++;
-            }
-        }
-
-        // Bonus for multiple citations (reduced)
-        if ( $valid_citations > 1 ) {
-            $score += min( 0.1, $valid_citations * 0.03 );
-        }
-
-        return min( 1.0, $score );
+        // map into expected [0.0 - 1.0] output with a small floor
+        return max( 0.2, min( 1.0, $score ) );
     }
 
     /**
      * Score entity anchor strength (evidence-based entity linkage)
      */
     protected function score_entity_anchor( $settings ) {
-        $score = 0.2; // Base score for potential entity linkage
-
-        // Evidence tier provides entity anchoring strength
+        // prefer explicit anchor_entities in evidence or explicit entity objects
         $evidence = $settings['evidence'] ?? array();
-        if ( ! empty( $evidence['tier'] ) ) {
-            // Higher tiers provide stronger entity anchoring
-            $tier_anchors = array(
-                1 => 0.8, // Tier 1: Strongest entity anchoring (Study+Year)
-                2 => 0.6, // Tier 2: Good entity anchoring (Benchmark)
-                3 => 0.4, // Tier 3: Moderate entity anchoring (Trade Publication)
-            );
-
-            if ( isset( $tier_anchors[ $evidence['tier'] ] ) ) {
-                $score = $tier_anchors[ $evidence['tier'] ];
-            }
+        $anchor_count = 0;
+        if ( ! empty( $evidence ) && ! empty( $evidence['anchor_entities'] ) ) {
+            $anchor_count = count( (array) $evidence['anchor_entities'] );
         }
-
-        // Evidence confidence affects anchoring strength
-        $confidence = $evidence['confidence'] ?? 0.5;
-        $score *= max( 0.3, min( 1.0, $confidence ) );
-
-        // Source passage quality strengthens anchoring
-        if ( ! empty( $evidence['source_passage'] ) && strlen( $evidence['source_passage'] ) > 30 ) {
-            $score += 0.1;
+        // fallback to card entities
+        if ( $anchor_count === 0 && ! empty( $settings['entities'] ) ) {
+            $anchor_count = count( (array) $settings['entities'] );
         }
-
-        // Traditional entity ID still provides bonus
-        if ( ! empty( $settings['entity_id'] ) ) {
-            $score += 0.1;
-        }
-
-        return min( 1.0, $score );
+        // scoring rule: 0 anchors -> 0.3, 1-2 anchors -> 0.7, 3+ anchors -> 1.0
+        if ( $anchor_count >= 3 ) return 1.0;
+        if ( $anchor_count >= 1 ) return 0.7;
+        return 0.3;
     }
 
     /**

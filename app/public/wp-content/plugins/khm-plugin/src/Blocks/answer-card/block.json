@@ -68,9 +68,9 @@
                 }
             }
         },
-        "preferred_summary": {
-            "type": "boolean",
-            "default": false
+        "preferredSummary": {
+            "type": "string",
+            "default": ""
         },
         "exposeInSchema": {
             "type": "boolean",
