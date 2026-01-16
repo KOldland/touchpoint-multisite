@@ -638,9 +638,13 @@ add_action( 'init', __NAMESPACE__ . '\\register_suggest_plugin_assets' );
  * @return void
  */
 function enqueue_suggest_plugin() {
+    // Only enqueue on post editor screens
+    $screen = get_current_screen();
+    $current_action = current_action();
+    
     // Add a debug script to the page to confirm this function runs
     if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-        echo '<script>console.log("[KHM GEO DEBUG] enqueue_suggest_plugin function called");</script>';
+        echo '<script>console.log("[KHM GEO DEBUG] enqueue_suggest_plugin function called, hook: ' . esc_js($current_action) . '");</script>';
     }
     
     // Debug logging
@@ -650,9 +654,6 @@ function enqueue_suggest_plugin() {
             error_log( '[KHM GEO] Screen properties: id=' . $screen->id . ', base=' . $screen->base . ', is_block_editor=' . ( method_exists( $screen, 'is_block_editor' ) ? ( $screen->is_block_editor() ? 'true' : 'false' ) : 'method_not_exists' ) );
         }
     }
-    
-    // Special handling for enqueue_block_editor_assets hook
-    if ( $current_action === 'enqueue_block_editor_assets' ) {
         // If we're in the block editor enqueue hook, assume it's a valid editor screen
         $is_editor_screen = true;
     } else {
