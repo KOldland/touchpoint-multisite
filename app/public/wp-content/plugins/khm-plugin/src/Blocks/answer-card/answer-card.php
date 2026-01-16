@@ -583,7 +583,9 @@ function add_admin_styles() {
         .column-geo_score { width: 80px; text-align: center; }
     </style>';
 }
+
 add_action( 'admin_head', __NAMESPACE__ . '\\add_admin_styles' );
+
 /**
  * Register the GEO Suggest AnswerCards plugin script and style.
  *
@@ -635,18 +637,27 @@ function enqueue_suggest_plugin() {
     }
     
     // Check if we're in the block editor
-    if ( ! function_exists( 'get_current_screen' ) || ! method_exists( get_current_screen(), 'is_block_editor' ) || ! get_current_screen()->is_block_editor() ) {
+    if ( ! method_exists( $screen, 'is_block_editor' ) || ! $screen->is_block_editor() ) {
         return;
     }
     
     wp_enqueue_script( 'khm-geo-suggest-plugin' );
     wp_enqueue_style( 'khm-geo-suggest-plugin' );
     
+    // Determine the current post ID in the editor context.
+    $post_id = 0;
+    global $post;
+    if ( $post instanceof \WP_Post ) {
+        $post_id = $post->ID;
+    } elseif ( isset( $screen->post ) && $screen->post instanceof \WP_Post ) {
+        $post_id = $screen->post->ID;
+    }
+    
     // Localize script with API endpoint and nonce
     wp_localize_script( 'khm-geo-suggest-plugin', 'khmGeoSuggest', array(
         'apiUrl' => rest_url( 'khm-geo/v1/suggest-answercards' ),
         'nonce' => wp_create_nonce( 'wp_rest' ),
-        'postId' => get_the_ID(),
+        'postId' => $post_id,
         'strings' => array(
             'title' => __( 'GEO AnswerCards', 'khm-membership' ),
             'suggestButton' => __( 'Suggest AnswerCards', 'khm-membership' ),

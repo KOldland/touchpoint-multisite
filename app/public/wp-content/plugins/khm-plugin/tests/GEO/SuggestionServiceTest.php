@@ -46,7 +46,7 @@ class SuggestionServiceTest extends TestCase {
 
         $valid_card = [
             'question' => str_repeat('A', 50), // 50 chars
-            'concise_answer' => str_repeat('A', 80), // 80 chars
+            'concise_answer' => str_repeat('Word ', 25), // 25 words
             'key_points' => ['Point 1', 'Point 2', 'Point 3'],
             'citations' => [
                 ['title' => 'Source 1', 'url' => 'https://example.com/1'],
@@ -58,7 +58,7 @@ class SuggestionServiceTest extends TestCase {
             'confidence' => 0.85
         ];
 
-        $this->assertTrue($validator->validate($valid_card));
+        $this->assertTrue($validator->validate([$valid_card]));
     }
 
     /**
@@ -69,11 +69,11 @@ class SuggestionServiceTest extends TestCase {
 
         $invalid_card = [
             'question' => '', // Empty question
-            'concise_answer' => str_repeat('A', 200), // Too long
+            'concise_answer' => str_repeat('Word ', 160), // Too many words
             'key_points' => [], // No key points
         ];
 
-        $this->assertFalse($validator->validate($invalid_card));
+        $this->assertFalse($validator->validate([$invalid_card]));
     }
 
     /**
@@ -82,17 +82,17 @@ class SuggestionServiceTest extends TestCase {
     public function test_cache_key_generation() {
         $cache_manager = new SuggestionCacheManager();
 
-        $data1 = ['title' => 'Test', 'content' => 'Content'];
-        $data2 = ['title' => 'Test', 'content' => 'Content']; // Same data
-        $data3 = ['title' => 'Test', 'content' => 'Different']; // Different data
+        $content1 = 'Test Content';
+        $content2 = 'Test Content'; // Same content
+        $content3 = 'Test Different'; // Different content
 
-        $key1 = $cache_manager->generateCacheKey($data1);
-        $key2 = $cache_manager->generateCacheKey($data2);
-        $key3 = $cache_manager->generateCacheKey($data3);
+        $key1 = $cache_manager->generate_cache_key($content1);
+        $key2 = $cache_manager->generate_cache_key($content2);
+        $key3 = $cache_manager->generate_cache_key($content3);
 
         $this->assertEquals($key1, $key2); // Same data = same key
         $this->assertNotEquals($key1, $key3); // Different data = different key
-        $this->assertStringStartsWith('geo_suggest_', $key1);
+        $this->assertStringStartsWith(SuggestionCacheManager::CACHE_PREFIX, $key1);
     }
 
     /**
@@ -104,7 +104,7 @@ class SuggestionServiceTest extends TestCase {
 
         $limiter = new RateLimiter();
 
-        $this->assertTrue($limiter->checkLimit(1)); // Should allow
+        $this->assertTrue($limiter->check_limit(1)); // Should allow
     }
 
     /**
@@ -112,12 +112,12 @@ class SuggestionServiceTest extends TestCase {
      */
     public function test_rate_limiter_blocks_excessive_usage() {
         // Mock existing high usage count
-        Functions\when('get_transient')->justReturn(['count' => 5, 'reset' => time() + 3600]);
+        Functions\when('get_transient')->justReturn(5);
         Functions\when('set_transient')->justReturn(true);
 
         $limiter = new RateLimiter();
 
-        $this->assertFalse($limiter->checkLimit(1)); // Should block
+        $this->assertFalse($limiter->check_limit(1)); // Should block
     }
 
     /**
