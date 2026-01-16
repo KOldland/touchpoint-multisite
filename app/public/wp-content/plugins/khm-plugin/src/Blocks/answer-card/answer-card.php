@@ -683,8 +683,30 @@ function enqueue_suggest_plugin() {
     if ( ! wp_script_is( 'khm-geo-suggest-plugin', 'registered' ) ) {
         if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
             error_log( '[KHM GEO] Script khm-geo-suggest-plugin not registered, registering now' );
+            echo '<script>console.log("[KHM GEO DEBUG] Registering script...");</script>';
         }
         register_suggest_plugin_assets();
+        
+        // Check again after registration
+        if ( ! wp_script_is( 'khm-geo-suggest-plugin', 'registered' ) ) {
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( '[KHM GEO] Script registration failed' );
+                echo '<script>console.log("[KHM GEO DEBUG] Script registration failed");</script>';
+            }
+            return;
+        } else {
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                echo '<script>console.log("[KHM GEO DEBUG] Script registration successful");</script>';
+            }
+        }
+    } else {
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            echo '<script>console.log("[KHM GEO DEBUG] Script already registered");</script>';
+        }
+    }
+    
+    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+        echo '<script>console.log("[KHM GEO DEBUG] About to enqueue scripts...");</script>';
     }
     
     wp_enqueue_script( 'khm-geo-suggest-plugin' );
