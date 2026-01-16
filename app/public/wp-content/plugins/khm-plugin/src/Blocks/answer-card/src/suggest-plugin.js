@@ -145,6 +145,9 @@ const SuggestAnswerCardsModal = ( { isOpen, onClose, postId, postTitle, postCont
 
     const { insertBlocks } = useDispatch( 'core/block-editor' );
 
+    // Safety check for block editor availability
+    const isBlockEditorAvailable = !!insertBlocks;
+
     /**
      * Fetch suggestions from API
      */
@@ -212,6 +215,12 @@ const SuggestAnswerCardsModal = ( { isOpen, onClose, postId, postTitle, postCont
      * Insert selected cards as blocks
      */
     const insertSelectedCards = useCallback( () => {
+        if ( !isBlockEditorAvailable ) {
+            console.error( '[KHM GEO] Block editor not available for inserting blocks' );
+            setError( 'Block editor not available on this page' );
+            return;
+        }
+
         const blocksToInsert = selectedCards.map( ( index ) => {
             const card = suggestions[ index ];
             
@@ -229,12 +238,17 @@ const SuggestAnswerCardsModal = ( { isOpen, onClose, postId, postTitle, postCont
             insertBlocks( blocksToInsert );
             onClose();
         }
-    }, [ selectedCards, suggestions, insertBlocks, onClose ] );
+    }, [ selectedCards, suggestions, insertBlocks, onClose, isBlockEditorAvailable ] );
 
     /**
      * Edit a card before inserting
      */
     const editCard = ( card ) => {
+        if ( !isBlockEditorAvailable ) {
+            console.error( '[KHM GEO] Block editor not available for inserting blocks' );
+            setError( 'Block editor not available on this page' );
+            return;
+        }
         const block = createBlock( 'khm/answer-card', {
             question: card.question || '',
             conciseAnswer: card.concise_answer || '',
@@ -378,25 +392,41 @@ const AnswerCardSidebarContent = () => {
     const [ isModalOpen, setIsModalOpen ] = useState( false );
 
     const { postId, postTitle, postContent, postUrl } = useSelect( ( select ) => {
-        const { getCurrentPostId, getEditedPostAttribute } = select( 'core/editor' );
-        const id = getCurrentPostId();
-        const title = getEditedPostAttribute( 'title' ) || '';
-        const content = getEditedPostAttribute( 'content' ) || '';
-        const link = getEditedPostAttribute( 'link' ) || '';
+        try {
+            const { getCurrentPostId, getEditedPostAttribute } = select( 'core/editor' );
+            const id = getCurrentPostId();
+            const title = getEditedPostAttribute( 'title' ) || '';
+            const content = getEditedPostAttribute( 'content' ) || '';
+            const link = getEditedPostAttribute( 'link' ) || '';
 
-        const plainContent = content.replace( /<[^>]*>/g, ' ' ).replace( /\s+/g, ' ' ).trim();
+            const plainContent = content.replace( /<[^>]*>/g, ' ' ).replace( /\s+/g, ' ' ).trim();
 
-        return {
-            postId: id,
-            postTitle: title,
-            postContent: plainContent,
-            postUrl: link,
-        };
+            return {
+                postId: id,
+                postTitle: title,
+                postContent: plainContent,
+                postUrl: link,
+            };
+        } catch ( error ) {
+            console.warn( '[KHM GEO] core/editor store not available:', error );
+            // Fallback to localized data
+            return {
+                postId: window.khmGeoSuggest?.postId || 0,
+                postTitle: '',
+                postContent: '',
+                postUrl: '',
+            };
+        }
     }, [] );
 
     const answerCardCount = useSelect( ( select ) => {
-        const blocks = select( 'core/block-editor' ).getBlocks();
-        return blocks.filter( ( block ) => block.name === 'khm/answer-card' ).length;
+        try {
+            const blocks = select( 'core/block-editor' ).getBlocks();
+            return blocks.filter( ( block ) => block.name === 'khm/answer-card' ).length;
+        } catch ( error ) {
+            console.warn( '[KHM GEO] core/block-editor store not available:', error );
+            return 0;
+        }
     }, [] );
 
     return (
@@ -407,14 +437,20 @@ const AnswerCardSidebarContent = () => {
                 </Text>
                 
                 <div style={ { marginTop: '15px' } }>
-                    <Button
-                        variant="primary"
-                        onClick={ () => setIsModalOpen( true ) }
-                        icon={ help }
-                        disabled={ ! postContent || postContent.length < 100 }
-                    >
-                        { __( 'Suggest AnswerCards', 'khm-membership' ) }
-                    </Button>
+                    { !isBlockEditorAvailable ? (
+                        <Notice status="warning" isDismissible={ false }>
+                            { __( 'Block editor not available on this page. Please use the post editor.', 'khm-membership' ) }
+                        </Notice>
+                    ) : (
+                        <Button
+                            variant="primary"
+                            onClick={ () => setIsModalOpen( true ) }
+                            icon={ help }
+                            disabled={ ! postContent || postContent.length < 100 }
+                        >
+                            { __( 'Suggest AnswerCards', 'khm-membership' ) }
+                        </Button>
+                    ) }
                 </div>
 
                 { postContent.length < 100 && (
