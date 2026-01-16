@@ -80,9 +80,9 @@ require_once __DIR__ . '/src/GEO/SuggestAnswerCardsEndpoint.php';
 
 // Register GEO Suggestion Endpoint at rest_api_init
 add_action( 'rest_api_init', function() {
-    if ( class_exists( '\\KHM\\GEO\\SuggestAnswerCardsEndpoint' ) ) {
+    if ( class_exists( 'KHM\\GEO\\SuggestAnswerCardsEndpoint' ) ) {
         try {
-            $ep = new \\KHM\\GEO\\SuggestAnswerCardsEndpoint();
+            $ep = new KHM\GEO\SuggestAnswerCardsEndpoint();
             $ep->register();
             error_log('[KHM GEO] SuggestAnswerCardsEndpoint registered.');
         } catch ( Throwable $e ) {
