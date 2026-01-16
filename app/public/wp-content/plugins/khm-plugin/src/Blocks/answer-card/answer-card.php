@@ -640,27 +640,34 @@ add_action( 'init', __NAMESPACE__ . '\\register_suggest_plugin_assets' );
 function enqueue_suggest_plugin() {
     // Only enqueue on post editor screens
     $screen = get_current_screen();
+    $current_action = current_action();
     
     // Debug logging
     if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-        error_log( '[KHM GEO] enqueue_suggest_plugin called, screen: ' . ( $screen ? $screen->id : 'null' ) . ', hook: ' . current_action() );
+        error_log( '[KHM GEO] enqueue_suggest_plugin called, screen: ' . ( $screen ? $screen->id : 'null' ) . ', hook: ' . $current_action );
         if ( $screen ) {
             error_log( '[KHM GEO] Screen properties: id=' . $screen->id . ', base=' . $screen->base . ', is_block_editor=' . ( method_exists( $screen, 'is_block_editor' ) ? ( $screen->is_block_editor() ? 'true' : 'false' ) : 'method_not_exists' ) );
         }
     }
     
-    // For now, be more permissive - enqueue on any screen that might be an editor
-    $is_editor_screen = false;
-    if ( $screen ) {
-        // Exclude specific admin pages that are not editors
-        if ( in_array( $screen->id, array( 'khm-seo_page_khm-seo-geo-post', 'khm-seo-geo-post' ), true ) ) {
-            $is_editor_screen = false;
-        } else {
-            // Check for various editor screen patterns
-            $is_editor_screen = in_array( $screen->id, array( 'post', 'page', 'toplevel_page_content', 'edit-post' ), true ) ||
-                               strpos( $screen->id, 'post' ) !== false ||
-                               strpos( $screen->base, 'post' ) !== false ||
-                               ( method_exists( $screen, 'is_block_editor' ) && $screen->is_block_editor() );
+    // Special handling for enqueue_block_editor_assets hook
+    if ( $current_action === 'enqueue_block_editor_assets' ) {
+        // If we're in the block editor enqueue hook, assume it's a valid editor screen
+        $is_editor_screen = true;
+    } else {
+        // For other hooks, check screen properties
+        $is_editor_screen = false;
+        if ( $screen ) {
+            // Exclude specific admin pages that are not editors
+            if ( in_array( $screen->id, array( 'khm-seo_page_khm-seo-geo-post', 'khm-seo-geo-post' ), true ) ) {
+                $is_editor_screen = false;
+            } else {
+                // Check for various editor screen patterns
+                $is_editor_screen = in_array( $screen->id, array( 'post', 'page', 'toplevel_page_content', 'edit-post' ), true ) ||
+                                   strpos( $screen->id, 'post' ) !== false ||
+                                   strpos( $screen->base, 'post' ) !== false ||
+                                   ( method_exists( $screen, 'is_block_editor' ) && $screen->is_block_editor() );
+            }
         }
     }
     
