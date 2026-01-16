@@ -80,20 +80,16 @@ require_once __DIR__ . '/src/GEO/SuggestAnswerCardsEndpoint.php';
 
 // Register GEO Suggestion Endpoint at rest_api_init
 add_action( 'rest_api_init', function() {
-    if ( class_exists( "KHM\GEO\SuggestAnswerCardsEndpoint" ) ) {
+    if ( class_exists( '\\KHM\\GEO\\SuggestAnswerCardsEndpoint' ) ) {
         try {
-            $endpoint = new KHM\GEO\SuggestAnswerCardsEndpoint();
-            $endpoint->register();
-            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-                error_log( '[KHM GEO] SuggestAnswerCardsEndpoint registered.' );
-            }
-        } catch ( \Exception $e ) {
-            error_log( '[KHM GEO] Failed to register SuggestAnswerCardsEndpoint: ' . $e->getMessage() );
+            $ep = new \\KHM\\GEO\\SuggestAnswerCardsEndpoint();
+            $ep->register();
+            error_log('[KHM GEO] SuggestAnswerCardsEndpoint registered.');
+        } catch ( Throwable $e ) {
+            error_log('[KHM GEO] Endpoint registration failed: ' . $e->getMessage());
         }
     } else {
-        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-            error_log( '[KHM GEO] SuggestAnswerCardsEndpoint class not found.' );
-        }
+        error_log('[KHM GEO] SuggestAnswerCardsEndpoint class not found during rest_api_init.');
     }
 } );
 
