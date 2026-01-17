@@ -362,6 +362,8 @@ class SuggestAnswerCardsEndpoint {
         return <<<PROMPT
 You are an expert at Generative Engine Optimization (GEO) with a focus on evidence-based AnswerCard generation. Your task is to analyze article content, reference blocks, and citation contexts to generate structured AnswerCards optimized for AI citation and featured snippets.
 
+You MUST respond with valid JSON only. Do not include any text outside the JSON structure.
+
 **EVIDENCE STRENGTH = ENTITY CLARITY FRAMEWORK:**
 
 Tier 1 (Study + Year): Temporal + institutional entity anchoring
