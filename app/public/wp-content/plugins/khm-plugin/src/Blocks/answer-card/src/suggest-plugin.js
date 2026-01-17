@@ -183,12 +183,12 @@ const SuggestAnswerCardsModal = ( { isOpen, onClose, postId, postTitle, postCont
                 throw new Error( 'Invalid response format' );
             }
         } catch ( err ) {
-            console.error( 'Suggestion fetch error details:', {
-                message: err.message,
-                code: err.code,
-                data: err.data,
-                fullError: err
-            } );
+            console.error( 'Suggestion fetch error details:', err );
+            console.error( 'Error type:', typeof err );
+            console.error( 'Error properties:', Object.keys(err));
+            console.error( 'Error message:', err.message );
+            console.error( 'Error code:', err.code );
+            console.error( 'Error data:', err.data );
             
             let errorMessage = err.message || __( 'Failed to fetch suggestions', 'khm-membership' );
             
