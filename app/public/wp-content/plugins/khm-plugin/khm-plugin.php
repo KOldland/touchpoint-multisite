@@ -77,6 +77,7 @@ require_once __DIR__ . '/src/GEO/SuggestionCacheManager.php';
 require_once __DIR__ . '/src/GEO/RateLimiter.php';
 require_once __DIR__ . '/src/GEO/SuggestionAuditLogger.php';
 require_once __DIR__ . '/src/GEO/SuggestAnswerCardsEndpoint.php';
+require_once __DIR__ . '/src/GEO/RedirectHandler.php';
 
 // Register GEO Suggestion Endpoint at rest_api_init
 add_action( 'rest_api_init', function() {

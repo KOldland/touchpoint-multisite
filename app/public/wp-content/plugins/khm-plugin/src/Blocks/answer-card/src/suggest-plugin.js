@@ -39,10 +39,141 @@ import apiFetch from '@wordpress/api-fetch';
 import './suggest-modal.scss';
 
 /**
- * Confidence badge component
+ * Decode HTML entities for display
+ * @param {string} text - Text with potential HTML entities
+ * @returns {string} Decoded text
  */
-const ConfidenceBadge = ( { confidence } ) => {
+const decodeHtmlEntities = ( text ) => {
+    if ( ! text ) return '';
+    const textarea = document.createElement( 'textarea' );
+    textarea.innerHTML = text;
+    return textarea.value;
+};
+
+/**
+ * Get confidence reason codes based on evidence data
+ * @param {object} evidence - Evidence object from card
+ * @param {array} citations - Citations array from card
+ * @returns {object} Reasons object with primary, secondary, and actions
+ */
+const getConfidenceReasons = ( evidence, citations = [] ) => {
+    const reasons = {
+        primary: null,
+        secondary: [],
+        actions: [],
+    };
+
+    const tier = evidence?.tier || 'unknown';
+    const confidence = parseFloat( evidence?.confidence || 0.5 );
+    const hasSourcePassage = !! evidence?.source_passage;
+    const hasAuthor = citations.some( c => c.author );
+    const hasYear = citations.some( c => c.year );
+    const hasPublisher = citations.some( c => c.publisher );
+
+    // Determine primary reason
+    if ( tier === 'tier3' || tier === 'unknown' ) {
+        reasons.primary = 'Only Tier-3 or unclassified evidence detected';
+        reasons.actions.push( 'Add Tier-1 citation (study with author + year)' );
+    } else if ( tier === 'tier2' ) {
+        reasons.primary = 'Tier-2 evidence (benchmark) — upgrade to Tier-1 for higher confidence';
+        reasons.actions.push( 'Add peer-reviewed study or institutional source' );
+    } else if ( confidence < 0.6 ) {
+        reasons.primary = 'Low extraction confidence from source material';
+    }
+
+    // Secondary reasons
+    if ( ! hasAuthor ) {
+        reasons.secondary.push( 'Missing: author attribution' );
+        reasons.actions.push( 'Add author name to citation' );
+    }
+    if ( ! hasYear ) {
+        reasons.secondary.push( 'Missing: publication year' );
+        reasons.actions.push( 'Add publication year to citation' );
+    }
+    if ( ! hasSourcePassage ) {
+        reasons.secondary.push( 'No source passage attached' );
+        reasons.actions.push( 'Attach source passage from article' );
+    }
+    if ( ! hasPublisher ) {
+        reasons.secondary.push( 'Missing: publisher/institution' );
+    }
+    if ( citations.length === 0 ) {
+        reasons.secondary.push( 'No citations present' );
+        reasons.actions.push( 'Add external source citation' );
+    }
+
+    // Default primary if none set
+    if ( ! reasons.primary && reasons.secondary.length > 0 ) {
+        reasons.primary = 'Incomplete citation metadata';
+    } else if ( ! reasons.primary ) {
+        reasons.primary = 'Review evidence quality';
+    }
+
+    return reasons;
+};
+
+/**
+ * Format citation for display: Title — Author (Year), Publisher
+ * Returns object with separate title and meta for flexible rendering
+ * @param {object} cit - Citation object
+ * @returns {object} { title, meta, link, hasMeta }
+ */
+const formatCitationDisplay = ( cit ) => {
+    const title = decodeHtmlEntities( cit.title || cit.url || 'Untitled' );
+    const author = cit.author ? decodeHtmlEntities( cit.author ) : '';
+    const year = cit.year ? `(${ cit.year })` : '';
+    const publisher = cit.publisher ? decodeHtmlEntities( cit.publisher ) : '';
+
+    // Build meta string: "Author (Year), Publisher" or fallbacks
+    let meta = '';
+    if ( author && year ) {
+        meta = `${ author } ${ year }`;
+        if ( publisher ) {
+            meta += `, ${ publisher }`;
+        }
+    } else if ( author ) {
+        meta = author;
+        if ( publisher ) {
+            meta += `, ${ publisher }`;
+        }
+    } else if ( year ) {
+        meta = year;
+        if ( publisher ) {
+            meta += `, ${ publisher }`;
+        }
+    } else if ( publisher ) {
+        meta = publisher;
+    }
+
+    return {
+        title,
+        meta,
+        link: cit.url || '',
+        hasMeta: !! meta,
+        tier: cit.tier || '',
+    };
+};
+
+/**
+ * Get tier badge display
+ * @param {string} tier - Evidence tier
+ * @returns {object} Tier display info
+ */
+const getTierDisplay = ( tier ) => {
+    const tiers = {
+        tier1: { label: '🏆 Tier-1', desc: 'Study + Year', className: 'tier1' },
+        tier2: { label: '📊 Tier-2', desc: 'Benchmark', className: 'tier2' },
+        tier3: { label: '📰 Tier-3', desc: 'Trade Publication', className: 'tier3' },
+    };
+    return tiers[ tier ] || { label: '❓ Unknown', desc: 'Unclassified', className: 'unknown' };
+};
+
+/**
+ * Confidence badge component with tooltip
+ */
+const ConfidenceBadge = ( { confidence, evidence, citations } ) => {
     const score = parseFloat( confidence ) * 100;
+    const reasons = getConfidenceReasons( evidence, citations );
     let variant = 'low';
     if ( score >= 80 ) {
         variant = 'high';
@@ -50,8 +181,17 @@ const ConfidenceBadge = ( { confidence } ) => {
         variant = 'medium';
     }
 
+    const tooltipContent = [
+        `${ score.toFixed( 0 ) }% confidence`,
+        `Primary: ${ reasons.primary }`,
+        ...reasons.secondary.slice( 0, 2 ).map( s => `• ${ s }` ),
+    ].join( '\n' );
+
     return (
-        <span className={ `khm-confidence-badge khm-confidence-badge--${ variant }` }>
+        <span 
+            className={ `khm-confidence-badge khm-confidence-badge--${ variant }` }
+            title={ tooltipContent }
+        >
             { score.toFixed( 0 ) }% confidence
         </span>
     );
@@ -61,6 +201,11 @@ const ConfidenceBadge = ( { confidence } ) => {
  * Single suggestion card preview
  */
 const SuggestionCard = ( { card, index, selected, onToggle, onEdit } ) => {
+    const [ showSourcePassage, setShowSourcePassage ] = useState( false );
+    const evidence = card.evidence || {};
+    const tierDisplay = getTierDisplay( evidence.tier );
+    const reasons = getConfidenceReasons( evidence, card.citations );
+
     return (
         <Card className={ `khm-suggestion-card ${ selected ? 'khm-suggestion-card--selected' : '' }` }>
             <CardHeader>
@@ -74,47 +219,107 @@ const SuggestionCard = ( { card, index, selected, onToggle, onEdit } ) => {
                     </FlexItem>
                     <FlexItem isBlock>
                         <Heading level={ 4 } className="khm-suggestion-card__question">
-                            { card.question }
+                            { decodeHtmlEntities( card.question ) }
                         </Heading>
                     </FlexItem>
                     <FlexItem>
-                        <ConfidenceBadge confidence={ card.confidence || 0.5 } />
+                        <span className={ `khm-tier-badge khm-tier-badge--${ tierDisplay.className }` } title={ tierDisplay.desc }>
+                            { tierDisplay.label }
+                        </span>
+                    </FlexItem>
+                    <FlexItem>
+                        <ConfidenceBadge 
+                            confidence={ evidence.confidence || card.confidence || 0.5 } 
+                            evidence={ evidence }
+                            citations={ card.citations }
+                        />
                     </FlexItem>
                 </Flex>
             </CardHeader>
             <CardBody>
                 <div className="khm-suggestion-card__answer">
-                    <Text>{ card.concise_answer }</Text>
+                    <Text>{ decodeHtmlEntities( card.concise_answer ) }</Text>
                 </div>
                 { card.key_points && card.key_points.length > 0 && (
                     <div className="khm-suggestion-card__key-points">
-                        <Text weight="600" size="12px">Key Points:</Text>
+                        <Text weight="600" size="12px">{ __( 'KEY POINTS:', 'khm-membership' ) }</Text>
                         <ul>
                             { card.key_points.map( ( point, i ) => (
-                                <li key={ i }>{ point }</li>
+                                <li key={ i }>{ decodeHtmlEntities( point ) }</li>
                             ) ) }
                         </ul>
                     </div>
                 ) }
                 { card.citations && card.citations.length > 0 && (
                     <div className="khm-suggestion-card__citations">
-                        <Text weight="600" size="12px">Citations:</Text>
+                        <Text weight="600" size="12px">{ __( 'CITATIONS:', 'khm-membership' ) }</Text>
                         <ul>
-                            { card.citations.map( ( citation, i ) => (
-                                <li key={ i }>
-                                    <a href={ citation.url } target="_blank" rel="noopener noreferrer">
-                                        { citation.title || citation.url }
-                                    </a>
-                                </li>
-                            ) ) }
+                            { card.citations.map( ( citation, i ) => {
+                                const formatted = formatCitationDisplay( citation );
+                                return (
+                                    <li key={ i } className="khm-suggestion-card__citation-item">
+                                        <a 
+                                            href={ formatted.link } 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            aria-label={ `Open citation: ${ formatted.title } (opens in new tab)` }
+                                        >
+                                            { formatted.title }
+                                        </a>
+                                        { formatted.hasMeta && (
+                                            <span className="khm-suggestion-card__citation-meta">
+                                                { ' — ' }{ formatted.meta }
+                                            </span>
+                                        ) }
+                                    </li>
+                                );
+                            } ) }
                         </ul>
+                    </div>
+                ) }
+                { evidence.source_passage && (
+                    <div className="khm-suggestion-card__source-passage">
+                        <Button
+                            variant="link"
+                            onClick={ () => setShowSourcePassage( ! showSourcePassage ) }
+                            className="khm-suggestion-card__source-toggle"
+                        >
+                            { showSourcePassage ? __( '▼ Hide source passage', 'khm-membership' ) : __( '▶ Show source passage', 'khm-membership' ) }
+                        </Button>
+                        { showSourcePassage && (
+                            <blockquote className="khm-suggestion-card__quote">
+                                "{ decodeHtmlEntities( evidence.source_passage ) }"
+                                { evidence.context_heading && (
+                                    <cite>— { decodeHtmlEntities( evidence.context_heading ) }</cite>
+                                ) }
+                            </blockquote>
+                        ) }
                     </div>
                 ) }
                 { card.notes && (
                     <div className="khm-suggestion-card__notes">
                         <Text size="12px" isBlock>
-                            <Icon icon={ warning } size={ 14 } /> { card.notes }
+                            <Icon icon={ warning } size={ 14 } /> { decodeHtmlEntities( card.notes ) }
                         </Text>
+                    </div>
+                ) }
+                { /* Confidence reasons panel */ }
+                { ( evidence.confidence || card.confidence || 0.5 ) < 0.6 && (
+                    <div className="khm-suggestion-card__reasons">
+                        <Text size="12px" weight="600">{ __( 'Low confidence reasons:', 'khm-membership' ) }</Text>
+                        <Text size="12px">{ reasons.primary }</Text>
+                        { reasons.secondary.length > 0 && (
+                            <ul className="khm-suggestion-card__reasons-list">
+                                { reasons.secondary.slice( 0, 3 ).map( ( reason, i ) => (
+                                    <li key={ i }><Text size="11px">{ reason }</Text></li>
+                                ) ) }
+                            </ul>
+                        ) }
+                        { reasons.actions.length > 0 && (
+                            <Text size="11px" variant="muted">
+                                { __( 'Quick fixes:', 'khm-membership' ) } { reasons.actions.slice( 0, 2 ).join( ', ' ) }
+                            </Text>
+                        ) }
                     </div>
                 ) }
             </CardBody>
@@ -150,8 +355,9 @@ const SuggestAnswerCardsModal = ( { isOpen, onClose, postId, postTitle, postCont
 
     /**
      * Fetch suggestions from API
+     * @param {boolean} forceRefresh - If true, bypass cache and regenerate
      */
-    const fetchSuggestions = useCallback( async () => {
+    const fetchSuggestions = useCallback( async ( forceRefresh = false ) => {
         setIsLoading( true );
         setError( null );
         setSuggestions( [] );
@@ -167,6 +373,7 @@ const SuggestAnswerCardsModal = ( { isOpen, onClose, postId, postTitle, postCont
                     url: postUrl || window.location.href,
                     content: postContent,
                     max_cards: maxCards,
+                    force_refresh: forceRefresh,
                 },
                 parse: false,
             } );
@@ -307,7 +514,7 @@ const SuggestAnswerCardsModal = ( { isOpen, onClose, postId, postTitle, postCont
 
                         <Button
                             variant="primary"
-                            onClick={ fetchSuggestions }
+                            onClick={ () => fetchSuggestions( false ) }
                             icon={ plus }
                             className="khm-suggest-modal__generate-btn"
                         >
@@ -331,7 +538,7 @@ const SuggestAnswerCardsModal = ( { isOpen, onClose, postId, postTitle, postCont
                         { error }
                         <Button
                             variant="secondary"
-                            onClick={ fetchSuggestions }
+                            onClick={ () => fetchSuggestions( false ) }
                             style={ { marginLeft: '10px' } }
                         >
                             { __( 'Try Again', 'khm-membership' ) }
@@ -370,7 +577,7 @@ const SuggestAnswerCardsModal = ( { isOpen, onClose, postId, postTitle, postCont
                                 <FlexItem>
                                     <Button
                                         variant="secondary"
-                                        onClick={ fetchSuggestions }
+                                        onClick={ () => fetchSuggestions( true ) }
                                     >
                                         { __( 'Regenerate', 'khm-membership' ) }
                                     </Button>

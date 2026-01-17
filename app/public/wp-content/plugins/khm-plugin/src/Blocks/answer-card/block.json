@@ -2,7 +2,7 @@
     "$schema": "https://schemas.wp.org/trunk/block.json",
     "apiVersion": 3,
     "name": "khm/answer-card",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "title": "AnswerCard",
     "category": "text",
     "icon": "editor-help",
@@ -13,6 +13,10 @@
     "editorStyle": "file:./build/index.css",
     "style": "file:./build/index.css",
     "attributes": {
+        "answerCardId": {
+            "type": "string",
+            "default": ""
+        },
         "question": {
             "type": "string",
             "default": ""
@@ -38,8 +42,12 @@
                     "url": { "type": "string" },
                     "author": { "type": "string" },
                     "publisher": { "type": "string" },
-                    "year": { "type": "number" },
-                    "tier": { "type": "string", "enum": ["tier1", "tier2", "tier3"] }
+                    "year": { "type": "string" },
+                    "tier": { "type": "string", "enum": ["tier1", "tier2", "tier3"] },
+                    "doi": { "type": "string" },
+                    "keywords": { "type": "array", "items": { "type": "string" } },
+                    "trackedUrl": { "type": "string" },
+                    "enableTracking": { "type": "boolean" }
                 }
             }
         },
@@ -68,13 +76,38 @@
                 }
             }
         },
+        "topicDiscussedAt": {
+            "type": "object",
+            "default": {},
+            "properties": {
+                "url": { "type": "string" },
+                "title": { "type": "string" },
+                "author": { "type": "string" },
+                "publisher": { "type": "string" },
+                "date": { "type": "string" },
+                "note": { "type": "string" }
+            }
+        },
+        "siteKeywords": {
+            "type": "array",
+            "default": [],
+            "items": { "type": "string" }
+        },
         "preferredSummary": {
+            "type": "string",
+            "default": ""
+        },
+        "publicSummaryLabel": {
             "type": "string",
             "default": ""
         },
         "exposeInSchema": {
             "type": "boolean",
             "default": true
+        },
+        "requiresReview": {
+            "type": "boolean",
+            "default": false
         },
         "position": {
             "type": "number",

@@ -101,6 +101,12 @@ class SuggestAnswerCardsEndpoint {
                     'default'           => 4,
                     'sanitize_callback' => 'absint',
                 ),
+                'force_refresh' => array(
+                    'type'              => 'boolean',
+                    'required'          => false,
+                    'default'           => false,
+                    'sanitize_callback' => 'rest_sanitize_boolean',
+                ),
             ),
         ) );
     }
@@ -123,12 +129,13 @@ class SuggestAnswerCardsEndpoint {
     public function handle_request( $request ) {
         // Direct file logging for debugging
         
-        $user_id   = get_current_user_id();
-        $post_id   = $request->get_param( 'post_id' ) ?? 0;
-        $title     = $request->get_param( 'title' ) ?? '';
-        $url       = $request->get_param( 'url' ) ?? '';
-        $content   = $request->get_param( 'content' );
-        $max_cards = min( 8, max( 1, $request->get_param( 'max_cards' ) ?? 4 ) );
+        $user_id       = get_current_user_id();
+        $post_id       = $request->get_param( 'post_id' ) ?? 0;
+        $title         = $request->get_param( 'title' ) ?? '';
+        $url           = $request->get_param( 'url' ) ?? '';
+        $content       = $request->get_param( 'content' );
+        $max_cards     = min( 8, max( 1, $request->get_param( 'max_cards' ) ?? 4 ) );
+        $force_refresh = (bool) $request->get_param( 'force_refresh' );
 
 
         // Check rate limit
@@ -145,9 +152,9 @@ class SuggestAnswerCardsEndpoint {
             return $rate_check;
         }
 
-        // Check for cached response
+        // Check for cached response (skip if force_refresh)
         $cache_key = $this->cache->generate_cache_key( $content, $max_cards, $this->llm_client->get_model_name() );
-        $cached    = $this->cache->get( $cache_key );
+        $cached    = $force_refresh ? false : $this->cache->get( $cache_key );
 
         if ( false !== $cached ) {
             $this->logger->log_request( array(
@@ -340,11 +347,18 @@ You are an expert at Generative Engine Optimization (GEO) with a focus on eviden
 
 You MUST respond with valid JSON only. Do not include any text outside the JSON structure.
 
+**CORE PRINCIPLE: EXTERNAL EVIDENCE + SITE ANCHOR**
+
+Each AnswerCard should:
+1. Cite EXTERNAL authoritative sources (studies, benchmarks, trade publications) as evidence
+2. Position the article itself as the definitive guide where this topic is "discussed in depth"
+3. Create a clear trail: AI reads claim → sees external evidence → links to your article for more
+
 **EVIDENCE STRENGTH = ENTITY CLARITY FRAMEWORK:**
 
 Tier 1 (Study + Year): Temporal + institutional entity anchoring
 - Peer-reviewed journals, preprints, government reports, datasets
-- Contains year AND institutional author
+- Contains year AND institutional author (e.g., "McKinsey & Company (2020)")
 - Highest weight for GEO scoring
 
 Tier 2 (Benchmark): Normative industry anchoring  
@@ -355,49 +369,59 @@ Tier 3 (Trade Publication): Contextual authority anchoring
 - Trade press, industry blogs, news
 - Low weight - provides practitioner framing
 
-**ITERATIVE WORKFLOW:**
-1. Familiarize with article + reference block structure
-2. Parse H2/H3 headings and citation contexts  
-3. Extract evidence passages with entity anchoring
-4. Generate AnswerCards grounded in strongest evidence
-5. Include full citation metadata and evidence tier
+**ANSWER FORMAT REQUIREMENTS:**
+
+Answers MUST use authoritative attribution format:
+- "According to [Author/Institution] ([Year]), [claim]..."
+- "Research from [Publisher] ([Year]) shows that..."
+- "[Study Title] by [Author] found that..."
+
+Example: "AI-powered last-mile delivery solutions can reduce logistics costs by up to 40%. According to McKinsey & Company (2020), last-mile delivery accounts for 53% of total logistics spend, making AI route optimization critical for cost management."
 
 **OUTPUT STRUCTURE:**
 {
   "cards": [
     {
-      "question": "What is...?",
-      "concise_answer": "40-80 word synthesis...",
-      "key_points": ["point 1", "point 2", "point 3"],
+      "question": "How does AI-powered delivery optimize last-mile logistics?",
+      "concise_answer": "AI-powered delivery solutions reduce logistics costs by 20-40% through predictive analytics and dynamic routing. According to McKinsey & Company (2020), last-mile delivery comprises 53% of total logistics spend. Research from MIT Supply Chain (2021) confirms that AI-optimized routes reduce fuel consumption by 15-25%.",
+      "key_points": [
+        "Last-mile delivery accounts for majority of logistics costs",
+        "AI optimizations yield 20-40% cost savings",
+        "Predictive analytics enable dynamic route optimization"
+      ],
       "citations": [{
-        "url": "https://...",
-        "title": "Study Title", 
-        "author": "Author Name",
-        "publisher": "Journal Name",
-        "year": 2023,
-        "tier": "tier1"
+        "title": "Fast forwarding last-mile delivery: implications for the ecosystem",
+        "url": "https://www.mckinsey.com/...",
+        "author": "Jürgen Schröder et al.",
+        "publisher": "McKinsey & Company",
+        "year": "2020",
+        "tier": "tier1",
+        "doi": null,
+        "keywords": ["last-mile", "logistics", "AI"]
       }],
-      "entities": ["entity_id_1", "entity_id_2"],
+      "entities": ["AI", "last-mile delivery", "logistics optimization"],
       "evidence": {
         "tier": "tier1",
-        "confidence": 0.92,
-        "context_heading": "H2 heading text",
-        "source_passage": "Exact sentence from article...",
-        "anchor_entities": ["entity_id_1"]
+        "confidence": 0.85,
+        "context_heading": "The Role of AI in Last-Mile Efficiency",
+        "source_passage": "Exact sentence from article that supports this card...",
+        "anchor_entities": ["McKinsey", "AI optimization"]
       },
       "preferred_summary": true,
-      "notes": "Optional editor notes"
+      "notes": "This card highlights the cost impact of AI in last-mile logistics."
     }
   ]
 }
 
-**GUIDELINES:**
-- Questions should be natural, searchable queries
-- Answers should synthesize evidence with authoritative phrasing
-- Include exact source passages that support claims
+**CRITICAL GUIDELINES:**
+- Questions should be natural, searchable queries users would ask
+- Answers MUST cite external sources with Author (Year) format in the text itself
+- Each answer should synthesize 1-2 external sources as evidence
+- Include exact source passages from the article that support claims
 - Prioritize Tier 1 > Tier 2 > Tier 3 evidence
-- Use "According to [Author, Year, Institution]..." format
-- Flag low-confidence cards (< 0.6) for human review
+- Citations array MUST include author, publisher, year, and tier
+- Flag cards with confidence < 0.6 for human review
+- preferred_summary should be true for the canonical answer on a topic
 PROMPT;
     }
 
@@ -439,22 +463,23 @@ PROMPT;
         }
         
         $prompt .= "\n=== INSTRUCTIONS ===\n";
-        $prompt .= "1. IDENTIFY strongest evidence passages (Tier 1 > Tier 2 > Tier 3)\n";
-        $prompt .= "2. LOCATE H2/H3 context around superscript citations\n";
-        $prompt .= "3. EXTRACT exact source passages that support claims\n";
-        $prompt .= "4. GENERATE AnswerCards grounded in evidence\n";
-        $prompt .= "5. INCLUDE full citation metadata from reference block\n";
-        $prompt .= "6. USE authoritative phrasing: 'According to [Author, Year, Institution]...'\n";
+        $prompt .= "1. IDENTIFY external sources cited in the article (look for author names, years, publication names)\n";
+        $prompt .= "2. EXTRACT the strongest evidence passages (Tier 1 > Tier 2 > Tier 3)\n";
+        $prompt .= "3. CRAFT answers that cite sources IN THE TEXT using 'According to [Author] ([Year])...' format\n";
+        $prompt .= "4. INCLUDE full citation metadata: title, url, author, publisher, year, tier\n";
+        $prompt .= "5. ENSURE each answer references at least one external source with attribution\n";
+        $prompt .= "6. CAPTURE exact source passages from the article that support claims\n";
         $prompt .= "7. FLAG low-confidence cards (< 0.6) for human review\n";
         
-        $prompt .= "\nGenerate up to {$max_cards} evidence-based AnswerCards following the framework above.";
+        $prompt .= "\nGenerate up to {$max_cards} evidence-based AnswerCards. Each answer MUST include inline attribution like 'According to McKinsey (2020)...' or 'Research from [Source] shows...'";
         
         if ( $is_retry ) {
             $prompt .= "\n\nRETRY ATTEMPT - ENSURE:\n";
             $prompt .= "- Each card has evidence.tier field (tier1|tier2|tier3)\n";
             $prompt .= "- evidence.confidence is 0-1 decimal\n";
             $prompt .= "- evidence.source_passage contains exact article text\n";
-            $prompt .= "- citations include author, year, publisher from references\n";
+            $prompt .= "- citations include author, year, publisher, tier from references\n";
+            $prompt .= "- concise_answer uses 'According to [Author] ([Year])...' attribution\n";
             $prompt .= "- preferred_summary is true for canonical syntheses\n";
         }
         

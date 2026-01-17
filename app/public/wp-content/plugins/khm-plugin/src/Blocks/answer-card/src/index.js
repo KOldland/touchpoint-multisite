@@ -15,16 +15,19 @@ import {
     TextControl,
     TextareaControl,
     ToggleControl,
+    SelectControl,
     Button,
     PanelBody,
     PanelRow,
     ExternalLink,
     Notice,
     Spinner,
+    Tooltip,
+    Icon,
 } from '@wordpress/components';
 import { InspectorControls, useBlockProps } from '@wordpress/block-editor';
-import { Fragment, useState, useCallback } from '@wordpress/element';
-import { trash, plus, warning } from '@wordpress/icons';
+import { Fragment, useState, useCallback, useEffect } from '@wordpress/element';
+import { trash, plus, warning, info } from '@wordpress/icons';
 import apiFetch from '@wordpress/api-fetch';
 
 import './editor.scss';
@@ -35,6 +38,71 @@ import './editor.scss';
 const countWords = ( text ) => {
     if ( ! text ) return 0;
     return text.trim().split( /\s+/ ).filter( ( word ) => word.length > 0 ).length;
+};
+
+/**
+ * Generate a client-side answer_card_id (will be validated/replaced server-side)
+ */
+const generateClientId = () => {
+    const hex = Array.from( { length: 8 }, () => 
+        Math.floor( Math.random() * 16 ).toString( 16 ) 
+    ).join( '' );
+    return `AC-new-${ hex }`;
+};
+
+/**
+ * Get confidence reason codes based on card data
+ */
+const getConfidenceReasons = ( evidence, citations, entities ) => {
+    const reasons = [];
+    
+    if ( ! evidence || ! evidence.tier ) {
+        reasons.push( { code: 'NO_EVIDENCE', message: __( 'No evidence tier assigned', 'khm-membership' ) } );
+    } else if ( evidence.tier === 'tier3' ) {
+        reasons.push( { code: 'TIER3_ONLY', message: __( 'Only Tier-3 evidence (trade publication)', 'khm-membership' ) } );
+    }
+    
+    if ( ! evidence?.source_passage && ! evidence?.sourcePassage ) {
+        reasons.push( { code: 'NO_PASSAGE', message: __( 'No source passage provided', 'khm-membership' ) } );
+    }
+    
+    const hasCitationMeta = citations?.some( c => c.author && c.year );
+    if ( ! hasCitationMeta ) {
+        reasons.push( { code: 'NO_AUTHOR_DATE', message: __( 'Citations missing author/year', 'khm-membership' ) } );
+    }
+    
+    if ( ! entities || entities.length < 2 ) {
+        reasons.push( { code: 'FEW_ENTITIES', message: __( 'Fewer than 2 anchor entities', 'khm-membership' ) } );
+    }
+    
+    return reasons;
+};
+
+/**
+ * Get remediation tips based on reason codes
+ */
+const getRemediationTips = ( reasons ) => {
+    const tips = [];
+    
+    reasons.forEach( r => {
+        switch ( r.code ) {
+            case 'TIER3_ONLY':
+            case 'NO_EVIDENCE':
+                tips.push( __( 'Add a Tier-1 source (peer-reviewed study with year) or Tier-2 (industry benchmark)', 'khm-membership' ) );
+                break;
+            case 'NO_PASSAGE':
+                tips.push( __( 'Add a source passage to strengthen evidence', 'khm-membership' ) );
+                break;
+            case 'NO_AUTHOR_DATE':
+                tips.push( __( 'Add author and year to citations for better attribution', 'khm-membership' ) );
+                break;
+            case 'FEW_ENTITIES':
+                tips.push( __( 'Add more relevant entities/topics to improve semantic coverage', 'khm-membership' ) );
+                break;
+        }
+    } );
+    
+    return [ ...new Set( tips ) ]; // Remove duplicates
 };
 
 /**
@@ -71,27 +139,95 @@ const ScoreIndicator = ( { score, isLoading } ) => {
 };
 
 /**
+ * Confidence Badge with Tooltip
+ */
+const ConfidenceBadge = ( { confidence, reasons, tips } ) => {
+    const confidencePercent = Math.round( ( confidence || 0 ) * 100 );
+    let badgeClass = 'low';
+    
+    if ( confidence >= 0.8 ) {
+        badgeClass = 'high';
+    } else if ( confidence >= 0.6 ) {
+        badgeClass = 'medium';
+    }
+    
+    const tooltipContent = (
+        <div className="khm-confidence-tooltip">
+            <strong>{ __( 'Confidence:', 'khm-membership' ) } { confidencePercent }%</strong>
+            { reasons.length > 0 && (
+                <>
+                    <p><strong>{ __( 'Issues:', 'khm-membership' ) }</strong></p>
+                    <ul>
+                        { reasons.map( ( r, i ) => (
+                            <li key={ i }>{ r.message }</li>
+                        ) ) }
+                    </ul>
+                </>
+            ) }
+            { tips.length > 0 && (
+                <>
+                    <p><strong>{ __( 'Tips:', 'khm-membership' ) }</strong></p>
+                    <ul>
+                        { tips.map( ( t, i ) => (
+                            <li key={ i }>{ t }</li>
+                        ) ) }
+                    </ul>
+                </>
+            ) }
+        </div>
+    );
+    
+    return (
+        <Tooltip text={ tooltipContent } position="bottom center">
+            <span className={ `khm-confidence-badge khm-confidence-badge--${ badgeClass }` }>
+                { confidencePercent }%
+                { confidence < 0.6 && <Icon icon={ warning } size={ 16 } /> }
+            </span>
+        </Tooltip>
+    );
+};
+
+/**
  * Main Edit component
  */
 const Edit = ( props ) => {
     const { attributes, setAttributes } = props;
     const {
+        answerCardId,
         question,
         conciseAnswer,
         keyPoints,
         citations,
         entities,
         evidence,
-        preferred_summary,
+        topicDiscussedAt,
+        siteKeywords,
+        preferredSummary,
+        publicSummaryLabel,
         exposeInSchema,
+        requiresReview,
     } = attributes;
 
     const [ score, setScore ] = useState( null );
     const [ isScoring, setIsScoring ] = useState( false );
     const [ scoreError, setScoreError ] = useState( null );
+    const [ sourcePassageExpanded, setSourcePassageExpanded ] = useState( false );
+
+    // Generate answerCardId if not present
+    useEffect( () => {
+        if ( ! answerCardId ) {
+            setAttributes( { answerCardId: generateClientId() } );
+        }
+    }, [ answerCardId, setAttributes ] );
+
+    // Calculate confidence reasons and tips
+    const confidenceReasons = getConfidenceReasons( evidence, citations, entities );
+    const remediationTips = getRemediationTips( confidenceReasons );
+    const confidence = evidence?.confidence || 0;
+    const isLowConfidence = confidence < 0.6;
 
     const blockProps = useBlockProps( {
-        className: 'khm-answer-card-editor',
+        className: `khm-answer-card-editor${ isLowConfidence ? ' khm-answer-card-editor--low-confidence' : '' }`,
     } );
 
     // Word count for concise answer
@@ -151,11 +287,21 @@ const Edit = ( props ) => {
     };
 
     /**
-     * Citations handlers
+     * Citations handlers - with enhanced fields
      */
     const addCitation = () => {
         const c = Array.isArray( citations ) ? [ ...citations ] : [];
-        c.push( { title: '', url: '' } );
+        c.push( { 
+            title: '', 
+            url: '', 
+            author: '', 
+            publisher: '', 
+            year: '', 
+            tier: 'tier3',
+            doi: '',
+            keywords: [],
+            enableTracking: false,
+        } );
         setAttributes( { citations: c } );
     };
 
@@ -169,6 +315,40 @@ const Edit = ( props ) => {
         const c = Array.isArray( citations ) ? [ ...citations ] : [];
         c.splice( index, 1 );
         setAttributes( { citations: c } );
+    };
+
+    /**
+     * Topic Discussed At handlers
+     */
+    const updateTopicDiscussedAt = ( key, value ) => {
+        const current = topicDiscussedAt || {};
+        setAttributes( { 
+            topicDiscussedAt: { ...current, [ key ]: value } 
+        } );
+    };
+
+    /**
+     * Site Keywords handlers - parse comma-separated input
+     */
+    const siteKeywordsAsString = ( siteKeywords || [] ).join( ', ' );
+    
+    const updateSiteKeywordsFromString = ( str ) => {
+        const keywords = str
+            .split( ',' )
+            .map( ( s ) => s.trim() )
+            .filter( ( s ) => s.length > 0 );
+        setAttributes( { siteKeywords: keywords } );
+    };
+
+    /**
+     * Copy source passage to preferred summary
+     */
+    const useSourcePassageAsQuote = () => {
+        const passage = evidence?.source_passage || evidence?.sourcePassage || '';
+        if ( passage ) {
+            const quotedPassage = `"${ passage }"`;
+            setAttributes( { preferredSummary: quotedPassage } );
+        }
     };
 
     /**
@@ -212,17 +392,44 @@ const Edit = ( props ) => {
         <Fragment>
             <InspectorControls>
                 <PanelBody title={ __( 'AnswerCard Settings', 'khm-membership' ) } initialOpen={ true }>
+                    { /* Answer Card ID - readonly */ }
+                    <div className="khm-answer-card-id">
+                        <strong>{ __( 'Card ID:', 'khm-membership' ) }</strong>
+                        <code>{ answerCardId || 'Generating...' }</code>
+                    </div>
+                    
+                    { /* Low confidence warning */ }
+                    { isLowConfidence && (
+                        <Notice status="warning" isDismissible={ false }>
+                            <strong>{ __( 'Review Required', 'khm-membership' ) }</strong>
+                            <p>{ __( 'This card has low confidence and is hidden from public schema by default.', 'khm-membership' ) }</p>
+                        </Notice>
+                    ) }
+                    
                     <PanelRow>
                         <ToggleControl
                             label={ __( 'Include in JSON-LD schema', 'khm-membership' ) }
-                            help={ __( 'When enabled, this card will be included in the page\'s structured data for search engines and AI systems.', 'khm-membership' ) }
+                            help={ isLowConfidence 
+                                ? __( 'Warning: Enabling this for low-confidence cards may affect SEO quality.', 'khm-membership' )
+                                : __( 'When enabled, this card will be included in the page\'s structured data.', 'khm-membership' )
+                            }
                             checked={ !! exposeInSchema }
                             onChange={ ( val ) => setAttributes( { exposeInSchema: val } ) }
                         />
                     </PanelRow>
+                    
+                    { /* Confidence badge */ }
+                    <div className="khm-confidence-section">
+                        <strong>{ __( 'Confidence:', 'khm-membership' ) }</strong>
+                        <ConfidenceBadge 
+                            confidence={ confidence } 
+                            reasons={ confidenceReasons }
+                            tips={ remediationTips }
+                        />
+                    </div>
                 </PanelBody>
 
-                <PanelBody title={ __( 'GEO Score', 'khm-membership' ) } initialOpen={ true }>
+                <PanelBody title={ __( 'GEO Score', 'khm-membership' ) } initialOpen={ false }>
                     <PanelRow>
                         <ScoreIndicator score={ score } isLoading={ isScoring } />
                     </PanelRow>
@@ -245,7 +452,66 @@ const Edit = ( props ) => {
                     </p>
                 </PanelBody>
 
-                <PanelBody title={ __( 'Evidence & Citations', 'khm-membership' ) } initialOpen={ false }>
+                <PanelBody title={ __( 'Topic Discussed At', 'khm-membership' ) } initialOpen={ false }>
+                    <p className="components-base-control__help">
+                        { __( 'Configure where this topic is canonically discussed (your site). This tells AI your page is the human synthesis.', 'khm-membership' ) }
+                    </p>
+                    <TextControl
+                        label={ __( 'Title', 'khm-membership' ) }
+                        value={ topicDiscussedAt?.title || '' }
+                        onChange={ ( val ) => updateTopicDiscussedAt( 'title', val ) }
+                        placeholder={ __( 'Auto-filled with post title on save', 'khm-membership' ) }
+                    />
+                    <TextControl
+                        label={ __( 'URL', 'khm-membership' ) }
+                        value={ topicDiscussedAt?.url || '' }
+                        onChange={ ( val ) => updateTopicDiscussedAt( 'url', val ) }
+                        placeholder={ __( 'Auto-filled with post URL on save', 'khm-membership' ) }
+                    />
+                    <TextControl
+                        label={ __( 'Author', 'khm-membership' ) }
+                        value={ topicDiscussedAt?.author || '' }
+                        onChange={ ( val ) => updateTopicDiscussedAt( 'author', val ) }
+                        placeholder={ __( 'Auto-filled with post author on save', 'khm-membership' ) }
+                    />
+                    <TextControl
+                        label={ __( 'Publisher', 'khm-membership' ) }
+                        value={ topicDiscussedAt?.publisher || '' }
+                        onChange={ ( val ) => updateTopicDiscussedAt( 'publisher', val ) }
+                        placeholder={ __( 'Auto-filled with site name on save', 'khm-membership' ) }
+                    />
+                    <TextControl
+                        label={ __( 'Date', 'khm-membership' ) }
+                        value={ topicDiscussedAt?.date || '' }
+                        onChange={ ( val ) => updateTopicDiscussedAt( 'date', val ) }
+                        placeholder={ __( 'YYYY-MM-DD', 'khm-membership' ) }
+                    />
+                    <TextareaControl
+                        label={ __( 'Note', 'khm-membership' ) }
+                        value={ topicDiscussedAt?.note || '' }
+                        onChange={ ( val ) => updateTopicDiscussedAt( 'note', val ) }
+                        placeholder={ __( 'Optional editorial note about this discussion', 'khm-membership' ) }
+                        rows={ 2 }
+                    />
+                    
+                    <TextControl
+                        label={ __( 'Site Keywords', 'khm-membership' ) }
+                        help={ __( 'Comma-separated keywords for this card. Added to JSON-LD schema.', 'khm-membership' ) }
+                        value={ siteKeywordsAsString }
+                        onChange={ updateSiteKeywordsFromString }
+                        placeholder={ __( 'e.g., customer retention, SaaS metrics, churn', 'khm-membership' ) }
+                    />
+                    
+                    <TextControl
+                        label={ __( 'Public Summary Label', 'khm-membership' ) }
+                        help={ __( 'Optional label displayed above the answer (e.g., "Quick Answer", "Summary").', 'khm-membership' ) }
+                        value={ publicSummaryLabel || '' }
+                        onChange={ ( val ) => setAttributes( { publicSummaryLabel: val } ) }
+                        placeholder={ __( 'e.g., Quick Answer', 'khm-membership' ) }
+                    />
+                </PanelBody>
+
+                <PanelBody title={ __( 'Evidence & Source', 'khm-membership' ) } initialOpen={ false }>
                     { evidence && evidence.tier ? (
                         <div className="khm-evidence-info">
                             <div className="khm-evidence-tier">
@@ -257,15 +523,6 @@ const Edit = ( props ) => {
                                 </span>
                             </div>
                             
-                            { evidence.confidence && (
-                                <div className="khm-evidence-confidence">
-                                    <strong>{ __( 'Confidence:', 'khm-membership' ) }</strong>
-                                    <span className={ `khm-confidence-${ evidence.confidence >= 0.8 ? 'high' : evidence.confidence >= 0.6 ? 'medium' : 'low' }` }>
-                                        { Math.round( evidence.confidence * 100 ) }%
-                                    </span>
-                                </div>
-                            ) }
-                            
                             { evidence.context_heading && (
                                 <div className="khm-evidence-context">
                                     <strong>{ __( 'Context:', 'khm-membership' ) }</strong>
@@ -273,29 +530,136 @@ const Edit = ( props ) => {
                                 </div>
                             ) }
                             
-                            { evidence.source_passage && (
+                            { /* Source passage - collapsible */ }
+                            { ( evidence.source_passage || evidence.sourcePassage ) && (
                                 <div className="khm-evidence-passage">
-                                    <strong>{ __( 'Source Passage:', 'khm-membership' ) }</strong>
-                                    <blockquote className="khm-source-quote">
-                                        "{ evidence.source_passage }"
-                                    </blockquote>
+                                    <div className="khm-evidence-passage-header">
+                                        <strong>{ __( 'Source Passage:', 'khm-membership' ) }</strong>
+                                        <Button
+                                            variant="link"
+                                            onClick={ () => setSourcePassageExpanded( ! sourcePassageExpanded ) }
+                                        >
+                                            { sourcePassageExpanded ? __( 'Collapse', 'khm-membership' ) : __( 'Expand', 'khm-membership' ) }
+                                        </Button>
+                                    </div>
+                                    { sourcePassageExpanded ? (
+                                        <>
+                                            <blockquote className="khm-source-quote">
+                                                "{ evidence.source_passage || evidence.sourcePassage }"
+                                            </blockquote>
+                                            <Button
+                                                variant="secondary"
+                                                onClick={ useSourcePassageAsQuote }
+                                                className="khm-use-quote-btn"
+                                            >
+                                                { __( 'Use as Preferred Summary', 'khm-membership' ) }
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <p className="khm-source-preview">
+                                            { ( evidence.source_passage || evidence.sourcePassage || '' ).substring( 0, 100 ) }...
+                                        </p>
+                                    ) }
                                 </div>
                             ) }
+                            
+                            { /* Preferred Summary */ }
+                            <TextareaControl
+                                label={ __( 'Preferred Summary', 'khm-membership' ) }
+                                help={ __( 'The canonical summary for JSON-LD. If empty, concise answer is used.', 'khm-membership' ) }
+                                value={ preferredSummary || '' }
+                                onChange={ ( val ) => setAttributes( { preferredSummary: val } ) }
+                                rows={ 3 }
+                            />
                         </div>
                     ) : (
                         <Notice status="warning" isDismissible={ false }>
-                            { __( 'No evidence information available. This card may need review.', 'khm-membership' ) }
+                            { __( 'No evidence information available. Add citations with metadata to improve confidence.', 'khm-membership' ) }
                         </Notice>
                     ) }
-                    
-                    <PanelRow>
-                        <ToggleControl
-                            label={ __( 'Preferred Summary', 'khm-membership' ) }
-                            help={ __( 'Mark as the canonical summary for this evidence passage.', 'khm-membership' ) }
-                            checked={ !! preferred_summary }
-                            onChange={ ( val ) => setAttributes( { preferred_summary: val } ) }
-                        />
-                    </PanelRow>
+                </PanelBody>
+
+                <PanelBody title={ __( 'Citation Details', 'khm-membership' ) } initialOpen={ false }>
+                    <p className="components-base-control__help">
+                        { __( 'Configure detailed citation metadata for better SEO and attribution.', 'khm-membership' ) }
+                    </p>
+                    { ( citations || [] ).map( ( c, i ) => (
+                        <div key={ `cit-detail-${ i }` } className="khm-citation-detail">
+                            <div className="khm-citation-detail-header">
+                                <strong>{ c.title || __( 'Citation', 'khm-membership' ) } #{ i + 1 }</strong>
+                                <Button
+                                    icon={ trash }
+                                    isDestructive
+                                    onClick={ () => removeCitation( i ) }
+                                    label={ __( 'Remove', 'khm-membership' ) }
+                                />
+                            </div>
+                            <TextControl
+                                label={ __( 'Title', 'khm-membership' ) }
+                                value={ c.title || '' }
+                                onChange={ ( val ) => updateCitation( i, 'title', val ) }
+                            />
+                            <TextControl
+                                label={ __( 'URL (Publisher Canonical)', 'khm-membership' ) }
+                                value={ c.url || '' }
+                                onChange={ ( val ) => updateCitation( i, 'url', val ) }
+                                type="url"
+                            />
+                            <TextControl
+                                label={ __( 'Author', 'khm-membership' ) }
+                                value={ c.author || '' }
+                                onChange={ ( val ) => updateCitation( i, 'author', val ) }
+                                placeholder="e.g., Jürgen Schröder et al."
+                            />
+                            <TextControl
+                                label={ __( 'Publisher', 'khm-membership' ) }
+                                value={ c.publisher || '' }
+                                onChange={ ( val ) => updateCitation( i, 'publisher', val ) }
+                                placeholder="e.g., McKinsey & Company"
+                            />
+                            <TextControl
+                                label={ __( 'Year', 'khm-membership' ) }
+                                value={ c.year || '' }
+                                onChange={ ( val ) => updateCitation( i, 'year', val ) }
+                                placeholder="e.g., 2020"
+                            />
+                            <SelectControl
+                                label={ __( 'Evidence Tier', 'khm-membership' ) }
+                                value={ c.tier || 'tier3' }
+                                options={ [
+                                    { label: __( 'Tier 1 - Peer-reviewed Study', 'khm-membership' ), value: 'tier1' },
+                                    { label: __( 'Tier 2 - Industry Benchmark', 'khm-membership' ), value: 'tier2' },
+                                    { label: __( 'Tier 3 - Trade Publication', 'khm-membership' ), value: 'tier3' },
+                                ] }
+                                onChange={ ( val ) => updateCitation( i, 'tier', val ) }
+                            />
+                            <TextControl
+                                label={ __( 'DOI (optional)', 'khm-membership' ) }
+                                value={ c.doi || '' }
+                                onChange={ ( val ) => updateCitation( i, 'doi', val ) }
+                                placeholder="e.g., 10.1234/example"
+                            />
+                            <ToggleControl
+                                label={ __( 'Enable Click Tracking', 'khm-membership' ) }
+                                help={ __( 'Creates a tracked redirect link through your site. The original URL remains unchanged.', 'khm-membership' ) }
+                                checked={ !! c.enableTracking }
+                                onChange={ ( val ) => updateCitation( i, 'enableTracking', val ) }
+                            />
+                            { c.trackedUrl && (
+                                <div className="khm-tracked-url-display">
+                                    <strong>{ __( 'Tracked URL:', 'khm-membership' ) }</strong>
+                                    <code>{ c.trackedUrl }</code>
+                                </div>
+                            ) }
+                        </div>
+                    ) ) }
+                    <Button
+                        variant="secondary"
+                        icon={ plus }
+                        onClick={ addCitation }
+                    >
+                        { __( 'Add Citation', 'khm-membership' ) }
+                    </Button>
                 </PanelBody>
 
                 <PanelBody title={ __( 'Entities (Advanced)', 'khm-membership' ) } initialOpen={ false }>
@@ -355,7 +719,19 @@ const Edit = ( props ) => {
                     <span className="khm-answer-card-editor__title">
                         { __( 'AnswerCard', 'khm-membership' ) }
                     </span>
-                    { ! exposeInSchema && (
+                    { answerCardId && (
+                        <span className="khm-answer-card-editor__badge khm-answer-card-editor__badge--id">
+                            { answerCardId.slice( 0, 8 ) }
+                        </span>
+                    ) }
+                    { requiresReview && (
+                        <Tooltip text={ __( 'Low confidence — will not appear in public schema', 'khm-membership' ) }>
+                            <span className="khm-answer-card-editor__badge khm-answer-card-editor__badge--review">
+                                ⚠️ { __( 'Needs Review', 'khm-membership' ) }
+                            </span>
+                        </Tooltip>
+                    ) }
+                    { ! exposeInSchema && ! requiresReview && (
                         <span className="khm-answer-card-editor__badge khm-answer-card-editor__badge--hidden">
                             { __( 'Hidden from schema', 'khm-membership' ) }
                         </span>
@@ -429,6 +805,20 @@ const Edit = ( props ) => {
                     { ( citations || [] ).map( ( c, i ) => (
                         <div key={ `cit-${ i }` } className="khm-answer-card-editor__citation-item">
                             <div className="khm-answer-card-editor__citation-fields">
+                                <div className="khm-answer-card-editor__citation-preview">
+                                    <span className="khm-citation-tier-indicator" data-tier={ c.tier || 'tier3' }>
+                                        { c.tier === 'tier1' ? '🏆' : c.tier === 'tier2' ? '📊' : '📰' }
+                                    </span>
+                                    <span className="khm-citation-text">
+                                        { c.title || __( 'Untitled', 'khm-membership' ) }
+                                        { c.author && ` — ${ c.author }` }
+                                        { c.year && ` (${ c.year })` }
+                                        { c.publisher && ` • ${ c.publisher }` }
+                                    </span>
+                                    { c.enableTracking && (
+                                        <span className="khm-citation-tracking-badge" title={ __( 'Click tracking enabled', 'khm-membership' ) }>📈</span>
+                                    ) }
+                                </div>
                                 <TextControl
                                     placeholder={ __( 'Source title', 'khm-membership' ) }
                                     value={ c.title || '' }

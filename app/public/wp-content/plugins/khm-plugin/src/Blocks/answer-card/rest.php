@@ -71,6 +71,20 @@ function register_rest_routes() {
         ),
     ) );
 
+    // Get answer cards for a post (public - strips internal evidence)
+    register_rest_route( 'khm-geo/v1', '/posts/(?P<post_id>\d+)/answercards', array(
+        'methods'             => 'GET',
+        'callback'            => 'get_post_answercards_public',
+        'permission_callback' => '__return_true', // Public endpoint
+        'args' => array(
+            'post_id' => array(
+                'required'          => true,
+                'type'              => 'integer',
+                'sanitize_callback' => 'absint',
+            ),
+        ),
+    ) );
+
     // Get all posts with GEO scores (for reporting)
     register_rest_route( 'khm-geo/v1', '/reports/scores', array(
         'methods'             => 'GET',
@@ -113,6 +127,7 @@ add_action( 'rest_api_init', 'register_rest_routes' );
 
 /**
  * Get full answer cards for a specific post (for Tracker/verification).
+ * Includes all internal data: evidence, tracked_url, answer_card_id, etc.
  *
  * @param \WP_REST_Request $request Request object.
  * @return \WP_REST_Response
@@ -128,11 +143,126 @@ function get_post_answercards_full( $request ) {
     $cards = get_post_meta( $post_id, '_geo_answercards', true );
 
     if ( empty( $cards ) || ! is_array( $cards ) ) {
-        return rest_ensure_response( array() );
+        return rest_ensure_response( array(
+            'post_id' => $post_id,
+            'cards'   => array(),
+            'meta'    => array(
+                'post_title' => get_the_title( $post_id ),
+                'post_url'   => get_permalink( $post_id ),
+            ),
+        ) );
     }
 
     // Return full canonical data including evidence for authorized Tracker access
-    return rest_ensure_response( $cards );
+    return rest_ensure_response( array(
+        'post_id' => $post_id,
+        'cards'   => $cards,
+        'meta'    => array(
+            'post_title' => get_the_title( $post_id ),
+            'post_url'   => get_permalink( $post_id ),
+            'score'      => floatval( get_post_meta( $post_id, '_geo_score', true ) ),
+        ),
+    ) );
+}
+
+/**
+ * Get public answer cards for a specific post.
+ * Strips internal evidence data (confidence, source_passage) and tracked_url.
+ * Only returns cards where expose_in_schema is true.
+ *
+ * @param \WP_REST_Request $request Request object.
+ * @return \WP_REST_Response
+ */
+function get_post_answercards_public( $request ) {
+    $post_id = absint( $request->get_param( 'post_id' ) );
+    $post    = get_post( $post_id );
+
+    if ( ! $post ) {
+        return new \WP_Error( 'post_not_found', 'Post not found', array( 'status' => 404 ) );
+    }
+
+    // Only allow published posts for public access
+    if ( 'publish' !== $post->post_status ) {
+        return new \WP_Error( 'post_not_published', 'Post is not published', array( 'status' => 403 ) );
+    }
+
+    $cards = get_post_meta( $post_id, '_geo_answercards', true );
+
+    if ( empty( $cards ) || ! is_array( $cards ) ) {
+        return rest_ensure_response( array(
+            'post_id' => $post_id,
+            'cards'   => array(),
+        ) );
+    }
+
+    // Filter and sanitize for public consumption
+    $public_cards = array();
+    foreach ( $cards as $card ) {
+        // Skip cards not exposed in schema
+        if ( empty( $card['expose_in_schema'] ) ) {
+            continue;
+        }
+
+        // Strip internal evidence data
+        $public_card = array(
+            'answer_card_id'       => $card['answer_card_id'] ?? '',
+            'question'             => $card['question'] ?? '',
+            'concise_answer'       => $card['concise_answer'] ?? '',
+            'preferred_summary'    => $card['preferred_summary'] ?? '',
+            'public_summary_label' => $card['public_summary_label'] ?? '',
+            'key_points'           => $card['key_points'] ?? array(),
+            'entities'             => $card['entities'] ?? array(),
+            'position'             => $card['position'] ?? 0,
+        );
+
+        // Add topic_discussed_at (this is public metadata)
+        if ( ! empty( $card['topic_discussed_at'] ) ) {
+            $public_card['topic_discussed_at'] = $card['topic_discussed_at'];
+        }
+
+        // Add site_keywords (public metadata for SEO)
+        if ( ! empty( $card['site_keywords'] ) && is_array( $card['site_keywords'] ) ) {
+            $public_card['site_keywords'] = $card['site_keywords'];
+        }
+
+        // Filter citations - remove tracked_url and internal fields
+        if ( ! empty( $card['citations'] ) && is_array( $card['citations'] ) ) {
+            $public_citations = array();
+            foreach ( $card['citations'] as $citation ) {
+                $public_citation = array(
+                    'title'     => $citation['title'] ?? '',
+                    'url'       => $citation['url'] ?? '',
+                    'author'    => $citation['author'] ?? '',
+                    'publisher' => $citation['publisher'] ?? '',
+                    'year'      => $citation['year'] ?? '',
+                );
+                // Optionally include DOI if present (public metadata)
+                if ( ! empty( $citation['doi'] ) ) {
+                    $public_citation['doi'] = $citation['doi'];
+                }
+                $public_citations[] = $public_citation;
+            }
+            $public_card['citations'] = $public_citations;
+        }
+
+        // Include evidence tier but NOT confidence or source_passage
+        if ( ! empty( $card['evidence']['tier'] ) ) {
+            $public_card['evidence'] = array(
+                'tier' => $card['evidence']['tier'],
+            );
+        }
+
+        $public_cards[] = $public_card;
+    }
+
+    return rest_ensure_response( array(
+        'post_id' => $post_id,
+        'cards'   => $public_cards,
+        'meta'    => array(
+            'post_title' => get_the_title( $post_id ),
+            'post_url'   => get_permalink( $post_id ),
+        ),
+    ) );
 }
 
 /**

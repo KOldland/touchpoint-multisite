@@ -91,8 +91,8 @@ add_action( 'admin_enqueue_scripts', __NAMESPACE__ . '\\admin_enqueue_block_asse
  * @return string
  */
 function render_answercard_block( $attributes, $content ) {
-    $question    = isset( $attributes['question'] ) ? esc_html( $attributes['question'] ) : '';
-    $answer      = isset( $attributes['conciseAnswer'] ) ? wp_kses_post( $attributes['conciseAnswer'] ) : '';
+    $question    = isset( $attributes['question'] ) ? esc_html( html_entity_decode( $attributes['question'], ENT_QUOTES, 'UTF-8' ) ) : '';
+    $answer      = isset( $attributes['conciseAnswer'] ) ? wp_kses_post( html_entity_decode( $attributes['conciseAnswer'], ENT_QUOTES, 'UTF-8' ) ) : '';
     $key_points  = isset( $attributes['keyPoints'] ) && is_array( $attributes['keyPoints'] ) ? $attributes['keyPoints'] : array();
     $citations   = isset( $attributes['citations'] ) && is_array( $attributes['citations'] ) ? $attributes['citations'] : array();
     $entities    = isset( $attributes['entities'] ) && is_array( $attributes['entities'] ) ? $attributes['entities'] : array();
@@ -106,22 +106,56 @@ function render_answercard_block( $attributes, $content ) {
     if ( ! empty( $key_points ) ) {
         $html .= '<ul class="khm-answer-card__points">';
         foreach ( $key_points as $point ) {
-            $html .= '<li>' . esc_html( $point ) . '</li>';
+            $html .= '<li>' . esc_html( html_entity_decode( $point, ENT_QUOTES, 'UTF-8' ) ) . '</li>';
         }
         $html .= '</ul>';
     }
 
-    // Citations list
+    // Citations list - display as Title — Author (Year) • Publisher
     if ( ! empty( $citations ) ) {
         $html .= '<div class="khm-answer-card__citations">';
         $html .= '<strong>' . esc_html__( 'Sources:', 'khm-membership' ) . '</strong>';
         $html .= '<ul>';
         foreach ( $citations as $citation ) {
             if ( is_array( $citation ) && ! empty( $citation['url'] ) ) {
-                $title = ! empty( $citation['title'] ) ? esc_html( $citation['title'] ) : esc_url( $citation['url'] );
-                $html .= '<li><a href="' . esc_url( $citation['url'] ) . '" rel="noopener noreferrer">' . $title . '</a></li>';
+                // Decode HTML entities for clean display
+                $title     = ! empty( $citation['title'] )
+                             ? html_entity_decode( $citation['title'], ENT_QUOTES, 'UTF-8' )
+                             : '';
+                $author    = ! empty( $citation['author'] )
+                             ? html_entity_decode( $citation['author'], ENT_QUOTES, 'UTF-8' )
+                             : '';
+                $year      = ! empty( $citation['year'] ) ? $citation['year'] : '';
+                $publisher = ! empty( $citation['publisher'] )
+                             ? html_entity_decode( $citation['publisher'], ENT_QUOTES, 'UTF-8' )
+                             : '';
+
+                // Build meta text: Author (Year), Publisher
+                $meta_parts = array();
+                if ( $author && $year ) {
+                    $meta_parts[] = esc_html( $author ) . ' (' . esc_html( $year ) . ')';
+                } elseif ( $author ) {
+                    $meta_parts[] = esc_html( $author );
+                } elseif ( $year ) {
+                    $meta_parts[] = '(' . esc_html( $year ) . ')';
+                }
+                if ( $publisher ) {
+                    $meta_parts[] = esc_html( $publisher );
+                }
+                $meta_text = implode( ', ', $meta_parts );
+
+                // Build link with title only, then append meta
+                $link_title = $title ? esc_html( $title ) : esc_url( $citation['url'] );
+                $aria_label = esc_attr( 'Open citation: ' . ( $title ?: $citation['url'] ) . ' (opens in new tab)' );
+
+                $html .= '<li class="khm-answer-card__citation-item">';
+                $html .= '<a href="' . esc_url( $citation['url'] ) . '" target="_blank" rel="noopener noreferrer" aria-label="' . $aria_label . '">' . $link_title . '</a>';
+                if ( $meta_text ) {
+                    $html .= '<span class="khm-answer-card__citation-meta"> — ' . $meta_text . '</span>';
+                }
+                $html .= '</li>';
             } elseif ( is_string( $citation ) ) {
-                $html .= '<li><a href="' . esc_url( $citation ) . '" rel="noopener noreferrer">' . esc_url( $citation ) . '</a></li>';
+                $html .= '<li><a href="' . esc_url( $citation ) . '" target="_blank" rel="noopener noreferrer">' . esc_url( $citation ) . '</a></li>';
             }
         }
         $html .= '</ul>';
@@ -198,25 +232,59 @@ function save_answercards_on_save_post( $post_id, $post ) {
     $canonical = array();
     $position  = 0;
     foreach ( $collected as $attrs ) {
+        // Generate or preserve answer_card_id
+        $answer_card_id = isset( $attrs['answerCardId'] ) && ! empty( $attrs['answerCardId'] )
+                          ? sanitize_text_field( $attrs['answerCardId'] )
+                          : generate_answer_card_id( $post_id );
+
+        // Sanitize evidence first to check confidence
+        $evidence   = isset( $attrs['evidence'] ) && is_array( $attrs['evidence'] )
+                      ? sanitize_evidence( $attrs['evidence'] )
+                      : array();
+        $confidence = isset( $evidence['confidence'] ) ? floatval( $evidence['confidence'] ) : 0.0;
+
+        // Determine requires_review based on confidence threshold
+        $requires_review = $confidence < 0.6;
+
+        // If requires_review is true, force expose_in_schema to false by default
+        $expose_in_schema = isset( $attrs['exposeInSchema'] ) ? (bool) $attrs['exposeInSchema'] : true;
+        if ( $requires_review && ! isset( $attrs['exposeInSchema'] ) ) {
+            $expose_in_schema = false;
+        }
+
+        // Sanitize topic_discussed_at with auto-population
+        $topic_discussed_at = isset( $attrs['topicDiscussedAt'] ) && is_array( $attrs['topicDiscussedAt'] )
+                              ? sanitize_topic_discussed_at( $attrs['topicDiscussedAt'], $post_id )
+                              : sanitize_topic_discussed_at( array(), $post_id );
+
+        // Sanitize site_keywords array
+        $site_keywords = array();
+        if ( isset( $attrs['siteKeywords'] ) && is_array( $attrs['siteKeywords'] ) ) {
+            $site_keywords = array_values( array_filter( array_map( 'sanitize_text_field', $attrs['siteKeywords'] ) ) );
+        }
+
         $card = array(
-            'question'         => isset( $attrs['question'] ) ? sanitize_text_field( $attrs['question'] ) : '',
-            'concise_answer'   => isset( $attrs['conciseAnswer'] ) ? wp_kses_post( $attrs['conciseAnswer'] ) : '',
-            'key_points'       => isset( $attrs['keyPoints'] ) && is_array( $attrs['keyPoints'] )
-                                    ? array_map( 'sanitize_text_field', $attrs['keyPoints'] )
-                                    : array(),
-            'citations'        => isset( $attrs['citations'] ) && is_array( $attrs['citations'] )
-                                    ? sanitize_citations( $attrs['citations'] )
-                                    : array(),
-            'entities'         => isset( $attrs['entities'] ) && is_array( $attrs['entities'] )
-                                    ? sanitize_entities( $attrs['entities'] )
-                                    : array(),
-            'evidence'         => isset( $attrs['evidence'] ) && is_array( $attrs['evidence'] )
-                                    ? sanitize_evidence( $attrs['evidence'] )
-                                    : array(),
-            'preferred_summary' => isset( $attrs['preferredSummary'] ) ? sanitize_text_field( $attrs['preferredSummary'] ) : '',
-            'expose_in_schema' => isset( $attrs['exposeInSchema'] ) ? (bool) $attrs['exposeInSchema'] : true,
-            'position'         => $position++,
-            'updated_at'       => current_time( 'mysql' ),
+            'answer_card_id'       => $answer_card_id,
+            'question'             => isset( $attrs['question'] ) ? sanitize_text_field( $attrs['question'] ) : '',
+            'concise_answer'       => isset( $attrs['conciseAnswer'] ) ? wp_kses_post( $attrs['conciseAnswer'] ) : '',
+            'key_points'           => isset( $attrs['keyPoints'] ) && is_array( $attrs['keyPoints'] )
+                                        ? array_map( 'sanitize_text_field', $attrs['keyPoints'] )
+                                        : array(),
+            'citations'            => isset( $attrs['citations'] ) && is_array( $attrs['citations'] )
+                                        ? sanitize_citations( $attrs['citations'], $post_id, $answer_card_id )
+                                        : array(),
+            'entities'             => isset( $attrs['entities'] ) && is_array( $attrs['entities'] )
+                                        ? sanitize_entities( $attrs['entities'] )
+                                        : array(),
+            'evidence'             => $evidence,
+            'topic_discussed_at'   => $topic_discussed_at,
+            'site_keywords'        => $site_keywords,
+            'preferred_summary'    => isset( $attrs['preferredSummary'] ) ? sanitize_text_field( $attrs['preferredSummary'] ) : '',
+            'public_summary_label' => isset( $attrs['publicSummaryLabel'] ) ? sanitize_text_field( $attrs['publicSummaryLabel'] ) : '',
+            'expose_in_schema'     => $expose_in_schema,
+            'requires_review'      => $requires_review,
+            'position'             => $position++,
+            'updated_at'           => current_time( 'mysql' ),
         );
         $canonical[] = $card;
     }
@@ -235,33 +303,67 @@ add_action( 'save_post', __NAMESPACE__ . '\\save_answercards_on_save_post', 20, 
 /**
  * Sanitize citations array.
  *
- * @param array $citations Raw citations array.
+ * @param array  $citations       Raw citations array.
+ * @param int    $post_id         Post ID for creating tracked URLs.
+ * @param string $answer_card_id  Answer card ID for creating tracked URLs.
  * @return array Sanitized citations.
  */
-function sanitize_citations( $citations ) {
+function sanitize_citations( $citations, $post_id = null, $answer_card_id = null ) {
     $sanitized = array();
+    $index     = 0;
+
     foreach ( $citations as $citation ) {
         if ( is_array( $citation ) ) {
-            $sanitized[] = array(
-                'title'     => isset( $citation['title'] ) ? sanitize_text_field( $citation['title'] ) : '',
-                'url'       => isset( $citation['url'] ) ? esc_url_raw( $citation['url'] ) : '',
-                'author'    => isset( $citation['author'] ) ? sanitize_text_field( $citation['author'] ) : '',
-                'publisher' => isset( $citation['publisher'] ) ? sanitize_text_field( $citation['publisher'] ) : '',
-                'date'      => isset( $citation['date'] ) ? sanitize_text_field( $citation['date'] ) : '',
-                'tier'      => isset( $citation['tier'] ) ? sanitize_text_field( $citation['tier'] ) : '',
-                'doi'       => isset( $citation['doi'] ) ? sanitize_text_field( $citation['doi'] ) : '',
+            $item = array(
+                'title'           => isset( $citation['title'] ) ? sanitize_text_field( $citation['title'] ) : '',
+                'url'             => isset( $citation['url'] ) ? esc_url_raw( $citation['url'] ) : '',
+                'author'          => isset( $citation['author'] ) ? sanitize_text_field( $citation['author'] ) : '',
+                'publisher'       => isset( $citation['publisher'] ) ? sanitize_text_field( $citation['publisher'] ) : '',
+                'year'            => isset( $citation['year'] ) ? sanitize_text_field( strval( $citation['year'] ) ) : '',
+                'tier'            => isset( $citation['tier'] ) ? sanitize_text_field( $citation['tier'] ) : '',
+                'doi'             => isset( $citation['doi'] ) ? sanitize_text_field( $citation['doi'] ) : '',
+                'keywords'        => isset( $citation['keywords'] ) && is_array( $citation['keywords'] )
+                                     ? array_map( 'sanitize_text_field', $citation['keywords'] )
+                                     : array(),
+                'enable_tracking' => ! empty( $citation['enableTracking'] ) || ! empty( $citation['enable_tracking'] ),
+                'tracked_url'     => '',
             );
+
+            // Generate tracked URL if tracking is enabled and we have a valid URL
+            if ( $item['enable_tracking'] && ! empty( $item['url'] ) && $post_id && $answer_card_id ) {
+                // Check if GeoAnswerCardMigration class is available
+                if ( class_exists( '\\KHM\\Migrations\\GeoAnswerCardMigration' ) ) {
+                    $tracked = \KHM\Migrations\GeoAnswerCardMigration::create_redirect_record(
+                        $item['url'],
+                        $post_id,
+                        $answer_card_id,
+                        $index
+                    );
+                    if ( $tracked ) {
+                        $item['tracked_url'] = $tracked;
+                    }
+                }
+            } elseif ( isset( $citation['trackedUrl'] ) || isset( $citation['tracked_url'] ) ) {
+                // Preserve existing tracked URL
+                $item['tracked_url'] = esc_url_raw( $citation['trackedUrl'] ?? $citation['tracked_url'] ?? '' );
+            }
+
+            $sanitized[] = $item;
         } elseif ( is_string( $citation ) ) {
             $sanitized[] = array(
-                'title'     => '',
-                'url'       => esc_url_raw( $citation ),
-                'author'    => '',
-                'publisher' => '',
-                'date'      => '',
-                'tier'      => '',
-                'doi'       => '',
+                'title'           => '',
+                'url'             => esc_url_raw( $citation ),
+                'author'          => '',
+                'publisher'       => '',
+                'year'            => '',
+                'tier'            => '',
+                'doi'             => '',
+                'keywords'        => array(),
+                'enable_tracking' => false,
+                'tracked_url'     => '',
             );
         }
+        $index++;
     }
     return $sanitized;
 }
@@ -306,6 +408,64 @@ function sanitize_evidence( $evidence ) {
                              ? array_map( 'sanitize_text_field', $evidence['anchorEntities'] )
                              : array(),
     );
+}
+
+/**
+ * Sanitize topic_discussed_at data.
+ *
+ * @param array  $topic_discussed_at Raw topic data.
+ * @param int    $post_id            Post ID for auto-populating defaults.
+ * @return array Sanitized topic_discussed_at.
+ */
+function sanitize_topic_discussed_at( $topic_discussed_at, $post_id = null ) {
+    // Get defaults from the post if not provided
+    $post       = $post_id ? get_post( $post_id ) : null;
+    $post_url   = $post ? get_permalink( $post ) : '';
+    $post_title = $post ? get_the_title( $post ) : '';
+    $post_date  = $post ? get_the_date( 'Y-m-d', $post ) : '';
+
+    // Get post author name
+    $author_name = '';
+    if ( $post && $post->post_author ) {
+        $author = get_userdata( $post->post_author );
+        if ( $author ) {
+            $author_name = $author->display_name;
+        }
+    }
+
+    // Get site name as publisher
+    $publisher = get_bloginfo( 'name' );
+
+    return array(
+        'url'       => isset( $topic_discussed_at['url'] ) && ! empty( $topic_discussed_at['url'] )
+                       ? esc_url_raw( $topic_discussed_at['url'] )
+                       : $post_url,
+        'title'     => isset( $topic_discussed_at['title'] ) && ! empty( $topic_discussed_at['title'] )
+                       ? sanitize_text_field( $topic_discussed_at['title'] )
+                       : $post_title,
+        'author'    => isset( $topic_discussed_at['author'] ) && ! empty( $topic_discussed_at['author'] )
+                       ? sanitize_text_field( $topic_discussed_at['author'] )
+                       : $author_name,
+        'publisher' => isset( $topic_discussed_at['publisher'] ) && ! empty( $topic_discussed_at['publisher'] )
+                       ? sanitize_text_field( $topic_discussed_at['publisher'] )
+                       : $publisher,
+        'date'      => isset( $topic_discussed_at['date'] ) && ! empty( $topic_discussed_at['date'] )
+                       ? sanitize_text_field( $topic_discussed_at['date'] )
+                       : $post_date,
+        'note'      => isset( $topic_discussed_at['note'] )
+                       ? sanitize_text_field( $topic_discussed_at['note'] )
+                       : '',
+    );
+}
+
+/**
+ * Generate a stable answer_card_id for an answer card.
+ *
+ * @param int $post_id The post ID.
+ * @return string The generated answer card ID.
+ */
+function generate_answer_card_id( $post_id ) {
+    return sprintf( 'AC-%d-%s', absint( $post_id ), bin2hex( random_bytes( 4 ) ) );
 }
 
 /**
@@ -389,21 +549,28 @@ function persist_to_database( $post_id, $canonical ) {
 
     // Insert new cards
     foreach ( $canonical as $card ) {
+        $answer     = $card['concise_answer'] ?? '';
+        $word_count = str_word_count( strip_tags( $answer ) );
+
         $wpdb->insert(
             $table,
             array(
-                'post_id'           => $post_id,
-                'question'          => $card['question'],
-                'concise_answer'    => $card['concise_answer'],
-                'key_points'        => wp_json_encode( $card['key_points'] ),
-                'citations'         => wp_json_encode( $card['citations'] ),
-                'entities'          => wp_json_encode( $card['entities'] ),
-                'evidence_json'     => wp_json_encode( $card['evidence'] ),
-                'preferred_summary' => $card['preferred_summary'],
-                'expose_in_schema'  => $card['expose_in_schema'] ? 1 : 0,
-                'position'          => $card['position'],
+                'post_id'            => $post_id,
+                'answer_card_id'     => $card['answer_card_id'] ?? '',
+                'question'           => $card['question'],
+                'concise_answer'     => $card['concise_answer'],
+                'key_points'         => wp_json_encode( $card['key_points'] ),
+                'citations'          => wp_json_encode( $card['citations'] ),
+                'entities'           => wp_json_encode( $card['entities'] ),
+                'evidence_json'      => wp_json_encode( $card['evidence'] ),
+                'preferred_summary'  => $card['preferred_summary'] ?? '',
+                'topic_discussed_at' => wp_json_encode( $card['topic_discussed_at'] ?? array() ),
+                'expose_in_schema'   => ! empty( $card['expose_in_schema'] ) ? 1 : 0,
+                'requires_review'    => ! empty( $card['requires_review'] ) ? 1 : 0,
+                'position'           => $card['position'] ?? 0,
+                'word_count'         => $word_count,
             ),
-            array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d' )
+            array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%d' )
         );
     }
 }
@@ -429,18 +596,39 @@ function output_answercard_jsonld() {
     }
 
     $has_part = array();
+    $page_url = get_permalink( $post_id );
+
     foreach ( $cards as $card ) {
         // Skip cards not exposed in schema
         if ( empty( $card['expose_in_schema'] ) ) {
             continue;
         }
 
+        // Skip cards flagged for review
+        if ( ! empty( $card['requires_review'] ) ) {
+            continue;
+        }
+
+        // Use preferred_summary if available, otherwise fall back to concise_answer
+        $answer_text = ! empty( $card['preferred_summary'] )
+                       ? $card['preferred_summary']
+                       : ( $card['concise_answer'] ?? '' );
+
+        // Generate @id anchor using answer_card_id
+        $answer_card_id = $card['answer_card_id'] ?? '';
+        $element_id     = $answer_card_id ? $page_url . '#answer-' . $answer_card_id : '';
+
         $part = array(
             '@type'    => 'WebPageElement',
-            'name'     => $card['question'],
-            'text'     => $card['concise_answer'],
+            'name'     => $card['question'] ?? '',
+            'text'     => $answer_text,
             'position' => isset( $card['position'] ) ? intval( $card['position'] ) : 0,
         );
+
+        // Add @id for stable reference
+        if ( $element_id ) {
+            $part['@id'] = $element_id;
+        }
 
         // Add citations with enhanced CreativeWork metadata
         if ( ! empty( $card['citations'] ) && is_array( $card['citations'] ) ) {
@@ -450,26 +638,39 @@ function output_answercard_jsonld() {
 
                 if ( is_array( $c ) ) {
                     // Enhanced citation with metadata (public safe fields only)
+                    // Use publisher canonical URL - never use tracked_url in JSON-LD
                     if ( ! empty( $c['url'] ) ) {
                         $citation_item['url'] = esc_url_raw( $c['url'] );
                     }
                     if ( ! empty( $c['title'] ) ) {
-                        $citation_item['name'] = sanitize_text_field( $c['title'] );
+                        // Decode HTML entities for clean display
+                        $citation_item['name'] = html_entity_decode( sanitize_text_field( $c['title'] ), ENT_QUOTES, 'UTF-8' );
                     }
                     if ( ! empty( $c['author'] ) ) {
                         $citation_item['author'] = array(
                             '@type' => 'Person',
-                            'name'  => sanitize_text_field( $c['author'] ),
+                            'name'  => html_entity_decode( sanitize_text_field( $c['author'] ), ENT_QUOTES, 'UTF-8' ),
                         );
                     }
                     if ( ! empty( $c['publisher'] ) ) {
                         $citation_item['publisher'] = array(
                             '@type' => 'Organization',
-                            'name'  => sanitize_text_field( $c['publisher'] ),
+                            'name'  => html_entity_decode( sanitize_text_field( $c['publisher'] ), ENT_QUOTES, 'UTF-8' ),
                         );
                     }
-                    if ( ! empty( $c['date'] ) ) {
+                    // Use year field for datePublished
+                    if ( ! empty( $c['year'] ) ) {
+                        $citation_item['datePublished'] = sanitize_text_field( $c['year'] );
+                    } elseif ( ! empty( $c['date'] ) ) {
                         $citation_item['datePublished'] = sanitize_text_field( $c['date'] );
+                    }
+                    // Add DOI if present
+                    if ( ! empty( $c['doi'] ) ) {
+                        $citation_item['identifier'] = array(
+                            '@type'        => 'PropertyValue',
+                            'propertyID'   => 'doi',
+                            'value'        => sanitize_text_field( $c['doi'] ),
+                        );
                     }
                     // Keep evidence tier private - don't expose in public JSON-LD
                 } elseif ( is_string( $c ) ) {
@@ -508,7 +709,8 @@ function output_answercard_jsonld() {
         $schema = array(
             '@context' => 'https://schema.org',
             '@type'    => 'WebPage',
-            'url'      => get_permalink( $post_id ),
+            '@id'      => $page_url,
+            'url'      => $page_url,
             'name'     => get_the_title( $post_id ),
             'hasPart'  => $has_part,
         );
@@ -516,15 +718,88 @@ function output_answercard_jsonld() {
         // Optional: Add FAQPage schema for better SEO
         $faq_items = array();
         foreach ( $cards as $card ) {
-            if ( ! empty( $card['expose_in_schema'] ) && ! empty( $card['question'] ) && ! empty( $card['concise_answer'] ) ) {
-                $faq_items[] = array(
-                    '@type'          => 'Question',
-                    'name'           => $card['question'],
-                    'acceptedAnswer' => array(
-                        '@type' => 'Answer',
-                        'text'  => $card['concise_answer'],
-                    ),
+            // Skip cards not exposed or flagged for review
+            if ( empty( $card['expose_in_schema'] ) || ! empty( $card['requires_review'] ) ) {
+                continue;
+            }
+
+            if ( ! empty( $card['question'] ) && ! empty( $card['concise_answer'] ) ) {
+                // Use preferred_summary if available
+                $answer_text = ! empty( $card['preferred_summary'] )
+                               ? $card['preferred_summary']
+                               : $card['concise_answer'];
+
+                $answer_card_id = $card['answer_card_id'] ?? '';
+                $topic          = $card['topic_discussed_at'] ?? array();
+
+                // Decode HTML entities for clean JSON output
+                $question_text = html_entity_decode( $card['question'], ENT_QUOTES, 'UTF-8' );
+                $answer_text   = html_entity_decode( $answer_text, ENT_QUOTES, 'UTF-8' );
+
+                // Build acceptedAnswer with site anchor metadata
+                $accepted_answer = array(
+                    '@type' => 'Answer',
+                    'text'  => $answer_text,
                 );
+
+                // Add @id for stable reference
+                if ( $answer_card_id ) {
+                    $accepted_answer['@id'] = $page_url . '#answer-' . $answer_card_id;
+                }
+
+                // Add author from topic_discussed_at (site's author, not external citation)
+                if ( ! empty( $topic['author'] ) ) {
+                    $accepted_answer['author'] = array(
+                        '@type' => 'Person',
+                        'name'  => html_entity_decode( $topic['author'], ENT_QUOTES, 'UTF-8' ),
+                    );
+                }
+
+                // Add datePublished from topic_discussed_at
+                if ( ! empty( $topic['date'] ) ) {
+                    $accepted_answer['datePublished'] = $topic['date'];
+                }
+
+                // Build the Question item
+                $faq_item = array(
+                    '@type'          => 'Question',
+                    'name'           => $question_text,
+                    'acceptedAnswer' => $accepted_answer,
+                );
+
+                // Add @id for Question
+                if ( $answer_card_id ) {
+                    $faq_item['@id'] = $page_url . '#question-' . $answer_card_id;
+                }
+
+                // Add site_keywords if available
+                if ( ! empty( $card['site_keywords'] ) && is_array( $card['site_keywords'] ) ) {
+                    $faq_item['keywords'] = implode( ', ', array_map( function( $kw ) {
+                        return html_entity_decode( sanitize_text_field( $kw ), ENT_QUOTES, 'UTF-8' );
+                    }, $card['site_keywords'] ) );
+                }
+
+                // Add about (entities) for semantic linking
+                if ( ! empty( $card['entities'] ) && is_array( $card['entities'] ) ) {
+                    $about_items = array();
+                    foreach ( $card['entities'] as $entity ) {
+                        $entity_item = array( '@type' => 'Thing' );
+                        if ( is_array( $entity ) ) {
+                            $entity_item['name'] = html_entity_decode( sanitize_text_field( $entity['name'] ?? '' ), ENT_QUOTES, 'UTF-8' );
+                            if ( ! empty( $entity['sameAs'] ) ) {
+                                $entity_item['sameAs'] = esc_url_raw( $entity['sameAs'] );
+                            }
+                        } else {
+                            $entity_item['name'] = html_entity_decode( sanitize_text_field( $entity ), ENT_QUOTES, 'UTF-8' );
+                        }
+                        $about_items[] = $entity_item;
+                    }
+                    if ( ! empty( $about_items ) ) {
+                        $faq_item['about'] = $about_items;
+                    }
+                }
+
+                $faq_items[] = $faq_item;
             }
         }
 
@@ -532,8 +807,33 @@ function output_answercard_jsonld() {
             $faq_schema = array(
                 '@context'   => 'https://schema.org',
                 '@type'      => 'FAQPage',
+                '@id'        => $page_url . '#faqpage',
                 'mainEntity' => $faq_items,
             );
+
+            // Add site author/publisher from first card's topic_discussed_at if available
+            foreach ( $cards as $card ) {
+                if ( ! empty( $card['expose_in_schema'] ) && empty( $card['requires_review'] ) ) {
+                    $topic = $card['topic_discussed_at'] ?? array();
+                    if ( ! empty( $topic['author'] ) ) {
+                        $faq_schema['author'] = array(
+                            '@type' => 'Person',
+                            'name'  => html_entity_decode( $topic['author'], ENT_QUOTES, 'UTF-8' ),
+                        );
+                    }
+                    if ( ! empty( $topic['publisher'] ) ) {
+                        $faq_schema['publisher'] = array(
+                            '@type' => 'Organization',
+                            'name'  => html_entity_decode( $topic['publisher'], ENT_QUOTES, 'UTF-8' ),
+                        );
+                    }
+                    if ( ! empty( $topic['date'] ) ) {
+                        $faq_schema['datePublished'] = $topic['date'];
+                    }
+                    break; // Use first eligible card's topic_discussed_at
+                }
+            }
+
             // Output FAQPage schema
             echo "\n<script type=\"application/ld+json\">\n" . wp_json_encode( $faq_schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . "\n</script>\n";
         }
