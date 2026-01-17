@@ -187,8 +187,17 @@ class SuggestAnswerCardsEndpoint {
 
         // Call LLM with retry on validation failure
         file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] About to call call_llm_with_retry..." . PHP_EOL, FILE_APPEND);
-        $result = $this->call_llm_with_retry( $title, $url, $content, $max_cards );
-        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] call_llm_with_retry completed" . PHP_EOL, FILE_APPEND);
+        try {
+            $result = $this->call_llm_with_retry( $title, $url, $content, $max_cards );
+            file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] call_llm_with_retry completed successfully" . PHP_EOL, FILE_APPEND);
+        } catch (Throwable $e) {
+            file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] FATAL ERROR in call_llm_with_retry: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine() . PHP_EOL, FILE_APPEND);
+            return new \WP_Error(
+                'internal_error',
+                'Internal server error during LLM processing',
+                array( 'status' => 500 )
+            );
+        }
 
         if ( is_wp_error( $result ) ) {
             $this->logger->log_request( array(
