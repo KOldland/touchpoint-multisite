@@ -1,0 +1,3 @@
+[GEO] handle_request called at 2026-01-17 01:22:47
+[GEO] User ID: 1, Content length: 8168
+[GEO] API key found, proceeding...

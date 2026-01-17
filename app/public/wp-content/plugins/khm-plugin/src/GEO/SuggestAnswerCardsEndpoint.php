@@ -186,7 +186,9 @@ class SuggestAnswerCardsEndpoint {
         file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] API key found, proceeding..." . PHP_EOL, FILE_APPEND);
 
         // Call LLM with retry on validation failure
+        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] About to call call_llm_with_retry..." . PHP_EOL, FILE_APPEND);
         $result = $this->call_llm_with_retry( $title, $url, $content, $max_cards );
+        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] call_llm_with_retry completed" . PHP_EOL, FILE_APPEND);
 
         if ( is_wp_error( $result ) ) {
             $this->logger->log_request( array(
@@ -235,6 +237,7 @@ class SuggestAnswerCardsEndpoint {
      * @return array|\WP_Error
      */
     private function call_llm_with_retry( $title, $url, $content, $max_cards ) {
+        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] call_llm_with_retry started" . PHP_EOL, FILE_APPEND);
         $max_attempts = 2;
 
         for ( $attempt = 1; $attempt <= $max_attempts; $attempt++ ) {
