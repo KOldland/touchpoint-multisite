@@ -5,6 +5,14 @@
  * Creates the wp_geo_answer_cards table for storing answer card data
  * in a queryable format for reporting and the Tracker.
  *
+ * To run the migration after updating:
+ * 1. Access WP CLI or admin interface
+ * 2. Run: GeoAnswerCardMigration::create_tables()
+ * 3. Run: GeoAnswerCardMigration::migrate_from_postmeta() to migrate existing data
+ *
+ * The table now includes evidence_json and preferred_summary columns for the
+ * evidence-based GEO framework.
+ *
  * @package KHM\Migrations
  */
 
@@ -64,6 +72,8 @@ class GeoAnswerCardMigration {
             key_points longtext,
             citations longtext,
             entities longtext,
+            evidence_json longtext,
+            preferred_summary text,
             expose_in_schema tinyint(1) DEFAULT 1,
             position int(10) unsigned DEFAULT 0,
             word_count int(10) unsigned DEFAULT 0,
@@ -209,17 +219,19 @@ class GeoAnswerCardMigration {
                 $result = $wpdb->insert(
                     $table,
                     array(
-                        'post_id'          => $post_id,
-                        'question'         => $card['question'] ?? '',
-                        'concise_answer'   => $answer,
-                        'key_points'       => wp_json_encode( $card['key_points'] ?? array() ),
-                        'citations'        => wp_json_encode( $card['citations'] ?? array() ),
-                        'entities'         => wp_json_encode( $card['entities'] ?? array() ),
-                        'expose_in_schema' => ! empty( $card['expose_in_schema'] ) ? 1 : 0,
-                        'position'         => $card['position'] ?? 0,
-                        'word_count'       => $word_count,
+                        'post_id'           => $post_id,
+                        'question'          => $card['question'] ?? '',
+                        'concise_answer'    => $answer,
+                        'key_points'        => wp_json_encode( $card['key_points'] ?? array() ),
+                        'citations'         => wp_json_encode( $card['citations'] ?? array() ),
+                        'entities'          => wp_json_encode( $card['entities'] ?? array() ),
+                        'evidence_json'     => wp_json_encode( $card['evidence'] ?? array() ),
+                        'preferred_summary' => $card['preferred_summary'] ?? '',
+                        'expose_in_schema'  => ! empty( $card['expose_in_schema'] ) ? 1 : 0,
+                        'position'          => $card['position'] ?? 0,
+                        'word_count'        => $word_count,
                     ),
-                    array( '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d' )
+                    array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d' )
                 );
 
                 if ( false === $result ) {

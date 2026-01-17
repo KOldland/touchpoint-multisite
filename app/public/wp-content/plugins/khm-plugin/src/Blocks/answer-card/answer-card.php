@@ -398,7 +398,7 @@ function persist_to_database( $post_id, $canonical ) {
                 'key_points'        => wp_json_encode( $card['key_points'] ),
                 'citations'         => wp_json_encode( $card['citations'] ),
                 'entities'          => wp_json_encode( $card['entities'] ),
-                'evidence'          => wp_json_encode( $card['evidence'] ),
+                'evidence_json'     => wp_json_encode( $card['evidence'] ),
                 'preferred_summary' => $card['preferred_summary'],
                 'expose_in_schema'  => $card['expose_in_schema'] ? 1 : 0,
                 'position'          => $card['position'],

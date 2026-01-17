@@ -52,23 +52,13 @@ function register_rest_routes() {
         },
     ) );
 
-    // Get answer cards for a post
-    register_rest_route( 'khm-geo/v1', '/posts/(?P<post_id>\d+)/answercards', array(
+    // Get answer cards for a post (full data for Tracker)
+    register_rest_route( 'khm-geo/v1', '/tracker/posts/(?P<post_id>\d+)/answercards', array(
         'methods'             => 'GET',
-        'callback'            => __NAMESPACE__ . '\\get_post_answercards',
+        'callback'            => __NAMESPACE__ . '\\get_post_answercards_full',
         'permission_callback' => function( $request ) {
+            // Only allow authenticated users with edit permissions (for Tracker)
             $post_id = absint( $request->get_param( 'post_id' ) );
-            $post    = get_post( $post_id );
-
-            if ( ! $post ) {
-                return false;
-            }
-
-            // Allow if post is published (public) or user can edit
-            if ( 'publish' === $post->post_status ) {
-                return true;
-            }
-
             return current_user_can( 'edit_post', $post_id );
         },
         'args' => array(
@@ -119,6 +109,30 @@ function register_rest_routes() {
     ) );
 }
 add_action( 'rest_api_init', __NAMESPACE__ . '\\register_rest_routes' );
+
+/**
+ * Get full answer cards for a specific post (for Tracker/verification).
+ *
+ * @param \WP_REST_Request $request Request object.
+ * @return \WP_REST_Response
+ */
+function get_post_answercards_full( $request ) {
+    $post_id = absint( $request->get_param( 'post_id' ) );
+    $post    = get_post( $post_id );
+
+    if ( ! $post ) {
+        return new \WP_Error( 'post_not_found', 'Post not found', array( 'status' => 404 ) );
+    }
+
+    $cards = get_post_meta( $post_id, '_geo_answercards', true );
+
+    if ( empty( $cards ) || ! is_array( $cards ) ) {
+        return rest_ensure_response( array() );
+    }
+
+    // Return full canonical data including evidence for authorized Tracker access
+    return rest_ensure_response( $cards );
+}
 
 /**
  * Entity autocomplete endpoint callback.
