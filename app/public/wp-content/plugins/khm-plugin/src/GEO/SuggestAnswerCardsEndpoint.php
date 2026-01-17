@@ -122,7 +122,6 @@ class SuggestAnswerCardsEndpoint {
      */
     public function handle_request( $request ) {
         // Direct file logging for debugging
-        file_put_contents(ABSPATH . 'geo_debug.txt', '[GEO] handle_request called at ' . date('Y-m-d H:i:s') . PHP_EOL, FILE_APPEND);
         
         $user_id   = get_current_user_id();
         $post_id   = $request->get_param( 'post_id' ) ?? 0;
@@ -131,7 +130,6 @@ class SuggestAnswerCardsEndpoint {
         $content   = $request->get_param( 'content' );
         $max_cards = min( 8, max( 1, $request->get_param( 'max_cards' ) ?? 4 ) );
 
-        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] User ID: $user_id, Content length: " . strlen($content) . PHP_EOL, FILE_APPEND);
 
         // Check rate limit
         $rate_check = $this->rate_limiter->check_limit( $user_id );
@@ -168,14 +166,6 @@ class SuggestAnswerCardsEndpoint {
 
         // Check API key
         if ( ! $this->llm_client->has_api_key() ) {
-            file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] No API key found!" . PHP_EOL, FILE_APPEND);
-            file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Sources checked: " . print_r(array(
-                'env' => getenv( 'OPENAI_API_KEY' ) ? 'set' : 'not set',
-                'dual_gpt_option' => get_option( 'dual_gpt_openai_api_key' ) ? 'set' : 'not set',
-                'khm_option' => get_option( 'khm_geo_openai_api_key' ) ? 'set' : 'not set',
-                'constant' => defined( 'OPENAI_API_KEY' ) ? 'set' : 'not set',
-                'dual_gpt_constant' => defined( 'DUAL_GPT_OPENAI_API_KEY' ) ? 'set' : 'not set',
-            ), true), FILE_APPEND);
             return new \WP_Error(
                 'no_api_key',
                 __( 'OpenAI API key not configured. Please set it in Dual GPT settings.', 'khm-membership' ),
@@ -183,21 +173,14 @@ class SuggestAnswerCardsEndpoint {
             );
         }
 
-        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] API key found, proceeding..." . PHP_EOL, FILE_APPEND);
 
         // Call LLM with retry on validation failure
-        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] About to call call_llm_with_retry..." . PHP_EOL, FILE_APPEND);
         try {
             $result = $this->call_llm_with_retry( $title, $url, $content, $max_cards );
-            file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] call_llm_with_retry completed successfully" . PHP_EOL, FILE_APPEND);
-            file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Result type: " . gettype($result) . PHP_EOL, FILE_APPEND);
             if (is_wp_error($result)) {
-                file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Result is WP_Error: " . $result->get_error_message() . PHP_EOL, FILE_APPEND);
             } else {
-                file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Result keys: " . implode(', ', array_keys($result)) . PHP_EOL, FILE_APPEND);
             }
         } catch (Throwable $e) {
-            file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] FATAL ERROR in call_llm_with_retry: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine() . PHP_EOL, FILE_APPEND);
             return new \WP_Error(
                 'internal_error',
                 'Internal server error during LLM processing',
@@ -206,7 +189,6 @@ class SuggestAnswerCardsEndpoint {
         }
 
         if ( is_wp_error( $result ) ) {
-            file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Returning WP_Error to client" . PHP_EOL, FILE_APPEND);
             $this->logger->log_request( array(
                 'user_id'       => $user_id,
                 'post_id'       => $post_id,
@@ -220,15 +202,12 @@ class SuggestAnswerCardsEndpoint {
         }
 
         // Increment rate limit counter
-        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Incrementing rate limit..." . PHP_EOL, FILE_APPEND);
         $this->rate_limiter->increment( $user_id );
 
         // Cache the result
-        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Caching result..." . PHP_EOL, FILE_APPEND);
         $this->cache->set( $cache_key, $result );
 
         // Log success
-        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Logging success..." . PHP_EOL, FILE_APPEND);
         $this->logger->log_request( array(
             'user_id'           => $user_id,
             'post_id'           => $post_id,
@@ -241,10 +220,8 @@ class SuggestAnswerCardsEndpoint {
             'estimated_cost'    => $result['estimated_cost'] ?? 0,
         ) );
 
-        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Building response..." . PHP_EOL, FILE_APPEND);
         $response = rest_ensure_response( $result );
         $response->header( 'X-KHM-GEO-Cache', 'MISS' );
-        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Returning response successfully!" . PHP_EOL, FILE_APPEND);
         return $response;
     }
 
@@ -258,7 +235,6 @@ class SuggestAnswerCardsEndpoint {
      * @return array|\WP_Error
      */
     private function call_llm_with_retry( $title, $url, $content, $max_cards ) {
-        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] call_llm_with_retry started" . PHP_EOL, FILE_APPEND);
         $max_attempts = 2;
 
         for ( $attempt = 1; $attempt <= $max_attempts; $attempt++ ) {

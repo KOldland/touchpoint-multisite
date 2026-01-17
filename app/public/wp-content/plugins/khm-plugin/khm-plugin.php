@@ -8,8 +8,6 @@ Text Domain: khm-membership
 */
 
 // Basic bootstrap for plugin - loads composer autoloader if present.
-error_log('[KHM PLUGIN] Plugin file loaded and executed');
-file_put_contents(ABSPATH . 'khm_plugin_test.txt', '[KHM PLUGIN] Loaded at ' . date('Y-m-d H:i:s') . PHP_EOL, FILE_APPEND);
 if ( file_exists(__DIR__ . '/vendor/autoload.php') ) {
     require_once __DIR__ . '/vendor/autoload.php';
     define('KHM_VENDOR_LOADED', true);
