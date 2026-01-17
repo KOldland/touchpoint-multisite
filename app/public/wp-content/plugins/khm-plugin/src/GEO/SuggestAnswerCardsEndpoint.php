@@ -121,12 +121,15 @@ class SuggestAnswerCardsEndpoint {
      * @return \WP_REST_Response|\WP_Error
      */
     public function handle_request( $request ) {
+        error_log('[KHM GEO] handle_request called with post_id: ' . $request->get_param( 'post_id' ));
         $user_id   = get_current_user_id();
         $post_id   = $request->get_param( 'post_id' ) ?? 0;
         $title     = $request->get_param( 'title' ) ?? '';
         $url       = $request->get_param( 'url' ) ?? '';
         $content   = $request->get_param( 'content' );
         $max_cards = min( 8, max( 1, $request->get_param( 'max_cards' ) ?? 4 ) );
+
+        error_log('[KHM GEO] User ID: ' . $user_id . ', Content length: ' . strlen($content));
 
         // Check rate limit
         $rate_check = $this->rate_limiter->check_limit( $user_id );
