@@ -10,7 +10,8 @@
  * @package KHM\Blocks\AnswerCard
  */
 
-namespace KHM\Blocks\AnswerCard;
+// Remove namespace declaration to avoid conflicts
+// namespace KHM\Blocks\AnswerCard;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -23,7 +24,7 @@ function register_rest_routes() {
     // Entity autocomplete endpoint
     register_rest_route( 'khm-geo/v1', '/entities', array(
         'methods'             => 'GET',
-        'callback'            => __NAMESPACE__ . '\\entities_autocomplete',
+        'callback'            => 'entities_autocomplete',
         'permission_callback' => function() {
             return current_user_can( 'edit_posts' );
         },
@@ -46,7 +47,7 @@ function register_rest_routes() {
     // On-demand scoring endpoint
     register_rest_route( 'khm-geo/v1', '/score', array(
         'methods'             => 'POST',
-        'callback'            => __NAMESPACE__ . '\\calculate_score_on_demand',
+        'callback'            => 'calculate_score_on_demand',
         'permission_callback' => function() {
             return current_user_can( 'edit_posts' );
         },
@@ -55,7 +56,7 @@ function register_rest_routes() {
     // Get answer cards for a post (full data for Tracker)
     register_rest_route( 'khm-geo/v1', '/tracker/posts/(?P<post_id>\d+)/answercards', array(
         'methods'             => 'GET',
-        'callback'            => __NAMESPACE__ . '\\get_post_answercards_full',
+        'callback'            => 'get_post_answercards_full',
         'permission_callback' => function( $request ) {
             // Only allow authenticated users with edit permissions (for Tracker)
             $post_id = absint( $request->get_param( 'post_id' ) );
@@ -73,7 +74,7 @@ function register_rest_routes() {
     // Get all posts with GEO scores (for reporting)
     register_rest_route( 'khm-geo/v1', '/reports/scores', array(
         'methods'             => 'GET',
-        'callback'            => __NAMESPACE__ . '\\get_geo_scores_report',
+        'callback'            => 'get_geo_scores_report',
         'permission_callback' => function() {
             return current_user_can( 'edit_others_posts' );
         },
@@ -108,7 +109,7 @@ function register_rest_routes() {
         ),
     ) );
 }
-add_action( 'rest_api_init', __NAMESPACE__ . '\\register_rest_routes' );
+add_action( 'rest_api_init', 'register_rest_routes' );
 
 /**
  * Get full answer cards for a specific post (for Tracker/verification).
@@ -545,4 +546,4 @@ function get_geo_scores_report( $request ) {
 function invalidate_entity_cache( $post_id ) {
     wp_cache_delete( 'khm_geo_entities_cache' );
 }
-add_action( 'save_post', __NAMESPACE__ . '\\invalidate_entity_cache', 30 );
+add_action( 'save_post', 'invalidate_entity_cache', 30 );
