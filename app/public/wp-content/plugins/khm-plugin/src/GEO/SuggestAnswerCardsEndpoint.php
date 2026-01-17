@@ -121,7 +121,9 @@ class SuggestAnswerCardsEndpoint {
      * @return \WP_REST_Response|\WP_Error
      */
     public function handle_request( $request ) {
-        error_log('[KHM GEO] handle_request called with post_id: ' . $request->get_param( 'post_id' ));
+        // Direct file logging for debugging
+        file_put_contents(ABSPATH . 'geo_debug.txt', '[GEO] handle_request called at ' . date('Y-m-d H:i:s') . PHP_EOL, FILE_APPEND);
+        
         $user_id   = get_current_user_id();
         $post_id   = $request->get_param( 'post_id' ) ?? 0;
         $title     = $request->get_param( 'title' ) ?? '';
@@ -129,7 +131,7 @@ class SuggestAnswerCardsEndpoint {
         $content   = $request->get_param( 'content' );
         $max_cards = min( 8, max( 1, $request->get_param( 'max_cards' ) ?? 4 ) );
 
-        error_log('[KHM GEO] User ID: ' . $user_id . ', Content length: ' . strlen($content));
+        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] User ID: $user_id, Content length: " . strlen($content) . PHP_EOL, FILE_APPEND);
 
         // Check rate limit
         $rate_check = $this->rate_limiter->check_limit( $user_id );
@@ -166,19 +168,22 @@ class SuggestAnswerCardsEndpoint {
 
         // Check API key
         if ( ! $this->llm_client->has_api_key() ) {
-            error_log( '[KHM GEO] No API key found. Sources checked: ' . print_r( array(
+            file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] No API key found!" . PHP_EOL, FILE_APPEND);
+            file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Sources checked: " . print_r(array(
                 'env' => getenv( 'OPENAI_API_KEY' ) ? 'set' : 'not set',
                 'dual_gpt_option' => get_option( 'dual_gpt_openai_api_key' ) ? 'set' : 'not set',
                 'khm_option' => get_option( 'khm_geo_openai_api_key' ) ? 'set' : 'not set',
                 'constant' => defined( 'OPENAI_API_KEY' ) ? 'set' : 'not set',
                 'dual_gpt_constant' => defined( 'DUAL_GPT_OPENAI_API_KEY' ) ? 'set' : 'not set',
-            ), true ) );
+            ), true), FILE_APPEND);
             return new \WP_Error(
                 'no_api_key',
                 __( 'OpenAI API key not configured. Please set it in Dual GPT settings.', 'khm-membership' ),
                 array( 'status' => 500 )
             );
         }
+
+        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] API key found, proceeding..." . PHP_EOL, FILE_APPEND);
 
         // Call LLM with retry on validation failure
         $result = $this->call_llm_with_retry( $title, $url, $content, $max_cards );
