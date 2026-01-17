@@ -183,14 +183,28 @@ const SuggestAnswerCardsModal = ( { isOpen, onClose, postId, postTitle, postCont
                 throw new Error( 'Invalid response format' );
             }
         } catch ( err ) {
-            console.error( 'Suggestion fetch error:', err );
+            console.error( 'Suggestion fetch error details:', {
+                message: err.message,
+                code: err.code,
+                data: err.data,
+                fullError: err
+            } );
             
             let errorMessage = err.message || __( 'Failed to fetch suggestions', 'khm-membership' );
             
+            // Handle specific error codes from REST API
             if ( err.code === 'rate_limit_exceeded' ) {
                 errorMessage = __( 'Rate limit exceeded. Please wait before trying again.', 'khm-membership' );
             } else if ( err.code === 'validation_failed' ) {
                 errorMessage = __( 'Generated content failed validation. Please try again.', 'khm-membership' );
+            } else if ( err.code === 'no_api_key' ) {
+                errorMessage = __( 'OpenAI API key not configured. Please set it in Dual GPT settings.', 'khm-membership' );
+            } else if ( err.code === 'rest_forbidden' || err.code === 'rest_cannot_edit' ) {
+                errorMessage = __( 'You do not have permission to generate suggestions. Please log in.', 'khm-membership' );
+            } else if ( err.data && err.data.status === 401 ) {
+                errorMessage = __( 'Authentication required. Please log in to use this feature.', 'khm-membership' );
+            } else if ( err.data && err.data.status === 403 ) {
+                errorMessage = __( 'You do not have permission to use this feature.', 'khm-membership' );
             }
             
             setError( errorMessage );

@@ -163,6 +163,13 @@ class SuggestAnswerCardsEndpoint {
 
         // Check API key
         if ( ! $this->llm_client->has_api_key() ) {
+            error_log( '[KHM GEO] No API key found. Sources checked: ' . print_r( array(
+                'env' => getenv( 'OPENAI_API_KEY' ) ? 'set' : 'not set',
+                'dual_gpt_option' => get_option( 'dual_gpt_openai_api_key' ) ? 'set' : 'not set',
+                'khm_option' => get_option( 'khm_geo_openai_api_key' ) ? 'set' : 'not set',
+                'constant' => defined( 'OPENAI_API_KEY' ) ? 'set' : 'not set',
+                'dual_gpt_constant' => defined( 'DUAL_GPT_OPENAI_API_KEY' ) ? 'set' : 'not set',
+            ), true ) );
             return new \WP_Error(
                 'no_api_key',
                 __( 'OpenAI API key not configured. Please set it in Dual GPT settings.', 'khm-membership' ),
