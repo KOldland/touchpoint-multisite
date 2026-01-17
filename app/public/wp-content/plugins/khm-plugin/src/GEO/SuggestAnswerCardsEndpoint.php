@@ -190,6 +190,12 @@ class SuggestAnswerCardsEndpoint {
         try {
             $result = $this->call_llm_with_retry( $title, $url, $content, $max_cards );
             file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] call_llm_with_retry completed successfully" . PHP_EOL, FILE_APPEND);
+            file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Result type: " . gettype($result) . PHP_EOL, FILE_APPEND);
+            if (is_wp_error($result)) {
+                file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Result is WP_Error: " . $result->get_error_message() . PHP_EOL, FILE_APPEND);
+            } else {
+                file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Result keys: " . implode(', ', array_keys($result)) . PHP_EOL, FILE_APPEND);
+            }
         } catch (Throwable $e) {
             file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] FATAL ERROR in call_llm_with_retry: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine() . PHP_EOL, FILE_APPEND);
             return new \WP_Error(
@@ -200,6 +206,7 @@ class SuggestAnswerCardsEndpoint {
         }
 
         if ( is_wp_error( $result ) ) {
+            file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Returning WP_Error to client" . PHP_EOL, FILE_APPEND);
             $this->logger->log_request( array(
                 'user_id'       => $user_id,
                 'post_id'       => $post_id,
@@ -213,12 +220,15 @@ class SuggestAnswerCardsEndpoint {
         }
 
         // Increment rate limit counter
+        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Incrementing rate limit..." . PHP_EOL, FILE_APPEND);
         $this->rate_limiter->increment( $user_id );
 
         // Cache the result
+        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Caching result..." . PHP_EOL, FILE_APPEND);
         $this->cache->set( $cache_key, $result );
 
         // Log success
+        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Logging success..." . PHP_EOL, FILE_APPEND);
         $this->logger->log_request( array(
             'user_id'           => $user_id,
             'post_id'           => $post_id,
@@ -231,8 +241,10 @@ class SuggestAnswerCardsEndpoint {
             'estimated_cost'    => $result['estimated_cost'] ?? 0,
         ) );
 
+        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Building response..." . PHP_EOL, FILE_APPEND);
         $response = rest_ensure_response( $result );
         $response->header( 'X-KHM-GEO-Cache', 'MISS' );
+        file_put_contents(ABSPATH . 'geo_debug.txt', "[GEO] Returning response successfully!" . PHP_EOL, FILE_APPEND);
         return $response;
     }
 
