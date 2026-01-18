@@ -58,6 +58,13 @@ class LLMClient {
     public function __construct() {
         $this->api_key = $this->get_api_key();
         $this->model   = $this->get_model();
+        
+        // Debug logging
+        error_log( sprintf(
+            '[KHM GEO LLM] Initialized with API key source: %s, model: %s',
+            $this->api_key_source ?: 'none',
+            $this->model
+        ) );
     }
 
     /**

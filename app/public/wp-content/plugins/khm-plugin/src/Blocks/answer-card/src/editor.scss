@@ -37,6 +37,11 @@
         border-radius: 3px;
         font-weight: 500;
 
+        &--tier {
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
         &--hidden {
             background: #f0f0f0;
             color: #666;
@@ -184,9 +189,143 @@
         color: #721c24;
     }
 
+    &--unavailable {
+        background: #f0f0f0;
+        color: #666;
+    }
+
     &__value {
         font-weight: 700;
         font-size: 18px;
+    }
+}
+
+.khm-score-breakdown {
+    margin: 12px 0 16px;
+}
+
+.khm-score-bar {
+    margin-bottom: 10px;
+
+    &__label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        margin-bottom: 4px;
+        color: #1e1e1e;
+    }
+
+    &__track {
+        background: #e6e6e6;
+        border-radius: 999px;
+        height: 6px;
+        overflow: hidden;
+    }
+
+    &__fill {
+        display: block;
+        height: 100%;
+        background: #0073aa;
+        border-radius: 999px;
+    }
+}
+
+.khm-score-citations {
+    margin: 12px 0;
+    font-size: 12px;
+
+    ul {
+        margin: 6px 0 0 16px;
+    }
+
+    li {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 4px;
+    }
+
+    &__meta {
+        color: #666;
+        white-space: nowrap;
+    }
+}
+
+.khm-score-reasons {
+    margin: 12px 0;
+    font-size: 12px;
+
+    ul {
+        margin: 6px 0 0 16px;
+    }
+
+    li {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 4px;
+    }
+
+    &__severity {
+        text-transform: uppercase;
+        color: #666;
+        font-size: 11px;
+    }
+}
+
+.khm-entity-resolution {
+    padding: 10px;
+    background: #f9f9f9;
+    border-radius: 4px;
+    margin-bottom: 10px;
+
+    &__row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+        gap: 8px;
+    }
+
+    &__name {
+        font-weight: 600;
+        font-size: 12px;
+    }
+
+    &__badge {
+        font-size: 11px;
+        padding: 2px 6px;
+        border-radius: 999px;
+
+        &--resolved {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        &--unresolved {
+            background: #eee;
+            color: #666;
+        }
+    }
+}
+
+.khm-entity-resolver-candidate {
+    padding: 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    margin-bottom: 12px;
+
+    &__meta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        margin-bottom: 6px;
+    }
+
+    &__actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
     }
 }
 
@@ -214,5 +353,217 @@
 
     &.alignfull {
         max-width: none;
+    }
+}
+
+// Card ID display in sidebar
+.khm-answer-card-id {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    font-size: 12px;
+    
+    code {
+        font-family: monospace;
+        font-size: 11px;
+        background: #f0f0f0;
+        padding: 2px 6px;
+        border-radius: 3px;
+    }
+}
+
+// Low confidence warning border
+.khm-answer-card-editor--low-confidence {
+    border-color: #dba617;
+    box-shadow: 0 0 0 1px rgba(219, 166, 23, 0.3);
+}
+
+// Confidence section in sidebar
+.khm-confidence-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 0;
+    
+    strong {
+        font-size: 12px;
+    }
+}
+
+// Confidence badge (reused in editor sidebar)
+.khm-confidence-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: help;
+    
+    &--high {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    &--medium {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    &--low {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    
+    .dashicons, svg {
+        width: 14px;
+        height: 14px;
+    }
+}
+
+// Confidence tooltip content
+.khm-confidence-tooltip {
+    max-width: 300px;
+    font-size: 12px;
+    
+    ul {
+        margin: 4px 0 8px 16px;
+        padding: 0;
+        
+        li {
+            margin-bottom: 4px;
+        }
+    }
+    
+    p {
+        margin: 8px 0 4px;
+    }
+}
+
+.khm-confidence-reasons {
+    margin: 8px 0 12px 16px;
+    font-size: 12px;
+}
+
+.khm-confidence-tips {
+    font-size: 12px;
+
+    ul {
+        margin: 6px 0 0 16px;
+    }
+}
+
+// Evidence info panel
+.khm-evidence-info {
+    .khm-evidence-tier {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    
+    .khm-evidence-context {
+        margin-bottom: 12px;
+        
+        em {
+            display: block;
+            margin-top: 4px;
+            color: #666;
+        }
+    }
+    
+    .khm-evidence-passage {
+        margin-bottom: 16px;
+        
+        &-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+    }
+    
+    .khm-source-quote {
+        margin: 0;
+        padding: 12px;
+        background: #f0f6fc;
+        border-left: 3px solid #0073aa;
+        font-style: italic;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+    
+    .khm-source-preview {
+        color: #666;
+        font-size: 12px;
+        font-style: italic;
+    }
+    
+    .khm-use-quote-btn {
+        margin-top: 8px;
+    }
+}
+
+// Tier badges
+.khm-tier-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    
+    &.khm-tier-tier1 {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    &.khm-tier-tier2 {
+        background: #cce5ff;
+        color: #004085;
+    }
+    
+    &.khm-tier-tier3 {
+        background: #fff3cd;
+        color: #856404;
+    }
+}
+
+.khm-answer-card-editor__badge--tier.khm-tier-tier1 {
+    background: #d4edda;
+    color: #155724;
+}
+
+.khm-answer-card-editor__badge--tier.khm-tier-tier2 {
+    background: #cce5ff;
+    color: #004085;
+}
+
+.khm-answer-card-editor__badge--tier.khm-tier-tier3 {
+    background: #fff3cd;
+    color: #856404;
+}
+
+// Citation detail panel
+.khm-citation-detail {
+    padding: 12px;
+    background: #f9f9f9;
+    border-radius: 4px;
+    margin-bottom: 12px;
+    
+    &-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    .components-base-control {
+        margin-bottom: 8px;
     }
 }

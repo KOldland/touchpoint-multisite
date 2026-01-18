@@ -18,6 +18,10 @@
  *
  * @package WordPress
  */
+// Ensure WP_CONTENT_DIR is defined for Local / custom setups
+if ( ! defined( 'WP_CONTENT_DIR' ) ) {
+	define( 'WP_CONTENT_DIR', __DIR__ . '/wp-content' );
+}
 
 // ** Database settings - You can get this info from your web host ** //
 /** The name of the database for WordPress */
@@ -37,8 +41,6 @@ define( 'DB_CHARSET', 'utf8' );
 
 /** The database collate type. Don't change this if in doubt. */
 define( 'DB_COLLATE', '' );
-
-define( 'WP_CONTENT_DIR', dirname(__FILE__) . '/wp-content' );
 
 /**#@+
  * Authentication unique keys and salts.

@@ -77,23 +77,23 @@ require_once __DIR__ . '/src/GEO/SuggestionCacheManager.php';
 require_once __DIR__ . '/src/GEO/RateLimiter.php';
 require_once __DIR__ . '/src/GEO/SuggestionAuditLogger.php';
 require_once __DIR__ . '/src/GEO/SuggestAnswerCardsEndpoint.php';
+require_once __DIR__ . '/src/GEO/RedirectHandler.php';
 
 // Register GEO Suggestion Endpoint at rest_api_init
 add_action( 'rest_api_init', function() {
-    if ( class_exists( "KHM\GEO\SuggestAnswerCardsEndpoint" ) ) {
+    error_log('[KHM GEO] rest_api_init hook fired - checking SuggestAnswerCardsEndpoint class');
+    if ( class_exists( 'KHM\\GEO\\SuggestAnswerCardsEndpoint' ) ) {
+        error_log('[KHM GEO] SuggestAnswerCardsEndpoint class found, attempting to instantiate');
         try {
-            $endpoint = new KHM\GEO\SuggestAnswerCardsEndpoint();
-            $endpoint->register();
-            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-                error_log( '[KHM GEO] SuggestAnswerCardsEndpoint registered.' );
-            }
-        } catch ( Exception $e ) {
-            error_log( '[KHM GEO] Failed to register SuggestAnswerCardsEndpoint: ' . $e->getMessage() );
+            $ep = new KHM\GEO\SuggestAnswerCardsEndpoint();
+            $ep->register();
+            error_log('[KHM GEO] SuggestAnswerCardsEndpoint registered successfully.');
+        } catch ( Throwable $e ) {
+            error_log('[KHM GEO] Endpoint registration failed: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            error_log('[KHM GEO] Stack trace: ' . $e->getTraceAsString());
         }
     } else {
-        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-            error_log( '[KHM GEO] SuggestAnswerCardsEndpoint class not found.' );
-        }
+        error_log('[KHM GEO] SuggestAnswerCardsEndpoint class not found during rest_api_init.');
     }
 } );
 
@@ -161,13 +161,27 @@ register_activation_hook( __FILE__, function() {
             if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
                 error_log( '[KHM GEO] SuggestionAuditLogger table created or already exists.' );
             }
-        } catch ( Exception $e ) {
+        } catch ( \Exception $e ) {
             error_log( '[KHM GEO] Failed to create SuggestionAuditLogger table on activation: ' . $e->getMessage() );
+            // Fail activation explicitly if the critical setup cannot be completed.
+            if ( function_exists( 'deactivate_plugins' ) && function_exists( 'plugin_basename' ) ) {
+                deactivate_plugins( plugin_basename( __FILE__ ) );
+            }
+            wp_die(
+                esc_html__( 'KHM Plugin: Failed to create the SuggestionAuditLogger database table during activation. Please check your server error logs and try again.', 'khm-membership' )
+            );
         }
     } else {
         if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
             error_log( '[KHM GEO] SuggestionAuditLogger class not found during plugin activation.' );
         }
+        // Class missing is a critical problem; do not allow activation to appear successful.
+        if ( function_exists( 'deactivate_plugins' ) && function_exists( 'plugin_basename' ) ) {
+            deactivate_plugins( plugin_basename( __FILE__ ) );
+        }
+        wp_die(
+            esc_html__( 'KHM Plugin: Required class KHM\\GEO\\SuggestionAuditLogger was not found during activation. Composer dependencies may be missing. Please run "composer install" in wp-content/plugins/khm-plugin and try again.', 'khm-membership' )
+        );
     }
 } );
 

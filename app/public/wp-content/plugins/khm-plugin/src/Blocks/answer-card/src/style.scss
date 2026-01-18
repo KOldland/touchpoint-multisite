@@ -12,12 +12,45 @@
     border-radius: 0 8px 8px 0;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 
+    &__header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
     &__question {
         font-size: 1.25em;
         font-weight: 700;
         color: #1a1a1a;
-        margin: 0 0 12px 0;
+        margin: 0;
         line-height: 1.4;
+    }
+
+    &__tier-badge {
+        flex-shrink: 0;
+        font-size: 0.75em;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 4px 8px;
+        border-radius: 999px;
+        letter-spacing: 0.4px;
+
+        &--tier1 {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        &--tier2 {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        &--tier3 {
+            background: #fff3cd;
+            color: #856404;
+        }
     }
 
     &__answer {
@@ -130,6 +163,23 @@
 
         &__question {
             color: #f5f5f5;
+        }
+
+        &__tier-badge {
+            &--tier1 {
+                background: #1f3d2b;
+                color: #b7e5c1;
+            }
+
+            &--tier2 {
+                background: #0f2a44;
+                color: #b9d5ff;
+            }
+
+            &--tier3 {
+                background: #3a2f12;
+                color: #f6d48b;
+            }
         }
 
         &__answer {

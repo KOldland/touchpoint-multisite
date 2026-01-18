@@ -10,7 +10,8 @@
  * @package KHM\Blocks\AnswerCard
  */
 
-namespace KHM\Blocks\AnswerCard;
+// Remove namespace declaration to avoid conflicts
+// namespace KHM\Blocks\AnswerCard;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -23,7 +24,7 @@ function register_rest_routes() {
     // Entity autocomplete endpoint
     register_rest_route( 'khm-geo/v1', '/entities', array(
         'methods'             => 'GET',
-        'callback'            => __NAMESPACE__ . '\\entities_autocomplete',
+        'callback'            => 'entities_autocomplete',
         'permission_callback' => function() {
             return current_user_can( 'edit_posts' );
         },
@@ -46,31 +47,52 @@ function register_rest_routes() {
     // On-demand scoring endpoint
     register_rest_route( 'khm-geo/v1', '/score', array(
         'methods'             => 'POST',
-        'callback'            => __NAMESPACE__ . '\\calculate_score_on_demand',
+        'callback'            => 'calculate_score_on_demand',
         'permission_callback' => function() {
             return current_user_can( 'edit_posts' );
         },
     ) );
 
-    // Get answer cards for a post
-    register_rest_route( 'khm-geo/v1', '/posts/(?P<post_id>\d+)/answercards', array(
+    // Get persisted score details for a post
+    register_rest_route( 'khm-geo/v1', '/posts/(?P<post_id>\\d+)/score', array(
         'methods'             => 'GET',
-        'callback'            => __NAMESPACE__ . '\\get_post_answercards',
+        'callback'            => 'get_post_score_details',
         'permission_callback' => function( $request ) {
             $post_id = absint( $request->get_param( 'post_id' ) );
-            $post    = get_post( $post_id );
-
-            if ( ! $post ) {
-                return false;
-            }
-
-            // Allow if post is published (public) or user can edit
-            if ( 'publish' === $post->post_status ) {
-                return true;
-            }
-
             return current_user_can( 'edit_post', $post_id );
         },
+        'args' => array(
+            'post_id' => array(
+                'required'          => true,
+                'type'              => 'integer',
+                'sanitize_callback' => 'absint',
+            ),
+        ),
+    ) );
+
+    // Get answer cards for a post (full data for Tracker)
+    register_rest_route( 'khm-geo/v1', '/tracker/posts/(?P<post_id>\d+)/answercards', array(
+        'methods'             => 'GET',
+        'callback'            => 'get_post_answercards_full',
+        'permission_callback' => function( $request ) {
+            // Only allow authenticated users with edit permissions (for Tracker)
+            $post_id = absint( $request->get_param( 'post_id' ) );
+            return current_user_can( 'edit_post', $post_id );
+        },
+        'args' => array(
+            'post_id' => array(
+                'required'          => true,
+                'type'              => 'integer',
+                'sanitize_callback' => 'absint',
+            ),
+        ),
+    ) );
+
+    // Get answer cards for a post (public - strips internal evidence)
+    register_rest_route( 'khm-geo/v1', '/posts/(?P<post_id>\d+)/answercards', array(
+        'methods'             => 'GET',
+        'callback'            => 'get_post_answercards_public',
+        'permission_callback' => '__return_true', // Public endpoint
         'args' => array(
             'post_id' => array(
                 'required'          => true,
@@ -83,7 +105,7 @@ function register_rest_routes() {
     // Get all posts with GEO scores (for reporting)
     register_rest_route( 'khm-geo/v1', '/reports/scores', array(
         'methods'             => 'GET',
-        'callback'            => __NAMESPACE__ . '\\get_geo_scores_report',
+        'callback'            => 'get_geo_scores_report',
         'permission_callback' => function() {
             return current_user_can( 'edit_others_posts' );
         },
@@ -117,8 +139,182 @@ function register_rest_routes() {
             ),
         ),
     ) );
+
+    // Entity suggest endpoint (Wikidata)
+    register_rest_route( 'khm-geo/v1', '/entity/suggest', array(
+        'methods'             => 'GET',
+        'callback'            => 'suggest_entity_candidates',
+        'permission_callback' => function() {
+            return current_user_can( 'edit_posts' );
+        },
+        'args'                => array(
+            'term' => array(
+                'required'          => true,
+                'type'              => 'string',
+                'sanitize_callback' => 'sanitize_text_field',
+            ),
+            'context' => array(
+                'required'          => false,
+                'type'              => 'string',
+                'sanitize_callback' => 'sanitize_text_field',
+            ),
+        ),
+    ) );
+
+    // Entity resolve endpoint
+    register_rest_route( 'khm-geo/v1', '/entity/resolve', array(
+        'methods'             => 'POST',
+        'callback'            => 'resolve_entity_candidate',
+        'permission_callback' => function( $request ) {
+            $post_id = absint( $request->get_param( 'post_id' ) );
+            if ( $post_id ) {
+                return current_user_can( 'edit_post', $post_id );
+            }
+            return current_user_can( 'edit_posts' );
+        },
+    ) );
 }
-add_action( 'rest_api_init', __NAMESPACE__ . '\\register_rest_routes' );
+add_action( 'rest_api_init', 'register_rest_routes' );
+
+/**
+ * Get full answer cards for a specific post (for Tracker/verification).
+ * Includes all internal data: evidence, tracked_url, answer_card_id, etc.
+ *
+ * @param \WP_REST_Request $request Request object.
+ * @return \WP_REST_Response
+ */
+function get_post_answercards_full( $request ) {
+    $post_id = absint( $request->get_param( 'post_id' ) );
+    $post    = get_post( $post_id );
+
+    if ( ! $post ) {
+        return new \WP_Error( 'post_not_found', 'Post not found', array( 'status' => 404 ) );
+    }
+
+    $cards = get_post_meta( $post_id, '_geo_answercards', true );
+
+    if ( empty( $cards ) || ! is_array( $cards ) ) {
+        return rest_ensure_response( array(
+            'post_id' => $post_id,
+            'cards'   => array(),
+            'meta'    => array(
+                'post_title' => get_the_title( $post_id ),
+                'post_url'   => get_permalink( $post_id ),
+            ),
+        ) );
+    }
+
+    // Return full canonical data including evidence for authorized Tracker access
+    return rest_ensure_response( array(
+        'post_id' => $post_id,
+        'cards'   => $cards,
+        'meta'    => array(
+            'post_title' => get_the_title( $post_id ),
+            'post_url'   => get_permalink( $post_id ),
+            'score'      => floatval( get_post_meta( $post_id, '_geo_score', true ) ),
+        ),
+    ) );
+}
+
+/**
+ * Get public answer cards for a specific post.
+ * Strips internal evidence data (confidence, source_passage) and tracked_url.
+ * Only returns cards where expose_in_schema is true.
+ *
+ * @param \WP_REST_Request $request Request object.
+ * @return \WP_REST_Response
+ */
+function get_post_answercards_public( $request ) {
+    $post_id = absint( $request->get_param( 'post_id' ) );
+    $post    = get_post( $post_id );
+
+    if ( ! $post ) {
+        return new \WP_Error( 'post_not_found', 'Post not found', array( 'status' => 404 ) );
+    }
+
+    // Only allow published posts for public access
+    if ( 'publish' !== $post->post_status ) {
+        return new \WP_Error( 'post_not_published', 'Post is not published', array( 'status' => 403 ) );
+    }
+
+    $cards = get_post_meta( $post_id, '_geo_answercards', true );
+
+    if ( empty( $cards ) || ! is_array( $cards ) ) {
+        return rest_ensure_response( array(
+            'post_id' => $post_id,
+            'cards'   => array(),
+        ) );
+    }
+
+    // Filter and sanitize for public consumption
+    $public_cards = array();
+    foreach ( $cards as $card ) {
+        // Skip cards not exposed in schema
+        if ( empty( $card['expose_in_schema'] ) ) {
+            continue;
+        }
+
+        // Strip internal evidence data
+        $public_card = array(
+            'answer_card_id'       => $card['answer_card_id'] ?? '',
+            'question'             => $card['question'] ?? '',
+            'concise_answer'       => $card['concise_answer'] ?? '',
+            'preferred_summary'    => $card['preferred_summary'] ?? '',
+            'public_summary_label' => $card['public_summary_label'] ?? '',
+            'key_points'           => $card['key_points'] ?? array(),
+            'entities'             => $card['entities'] ?? array(),
+            'position'             => $card['position'] ?? 0,
+        );
+
+        // Add topic_discussed_at (this is public metadata)
+        if ( ! empty( $card['topic_discussed_at'] ) ) {
+            $public_card['topic_discussed_at'] = $card['topic_discussed_at'];
+        }
+
+        // Add site_keywords (public metadata for SEO)
+        if ( ! empty( $card['site_keywords'] ) && is_array( $card['site_keywords'] ) ) {
+            $public_card['site_keywords'] = $card['site_keywords'];
+        }
+
+        // Filter citations - remove tracked_url and internal fields
+        if ( ! empty( $card['citations'] ) && is_array( $card['citations'] ) ) {
+            $public_citations = array();
+            foreach ( $card['citations'] as $citation ) {
+                $public_citation = array(
+                    'title'     => $citation['title'] ?? '',
+                    'url'       => $citation['url'] ?? '',
+                    'author'    => $citation['author'] ?? '',
+                    'publisher' => $citation['publisher'] ?? '',
+                    'year'      => $citation['year'] ?? '',
+                );
+                // Optionally include DOI if present (public metadata)
+                if ( ! empty( $citation['doi'] ) ) {
+                    $public_citation['doi'] = $citation['doi'];
+                }
+                $public_citations[] = $public_citation;
+            }
+            $public_card['citations'] = $public_citations;
+        }
+
+        // Include evidence tier but NOT confidence or source_passage
+        if ( ! empty( $card['evidence']['tier'] ) ) {
+            $public_card['evidence'] = array(
+                'tier' => $card['evidence']['tier'],
+            );
+        }
+
+        $public_cards[] = $public_card;
+    }
+
+    return rest_ensure_response( array(
+        'post_id' => $post_id,
+        'cards'   => $public_cards,
+        'meta'    => array(
+            'post_title' => get_the_title( $post_id ),
+            'post_url'   => get_permalink( $post_id ),
+        ),
+    ) );
+}
 
 /**
  * Entity autocomplete endpoint callback.
@@ -235,7 +431,18 @@ function calculate_score_on_demand( $request ) {
     if ( class_exists( '\\KHM_SEO\\GEO\\Scoring\\ScoringEngine' ) ) {
         try {
             $engine = new \KHM_SEO\GEO\Scoring\ScoringEngine();
-            $score  = $engine->calculate_score( $payload, array() );
+            $settings = $payload;
+            if ( function_exists( '\\KHM\\Blocks\\AnswerCard\\normalize_scoring_settings' ) ) {
+                $settings = \KHM\Blocks\AnswerCard\normalize_scoring_settings( array(
+                    'question'       => $payload['question'] ?? '',
+                    'concise_answer' => $payload['concise_answer'] ?? ( $payload['conciseAnswer'] ?? '' ),
+                    'key_points'     => $payload['key_points'] ?? ( $payload['keyPoints'] ?? array() ),
+                    'citations'      => $payload['citations'] ?? array(),
+                    'entities'       => $payload['entities'] ?? array(),
+                    'evidence'       => $payload['evidence'] ?? array(),
+                ) );
+            }
+            $score  = $engine->calculate_score( $settings, array() );
             return rest_ensure_response( $score );
         } catch ( \Exception $e ) {
             return new \WP_Error(
@@ -246,9 +453,139 @@ function calculate_score_on_demand( $request ) {
         }
     }
 
-    // Fallback: Calculate a basic score based on completeness
-    $score = calculate_basic_score( $payload );
-    return rest_ensure_response( $score );
+    error_log( '[KHM GEO ERROR] Scoring engine unavailable for on-demand score.' );
+    return new \WP_Error(
+        'scoring_unavailable',
+        __( 'Scoring engine unavailable', 'khm-membership' ),
+        array( 'status' => 500 )
+    );
+}
+
+/**
+ * Suggest entity candidates from Wikidata.
+ *
+ * @param \WP_REST_Request $request Request object.
+ * @return \WP_REST_Response|\WP_Error
+ */
+function suggest_entity_candidates( $request ) {
+    $term = $request->get_param( 'term' );
+    $context = $request->get_param( 'context' ) ?? '';
+
+    if ( ! class_exists( '\\KHM_SEO\\GEO\\Entity\\EntityManager' ) ) {
+        return new \WP_Error(
+            'entity_manager_missing',
+            'EntityManager is not available',
+            array( 'status' => 500 )
+        );
+    }
+
+    $manager = new \KHM_SEO\GEO\Entity\EntityManager();
+    $candidates = $manager->suggest_same_as_for_name( $term, $context );
+
+    return rest_ensure_response( array(
+        'term' => $term,
+        'candidates' => $candidates,
+    ) );
+}
+
+/**
+ * Resolve entity to Wikidata and persist same_as.
+ *
+ * @param \WP_REST_Request $request Request object.
+ * @return \WP_REST_Response|\WP_Error
+ */
+function resolve_entity_candidate( $request ) {
+    $payload = $request->get_json_params();
+    if ( empty( $payload ) || ! is_array( $payload ) ) {
+        return new \WP_Error( 'invalid_payload', 'Invalid request payload', array( 'status' => 400 ) );
+    }
+
+    if ( ! class_exists( '\\KHM_SEO\\GEO\\Entity\\EntityManager' ) ) {
+        return new \WP_Error(
+            'entity_manager_missing',
+            'EntityManager is not available',
+            array( 'status' => 500 )
+        );
+    }
+
+    $post_id = absint( $payload['post_id'] ?? 0 );
+    $entity_name = sanitize_text_field( $payload['entity_name'] ?? '' );
+    $qid = sanitize_text_field( $payload['qid'] ?? '' );
+    $label = sanitize_text_field( $payload['label'] ?? '' );
+    $provider = sanitize_text_field( $payload['provider'] ?? 'wikidata' );
+    $page_role = sanitize_text_field( $payload['page_role'] ?? '' );
+
+    if ( empty( $entity_name ) || empty( $qid ) ) {
+        return new \WP_Error( 'missing_params', 'entity_name and qid are required', array( 'status' => 400 ) );
+    }
+
+    $manager = new \KHM_SEO\GEO\Entity\EntityManager();
+    $entity = $manager->find_entity_by_canonical( $entity_name, 'site' );
+
+    if ( ! $entity ) {
+        $entity_id = $manager->create_entity( array(
+            'canonical' => $entity_name,
+            'type'      => 'Thing',
+            'scope'     => 'site',
+            'status'    => 'active',
+        ) );
+        if ( ! $entity_id ) {
+            return new \WP_Error( 'entity_create_failed', 'Failed to create entity', array( 'status' => 500 ) );
+        }
+    } else {
+        $entity_id = $entity->id;
+    }
+
+    $same_as_entry = array(
+        'source' => $provider,
+        'id'     => $qid,
+        'url'    => 'https://www.wikidata.org/wiki/' . $qid,
+        'label'  => $label,
+    );
+
+    $manager->set_same_as( $entity_id, array( $same_as_entry ) );
+
+    if ( $post_id && in_array( $page_role, array( 'about', 'primary' ), true ) ) {
+        $manager->add_entity_to_post( $post_id, $entity_id, $page_role, 0.8, 'manual' );
+    }
+
+    error_log( sprintf(
+        '[KHM GEO] Entity resolved: %s (%s) by user %d',
+        $entity_name,
+        $qid,
+        get_current_user_id()
+    ) );
+
+    $resolved_entity = $manager->get_entity( $entity_id );
+
+    return rest_ensure_response( array(
+        'entity' => $resolved_entity,
+        'same_as' => $same_as_entry,
+    ) );
+}
+
+/**
+ * Get persisted score details for a post.
+ *
+ * @param \WP_REST_Request $request Request object.
+ * @return \WP_REST_Response|\WP_Error
+ */
+function get_post_score_details( $request ) {
+    $post_id = absint( $request->get_param( 'post_id' ) );
+    $post    = get_post( $post_id );
+
+    if ( ! $post ) {
+        return new \WP_Error( 'post_not_found', 'Post not found', array( 'status' => 404 ) );
+    }
+
+    $score_details = get_post_meta( $post_id, '_geo_score_details', true );
+    $score = get_post_meta( $post_id, '_geo_score', true );
+
+    return rest_ensure_response( array(
+        'post_id' => $post_id,
+        'score' => $score !== '' ? floatval( $score ) : null,
+        'score_details' => $score_details,
+    ) );
 }
 
 /**
@@ -531,4 +868,4 @@ function get_geo_scores_report( $request ) {
 function invalidate_entity_cache( $post_id ) {
     wp_cache_delete( 'khm_geo_entities_cache' );
 }
-add_action( 'save_post', __NAMESPACE__ . '\\invalidate_entity_cache', 30 );
+add_action( 'save_post', 'invalidate_entity_cache', 30 );

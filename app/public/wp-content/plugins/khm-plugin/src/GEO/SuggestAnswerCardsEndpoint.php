@@ -101,6 +101,12 @@ class SuggestAnswerCardsEndpoint {
                     'default'           => 4,
                     'sanitize_callback' => 'absint',
                 ),
+                'force_refresh' => array(
+                    'type'              => 'boolean',
+                    'required'          => false,
+                    'default'           => false,
+                    'sanitize_callback' => 'rest_sanitize_boolean',
+                ),
             ),
         ) );
     }
@@ -121,12 +127,16 @@ class SuggestAnswerCardsEndpoint {
      * @return \WP_REST_Response|\WP_Error
      */
     public function handle_request( $request ) {
-        $user_id   = get_current_user_id();
-        $post_id   = $request->get_param( 'post_id' ) ?? 0;
-        $title     = $request->get_param( 'title' ) ?? '';
-        $url       = $request->get_param( 'url' ) ?? '';
-        $content   = $request->get_param( 'content' );
-        $max_cards = min( 8, max( 1, $request->get_param( 'max_cards' ) ?? 4 ) );
+        // Direct file logging for debugging
+        
+        $user_id       = get_current_user_id();
+        $post_id       = $request->get_param( 'post_id' ) ?? 0;
+        $title         = $request->get_param( 'title' ) ?? '';
+        $url           = $request->get_param( 'url' ) ?? '';
+        $content       = $request->get_param( 'content' );
+        $max_cards     = min( 8, max( 1, $request->get_param( 'max_cards' ) ?? 4 ) );
+        $force_refresh = (bool) $request->get_param( 'force_refresh' );
+
 
         // Check rate limit
         $rate_check = $this->rate_limiter->check_limit( $user_id );
@@ -142,9 +152,9 @@ class SuggestAnswerCardsEndpoint {
             return $rate_check;
         }
 
-        // Check for cached response
+        // Check for cached response (skip if force_refresh)
         $cache_key = $this->cache->generate_cache_key( $content, $max_cards, $this->llm_client->get_model_name() );
-        $cached    = $this->cache->get( $cache_key );
+        $cached    = $force_refresh ? false : $this->cache->get( $cache_key );
 
         if ( false !== $cached ) {
             $this->logger->log_request( array(
@@ -170,8 +180,20 @@ class SuggestAnswerCardsEndpoint {
             );
         }
 
+
         // Call LLM with retry on validation failure
-        $result = $this->call_llm_with_retry( $title, $url, $content, $max_cards );
+        try {
+            $result = $this->call_llm_with_retry( $title, $url, $content, $max_cards );
+            if (is_wp_error($result)) {
+            } else {
+            }
+        } catch (Throwable $e) {
+            return new \WP_Error(
+                'internal_error',
+                'Internal server error during LLM processing',
+                array( 'status' => 500 )
+            );
+        }
 
         if ( is_wp_error( $result ) ) {
             $this->logger->log_request( array(
@@ -321,39 +343,85 @@ class SuggestAnswerCardsEndpoint {
      */
     private function build_system_prompt() {
         return <<<PROMPT
-You are an expert at Generative Engine Optimization (GEO). Your task is to analyze article content and generate structured AnswerCards optimized for AI citation and featured snippets.
+You are an expert at Generative Engine Optimization (GEO) with a focus on evidence-based AnswerCard generation. Your task is to analyze article content, reference blocks, and citation contexts to generate structured AnswerCards optimized for AI citation and featured snippets.
 
-For each AnswerCard, provide:
-1. A clear question the content answers
-2. A concise answer (40-80 words ideal for featured snippets)
-3. 3-5 key points as bullet takeaways
-4. Relevant citations from the content (if URLs mentioned)
-5. Key entities (topics, concepts, people, organizations)
-6. A confidence score (0-1) based on how well the content supports the answer
-7. Optional notes for the editor
+You MUST respond with valid JSON only. Do not include any text outside the JSON structure.
 
-Output valid JSON with this structure:
+**CORE PRINCIPLE: EXTERNAL EVIDENCE + SITE ANCHOR**
+
+Each AnswerCard should:
+1. Cite EXTERNAL authoritative sources (studies, benchmarks, trade publications) as evidence
+2. Position the article itself as the definitive guide where this topic is "discussed in depth"
+3. Create a clear trail: AI reads claim → sees external evidence → links to your article for more
+
+**EVIDENCE STRENGTH = ENTITY CLARITY FRAMEWORK:**
+
+Tier 1 (Study + Year): Temporal + institutional entity anchoring
+- Peer-reviewed journals, preprints, government reports, datasets
+- Contains year AND institutional author (e.g., "McKinsey & Company (2020)")
+- Highest weight for GEO scoring
+
+Tier 2 (Benchmark): Normative industry anchoring  
+- Industry standards (ISO, IEEE), vendor benchmarks, replicated measurements
+- Medium weight - establishes consensus
+
+Tier 3 (Trade Publication): Contextual authority anchoring
+- Trade press, industry blogs, news
+- Low weight - provides practitioner framing
+
+**ANSWER FORMAT REQUIREMENTS:**
+
+Answers MUST use authoritative attribution format:
+- "According to [Author/Institution] ([Year]), [claim]..."
+- "Research from [Publisher] ([Year]) shows that..."
+- "[Study Title] by [Author] found that..."
+
+Example: "AI-powered last-mile delivery solutions can reduce logistics costs by up to 40%. According to McKinsey & Company (2020), last-mile delivery accounts for 53% of total logistics spend, making AI route optimization critical for cost management."
+
+**OUTPUT STRUCTURE:**
 {
   "cards": [
     {
-      "question": "What is...?",
-      "concise_answer": "...",
-      "key_points": ["point 1", "point 2", "point 3"],
-      "citations": [{"title": "Source Name", "url": "https://..."}],
-      "entities": [{"name": "Entity Name", "sameAs": "https://wikidata.org/wiki/Q..."}],
-      "confidence": 0.85,
-      "notes": "Optional editor notes"
+      "question": "How does AI-powered delivery optimize last-mile logistics?",
+      "concise_answer": "AI-powered delivery solutions reduce logistics costs by 20-40% through predictive analytics and dynamic routing. According to McKinsey & Company (2020), last-mile delivery comprises 53% of total logistics spend. Research from MIT Supply Chain (2021) confirms that AI-optimized routes reduce fuel consumption by 15-25%.",
+      "key_points": [
+        "Last-mile delivery accounts for majority of logistics costs",
+        "AI optimizations yield 20-40% cost savings",
+        "Predictive analytics enable dynamic route optimization"
+      ],
+      "citations": [{
+        "title": "Fast forwarding last-mile delivery: implications for the ecosystem",
+        "url": "https://www.mckinsey.com/...",
+        "author": "Jürgen Schröder et al.",
+        "publisher": "McKinsey & Company",
+        "year": "2020",
+        "tier": "tier1",
+        "doi": null,
+        "keywords": ["last-mile", "logistics", "AI"]
+      }],
+      "entities": ["AI", "last-mile delivery", "logistics optimization"],
+      "evidence": {
+        "tier": "tier1",
+        "confidence": 0.85,
+        "context_heading": "The Role of AI in Last-Mile Efficiency",
+        "source_passage": "Exact sentence from article that supports this card...",
+        "anchor_entities": ["McKinsey", "AI optimization"]
+      },
+      "preferred_summary": true,
+      "notes": "This card highlights the cost impact of AI in last-mile logistics."
     }
   ]
 }
 
-Guidelines:
-- Questions should be natural queries users might search
-- Answers should be direct and authoritative
-- Key points should be scannable and actionable
-- Only include citations that appear in the source content
-- Entities should be key concepts, not common words
-- Be conservative with confidence scores
+**CRITICAL GUIDELINES:**
+- Questions should be natural, searchable queries users would ask
+- Answers MUST cite external sources with Author (Year) format in the text itself
+- Each answer should synthesize 1-2 external sources as evidence
+- Include exact source passages from the article that support claims
+- Prioritize Tier 1 > Tier 2 > Tier 3 evidence
+- Citations array MUST include author, publisher, year, and tier
+- Flag cards with confidence < 0.6 for human review
+- preferred_summary should be true for the canonical answer on a topic
 PROMPT;
     }
 
@@ -368,27 +436,106 @@ PROMPT;
      * @return string
      */
     private function build_user_prompt( $title, $url, $content, $max_cards, $is_retry = false ) {
-        $prompt = "Analyze this article and generate up to {$max_cards} AnswerCards.\n\n";
-
+        // Extract reference block if present
+        $reference_block = $this->extract_reference_block( $content );
+        $headings_map = $this->parse_headings_and_citations( $content );
+        
+        $prompt = "ANALYZE THIS ARTICLE FOR EVIDENCE-BASED ANSWERCARDS\n\n";
+        
         if ( $title ) {
-            $prompt .= "Title: {$title}\n";
+            $prompt .= "ARTICLE TITLE: {$title}\n";
         }
         if ( $url ) {
-            $prompt .= "URL: {$url}\n";
+            $prompt .= "ARTICLE URL: {$url}\n";
         }
-
-        $prompt .= "\nContent:\n{$content}";
-
+        
+        $prompt .= "\n=== ARTICLE CONTENT ===\n{$content}\n";
+        
+        if ( ! empty( $reference_block ) ) {
+            $prompt .= "\n=== REFERENCE BLOCK ===\n{$reference_block}\n";
+        }
+        
+        if ( ! empty( $headings_map ) ) {
+            $prompt .= "\n=== HEADING STRUCTURE & CITATIONS ===\n";
+            foreach ( $headings_map as $heading => $citations ) {
+                $prompt .= "HEADING: {$heading}\nCITATIONS: " . implode(', ', $citations) . "\n\n";
+            }
+        }
+        
+        $prompt .= "\n=== INSTRUCTIONS ===\n";
+        $prompt .= "1. IDENTIFY external sources cited in the article (look for author names, years, publication names)\n";
+        $prompt .= "2. EXTRACT the strongest evidence passages (Tier 1 > Tier 2 > Tier 3)\n";
+        $prompt .= "3. CRAFT answers that cite sources IN THE TEXT using 'According to [Author] ([Year])...' format\n";
+        $prompt .= "4. INCLUDE full citation metadata: title, url, author, publisher, year, tier\n";
+        $prompt .= "5. ENSURE each answer references at least one external source with attribution\n";
+        $prompt .= "6. CAPTURE exact source passages from the article that support claims\n";
+        $prompt .= "7. FLAG low-confidence cards (< 0.6) for human review\n";
+        
+        $prompt .= "\nGenerate up to {$max_cards} evidence-based AnswerCards. Each answer MUST include inline attribution like 'According to McKinsey (2020)...' or 'Research from [Source] shows...'";
+        
         if ( $is_retry ) {
-            $prompt .= "\n\nIMPORTANT: This is a retry. Please ensure:\n";
-            $prompt .= "- Each card has a valid question (under 500 chars)\n";
-            $prompt .= "- Each concise_answer is 20-150 words\n";
-            $prompt .= "- Each card has at least 2 key_points\n";
-            $prompt .= "- All URLs are valid format\n";
-            $prompt .= "- Confidence is a decimal between 0 and 1\n";
+            $prompt .= "\n\nRETRY ATTEMPT - ENSURE:\n";
+            $prompt .= "- Each card has evidence.tier field (tier1|tier2|tier3)\n";
+            $prompt .= "- evidence.confidence is 0-1 decimal\n";
+            $prompt .= "- evidence.source_passage contains exact article text\n";
+            $prompt .= "- citations include author, year, publisher, tier from references\n";
+            $prompt .= "- concise_answer uses 'According to [Author] ([Year])...' attribution\n";
+            $prompt .= "- preferred_summary is true for canonical syntheses\n";
         }
-
+        
         return $prompt;
+    }
+
+    /**
+     * Extract reference block from content
+     *
+     * @param string $content Article content.
+     * @return string Reference block text.
+     */
+    private function extract_reference_block( $content ) {
+        // Look for common reference section patterns
+        $patterns = [
+            '/(?:References?|Bibliography|Sources?|Citations?)\s*:?\s*\n(.*?)(?:\n\n|\n#|\n===|$)/is',
+            '/\n(\d+\..*?)(?:\n\n|\n#|\n===|$)/is', // Numbered references
+            '/\n(\[.*?\].*?)(?:\n\n|\n#|\n===|$)/is', // Bracketed references
+        ];
+        
+        foreach ( $patterns as $pattern ) {
+            if ( preg_match( $pattern, $content, $matches ) ) {
+                return trim( $matches[1] );
+            }
+        }
+        
+        return '';
+    }
+
+    /**
+     * Parse headings and nearby citations
+     *
+     * @param string $content Article content.
+     * @return array Heading => citations map.
+     */
+    private function parse_headings_and_citations( $content ) {
+        $headings_map = [];
+        $lines = explode( "\n", $content );
+        $current_heading = '';
+        
+        foreach ( $lines as $line ) {
+            // Check for H2/H3 headings
+            if ( preg_match( '/^(#{2,3})\s+(.+)$/', $line, $matches ) ) {
+                $current_heading = trim( $matches[2] );
+                $headings_map[ $current_heading ] = [];
+            }
+            // Look for superscript citations in current heading context
+            elseif ( $current_heading && preg_match_all( '/(\d+|\[\d+\]|\(\d+\))/', $line, $citation_matches ) ) {
+                $headings_map[ $current_heading ] = array_merge(
+                    $headings_map[ $current_heading ],
+                    $citation_matches[1]
+                );
+            }
+        }
+        
+        return array_filter( $headings_map ); // Remove empty entries
     }
 }
 

@@ -172,8 +172,18 @@ class AnswerCardSchemaValidator {
             'key_points'     => array(),
             'citations'      => array(),
             'entities'       => array(),
-            'confidence'     => floatval( $card['confidence'] ?? 0.5 ),
+            'confidence'     => floatval( $card['confidence'] ?? ( $card['evidence']['confidence'] ?? 0.5 ) ),
             'notes'          => sanitize_text_field( $card['notes'] ?? '' ),
+            'preferred_summary' => ! empty( $card['preferred_summary'] ),
+            'evidence'       => array(
+                'tier'            => sanitize_text_field( $card['evidence']['tier'] ?? '' ),
+                'confidence'      => floatval( $card['evidence']['confidence'] ?? 0.5 ),
+                'context_heading' => sanitize_text_field( $card['evidence']['context_heading'] ?? '' ),
+                'source_passage'  => wp_kses_post( $card['evidence']['source_passage'] ?? '' ),
+                'anchor_entities' => is_array( $card['evidence']['anchor_entities'] ?? null )
+                                     ? array_map( 'sanitize_text_field', $card['evidence']['anchor_entities'] )
+                                     : array(),
+            ),
         );
 
         // Normalize key points
@@ -185,13 +195,21 @@ class AnswerCardSchemaValidator {
             }
         }
 
-        // Normalize citations
+        // Normalize citations - preserve all metadata fields
         if ( isset( $card['citations'] ) && is_array( $card['citations'] ) ) {
             foreach ( $card['citations'] as $citation ) {
                 if ( is_array( $citation ) && ! empty( $citation['url'] ) ) {
                     $normalized['citations'][] = array(
-                        'title' => sanitize_text_field( $citation['title'] ?? '' ),
-                        'url'   => esc_url_raw( $citation['url'] ),
+                        'title'     => sanitize_text_field( $citation['title'] ?? '' ),
+                        'url'       => esc_url_raw( $citation['url'] ),
+                        'author'    => sanitize_text_field( $citation['author'] ?? '' ),
+                        'publisher' => sanitize_text_field( $citation['publisher'] ?? '' ),
+                        'year'      => sanitize_text_field( $citation['year'] ?? '' ),
+                        'tier'      => sanitize_text_field( $citation['tier'] ?? '' ),
+                        'doi'       => sanitize_text_field( $citation['doi'] ?? '' ),
+                        'keywords'  => is_array( $citation['keywords'] ?? null ) 
+                                       ? array_map( 'sanitize_text_field', $citation['keywords'] ) 
+                                       : array(),
                     );
                 }
             }
