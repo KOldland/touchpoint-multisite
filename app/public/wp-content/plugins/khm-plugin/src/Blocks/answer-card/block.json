@@ -109,6 +109,10 @@
             "type": "boolean",
             "default": false
         },
+        "reviewJustification": {
+            "type": "string",
+            "default": ""
+        },
         "position": {
             "type": "number",
             "default": 0

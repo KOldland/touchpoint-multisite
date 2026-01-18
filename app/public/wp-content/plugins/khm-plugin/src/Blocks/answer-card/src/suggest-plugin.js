@@ -444,6 +444,7 @@ const SuggestAnswerCardsModal = ( { isOpen, onClose, postId, postTitle, postCont
 
         const blocksToInsert = selectedCards.map( ( index ) => {
             const card = suggestions[ index ];
+            const evidence = card.evidence || {};
             
             return createBlock( 'khm/answer-card', {
                 question: card.question || '',
@@ -451,6 +452,13 @@ const SuggestAnswerCardsModal = ( { isOpen, onClose, postId, postTitle, postCont
                 keyPoints: card.key_points || [],
                 citations: card.citations || [],
                 entities: card.entities || [],
+                evidence: {
+                    tier: evidence.tier || '',
+                    confidence: evidence.confidence ?? card.confidence ?? 0,
+                    context_heading: evidence.context_heading || '',
+                    source_passage: evidence.source_passage || '',
+                    anchor_entities: evidence.anchor_entities || [],
+                },
                 exposeInSchema: true,
             } );
         } );
@@ -470,12 +478,20 @@ const SuggestAnswerCardsModal = ( { isOpen, onClose, postId, postTitle, postCont
             setError( 'Block editor not available on this page' );
             return;
         }
+        const evidence = card.evidence || {};
         const block = createBlock( 'khm/answer-card', {
             question: card.question || '',
             conciseAnswer: card.concise_answer || '',
             keyPoints: card.key_points || [],
             citations: card.citations || [],
             entities: card.entities || [],
+            evidence: {
+                tier: evidence.tier || '',
+                confidence: evidence.confidence ?? card.confidence ?? 0,
+                context_heading: evidence.context_heading || '',
+                source_passage: evidence.source_passage || '',
+                anchor_entities: evidence.anchor_entities || [],
+            },
             exposeInSchema: true,
         } );
 
@@ -641,6 +657,7 @@ const AnswerCardSidebarContent = () => {
     }, [] );
 
     const { insertBlocks } = useDispatch( 'core/block-editor' );
+    const { openGeneralSidebar } = useDispatch( 'core/edit-post' );
 
     // Safety check for block editor availability
     const isBlockEditorAvailable = !!insertBlocks;
@@ -648,6 +665,9 @@ const AnswerCardSidebarContent = () => {
     // Listen for custom event to open suggestions modal
     useEffect( () => {
         const handleOpenSuggestions = () => {
+            if ( typeof openGeneralSidebar === 'function' ) {
+                openGeneralSidebar( 'plugin/khm-geo-sidebar' );
+            }
             setIsModalOpen( true );
         };
 

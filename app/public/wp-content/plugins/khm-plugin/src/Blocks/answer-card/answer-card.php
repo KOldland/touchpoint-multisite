@@ -96,10 +96,26 @@ function render_answercard_block( $attributes, $content ) {
     $key_points  = isset( $attributes['keyPoints'] ) && is_array( $attributes['keyPoints'] ) ? $attributes['keyPoints'] : array();
     $citations   = isset( $attributes['citations'] ) && is_array( $attributes['citations'] ) ? $attributes['citations'] : array();
     $entities    = isset( $attributes['entities'] ) && is_array( $attributes['entities'] ) ? $attributes['entities'] : array();
+    $evidence    = isset( $attributes['evidence'] ) && is_array( $attributes['evidence'] ) ? $attributes['evidence'] : array();
+
+    $tier = strtolower( $evidence['tier'] ?? '' );
+    $tier_label = '';
+    if ( 'tier1' === $tier ) {
+        $tier_label = 'Tier-1';
+    } elseif ( 'tier2' === $tier ) {
+        $tier_label = 'Tier-2';
+    } elseif ( 'tier3' === $tier ) {
+        $tier_label = 'Tier-3';
+    }
 
     // Build HTML output
     $html  = '<section class="khm-answer-card" role="region" aria-label="' . esc_attr( $question ) . '">';
+    $html .= '<div class="khm-answer-card__header">';
     $html .= '<h3 class="khm-answer-card__question">' . $question . '</h3>';
+    if ( $tier_label ) {
+        $html .= '<span class="khm-answer-card__tier-badge khm-answer-card__tier-badge--' . esc_attr( $tier ) . '">' . esc_html( $tier_label ) . '</span>';
+    }
+    $html .= '</div>';
     $html .= '<div class="khm-answer-card__answer">' . $answer . '</div>';
 
     // Key points list
@@ -167,7 +183,7 @@ function render_answercard_block( $attributes, $content ) {
         $html .= '<div class="khm-answer-card__entities">';
         foreach ( $entities as $entity ) {
             $entity_name = is_array( $entity ) && isset( $entity['name'] ) ? $entity['name'] : $entity;
-            $html .= '<span class="khm-answer-card__entity-tag">' . esc_html( $entity_name ) . '</span>';
+            $html .= '<span class="khm-answer-card__entity-tag">' . esc_html( html_entity_decode( $entity_name, ENT_QUOTES, 'UTF-8' ) ) . '</span>';
         }
         $html .= '</div>';
     }
@@ -252,6 +268,11 @@ function save_answercards_on_save_post( $post_id, $post ) {
             $expose_in_schema = false;
         }
 
+        $review_justification = isset( $attrs['reviewJustification'] ) ? sanitize_text_field( $attrs['reviewJustification'] ) : '';
+        if ( $requires_review && empty( $review_justification ) ) {
+            $expose_in_schema = false;
+        }
+
         // Sanitize topic_discussed_at with auto-population
         $topic_discussed_at = isset( $attrs['topicDiscussedAt'] ) && is_array( $attrs['topicDiscussedAt'] )
                               ? sanitize_topic_discussed_at( $attrs['topicDiscussedAt'], $post_id )
@@ -283,6 +304,7 @@ function save_answercards_on_save_post( $post_id, $post ) {
             'public_summary_label' => isset( $attrs['publicSummaryLabel'] ) ? sanitize_text_field( $attrs['publicSummaryLabel'] ) : '',
             'expose_in_schema'     => $expose_in_schema,
             'requires_review'      => $requires_review,
+            'review_justification' => $review_justification,
             'position'             => $position++,
             'updated_at'           => current_time( 'mysql' ),
         );
@@ -399,13 +421,34 @@ function sanitize_entities( $entities ) {
  * @return array Sanitized evidence.
  */
 function sanitize_evidence( $evidence ) {
+    $context_heading = '';
+    if ( isset( $evidence['contextHeading'] ) ) {
+        $context_heading = $evidence['contextHeading'];
+    } elseif ( isset( $evidence['context_heading'] ) ) {
+        $context_heading = $evidence['context_heading'];
+    }
+
+    $source_passage = '';
+    if ( isset( $evidence['sourcePassage'] ) ) {
+        $source_passage = $evidence['sourcePassage'];
+    } elseif ( isset( $evidence['source_passage'] ) ) {
+        $source_passage = $evidence['source_passage'];
+    }
+
+    $anchor_entities = array();
+    if ( isset( $evidence['anchorEntities'] ) && is_array( $evidence['anchorEntities'] ) ) {
+        $anchor_entities = $evidence['anchorEntities'];
+    } elseif ( isset( $evidence['anchor_entities'] ) && is_array( $evidence['anchor_entities'] ) ) {
+        $anchor_entities = $evidence['anchor_entities'];
+    }
+
     return array(
         'tier'            => isset( $evidence['tier'] ) ? sanitize_text_field( $evidence['tier'] ) : '',
         'confidence'      => isset( $evidence['confidence'] ) ? floatval( $evidence['confidence'] ) : 0.0,
-        'context_heading' => isset( $evidence['contextHeading'] ) ? sanitize_text_field( $evidence['contextHeading'] ) : '',
-        'source_passage'  => isset( $evidence['sourcePassage'] ) ? sanitize_text_field( $evidence['sourcePassage'] ) : '',
-        'anchor_entities' => isset( $evidence['anchorEntities'] ) && is_array( $evidence['anchorEntities'] )
-                             ? array_map( 'sanitize_text_field', $evidence['anchorEntities'] )
+        'context_heading' => $context_heading ? sanitize_text_field( $context_heading ) : '',
+        'source_passage'  => $source_passage ? sanitize_text_field( $source_passage ) : '',
+        'anchor_entities' => ! empty( $anchor_entities )
+                             ? array_map( 'sanitize_text_field', $anchor_entities )
                              : array(),
     );
 }
@@ -478,10 +521,15 @@ function generate_answer_card_id( $post_id ) {
 function run_scoring_for_post( $post_id, $canonical ) {
     // Check if ScoringEngine is available
     if ( ! class_exists( '\\KHM_SEO\\GEO\\Scoring\\ScoringEngine' ) ) {
-        // Initialize with zero score if no engine available
-        update_post_meta( $post_id, '_geo_score', 0 );
-        update_post_meta( $post_id, '_geo_score_details', array() );
-        return;
+        error_log( '[KHM GEO ERROR] Scoring engine unavailable for post ' . $post_id );
+        delete_post_meta( $post_id, '_geo_score' );
+        update_post_meta( $post_id, '_geo_score_details', array(
+            'status' => 'unavailable',
+            'error'  => 'Scoring engine unavailable',
+        ) );
+        return array(
+            'status' => 'unavailable',
+        );
     }
 
     try {
@@ -491,7 +539,8 @@ function run_scoring_for_post( $post_id, $canonical ) {
 
         foreach ( $canonical as $card ) {
             $context    = array( 'post_id' => $post_id );
-            $score_data = $scoring_engine->calculate_score( $card, $context );
+            $score_settings = normalize_scoring_settings( $card );
+            $score_data = $scoring_engine->calculate_score( $score_settings, $context );
 
             $page_scores[] = array(
                 'card'       => $card,
@@ -503,10 +552,12 @@ function run_scoring_for_post( $post_id, $canonical ) {
 
         // Set expose_in_schema=false for cards below confidence threshold
         foreach ( $page_scores as &$score_item ) {
-            $card = $score_item['card'];
+            $card     = $score_item['card'];
             $evidence = $card['evidence'] ?? array();
             if ( ! empty( $evidence['confidence'] ) && $evidence['confidence'] < 0.6 ) {
-                $score_item['card']['expose_in_schema'] = false;
+                if ( empty( $card['review_justification'] ) ) {
+                    $score_item['card']['expose_in_schema'] = false;
+                }
             }
         }
 
@@ -519,11 +570,43 @@ function run_scoring_for_post( $post_id, $canonical ) {
         update_post_meta( $post_id, '_geo_score', $composite_total );
         update_post_meta( $post_id, '_geo_score_details', $page_scores );
 
+        return array(
+            'score'   => $composite_total,
+            'details' => $page_scores,
+        );
     } catch ( \Exception $e ) {
-        error_log( '[KHM GEO] Scoring failed for post ' . $post_id . ': ' . $e->getMessage() );
-        update_post_meta( $post_id, '_geo_score', 0 );
-        update_post_meta( $post_id, '_geo_score_details', array() );
+        error_log( '[KHM GEO ERROR] Scoring failed for post ' . $post_id . ': ' . $e->getMessage() );
+        delete_post_meta( $post_id, '_geo_score' );
+        update_post_meta( $post_id, '_geo_score_details', array(
+            'status' => 'error',
+            'error'  => $e->getMessage(),
+        ) );
+        return array(
+            'status' => 'error',
+            'error'  => $e->getMessage(),
+        );
     }
+}
+
+/**
+ * Normalize a card into scoring settings expected by ScoringEngine.
+ *
+ * @param array $card Canonical card data.
+ * @return array
+ */
+function normalize_scoring_settings( $card ) {
+    $evidence = $card['evidence'] ?? array();
+    $confidence = isset( $evidence['confidence'] ) ? floatval( $evidence['confidence'] ) : 0.5;
+
+    return array(
+        'question'         => $card['question'] ?? '',
+        'answer'           => $card['concise_answer'] ?? '',
+        'bullets'          => $card['key_points'] ?? array(),
+        'citations'        => $card['citations'] ?? array(),
+        'entities'         => $card['entities'] ?? array(),
+        'evidence'         => $evidence,
+        'confidence_score' => $confidence,
+    );
 }
 
 /**
@@ -576,6 +659,24 @@ function persist_to_database( $post_id, $canonical ) {
 }
 
 /**
+ * Check if a card should be exposed in JSON-LD schema.
+ *
+ * @param array $card Card data.
+ * @return bool
+ */
+function can_expose_card_in_schema( $card ) {
+    if ( empty( $card['expose_in_schema'] ) ) {
+        return false;
+    }
+
+    if ( ! empty( $card['requires_review'] ) && empty( $card['review_justification'] ) ) {
+        return false;
+    }
+
+    return true;
+}
+
+/**
  * Generate JSON-LD for exposed AnswerCards and output in wp_head.
  *
  * @return void
@@ -599,13 +700,7 @@ function output_answercard_jsonld() {
     $page_url = get_permalink( $post_id );
 
     foreach ( $cards as $card ) {
-        // Skip cards not exposed in schema
-        if ( empty( $card['expose_in_schema'] ) ) {
-            continue;
-        }
-
-        // Skip cards flagged for review
-        if ( ! empty( $card['requires_review'] ) ) {
+        if ( ! can_expose_card_in_schema( $card ) ) {
             continue;
         }
 
@@ -718,8 +813,7 @@ function output_answercard_jsonld() {
         // Optional: Add FAQPage schema for better SEO
         $faq_items = array();
         foreach ( $cards as $card ) {
-            // Skip cards not exposed or flagged for review
-            if ( empty( $card['expose_in_schema'] ) || ! empty( $card['requires_review'] ) ) {
+            if ( ! can_expose_card_in_schema( $card ) ) {
                 continue;
             }
 
@@ -813,7 +907,7 @@ function output_answercard_jsonld() {
 
             // Add site author/publisher from first card's topic_discussed_at if available
             foreach ( $cards as $card ) {
-                if ( ! empty( $card['expose_in_schema'] ) && empty( $card['requires_review'] ) ) {
+                if ( can_expose_card_in_schema( $card ) ) {
                     $topic = $card['topic_discussed_at'] ?? array();
                     if ( ! empty( $topic['author'] ) ) {
                         $faq_schema['author'] = array(
@@ -945,6 +1039,39 @@ function add_admin_styles() {
 }
 
 add_action( 'admin_head', __NAMESPACE__ . '\\add_admin_styles' );
+
+/**
+ * WP-CLI command to recompute GEO score and print breakdown.
+ */
+function cli_score_post( $args, $assoc_args ) {
+    if ( empty( $args[0] ) ) {
+        \WP_CLI::error( 'Post ID is required.' );
+    }
+
+    $post_id = absint( $args[0] );
+    $cards = get_post_meta( $post_id, '_geo_answercards', true );
+
+    if ( empty( $cards ) || ! is_array( $cards ) ) {
+        \WP_CLI::error( 'No AnswerCards found for this post.' );
+    }
+
+    $result = run_scoring_for_post( $post_id, $cards );
+
+    if ( isset( $result['status'] ) && 'error' === $result['status'] ) {
+        \WP_CLI::error( $result['error'] ?? 'Scoring failed.' );
+    }
+
+    if ( ! empty( $assoc_args['print'] ) ) {
+        \WP_CLI::line( wp_json_encode( $result, JSON_PRETTY_PRINT ) );
+        return;
+    }
+
+    \WP_CLI::success( 'GEO score recomputed.' );
+}
+
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+    \WP_CLI::add_command( 'khm-geo score', __NAMESPACE__ . '\\cli_score_post' );
+}
 
 /**
  * Register the GEO Suggest AnswerCards plugin script and style.
@@ -1113,7 +1240,9 @@ function enqueue_suggest_plugin() {
     wp_add_inline_script( 'khm-geo-suggest-plugin', '
         document.addEventListener("DOMContentLoaded", function() {
             document.addEventListener("click", function(e) {
-                if (e.target && e.target.classList.contains("khm-geo-suggestions-btn")) {
+                var target = e.target;
+                var button = target && target.closest ? target.closest(".khm-geo-suggestions-btn") : null;
+                if (button) {
                     e.preventDefault();
                     // Dispatch custom event to open GEO suggestions modal
                     window.dispatchEvent(new CustomEvent("khmGeoOpenSuggestions"));

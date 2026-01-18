@@ -24,9 +24,11 @@ import {
     Spinner,
     Tooltip,
     Icon,
+    Modal,
 } from '@wordpress/components';
 import { InspectorControls, useBlockProps } from '@wordpress/block-editor';
 import { Fragment, useState, useCallback, useEffect } from '@wordpress/element';
+import { useSelect } from '@wordpress/data';
 import { trash, plus, warning, info } from '@wordpress/icons';
 import apiFetch from '@wordpress/api-fetch';
 
@@ -44,38 +46,57 @@ const countWords = ( text ) => {
  * Generate a client-side answer_card_id (will be validated/replaced server-side)
  */
 const generateClientId = () => {
-    const hex = Array.from( { length: 8 }, () => 
-        Math.floor( Math.random() * 16 ).toString( 16 ) 
+    const hex = Array.from( { length: 8 }, () =>
+        Math.floor( Math.random() * 16 ).toString( 16 )
     ).join( '' );
     return `AC-new-${ hex }`;
 };
 
 /**
- * Get confidence reason codes based on card data
+ * Decode HTML entities for display
  */
-const getConfidenceReasons = ( evidence, citations, entities ) => {
-    const reasons = [];
-    
-    if ( ! evidence || ! evidence.tier ) {
-        reasons.push( { code: 'NO_EVIDENCE', message: __( 'No evidence tier assigned', 'khm-membership' ) } );
-    } else if ( evidence.tier === 'tier3' ) {
-        reasons.push( { code: 'TIER3_ONLY', message: __( 'Only Tier-3 evidence (trade publication)', 'khm-membership' ) } );
+const decodeHtmlEntities = ( text ) => {
+    if ( ! text ) return '';
+    const textarea = document.createElement( 'textarea' );
+    textarea.innerHTML = text;
+    return textarea.value;
+};
+
+/**
+ * Format citation display: Title — Author (Year), Publisher
+ */
+const formatCitationDisplay = ( citation ) => {
+    const title = decodeHtmlEntities( citation.title || citation.url || '' );
+    const author = citation.author ? decodeHtmlEntities( citation.author ) : '';
+    const year = citation.year ? `(${ citation.year })` : '';
+    const publisher = citation.publisher ? decodeHtmlEntities( citation.publisher ) : '';
+
+    let meta = '';
+    if ( author && year ) {
+        meta = `${ author } ${ year }`;
+        if ( publisher ) {
+            meta += `, ${ publisher }`;
+        }
+    } else if ( author ) {
+        meta = author;
+        if ( publisher ) {
+            meta += `, ${ publisher }`;
+        }
+    } else if ( year ) {
+        meta = year;
+        if ( publisher ) {
+            meta += `, ${ publisher }`;
+        }
+    } else if ( publisher ) {
+        meta = publisher;
     }
-    
-    if ( ! evidence?.source_passage && ! evidence?.sourcePassage ) {
-        reasons.push( { code: 'NO_PASSAGE', message: __( 'No source passage provided', 'khm-membership' ) } );
-    }
-    
-    const hasCitationMeta = citations?.some( c => c.author && c.year );
-    if ( ! hasCitationMeta ) {
-        reasons.push( { code: 'NO_AUTHOR_DATE', message: __( 'Citations missing author/year', 'khm-membership' ) } );
-    }
-    
-    if ( ! entities || entities.length < 2 ) {
-        reasons.push( { code: 'FEW_ENTITIES', message: __( 'Fewer than 2 anchor entities', 'khm-membership' ) } );
-    }
-    
-    return reasons;
+
+    return {
+        title,
+        meta,
+        link: citation.url || '',
+        hasMeta: !! meta,
+    };
 };
 
 /**
@@ -84,20 +105,23 @@ const getConfidenceReasons = ( evidence, citations, entities ) => {
 const getRemediationTips = ( reasons ) => {
     const tips = [];
     
-    reasons.forEach( r => {
+    ( reasons || [] ).forEach( r => {
         switch ( r.code ) {
-            case 'TIER3_ONLY':
-            case 'NO_EVIDENCE':
+            case 'only_tier3':
                 tips.push( __( 'Add a Tier-1 source (peer-reviewed study with year) or Tier-2 (industry benchmark)', 'khm-membership' ) );
                 break;
-            case 'NO_PASSAGE':
+            case 'no_source_passage':
                 tips.push( __( 'Add a source passage to strengthen evidence', 'khm-membership' ) );
                 break;
-            case 'NO_AUTHOR_DATE':
+            case 'missing_author':
+            case 'missing_year':
                 tips.push( __( 'Add author and year to citations for better attribution', 'khm-membership' ) );
                 break;
-            case 'FEW_ENTITIES':
+            case 'few_anchor_entities':
                 tips.push( __( 'Add more relevant entities/topics to improve semantic coverage', 'khm-membership' ) );
+                break;
+            case 'entities_unresolved':
+                tips.push( __( 'Resolve suggested entities to anchor them in scoring', 'khm-membership' ) );
                 break;
         }
     } );
@@ -119,21 +143,45 @@ const ScoreIndicator = ( { score, isLoading } ) => {
     }
 
     if ( score === null || score === undefined ) {
-        return null;
+        return (
+            <div className="khm-answer-card-score khm-answer-card-score--unavailable">
+                <strong>{ __( 'GEO Score:', 'khm-membership' ) }</strong>
+                <span className="khm-answer-card-score__value">{ __( 'Unavailable', 'khm-membership' ) }</span>
+            </div>
+        );
     }
 
     const scoreNum = parseFloat( score );
+    const scorePercent = Math.round( scoreNum * 100 );
     let scoreClass = 'low';
-    if ( scoreNum >= 70 ) {
+    if ( scorePercent >= 80 ) {
         scoreClass = 'high';
-    } else if ( scoreNum >= 40 ) {
+    } else if ( scorePercent >= 60 ) {
         scoreClass = 'medium';
     }
 
     return (
         <div className={ `khm-answer-card-score khm-answer-card-score--${ scoreClass }` }>
             <strong>{ __( 'GEO Score:', 'khm-membership' ) }</strong>
-            <span className="khm-answer-card-score__value">{ scoreNum.toFixed( 1 ) }</span>
+            <span className="khm-answer-card-score__value">{ scorePercent }%</span>
+        </div>
+    );
+};
+
+/**
+ * Score bar component
+ */
+const ScoreBar = ( { label, value } ) => {
+    const percent = Math.round( ( value || 0 ) * 100 );
+    return (
+        <div className="khm-score-bar">
+            <div className="khm-score-bar__label">
+                <span>{ label }</span>
+                <span>{ percent }%</span>
+            </div>
+            <div className="khm-score-bar__track">
+                <span className="khm-score-bar__fill" style={ { width: `${ percent }%` } } />
+            </div>
         </div>
     );
 };
@@ -159,7 +207,7 @@ const ConfidenceBadge = ( { confidence, reasons, tips } ) => {
                     <p><strong>{ __( 'Issues:', 'khm-membership' ) }</strong></p>
                     <ul>
                         { reasons.map( ( r, i ) => (
-                            <li key={ i }>{ r.message }</li>
+                            <li key={ i }>{ r.label }</li>
                         ) ) }
                     </ul>
                 </>
@@ -206,12 +254,35 @@ const Edit = ( props ) => {
         publicSummaryLabel,
         exposeInSchema,
         requiresReview,
+        reviewJustification,
     } = attributes;
 
     const [ score, setScore ] = useState( null );
     const [ isScoring, setIsScoring ] = useState( false );
     const [ scoreError, setScoreError ] = useState( null );
     const [ sourcePassageExpanded, setSourcePassageExpanded ] = useState( false );
+    const [ scoreDetails, setScoreDetails ] = useState( null );
+    const [ scoreStatus, setScoreStatus ] = useState( 'idle' );
+    const [ scoreMessage, setScoreMessage ] = useState( '' );
+    const [ resolverOpen, setResolverOpen ] = useState( false );
+    const [ resolverIndex, setResolverIndex ] = useState( null );
+    const [ resolverCandidates, setResolverCandidates ] = useState( [] );
+    const [ resolverLoading, setResolverLoading ] = useState( false );
+    const [ resolverError, setResolverError ] = useState( '' );
+
+    const { postId, postTitle } = useSelect( ( select ) => {
+        try {
+            return {
+                postId: select( 'core/editor' ).getCurrentPostId(),
+                postTitle: select( 'core/editor' ).getEditedPostAttribute( 'title' ) || '',
+            };
+        } catch ( error ) {
+            return {
+                postId: null,
+                postTitle: '',
+            };
+        }
+    }, [] );
 
     // Generate answerCardId if not present
     useEffect( () => {
@@ -220,11 +291,14 @@ const Edit = ( props ) => {
         }
     }, [ answerCardId, setAttributes ] );
 
-    // Calculate confidence reasons and tips
-    const confidenceReasons = getConfidenceReasons( evidence, citations, entities );
-    const remediationTips = getRemediationTips( confidenceReasons );
-    const confidence = evidence?.confidence || 0;
+    const confidence = scoreDetails?.scores?.evidence_confidence ?? evidence?.confidence ?? 0;
     const isLowConfidence = confidence < 0.6;
+    const confidenceReasons = scoreDetails?.reasons || [];
+    const remediationTips = getRemediationTips( confidenceReasons );
+
+    const evidenceKey = JSON.stringify( evidence || {} );
+    const citationsKey = JSON.stringify( citations || [] );
+    const entitiesKey = JSON.stringify( entities || [] );
 
     const blockProps = useBlockProps( {
         className: `khm-answer-card-editor${ isLowConfidence ? ' khm-answer-card-editor--low-confidence' : '' }`,
@@ -238,32 +312,92 @@ const Edit = ( props ) => {
     /**
      * Calculate score on demand
      */
+    const buildScoringPayload = useCallback( () => ( {
+        question,
+        concise_answer: conciseAnswer,
+        key_points: keyPoints,
+        citations,
+        entities,
+        evidence,
+    } ), [ question, conciseAnswer, keyPoints, citations, entities, evidence ] );
+
     const calculateScore = useCallback( async () => {
         setIsScoring( true );
         setScoreError( null );
+        setScoreMessage( '' );
 
         try {
             const result = await apiFetch( {
                 path: '/khm-geo/v1/score',
                 method: 'POST',
-                data: {
-                    question,
-                    concise_answer: conciseAnswer,
-                    key_points: keyPoints,
-                    citations,
-                    entities,
-                },
+                data: buildScoringPayload(),
             } );
 
-            if ( result && result.total_score !== undefined ) {
-                setScore( result.total_score );
+            if ( result ) {
+                if ( result.total_score !== undefined ) {
+                    setScore( result.total_score );
+                }
+                setScoreDetails( result );
+                setScoreStatus( 'ready' );
             }
         } catch ( error ) {
             setScoreError( error.message || __( 'Failed to calculate score', 'khm-membership' ) );
+            setScoreStatus( 'error' );
         } finally {
             setIsScoring( false );
         }
-    }, [ question, conciseAnswer, keyPoints, citations, entities ] );
+    }, [ buildScoringPayload ] );
+
+    const fetchSavedScoreDetails = useCallback( async () => {
+        if ( ! postId ) {
+            return;
+        }
+
+        setScoreStatus( 'loading' );
+        setScoreMessage( '' );
+        try {
+            const result = await apiFetch( {
+                path: `/khm-geo/v1/posts/${ postId }/score`,
+                method: 'GET',
+            } );
+
+            const details = result?.score_details;
+            if ( details && details.error ) {
+                setScoreStatus( 'error' );
+                setScoreMessage( details.error );
+                setScoreDetails( null );
+                setScore( null );
+                return;
+            }
+
+            let matching = null;
+            if ( Array.isArray( details ) ) {
+                matching = details.find( ( item ) => item?.card?.answer_card_id === answerCardId );
+                if ( ! matching && question ) {
+                    matching = details.find( ( item ) => item?.card?.question === question );
+                }
+            }
+
+            if ( matching && matching.score_data ) {
+                setScoreDetails( matching.score_data );
+                setScore( matching.score_data.total_score ?? null );
+                setScoreStatus( 'ready' );
+            } else {
+                setScoreDetails( null );
+                setScore( null );
+                setScoreStatus( 'unavailable' );
+            }
+        } catch ( error ) {
+            setScoreStatus( 'error' );
+            setScoreMessage( error.message || __( 'Score unavailable', 'khm-membership' ) );
+            setScoreDetails( null );
+            setScore( null );
+        }
+    }, [ postId, answerCardId, question ] );
+
+    useEffect( () => {
+        fetchSavedScoreDetails();
+    }, [ fetchSavedScoreDetails, answerCardId, question, citationsKey, entitiesKey, evidenceKey ] );
 
     /**
      * Key Points handlers
@@ -344,10 +478,13 @@ const Edit = ( props ) => {
      * Copy source passage to preferred summary
      */
     const useSourcePassageAsQuote = () => {
-        const passage = evidence?.source_passage || evidence?.sourcePassage || '';
+        const passage = decodeHtmlEntities( evidence?.source_passage || evidence?.sourcePassage || '' );
         if ( passage ) {
             const quotedPassage = `"${ passage }"`;
-            setAttributes( { preferredSummary: quotedPassage } );
+            const nextSummary = preferredSummary
+                ? `${ preferredSummary }\n\n${ quotedPassage }`
+                : quotedPassage;
+            setAttributes( { preferredSummary: nextSummary } );
         }
     };
 
@@ -388,6 +525,85 @@ const Edit = ( props ) => {
         .map( ( e ) => ( typeof e === 'string' ? e : e.name ) )
         .join( ', ' );
 
+    const normalizedEntities = ( entities || [] ).map( ( entity ) => (
+        typeof entity === 'string' ? { name: entity, sameAs: '' } : entity
+    ) );
+
+    const getEntityQid = ( entity ) => {
+        const sameAs = entity?.sameAs || '';
+        if ( ! sameAs ) return '';
+        const parts = sameAs.split( '/' );
+        return parts[ parts.length - 1 ] || '';
+    };
+
+    const openResolver = ( index ) => {
+        setResolverIndex( index );
+        setResolverOpen( true );
+        setResolverCandidates( [] );
+        setResolverError( '' );
+
+        const entityName = normalizedEntities[ index ]?.name || '';
+        if ( ! entityName ) {
+            return;
+        }
+
+        setResolverLoading( true );
+        apiFetch( {
+            path: `/khm-geo/v1/entity/suggest?term=${ encodeURIComponent( entityName ) }&context=${ encodeURIComponent( question || postTitle || '' ) }`,
+            method: 'GET',
+        } ).then( ( result ) => {
+            setResolverCandidates( result?.candidates || [] );
+            setResolverLoading( false );
+        } ).catch( ( error ) => {
+            setResolverError( error.message || __( 'Failed to load candidates', 'khm-membership' ) );
+            setResolverLoading( false );
+        } );
+    };
+
+    const resolveEntity = ( candidate, pageRole ) => {
+        const entity = normalizedEntities[ resolverIndex ];
+        if ( ! entity ) {
+            return;
+        }
+
+        setResolverLoading( true );
+        setResolverError( '' );
+
+        apiFetch( {
+            path: '/khm-geo/v1/entity/resolve',
+            method: 'POST',
+            data: {
+                post_id: postId,
+                entity_name: entity.name,
+                qid: candidate.qid,
+                label: candidate.label,
+                provider: 'wikidata',
+                page_role: pageRole || '',
+            },
+        } ).then( ( result ) => {
+            const updated = [ ...normalizedEntities ];
+            updated[ resolverIndex ] = {
+                ...updated[ resolverIndex ],
+                sameAs: result?.same_as?.url || `https://www.wikidata.org/wiki/${ candidate.qid }`,
+            };
+            setAttributes( { entities: updated } );
+
+            if ( ! pageRole ) {
+                const anchors = Array.isArray( evidence?.anchor_entities ) ? [ ...evidence.anchor_entities ] : [];
+                if ( ! anchors.includes( entity.name ) ) {
+                    anchors.push( entity.name );
+                }
+                setAttributes( { evidence: { ...evidence, anchor_entities: anchors } } );
+            }
+
+            setResolverOpen( false );
+            setResolverLoading( false );
+        } ).catch( ( error ) => {
+            setResolverError( error.message || __( 'Failed to resolve entity', 'khm-membership' ) );
+            setResolverLoading( false );
+        } );
+    };
+
     return (
         <Fragment>
             <InspectorControls>
@@ -417,6 +633,15 @@ const Edit = ( props ) => {
                             onChange={ ( val ) => setAttributes( { exposeInSchema: val } ) }
                         />
                     </PanelRow>
+                    { isLowConfidence && (
+                        <TextareaControl
+                            label={ __( 'Justification for low-confidence schema', 'khm-membership' ) }
+                            help={ __( 'Provide a brief rationale to include this card in JSON-LD despite low confidence.', 'khm-membership' ) }
+                            value={ reviewJustification || '' }
+                            onChange={ ( val ) => setAttributes( { reviewJustification: val } ) }
+                            rows={ 2 }
+                        />
+                    ) }
                     
                     { /* Confidence badge */ }
                     <div className="khm-confidence-section">
@@ -433,10 +658,66 @@ const Edit = ( props ) => {
                     <PanelRow>
                         <ScoreIndicator score={ score } isLoading={ isScoring } />
                     </PanelRow>
+                    { scoreStatus === 'unavailable' && (
+                        <Notice status="warning" isDismissible={ false }>
+                            { __( 'Score unavailable. Save the post or recompute to generate a score.', 'khm-membership' ) }
+                        </Notice>
+                    ) }
                     { scoreError && (
                         <Notice status="error" isDismissible={ false }>
                             { scoreError }
                         </Notice>
+                    ) }
+                    { scoreStatus === 'error' && scoreMessage && (
+                        <Notice status="error" isDismissible={ false }>
+                            { scoreMessage }
+                        </Notice>
+                    ) }
+                    { scoreDetails?.scores && (
+                        <div className="khm-score-breakdown">
+                            <ScoreBar label={ __( 'Content completeness', 'khm-membership' ) } value={ scoreDetails.scores.content_completeness } />
+                            <ScoreBar label={ __( 'Citation quality', 'khm-membership' ) } value={ scoreDetails.scores.citation_quality } />
+                            <ScoreBar label={ __( 'Entity anchor', 'khm-membership' ) } value={ scoreDetails.scores.entity_anchor_score } />
+                            <ScoreBar label={ __( 'Evidence confidence', 'khm-membership' ) } value={ scoreDetails.scores.evidence_confidence } />
+                            <ScoreBar label={ __( 'Metadata', 'khm-membership' ) } value={ scoreDetails.scores.metadata } />
+                        </div>
+                    ) }
+                    { ( scoreDetails?.citation_contributions || [] ).length > 0 && (
+                        <div className="khm-score-citations">
+                            <strong>{ __( 'Citation contributions', 'khm-membership' ) }</strong>
+                            <ul>
+                                { scoreDetails.citation_contributions.map( ( item ) => {
+                                    const citation = citations?.[ item.idx ] || {};
+                                    const title = decodeHtmlEntities( citation.title || citation.url || '' );
+                                    const contribution = Math.round( ( item.contribution || 0 ) * 100 );
+                                    return (
+                                        <li key={ `contrib-${ item.idx }` }>
+                                            <span>{ title || __( 'Citation', 'khm-membership' ) } #{ item.idx + 1 }</span>
+                                            <span className="khm-score-citations__meta">
+                                                { item.tier ? item.tier.toUpperCase() : '' } • { contribution }%
+                                            </span>
+                                        </li>
+                                    );
+                                } ) }
+                            </ul>
+                        </div>
+                    ) }
+                    { ( scoreDetails?.reasons || [] ).length > 0 && (
+                        <div className="khm-score-reasons">
+                            <strong>{ __( 'Confidence reasons', 'khm-membership' ) }</strong>
+                            <ul>
+                                { scoreDetails.reasons.map( ( reason ) => (
+                                    <li key={ reason.code }>
+                                        <span>{ reason.label }</span>
+                                        { reason.severity && (
+                                            <span className="khm-score-reasons__severity">
+                                                { reason.severity }
+                                            </span>
+                                        ) }
+                                    </li>
+                                ) ) }
+                            </ul>
+                        </div>
                     ) }
                     <PanelRow>
                         <Button
@@ -444,7 +725,7 @@ const Edit = ( props ) => {
                             onClick={ calculateScore }
                             disabled={ isScoring }
                         >
-                            { __( 'Calculate Score', 'khm-membership' ) }
+                            { __( 'Recompute Score', 'khm-membership' ) }
                         </Button>
                     </PanelRow>
                     <p className="components-base-control__help">
@@ -517,8 +798,8 @@ const Edit = ( props ) => {
                             <div className="khm-evidence-tier">
                                 <strong>{ __( 'Evidence Tier:', 'khm-membership' ) }</strong>
                                 <span className={ `khm-tier-badge khm-tier-${ evidence.tier }` }>
-                                    { evidence.tier === 'tier1' ? '🏆 Study + Year' : 
-                                      evidence.tier === 'tier2' ? '📊 Benchmark' : 
+                                    { evidence.tier === 'tier1' ? '🏆 Tier-1' : 
+                                      evidence.tier === 'tier2' ? '📊 Tier-2' : 
                                       '📰 Trade Publication' }
                                 </span>
                             </div>
@@ -526,7 +807,7 @@ const Edit = ( props ) => {
                             { evidence.context_heading && (
                                 <div className="khm-evidence-context">
                                     <strong>{ __( 'Context:', 'khm-membership' ) }</strong>
-                                    <em>{ evidence.context_heading }</em>
+                                    <em>{ decodeHtmlEntities( evidence.context_heading ) }</em>
                                 </div>
                             ) }
                             
@@ -539,25 +820,25 @@ const Edit = ( props ) => {
                                             variant="link"
                                             onClick={ () => setSourcePassageExpanded( ! sourcePassageExpanded ) }
                                         >
-                                            { sourcePassageExpanded ? __( 'Collapse', 'khm-membership' ) : __( 'Expand', 'khm-membership' ) }
+                                            { sourcePassageExpanded ? __( 'Hide source passage', 'khm-membership' ) : __( 'Show source passage', 'khm-membership' ) }
                                         </Button>
                                     </div>
                                     { sourcePassageExpanded ? (
                                         <>
                                             <blockquote className="khm-source-quote">
-                                                "{ evidence.source_passage || evidence.sourcePassage }"
+                                                "{ decodeHtmlEntities( evidence.source_passage || evidence.sourcePassage ) }"
                                             </blockquote>
                                             <Button
                                                 variant="secondary"
                                                 onClick={ useSourcePassageAsQuote }
                                                 className="khm-use-quote-btn"
                                             >
-                                                { __( 'Use as Preferred Summary', 'khm-membership' ) }
+                                                { __( 'Use as quote', 'khm-membership' ) }
                                             </Button>
                                         </>
                                     ) : (
                                         <p className="khm-source-preview">
-                                            { ( evidence.source_passage || evidence.sourcePassage || '' ).substring( 0, 100 ) }...
+                                            { decodeHtmlEntities( evidence.source_passage || evidence.sourcePassage || '' ).substring( 0, 100 ) }...
                                         </p>
                                     ) }
                                 </div>
@@ -577,6 +858,12 @@ const Edit = ( props ) => {
                             { __( 'No evidence information available. Add citations with metadata to improve confidence.', 'khm-membership' ) }
                         </Notice>
                     ) }
+                </PanelBody>
+
+                <PanelBody title={ __( 'Confidence Reasons', 'khm-membership' ) } initialOpen={ false }>
+                    <p className="components-base-control__help">
+                        { __( 'Use the GEO Score panel for the latest server-side confidence reasons.', 'khm-membership' ) }
+                    </p>
                 </PanelBody>
 
                 <PanelBody title={ __( 'Citation Details', 'khm-membership' ) } initialOpen={ false }>
@@ -696,6 +983,40 @@ const Edit = ( props ) => {
                     </Button>
                 </PanelBody>
 
+                <PanelBody title={ __( 'Entity Resolution', 'khm-membership' ) } initialOpen={ false }>
+                    { normalizedEntities.length === 0 && (
+                        <p className="components-base-control__help">
+                            { __( 'Add entities to resolve them against Wikidata.', 'khm-membership' ) }
+                        </p>
+                    ) }
+                    { normalizedEntities.map( ( entity, index ) => {
+                        const qid = getEntityQid( entity );
+                        return (
+                            <div key={ `entity-res-${ index }` } className="khm-entity-resolution">
+                                <div className="khm-entity-resolution__row">
+                                    <span className="khm-entity-resolution__name">{ decodeHtmlEntities( entity.name ) }</span>
+                                    { qid ? (
+                                        <span className="khm-entity-resolution__badge khm-entity-resolution__badge--resolved">
+                                            { __( 'Resolved', 'khm-membership' ) } { qid }
+                                        </span>
+                                    ) : (
+                                        <span className="khm-entity-resolution__badge khm-entity-resolution__badge--unresolved">
+                                            { __( 'Unresolved', 'khm-membership' ) }
+                                        </span>
+                                    ) }
+                                </div>
+                                <Button
+                                    variant="secondary"
+                                    onClick={ () => openResolver( index ) }
+                                    disabled={ resolverLoading }
+                                >
+                                    { __( 'Resolve', 'khm-membership' ) }
+                                </Button>
+                            </div>
+                        );
+                    } ) }
+                </PanelBody>
+
                 <PanelBody title={ __( 'Help', 'khm-membership' ) } initialOpen={ false }>
                     <p>
                         { __( 'AnswerCards help optimize your content for AI-powered search engines and featured snippets.', 'khm-membership' ) }
@@ -719,6 +1040,11 @@ const Edit = ( props ) => {
                     <span className="khm-answer-card-editor__title">
                         { __( 'AnswerCard', 'khm-membership' ) }
                     </span>
+                    { evidence?.tier && (
+                        <span className={ `khm-answer-card-editor__badge khm-answer-card-editor__badge--tier khm-tier-${ evidence.tier }` }>
+                            { evidence.tier === 'tier1' ? 'Tier-1' : evidence.tier === 'tier2' ? 'Tier-2' : 'Tier-3' }
+                        </span>
+                    ) }
                     { answerCardId && (
                         <span className="khm-answer-card-editor__badge khm-answer-card-editor__badge--id">
                             { answerCardId.slice( 0, 8 ) }
@@ -806,18 +1132,30 @@ const Edit = ( props ) => {
                         <div key={ `cit-${ i }` } className="khm-answer-card-editor__citation-item">
                             <div className="khm-answer-card-editor__citation-fields">
                                 <div className="khm-answer-card-editor__citation-preview">
-                                    <span className="khm-citation-tier-indicator" data-tier={ c.tier || 'tier3' }>
-                                        { c.tier === 'tier1' ? '🏆' : c.tier === 'tier2' ? '📊' : '📰' }
-                                    </span>
-                                    <span className="khm-citation-text">
-                                        { c.title || __( 'Untitled', 'khm-membership' ) }
-                                        { c.author && ` — ${ c.author }` }
-                                        { c.year && ` (${ c.year })` }
-                                        { c.publisher && ` • ${ c.publisher }` }
-                                    </span>
-                                    { c.enableTracking && (
-                                        <span className="khm-citation-tracking-badge" title={ __( 'Click tracking enabled', 'khm-membership' ) }>📈</span>
-                                    ) }
+                                    { /* Display citation as Title — Author (Year), Publisher */ }
+                                    { (() => {
+                                        const formatted = formatCitationDisplay( c );
+                                        return (
+                                            <>
+                                                <span className="khm-citation-tier-indicator" data-tier={ c.tier || 'tier3' }>
+                                                    { c.tier === 'tier1' ? '🏆' : c.tier === 'tier2' ? '📊' : '📰' }
+                                                </span>
+                                                <span className="khm-citation-text">
+                                                    { formatted.link ? (
+                                                        <ExternalLink href={ formatted.link }>
+                                                            { formatted.title || __( 'Untitled', 'khm-membership' ) }
+                                                        </ExternalLink>
+                                                    ) : (
+                                                        formatted.title || __( 'Untitled', 'khm-membership' )
+                                                    ) }
+                                                    { formatted.hasMeta && ` — ${ formatted.meta }` }
+                                                </span>
+                                                { c.enableTracking && (
+                                                    <span className="khm-citation-tracking-badge" title={ __( 'Click tracking enabled', 'khm-membership' ) }>📈</span>
+                                                ) }
+                                            </>
+                                        );
+                                    })() }
                                 </div>
                                 <TextControl
                                     placeholder={ __( 'Source title', 'khm-membership' ) }
@@ -860,6 +1198,48 @@ const Edit = ( props ) => {
                     />
                 </div>
             </div>
+            { resolverOpen && (
+                <Modal
+                    title={ __( 'Resolve Entity', 'khm-membership' ) }
+                    onRequestClose={ () => setResolverOpen( false ) }
+                    className="khm-entity-resolver-modal"
+                >
+                    { resolverLoading && <Spinner /> }
+                    { resolverError && (
+                        <Notice status="error" isDismissible={ false }>
+                            { resolverError }
+                        </Notice>
+                    ) }
+                    { ! resolverLoading && resolverCandidates.length === 0 && ! resolverError && (
+                        <p>{ __( 'No candidates found.', 'khm-membership' ) }</p>
+                    ) }
+                    { resolverCandidates.map( ( candidate ) => (
+                        <div key={ candidate.qid } className="khm-entity-resolver-candidate">
+                            <div className="khm-entity-resolver-candidate__meta">
+                                <strong>{ candidate.label }</strong>
+                                <span>{ candidate.qid }</span>
+                            </div>
+                            { candidate.description && <p>{ candidate.description }</p> }
+                            <div className="khm-entity-resolver-candidate__actions">
+                                <Button
+                                    variant="primary"
+                                    onClick={ () => resolveEntity( candidate, '' ) }
+                                    disabled={ resolverLoading }
+                                >
+                                    { __( 'Resolve + Anchor', 'khm-membership' ) }
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={ () => resolveEntity( candidate, 'about' ) }
+                                    disabled={ resolverLoading }
+                                >
+                                    { __( 'Resolve + Add to Page', 'khm-membership' ) }
+                                </Button>
+                            </div>
+                        </div>
+                    ) ) }
+                </Modal>
+            ) }
         </Fragment>
     );
 };

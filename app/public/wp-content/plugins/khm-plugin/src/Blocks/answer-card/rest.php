@@ -53,6 +53,23 @@ function register_rest_routes() {
         },
     ) );
 
+    // Get persisted score details for a post
+    register_rest_route( 'khm-geo/v1', '/posts/(?P<post_id>\\d+)/score', array(
+        'methods'             => 'GET',
+        'callback'            => 'get_post_score_details',
+        'permission_callback' => function( $request ) {
+            $post_id = absint( $request->get_param( 'post_id' ) );
+            return current_user_can( 'edit_post', $post_id );
+        },
+        'args' => array(
+            'post_id' => array(
+                'required'          => true,
+                'type'              => 'integer',
+                'sanitize_callback' => 'absint',
+            ),
+        ),
+    ) );
+
     // Get answer cards for a post (full data for Tracker)
     register_rest_route( 'khm-geo/v1', '/tracker/posts/(?P<post_id>\d+)/answercards', array(
         'methods'             => 'GET',
@@ -121,6 +138,40 @@ function register_rest_routes() {
                 'sanitize_callback' => 'floatval',
             ),
         ),
+    ) );
+
+    // Entity suggest endpoint (Wikidata)
+    register_rest_route( 'khm-geo/v1', '/entity/suggest', array(
+        'methods'             => 'GET',
+        'callback'            => 'suggest_entity_candidates',
+        'permission_callback' => function() {
+            return current_user_can( 'edit_posts' );
+        },
+        'args'                => array(
+            'term' => array(
+                'required'          => true,
+                'type'              => 'string',
+                'sanitize_callback' => 'sanitize_text_field',
+            ),
+            'context' => array(
+                'required'          => false,
+                'type'              => 'string',
+                'sanitize_callback' => 'sanitize_text_field',
+            ),
+        ),
+    ) );
+
+    // Entity resolve endpoint
+    register_rest_route( 'khm-geo/v1', '/entity/resolve', array(
+        'methods'             => 'POST',
+        'callback'            => 'resolve_entity_candidate',
+        'permission_callback' => function( $request ) {
+            $post_id = absint( $request->get_param( 'post_id' ) );
+            if ( $post_id ) {
+                return current_user_can( 'edit_post', $post_id );
+            }
+            return current_user_can( 'edit_posts' );
+        },
     ) );
 }
 add_action( 'rest_api_init', 'register_rest_routes' );
@@ -380,7 +431,18 @@ function calculate_score_on_demand( $request ) {
     if ( class_exists( '\\KHM_SEO\\GEO\\Scoring\\ScoringEngine' ) ) {
         try {
             $engine = new \KHM_SEO\GEO\Scoring\ScoringEngine();
-            $score  = $engine->calculate_score( $payload, array() );
+            $settings = $payload;
+            if ( function_exists( '\\KHM\\Blocks\\AnswerCard\\normalize_scoring_settings' ) ) {
+                $settings = \KHM\Blocks\AnswerCard\normalize_scoring_settings( array(
+                    'question'       => $payload['question'] ?? '',
+                    'concise_answer' => $payload['concise_answer'] ?? ( $payload['conciseAnswer'] ?? '' ),
+                    'key_points'     => $payload['key_points'] ?? ( $payload['keyPoints'] ?? array() ),
+                    'citations'      => $payload['citations'] ?? array(),
+                    'entities'       => $payload['entities'] ?? array(),
+                    'evidence'       => $payload['evidence'] ?? array(),
+                ) );
+            }
+            $score  = $engine->calculate_score( $settings, array() );
             return rest_ensure_response( $score );
         } catch ( \Exception $e ) {
             return new \WP_Error(
@@ -391,9 +453,139 @@ function calculate_score_on_demand( $request ) {
         }
     }
 
-    // Fallback: Calculate a basic score based on completeness
-    $score = calculate_basic_score( $payload );
-    return rest_ensure_response( $score );
+    error_log( '[KHM GEO ERROR] Scoring engine unavailable for on-demand score.' );
+    return new \WP_Error(
+        'scoring_unavailable',
+        __( 'Scoring engine unavailable', 'khm-membership' ),
+        array( 'status' => 500 )
+    );
+}
+
+/**
+ * Suggest entity candidates from Wikidata.
+ *
+ * @param \WP_REST_Request $request Request object.
+ * @return \WP_REST_Response|\WP_Error
+ */
+function suggest_entity_candidates( $request ) {
+    $term = $request->get_param( 'term' );
+    $context = $request->get_param( 'context' ) ?? '';
+
+    if ( ! class_exists( '\\KHM_SEO\\GEO\\Entity\\EntityManager' ) ) {
+        return new \WP_Error(
+            'entity_manager_missing',
+            'EntityManager is not available',
+            array( 'status' => 500 )
+        );
+    }
+
+    $manager = new \KHM_SEO\GEO\Entity\EntityManager();
+    $candidates = $manager->suggest_same_as_for_name( $term, $context );
+
+    return rest_ensure_response( array(
+        'term' => $term,
+        'candidates' => $candidates,
+    ) );
+}
+
+/**
+ * Resolve entity to Wikidata and persist same_as.
+ *
+ * @param \WP_REST_Request $request Request object.
+ * @return \WP_REST_Response|\WP_Error
+ */
+function resolve_entity_candidate( $request ) {
+    $payload = $request->get_json_params();
+    if ( empty( $payload ) || ! is_array( $payload ) ) {
+        return new \WP_Error( 'invalid_payload', 'Invalid request payload', array( 'status' => 400 ) );
+    }
+
+    if ( ! class_exists( '\\KHM_SEO\\GEO\\Entity\\EntityManager' ) ) {
+        return new \WP_Error(
+            'entity_manager_missing',
+            'EntityManager is not available',
+            array( 'status' => 500 )
+        );
+    }
+
+    $post_id = absint( $payload['post_id'] ?? 0 );
+    $entity_name = sanitize_text_field( $payload['entity_name'] ?? '' );
+    $qid = sanitize_text_field( $payload['qid'] ?? '' );
+    $label = sanitize_text_field( $payload['label'] ?? '' );
+    $provider = sanitize_text_field( $payload['provider'] ?? 'wikidata' );
+    $page_role = sanitize_text_field( $payload['page_role'] ?? '' );
+
+    if ( empty( $entity_name ) || empty( $qid ) ) {
+        return new \WP_Error( 'missing_params', 'entity_name and qid are required', array( 'status' => 400 ) );
+    }
+
+    $manager = new \KHM_SEO\GEO\Entity\EntityManager();
+    $entity = $manager->find_entity_by_canonical( $entity_name, 'site' );
+
+    if ( ! $entity ) {
+        $entity_id = $manager->create_entity( array(
+            'canonical' => $entity_name,
+            'type'      => 'Thing',
+            'scope'     => 'site',
+            'status'    => 'active',
+        ) );
+        if ( ! $entity_id ) {
+            return new \WP_Error( 'entity_create_failed', 'Failed to create entity', array( 'status' => 500 ) );
+        }
+    } else {
+        $entity_id = $entity->id;
+    }
+
+    $same_as_entry = array(
+        'source' => $provider,
+        'id'     => $qid,
+        'url'    => 'https://www.wikidata.org/wiki/' . $qid,
+        'label'  => $label,
+    );
+
+    $manager->set_same_as( $entity_id, array( $same_as_entry ) );
+
+    if ( $post_id && in_array( $page_role, array( 'about', 'primary' ), true ) ) {
+        $manager->add_entity_to_post( $post_id, $entity_id, $page_role, 0.8, 'manual' );
+    }
+
+    error_log( sprintf(
+        '[KHM GEO] Entity resolved: %s (%s) by user %d',
+        $entity_name,
+        $qid,
+        get_current_user_id()
+    ) );
+
+    $resolved_entity = $manager->get_entity( $entity_id );
+
+    return rest_ensure_response( array(
+        'entity' => $resolved_entity,
+        'same_as' => $same_as_entry,
+    ) );
+}
+
+/**
+ * Get persisted score details for a post.
+ *
+ * @param \WP_REST_Request $request Request object.
+ * @return \WP_REST_Response|\WP_Error
+ */
+function get_post_score_details( $request ) {
+    $post_id = absint( $request->get_param( 'post_id' ) );
+    $post    = get_post( $post_id );
+
+    if ( ! $post ) {
+        return new \WP_Error( 'post_not_found', 'Post not found', array( 'status' => 404 ) );
+    }
+
+    $score_details = get_post_meta( $post_id, '_geo_score_details', true );
+    $score = get_post_meta( $post_id, '_geo_score', true );
+
+    return rest_ensure_response( array(
+        'post_id' => $post_id,
+        'score' => $score !== '' ? floatval( $score ) : null,
+        'score_details' => $score_details,
+    ) );
 }
 
 /**

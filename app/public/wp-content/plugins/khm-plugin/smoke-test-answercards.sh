@@ -7,7 +7,7 @@ set -euo pipefail
 SITE_URL="http://kh-staging.test"           # <-- replace with your site URL (no trailing slash)
 USERNAME="admin"                            # <-- WP admin username
 APP_PASSWORD="YOUR_APP_PASSWORD_HERE"       # <-- Application password for that user
-TEST_POST_ID="1"                            # <-- A post ID that has AnswerCard blocks
+TEST_POST_ID="283"                          # <-- A post ID that has AnswerCard blocks
 # ==========================================
 
 AUTH="${USERNAME}:${APP_PASSWORD}"
@@ -29,22 +29,22 @@ echo "HTTP status: $HTTP_CODE"
 if [ "$HTTP_CODE" = "200" ]; then
     echo "✅ Public endpoint accessible"
     # Check that sensitive fields are stripped
-    if echo "$HTTP_BODY" | jq -e '.[0].evidence.confidence // empty' > /dev/null 2>&1; then
+    if echo "$HTTP_BODY" | jq -e '.cards[0].evidence.confidence // empty' > /dev/null 2>&1; then
         echo "⚠️  WARNING: confidence field present in public response (should be stripped)"
     else
         echo "✅ confidence field properly stripped"
     fi
-    if echo "$HTTP_BODY" | jq -e '.[0].evidence.source_passage // empty' > /dev/null 2>&1; then
+    if echo "$HTTP_BODY" | jq -e '.cards[0].evidence.source_passage // empty' > /dev/null 2>&1; then
         echo "⚠️  WARNING: source_passage field present in public response (should be stripped)"
     else
         echo "✅ source_passage field properly stripped"
     fi
-    if echo "$HTTP_BODY" | jq -e '.[0].citations[0].tracked_url // empty' > /dev/null 2>&1; then
+    if echo "$HTTP_BODY" | jq -e '.cards[0].citations[0].tracked_url // empty' > /dev/null 2>&1; then
         echo "⚠️  WARNING: tracked_url field present in public response (should be stripped)"
     else
         echo "✅ tracked_url field properly stripped"
     fi
-    echo "Cards returned: $(echo "$HTTP_BODY" | jq 'length')"
+    echo "Cards returned: $(echo "$HTTP_BODY" | jq '.cards | length')"
 else
     echo "❌ Public endpoint failed with status $HTTP_CODE"
     echo "$HTTP_BODY"
@@ -65,7 +65,7 @@ if [ "$HTTP_CODE" = "200" ]; then
     # Check for meta envelope
     if echo "$HTTP_BODY" | jq -e '.meta' > /dev/null 2>&1; then
         echo "✅ Response has meta envelope"
-        echo "Generated at: $(echo "$HTTP_BODY" | jq -r '.meta.generated_at')"
+        echo "Post title: $(echo "$HTTP_BODY" | jq -r '.meta.post_title')"
     else
         echo "⚠️  WARNING: Response missing meta envelope"
     fi
@@ -92,8 +92,34 @@ else
 fi
 echo ""
 
-# --- Test 3: Full endpoint without auth (should fail) ---
-echo "=== Test 3: Full endpoint without auth (should fail) ==="
+# --- Test 3: On-demand score endpoint should return reasons ---
+echo "=== Test 3: Score endpoint reasons (authenticated) ==="
+SCORE_ENDPOINT="${SITE_URL}/wp-json/khm-geo/v1/score"
+SCORE_PAYLOAD='{
+  "question": "What is GEO?",
+  "concise_answer": "GEO is the practice of optimizing content for AI responses.",
+  "citations": [],
+  "entities": [],
+  "evidence": { "tier": "tier3", "confidence": 0.4, "source_passage": "" }
+}'
+HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -u "$AUTH" -H "Content-Type: application/json" -d "$SCORE_PAYLOAD" "${SCORE_ENDPOINT}")
+HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
+HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -n1)
+echo "HTTP status: $HTTP_CODE"
+if [ "$HTTP_CODE" = "200" ]; then
+    if echo "$HTTP_BODY" | jq -e '.reasons | length > 0' > /dev/null 2>&1; then
+        echo "✅ Reasons returned from score endpoint"
+    else
+        echo "⚠️  WARNING: No reasons returned from score endpoint"
+    fi
+else
+    echo "❌ Score endpoint failed with status $HTTP_CODE"
+    echo "$HTTP_BODY"
+fi
+echo ""
+
+# --- Test 4: Full endpoint without auth (should fail) ---
+echo "=== Test 4: Full endpoint without auth (should fail) ==="
 HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" "${FULL_ENDPOINT}")
 HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -n1)
 echo "HTTP status: $HTTP_CODE"
@@ -104,8 +130,8 @@ else
 fi
 echo ""
 
-# --- Test 4: Redirect handler (if any redirects exist) ---
-echo "=== Test 4: Redirect handler ==="
+# --- Test 5: Redirect handler (if any redirects exist) ---
+echo "=== Test 5: Redirect handler ==="
 echo "Testing /r/<code> redirect endpoint..."
 # First, try to get a redirect code from the database via the full endpoint
 REDIRECT_CODE=$(echo "$HTTP_BODY" | jq -r '.cards[0].citations[0].tracked_url // empty' 2>/dev/null | grep -oE '/r/[a-zA-Z0-9]+' | sed 's|/r/||' || true)
@@ -133,12 +159,12 @@ else
 fi
 echo ""
 
-# --- Test 5: Compare public vs full response ---
-echo "=== Test 5: Public vs Full field comparison ==="
+# --- Test 6: Compare public vs full response ---
+echo "=== Test 6: Public vs Full field comparison ==="
 PUBLIC_RESPONSE=$(curl -s -u "$AUTH" "${PUBLIC_ENDPOINT}")
 FULL_RESPONSE=$(curl -s -u "$AUTH" "${FULL_ENDPOINT}")
 
-PUBLIC_FIELDS=$(echo "$PUBLIC_RESPONSE" | jq -r '.[0] // {} | keys[]' 2>/dev/null | sort | tr '\n' ',' || echo "")
+PUBLIC_FIELDS=$(echo "$PUBLIC_RESPONSE" | jq -r '.cards[0] // {} | keys[]' 2>/dev/null | sort | tr '\n' ',' || echo "")
 FULL_CARD_FIELDS=$(echo "$FULL_RESPONSE" | jq -r '.cards[0] // {} | keys[]' 2>/dev/null | sort | tr '\n' ',' || echo "")
 
 echo "Public response fields: ${PUBLIC_FIELDS:-none}"

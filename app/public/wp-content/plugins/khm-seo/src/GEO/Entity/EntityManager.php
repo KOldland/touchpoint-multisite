@@ -295,6 +295,55 @@ class EntityManager {
         
         return true;
     }
+
+    /**
+     * Suggest sameAs candidates for an entity name.
+     *
+     * @param string $name Entity name.
+     * @param string $context Optional context for ranking.
+     * @return array
+     */
+    public function suggest_same_as_for_name( $name, $context = '' ) {
+        if ( ! class_exists( '\\KHM_SEO\\GEO\\Entity\\WikidataResolver' ) ) {
+            return array();
+        }
+
+        $resolver = new \KHM_SEO\GEO\Entity\WikidataResolver();
+        return $resolver->suggest( $name, $context );
+    }
+
+    /**
+     * Merge and persist sameAs entries for an entity.
+     *
+     * @param int $entity_id Entity ID.
+     * @param array $same_as SameAs entries.
+     * @return bool
+     */
+    public function set_same_as( $entity_id, $same_as ) {
+        $entity = $this->get_entity( $entity_id );
+        if ( ! $entity ) {
+            return false;
+        }
+
+        $existing = is_array( $entity->same_as ) ? $entity->same_as : array();
+        $merged = array_merge( $existing, is_array( $same_as ) ? $same_as : array() );
+
+        $deduped = array();
+        $seen = array();
+        foreach ( $merged as $entry ) {
+            if ( ! is_array( $entry ) ) {
+                continue;
+            }
+            $key = strtolower( ( $entry['source'] ?? '' ) . '|' . ( $entry['id'] ?? '' ) );
+            if ( ! $key || isset( $seen[ $key ] ) ) {
+                continue;
+            }
+            $seen[ $key ] = true;
+            $deduped[] = $entry;
+        }
+
+        return $this->update_entity( $entity_id, array( 'same_as' => $deduped ) );
+    }
     
     /**
      * Get entity by ID
