@@ -63,7 +63,7 @@ class Framework_Brief_Validator {
             ),
             'citations' => array(
                 'type' => 'array',
-                'minItems' => 3,
+                'minItems' => 4,
                 'maxItems' => 6,
                 'items' => array(
                     'type' => 'object',
@@ -204,6 +204,9 @@ class Framework_Brief_Validator {
 
                 if ($new_validation['valid']) {
                     return array('valid' => true, 'brief' => $new_brief, 'retries' => $i + 1);
+                } else {
+                    // Update validation so subsequent retries use the latest errors
+                    $validation = $new_validation;
                 }
             }
         }
