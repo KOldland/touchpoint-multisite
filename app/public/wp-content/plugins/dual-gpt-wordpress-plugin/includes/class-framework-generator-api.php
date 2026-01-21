@@ -282,28 +282,34 @@ class Framework_Generator_API {
 
         global $wpdb;
 
-        // Update approved citations - fix SQL injection by using integer IDs
+        // Update approved citations - use individual updates for proper SQL safety
         if (!empty($params['approved_citation_ids']) && is_array($params['approved_citation_ids'])) {
-            $approved_ids = array_filter(array_map('absint', $params['approved_citation_ids']));
-            if (!empty($approved_ids)) {
-                $ids_list = implode(',', $approved_ids);
+            foreach ($params['approved_citation_ids'] as $citation_id) {
+                // Validate UUID format
+                if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i', $citation_id)) {
+                    continue;
+                }
                 $wpdb->query(
                     $wpdb->prepare(
-                        "UPDATE {$wpdb->prefix}fg_validated_citations SET approved = 1 WHERE id IN ($ids_list) AND session_id = %s",
+                        "UPDATE {$wpdb->prefix}fg_validated_citations SET approved = 1 WHERE id = %s AND session_id = %s",
+                        $citation_id,
                         $session_id
                     )
                 );
             }
         }
 
-        // Mark rejected citations - fix SQL injection by using integer IDs
+        // Mark rejected citations - use individual updates for proper SQL safety
         if (!empty($params['rejected_citation_ids']) && is_array($params['rejected_citation_ids'])) {
-            $rejected_ids = array_filter(array_map('absint', $params['rejected_citation_ids']));
-            if (!empty($rejected_ids)) {
-                $ids_list = implode(',', $rejected_ids);
+            foreach ($params['rejected_citation_ids'] as $citation_id) {
+                // Validate UUID format
+                if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i', $citation_id)) {
+                    continue;
+                }
                 $wpdb->query(
                     $wpdb->prepare(
-                        "UPDATE {$wpdb->prefix}fg_validated_citations SET approved = 0 WHERE id IN ($ids_list) AND session_id = %s",
+                        "UPDATE {$wpdb->prefix}fg_validated_citations SET approved = 0 WHERE id = %s AND session_id = %s",
+                        $citation_id,
                         $session_id
                     )
                 );

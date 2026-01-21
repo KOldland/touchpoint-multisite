@@ -282,20 +282,38 @@ class Framework_Generator_Workers {
 
         $metadata = array();
 
-        // Extract title from HTML using simple regex
-        if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $body, $matches)) {
-            $metadata['title'] = html_entity_decode(trim($matches[1]), ENT_QUOTES | ENT_HTML5);
+        // Use DOMDocument for safer HTML parsing
+        $dom = new DOMDocument();
+        // Suppress warnings from malformed HTML
+        $previous_error_level = libxml_use_internal_errors(true);
+        
+        // Load HTML with UTF-8 encoding
+        $dom->loadHTML('<?xml encoding="UTF-8">' . $body, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        
+        // Restore error handling
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous_error_level);
+
+        // Extract title
+        $title_tags = $dom->getElementsByTagName('title');
+        if ($title_tags->length > 0) {
+            $metadata['title'] = trim($title_tags->item(0)->textContent);
         }
 
-        // Extract meta tags for additional information
-        if (preg_match_all('/<meta\s+([^>]*name=["\']([^"\']+)["\'][^>]*content=["\']([^"\']+)["\'][^>]*|[^>]*content=["\']([^"\']+)["\'][^>]*name=["\']([^"\']+)["\'][^>]*)>/is', $body, $matches, PREG_SET_ORDER)) {
-            foreach ($matches as $match) {
-                $name = !empty($match[2]) ? $match[2] : (!empty($match[5]) ? $match[5] : '');
-                $content = !empty($match[3]) ? $match[3] : (!empty($match[4]) ? $match[4] : '');
-                
-                if (stripos($name, 'author') !== false) {
-                    $metadata['lead_author'] = html_entity_decode(trim($content), ENT_QUOTES | ENT_HTML5);
-                }
+        // Extract meta tags
+        $meta_tags = $dom->getElementsByTagName('meta');
+        foreach ($meta_tags as $meta) {
+            $name = $meta->getAttribute('name');
+            $property = $meta->getAttribute('property');
+            $content = $meta->getAttribute('content');
+
+            if (empty($content)) {
+                continue;
+            }
+
+            // Check for author information
+            if (stripos($name, 'author') !== false || stripos($property, 'author') !== false) {
+                $metadata['lead_author'] = trim($content);
             }
         }
 
