@@ -226,12 +226,23 @@ class Framework_Generator_Workers {
             $metadata = array_merge($metadata, $api_metadata);
         }
 
+        // Parse year from date with error handling
+        $year = null;
+        if (!empty($metadata['year'])) {
+            $year = (int) $metadata['year'];
+        } elseif (!empty($article['date'])) {
+            $timestamp = strtotime($article['date']);
+            $year = ($timestamp !== false) ? (int) date('Y', $timestamp) : (int) date('Y');
+        } else {
+            $year = (int) date('Y');
+        }
+
         return array(
             'title' => $metadata['title'] ?? $article['title'],
             'lead_author' => $metadata['lead_author'] ?? $article['author'],
             'publication' => $metadata['publication'] ?? '',
             'organisation' => $metadata['organisation'] ?? $article['domain'],
-            'year' => (int) ($metadata['year'] ?? date('Y', strtotime($article['date']))),
+            'year' => $year,
             'url' => $article['url'],
             'apa_string' => $metadata['apa_string'] ?? 'details_unavailable',
             'apa_details_available' => !empty($metadata['apa_string']),
@@ -306,11 +317,11 @@ class Framework_Generator_Workers {
         // Suppress warnings from malformed HTML
         $previous_error_level = libxml_use_internal_errors(true);
         
-        // Ensure proper UTF-8 encoding before parsing
-        $body = mb_convert_encoding($body, 'HTML-ENTITIES', 'UTF-8');
+        // Add meta charset to ensure proper UTF-8 handling
+        $body = '<meta http-equiv="Content-Type" content="text/html; charset=utf-8">' . $body;
         
-        // Load HTML with UTF-8 encoding
-        $dom->loadHTML('<?xml encoding="UTF-8">' . $body, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        // Load HTML
+        $dom->loadHTML($body, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
         
         // Restore error handling
         libxml_clear_errors();
