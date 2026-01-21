@@ -261,6 +261,25 @@ class Framework_Generator_Workers {
             return array();
         }
 
+        // Validate URL to prevent SSRF attacks
+        $parsed_url = parse_url($url);
+        if (!$parsed_url || !isset($parsed_url['scheme']) || !isset($parsed_url['host'])) {
+            return array();
+        }
+
+        // Only allow HTTP and HTTPS schemes
+        if (!in_array(strtolower($parsed_url['scheme']), array('http', 'https'), true)) {
+            return array();
+        }
+
+        // Prevent requests to private/local IP addresses
+        $host = $parsed_url['host'];
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            if (!filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                return array();
+            }
+        }
+
         $response = wp_remote_get($url, array(
             'timeout' => 5,
             'redirection' => 3,
@@ -286,6 +305,9 @@ class Framework_Generator_Workers {
         $dom = new DOMDocument();
         // Suppress warnings from malformed HTML
         $previous_error_level = libxml_use_internal_errors(true);
+        
+        // Ensure proper UTF-8 encoding before parsing
+        $body = mb_convert_encoding($body, 'HTML-ENTITIES', 'UTF-8');
         
         // Load HTML with UTF-8 encoding
         $dom->loadHTML('<?xml encoding="UTF-8">' . $body, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
@@ -567,7 +589,8 @@ class Framework_Generator_Workers {
             // Sanitize citation data to prevent prompt injection
             $title = isset($citation['title']) ? sanitize_text_field($citation['title']) : '';
             $type = isset($citation['type']) ? sanitize_text_field($citation['type']) : '';
-            $snippet = isset($citation['passage_snippet']) ? sanitize_text_field($citation['passage_snippet']) : '';
+            // Use sanitize_textarea_field for snippets to preserve formatting
+            $snippet = isset($citation['passage_snippet']) ? sanitize_textarea_field($citation['passage_snippet']) : '';
             $prompt .= "- {$title} ({$type}) - {$snippet}\n";
         }
 

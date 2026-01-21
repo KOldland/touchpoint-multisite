@@ -287,6 +287,7 @@ class Framework_Generator_API {
             foreach ($params['approved_citation_ids'] as $citation_id) {
                 // Validate UUID format
                 if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i', $citation_id)) {
+                    error_log("Invalid UUID format for approved citation: " . sanitize_text_field($citation_id));
                     continue;
                 }
                 $wpdb->query(
@@ -304,6 +305,7 @@ class Framework_Generator_API {
             foreach ($params['rejected_citation_ids'] as $citation_id) {
                 // Validate UUID format
                 if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i', $citation_id)) {
+                    error_log("Invalid UUID format for rejected citation: " . sanitize_text_field($citation_id));
                     continue;
                 }
                 $wpdb->query(
