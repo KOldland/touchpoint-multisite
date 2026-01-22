@@ -632,6 +632,15 @@ add_action('login_enqueue_scripts', function() {
         $logo_id = get_theme_mod( 'custom_logo' );
         $logo_url = wp_get_attachment_image_url( $logo_id, 'full' );
     }
+    if ( ! $logo_url ) {
+        // Use site name as fallback instead of non-existent image
+        $logo_url = '';
+    }
+    wp_enqueue_style('touchpoint-login', get_template_directory_uri() . '/assets/css/login-style.css', [], '1.0');
+    $logo_style = $logo_url 
+        ? "#login h1 a { background-image: url('$logo_url'); }"
+        : "#login h1 a { background-image: none; }";
+    wp_add_inline_style('touchpoint-login', $logo_style);
     // Only set fallback if custom logo is not available
     // Note: Update the path below to point to an actual default logo if needed
     // if ( ! $logo_url ) {
