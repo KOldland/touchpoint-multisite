@@ -476,6 +476,7 @@ class SponsorController {
 
     private function get_sponsor_docs_by_ids( array $doc_ids ): array {
         // Validate that all doc_ids are integers
+        // Ensure all doc_ids are integers to prevent SQL injection
         $doc_ids = array_values( array_filter( array_map( 'absint', $doc_ids ) ) );
         if ( empty( $doc_ids ) ) {
             return array();
@@ -483,6 +484,7 @@ class SponsorController {
         
         global $wpdb;
         $table = SponsorMigration::docs_table_name();
+        // Safe to use placeholders with prepare() since all IDs are validated integers
         $placeholders = implode( ',', array_fill( 0, count( $doc_ids ), '%d' ) );
         $sql = "SELECT * FROM {$table} WHERE id IN ({$placeholders})";
         $prepared = $wpdb->prepare( $sql, $doc_ids );

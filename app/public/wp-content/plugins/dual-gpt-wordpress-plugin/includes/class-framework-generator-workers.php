@@ -72,21 +72,48 @@ class Framework_Generator_Workers {
         $idea = $input['article_idea'];
         $focus = $input['focus'] ?? array();
 
-        $prompt = "Article Idea: {$idea['title']}\n";
-        $prompt .= "Description: {$idea['short_description']}\n";
-        $prompt .= "Keywords: " . implode(', ', $idea['seed_keywords'] ?? array()) . "\n\n";
+        // Sanitize user inputs to prevent prompt injection
+        $title = isset($idea['title']) ? sanitize_text_field($idea['title']) : '';
+        $description = isset($idea['short_description']) ? sanitize_textarea_field($idea['short_description']) : '';
+        $seed_keywords = array();
+        if (!empty($idea['seed_keywords']) && is_array($idea['seed_keywords'])) {
+            $seed_keywords = array_filter(array_map('sanitize_text_field', $idea['seed_keywords']));
+        }
 
-        if (!empty($focus['broad'])) {
-            $prompt .= "Broad Focus: " . implode(', ', $focus['broad']) . "\n";
+        $prompt = "Article Idea: {$title}\n";
+        $prompt .= "Description: {$description}\n";
+        $prompt .= "Keywords: " . implode(', ', $seed_keywords) . "\n\n";
+
+        $broad = array();
+        if (!empty($focus['broad']) && is_array($focus['broad'])) {
+            $broad = array_filter(array_map('sanitize_text_field', $focus['broad']));
         }
-        if (!empty($focus['granular'])) {
-            $prompt .= "Granular Focus: " . implode(', ', $focus['granular']) . "\n";
+        if (!empty($broad)) {
+            $prompt .= "Broad Focus: " . implode(', ', $broad) . "\n";
         }
-        if (!empty($focus['preferred_sources'])) {
-            $prompt .= "Preferred Sources: " . implode(', ', $focus['preferred_sources']) . "\n";
+
+        $granular = array();
+        if (!empty($focus['granular']) && is_array($focus['granular'])) {
+            $granular = array_filter(array_map('sanitize_text_field', $focus['granular']));
         }
-        if (!empty($focus['exclusions'])) {
-            $prompt .= "Exclusions: " . implode(', ', $focus['exclusions']) . "\n";
+        if (!empty($granular)) {
+            $prompt .= "Granular Focus: " . implode(', ', $granular) . "\n";
+        }
+
+        $preferred_sources = array();
+        if (!empty($focus['preferred_sources']) && is_array($focus['preferred_sources'])) {
+            $preferred_sources = array_filter(array_map('sanitize_text_field', $focus['preferred_sources']));
+        }
+        if (!empty($preferred_sources)) {
+            $prompt .= "Preferred Sources: " . implode(', ', $preferred_sources) . "\n";
+        }
+
+        $exclusions = array();
+        if (!empty($focus['exclusions']) && is_array($focus['exclusions'])) {
+            $exclusions = array_filter(array_map('sanitize_text_field', $focus['exclusions']));
+        }
+        if (!empty($exclusions)) {
+            $prompt .= "Exclusions: " . implode(', ', $exclusions) . "\n";
         }
 
         $prompt .= "\nFind 12-16 unique articles from diverse domains and source types. Return JSON with articles array containing: title, url, domain, author, date, source_type, snippet, extracted_claims[], keywords[].";
@@ -101,25 +128,8 @@ class Framework_Generator_Workers {
         global $wpdb;
         $table = $wpdb->prefix . 'fg_raw_articles';
 
-        // Create table if not exists (simplified - should be in migration)
-        $wpdb->query("CREATE TABLE IF NOT EXISTS $table (
-            id VARCHAR(36) PRIMARY KEY,
-            session_id VARCHAR(36) NOT NULL,
-            title TEXT,
-            url TEXT,
-            domain VARCHAR(255),
-            author VARCHAR(255),
-            date DATE,
-            source_type VARCHAR(50),
-            snippet TEXT,
-            extracted_claims JSON,
-            keywords JSON,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            INDEX(session_id)
-        )");
-
         foreach ($articles as $article) {
-            $wpdb->insert($table, array(
+            $result = $wpdb->insert($table, array(
                 'id' => wp_generate_uuid4(),
                 'session_id' => $session_id,
                 'title' => $article['title'] ?? '',
@@ -132,6 +142,10 @@ class Framework_Generator_Workers {
                 'extracted_claims' => wp_json_encode($article['extracted_claims'] ?? array()),
                 'keywords' => wp_json_encode($article['keywords'] ?? array()),
             ));
+
+            if ($result === false) {
+                error_log("Failed to persist raw article: " . $wpdb->last_error);
+            }
         }
     }
 
@@ -220,12 +234,23 @@ class Framework_Generator_Workers {
             }
         }
 
+        // Parse year from date with error handling
+        $year = null;
+        if (!empty($metadata['year'])) {
+            $year = (int) $metadata['year'];
+        } elseif (!empty($article['date'])) {
+            $timestamp = strtotime($article['date']);
+            $year = ($timestamp !== false) ? (int) date('Y', $timestamp) : (int) date('Y');
+        } else {
+            $year = (int) date('Y');
+        }
+
         return array(
             'title' => $metadata['title'] ?? $article['title'],
             'lead_author' => $metadata['lead_author'] ?? $article['author'],
             'publication' => $metadata['publication'] ?? '',
             'organisation' => $metadata['organisation'] ?? $article['domain'],
-            'year' => $metadata['year'] ?? date('Y', strtotime($article['date'])),
+            'year' => $year,
             'url' => $article['url'],
             'apa_string' => $metadata['apa_string'] ?? 'details_unavailable',
             'apa_details_available' => !empty($metadata['apa_string']),
@@ -239,18 +264,116 @@ class Framework_Generator_Workers {
     }
 
     /**
-     * Fetch URL metadata (simplified)
+     * Fetch URL metadata
+     * 
+     * Attempts to retrieve basic metadata from the target URL using WordPress HTTP APIs.
+     * Returns an associative array which may contain:
+     *  - title
+     *  - lead_author
+     *  - organisation
+     *  - publication
+     *  - year
+     *  - apa_string
      */
     private function fetch_url_metadata($url) {
         // This method is now handled by Framework_Generator_Citation_Verifier
         return array();
+        if (empty($url)) {
+            return array();
+        }
+
+        // Validate URL to prevent SSRF attacks
+        $parsed_url = parse_url($url);
+        if (!$parsed_url || !isset($parsed_url['scheme']) || !isset($parsed_url['host'])) {
+            return array();
+        }
+
+        // Only allow HTTP and HTTPS schemes
+        if (!in_array(strtolower($parsed_url['scheme']), array('http', 'https'), true)) {
+            return array();
+        }
+
+        // Prevent requests to private/local IP addresses
+        $host = $parsed_url['host'];
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            if (!filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                return array();
+            }
+        }
+
+        $response = wp_remote_get($url, array(
+            'timeout' => 5,
+            'redirection' => 3,
+        ));
+
+        if (is_wp_error($response)) {
+            return array();
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        if ($code < 200 || $code >= 300) {
+            return array();
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        if (!is_string($body) || $body === '') {
+            return array();
+        }
+
+        $metadata = array();
+
+        // Use DOMDocument for safer HTML parsing
+        $dom = new DOMDocument();
+        // Suppress warnings from malformed HTML
+        $previous_error_level = libxml_use_internal_errors(true);
+        
+        // Add meta charset to ensure proper UTF-8 handling
+        $body = '<meta http-equiv="Content-Type" content="text/html; charset=utf-8">' . $body;
+        
+        // Load HTML
+        $dom->loadHTML($body, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        
+        // Restore error handling
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous_error_level);
+
+        // Extract title
+        $title_tags = $dom->getElementsByTagName('title');
+        if ($title_tags->length > 0) {
+            $metadata['title'] = trim($title_tags->item(0)->textContent);
+        }
+
+        // Extract meta tags
+        $meta_tags = $dom->getElementsByTagName('meta');
+        foreach ($meta_tags as $meta) {
+            $name = $meta->getAttribute('name');
+            $property = $meta->getAttribute('property');
+            $content = $meta->getAttribute('content');
+
+            if (empty($content)) {
+                continue;
+            }
+
+            // Check for author information
+            if (stripos($name, 'author') !== false || stripos($property, 'author') !== false) {
+                $metadata['lead_author'] = trim($content);
+            }
+        }
+
+        return $metadata;
     }
 
     /**
      * Fetch academic metadata from CrossRef/OpenAlex
+     * 
+     * NOTE: This is a placeholder implementation. Full implementation would query
+     * CrossRef or OpenAlex APIs for academic citation metadata.
      */
     private function fetch_academic_metadata($title, $url) {
         // This method is now handled by Framework_Generator_Citation_Verifier
+        // Placeholder: In production, this would query CrossRef or OpenAlex APIs
+        // Example: https://api.crossref.org/works?query.title=...
+        // Example: https://api.openalex.org/works?filter=title.search:...
         return array();
     }
 
@@ -347,7 +470,7 @@ class Framework_Generator_Workers {
         global $wpdb;
         $table = $wpdb->prefix . 'fg_validated_citations';
 
-        $wpdb->insert($table, array(
+        $result = $wpdb->insert($table, array(
             'id' => wp_generate_uuid4(),
             'session_id' => $session_id,
             'job_id' => $job_id,
@@ -366,6 +489,10 @@ class Framework_Generator_Workers {
             'confidence' => $citation['confidence'],
             'sponsored' => $citation['sponsored'],
         ));
+
+        if ($result === false) {
+            error_log("Failed to persist validated citation: " . $wpdb->last_error);
+        }
     }
 
     /**
@@ -400,12 +527,25 @@ class Framework_Generator_Workers {
             ARRAY_A
         );
 
+        // Ensure we have a valid phase 1 job with an input_prompt before decoding
+        if (!$phase1_job || !isset($phase1_job['input_prompt'])) {
+            $db->update_job_status($job_id, 'failed', array('error_message' => 'Phase 1 job input_prompt not found for session.'));
+            return;
+        }
+
         $input = json_decode($phase1_job['input_prompt'], true);
 
         // Generate framework brief
         $brief = $this->generate_framework_brief($citations, $input);
 
+        // Handle failed brief generation
+        if ($brief === null) {
+            $db->update_job_status($job_id, 'failed', array('error_message' => 'Failed to generate framework brief'));
+            return;
+        }
+
         // Validate schema with retry
+        $llm_client = new Dual_GPT_OpenAI_Connector();
         $validator = new Framework_Brief_Validator();
         $validation = $validator->validate_with_retry(wp_json_encode($brief), $llm_client);
 
@@ -453,13 +593,26 @@ class Framework_Generator_Workers {
             return null;
         }
 
+        // Validate response structure
+        if (!isset($response['choices'][0]['message']['content']) || !isset($response['usage'])) {
+            error_log('Invalid LLM response structure in generate_framework_brief');
+            return null;
+        }
+
         $content = $response['choices'][0]['message']['content'];
         $usage = $response['usage'];
 
         // Update job with usage
         $db->update_token_usage(get_current_user_id(), ($usage['prompt_tokens'] ?? 0) + ($usage['completion_tokens'] ?? 0));
 
-        return json_decode($content, true);
+        // Validate JSON decode
+        $brief = json_decode($content, true);
+        if ($brief === null && json_last_error() !== JSON_ERROR_NONE) {
+            error_log('Failed to decode LLM response JSON: ' . json_last_error_msg());
+            return null;
+        }
+
+        return $brief;
     }
 
     /**
@@ -468,11 +621,19 @@ class Framework_Generator_Workers {
     private function build_phase3_prompt($citations, $input) {
         $prompt = "Approved Citations:\n";
         foreach ($citations as $citation) {
-            $prompt .= "- {$citation['title']} ({$citation['type']}) - {$citation['passage_snippet']}\n";
+            // Sanitize citation data to prevent prompt injection
+            $title = isset($citation['title']) ? sanitize_text_field($citation['title']) : '';
+            $type = isset($citation['type']) ? sanitize_text_field($citation['type']) : '';
+            // Use sanitize_textarea_field for snippets to preserve formatting
+            $snippet = isset($citation['passage_snippet']) ? sanitize_textarea_field($citation['passage_snippet']) : '';
+            $prompt .= "- {$title} ({$type}) - {$snippet}\n";
         }
 
-        $prompt .= "\nArticle Idea: {$input['article_idea']['title']}\n";
-        $prompt .= "Description: {$input['article_idea']['short_description']}\n";
+        $article_title = isset($input['article_idea']['title']) ? sanitize_text_field($input['article_idea']['title']) : '';
+        $article_description = isset($input['article_idea']['short_description']) ? sanitize_textarea_field($input['article_idea']['short_description']) : '';
+
+        $prompt .= "\nArticle Idea: {$article_title}\n";
+        $prompt .= "Description: {$article_description}\n";
 
         $prompt .= "\nGenerate the final Research Brief JSON with required sections: title, overview, context, application, observations, key_themes, citations, writer_guidance.";
 
@@ -486,14 +647,16 @@ class Framework_Generator_Workers {
         // Simplified scoring
         $score = 0.7; // Base score
 
-        // Boost for citations
-        if (count($brief['citations']) >= 3) {
+        // Boost for citations - ensure array exists
+        $citations = (isset($brief['citations']) && is_array($brief['citations'])) ? $brief['citations'] : array();
+        if (count($citations) >= 3) {
             $score += 0.1;
         }
 
-        // Boost for observations with evidence
+        // Boost for observations with evidence - ensure array exists
+        $observations = (isset($brief['observations']) && is_array($brief['observations'])) ? $brief['observations'] : array();
         $evidence_count = 0;
-        foreach ($brief['observations'] as $obs) {
+        foreach ($observations as $obs) {
             if (!empty($obs['evidence'])) {
                 $evidence_count++;
             }
@@ -518,7 +681,7 @@ class Framework_Generator_Workers {
 
         $brief_id = wp_generate_uuid4();
 
-        $wpdb->insert($table, array(
+        $result = $wpdb->insert($table, array(
             'id' => $brief_id,
             'session_id' => $session_id,
             'article_idea' => wp_json_encode($brief['article_idea'] ?? array()),
@@ -533,6 +696,11 @@ class Framework_Generator_Workers {
             'metadata' => wp_json_encode(array()),
             'scoring' => wp_json_encode($scoring),
         ));
+
+        if ($result === false) {
+            error_log("Failed to persist framework brief: " . $wpdb->last_error);
+            return new WP_Error('db_insert_error', 'Failed to persist framework brief', array('db_error' => $wpdb->last_error));
+        }
 
         return $brief_id;
     }

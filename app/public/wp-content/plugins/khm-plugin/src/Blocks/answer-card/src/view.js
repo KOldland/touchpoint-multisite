@@ -249,6 +249,10 @@ const openShareModal = ( card, data ) => {
             const ajaxUrl = data.ajaxUrl || '';
             if ( ! ajaxUrl.startsWith( window.location.origin ) && ! ajaxUrl.startsWith( '/' ) || ajaxUrl.startsWith( '//' ) ) {
                 throw new Error( 'Invalid AJAX URL' );
+            // Validate ajaxUrl is from the same origin to prevent XSS
+            const ajaxUrl = new URL( data.ajaxUrl, window.location.origin );
+            if ( ajaxUrl.origin !== window.location.origin ) {
+                throw new Error( 'Invalid URL' );
             }
 
             const body = new URLSearchParams();
@@ -261,6 +265,7 @@ const openShareModal = ( card, data ) => {
             body.append( 'include_membership_info', 'false' );
 
             const response = await fetch( ajaxUrl, {
+            const response = await fetch( ajaxUrl.toString(), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',

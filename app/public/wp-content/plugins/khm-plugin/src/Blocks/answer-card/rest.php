@@ -522,6 +522,9 @@ function get_author_notes( $request ) {
         $rows = $wpdb->get_results(
             "SELECT post_id, answer_card_id, question, topic_discussed_at FROM {$table}",
             ARRAY_A
+        // Fetch all rows and filter in PHP to avoid SQL injection risks with JSON LIKE queries
+        $rows = $wpdb->get_results(
+            "SELECT post_id, answer_card_id, question, topic_discussed_at FROM {$table} WHERE topic_discussed_at IS NOT NULL"
         );
 
         foreach ( $rows as $row ) {
