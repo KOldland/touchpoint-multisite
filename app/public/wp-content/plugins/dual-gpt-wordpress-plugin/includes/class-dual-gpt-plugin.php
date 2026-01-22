@@ -1367,12 +1367,94 @@ class Dual_GPT_Plugin {
             INDEX idx_reset_at (reset_at)
         ) $charset_collate;";
 
+        // Framework Generator tables
+        $table_fg_raw_articles = $wpdb->prefix . 'fg_raw_articles';
+        $sql_fg_raw_articles = "CREATE TABLE $table_fg_raw_articles (
+            id VARCHAR(36) NOT NULL PRIMARY KEY,
+            session_id VARCHAR(36) NOT NULL,
+            title TEXT,
+            url TEXT,
+            domain VARCHAR(255),
+            author VARCHAR(255),
+            date DATE,
+            source_type VARCHAR(50),
+            snippet TEXT,
+            extracted_claims JSON,
+            keywords JSON,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_session_id (session_id),
+            FOREIGN KEY (session_id) REFERENCES $table_sessions(id) ON DELETE CASCADE
+        ) $charset_collate;";
+
+        $table_fg_validated_citations = $wpdb->prefix . 'fg_validated_citations';
+        $sql_fg_validated_citations = "CREATE TABLE $table_fg_validated_citations (
+            id VARCHAR(36) NOT NULL PRIMARY KEY,
+            session_id VARCHAR(36) NOT NULL,
+            job_id VARCHAR(36) NOT NULL,
+            title TEXT,
+            lead_author VARCHAR(255),
+            publication VARCHAR(255),
+            organisation VARCHAR(255),
+            year INT,
+            url TEXT,
+            apa_string TEXT,
+            apa_details_available BOOLEAN DEFAULT FALSE,
+            passage_snippet TEXT,
+            type VARCHAR(50),
+            tier VARCHAR(20),
+            authority_score DECIMAL(3,2),
+            confidence DECIMAL(3,2),
+            sponsored BOOLEAN DEFAULT FALSE,
+            approved TINYINT(1) DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_session_id (session_id),
+            INDEX idx_job_id (job_id),
+            INDEX idx_approved (approved),
+            FOREIGN KEY (session_id) REFERENCES $table_sessions(id) ON DELETE CASCADE,
+            FOREIGN KEY (job_id) REFERENCES $table_jobs(id) ON DELETE CASCADE
+        ) $charset_collate;";
+
+        $table_fg_briefs = $wpdb->prefix . 'fg_briefs';
+        $sql_fg_briefs = "CREATE TABLE $table_fg_briefs (
+            id VARCHAR(36) NOT NULL PRIMARY KEY,
+            session_id VARCHAR(36) NOT NULL,
+            article_idea JSON,
+            title TEXT,
+            overview TEXT,
+            context TEXT,
+            application JSON,
+            observations JSON,
+            key_themes JSON,
+            citations JSON,
+            writer_guidance JSON,
+            metadata JSON,
+            scoring JSON,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_session_id (session_id),
+            FOREIGN KEY (session_id) REFERENCES $table_sessions(id) ON DELETE CASCADE
+        ) $charset_collate;";
+
+        $table_fg_exports = $wpdb->prefix . 'fg_exports';
+        $sql_fg_exports = "CREATE TABLE $table_fg_exports (
+            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            fg_brief_id VARCHAR(36) NOT NULL,
+            format VARCHAR(50) NOT NULL,
+            file_url TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_brief_id (fg_brief_id),
+            FOREIGN KEY (fg_brief_id) REFERENCES $table_fg_briefs(id) ON DELETE CASCADE
+        ) $charset_collate;";
+
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_sessions);
         dbDelta($sql_jobs);
         dbDelta($sql_presets);
         dbDelta($sql_audit);
         dbDelta($sql_budgets);
+        dbDelta($sql_fg_raw_articles);
+        dbDelta($sql_fg_validated_citations);
+        dbDelta($sql_fg_briefs);
+        dbDelta($sql_fg_exports);
     }
 
     /**

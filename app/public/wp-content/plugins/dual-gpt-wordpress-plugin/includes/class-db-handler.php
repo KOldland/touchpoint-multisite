@@ -387,6 +387,19 @@ class Dual_GPT_DB_Handler {
                 'tool_whitelist' => wp_json_encode(array('outline_from_brief', 'expand_section', 'style_guard', 'citation_guard')),
                 'is_locked' => true,
             ),
+            array(
+                'id' => 'fg-framework-generator',
+                'name' => 'Framework Generator',
+                'role' => 'research',
+                'system_prompt' => 'You are a Framework Generator specialized in creating evidence-based research briefs. You excel at discovering relevant articles, validating citations, and synthesizing comprehensive research frameworks with proper attribution.',
+                'default_model' => 'gpt-4o-mini',
+                'params_json' => wp_json_encode(array(
+                    'temperature' => 0.4,
+                    'max_tokens' => 3000,
+                )),
+                'tool_whitelist' => wp_json_encode(array()),
+                'is_locked' => true,
+            ),
         );
 
         foreach ($defaults as $preset) {
