@@ -475,10 +475,19 @@ class SponsorController {
     }
 
     private function get_sponsor_docs_by_ids( array $doc_ids ): array {
+        // Validate that all doc_ids are integers
         $doc_ids = array_values( array_filter( array_map( 'absint', $doc_ids ) ) );
         if ( empty( $doc_ids ) ) {
             return array();
         }
+        
+        // Double-check all values are positive integers
+        foreach ( $doc_ids as $id ) {
+            if ( ! is_int( $id ) || $id <= 0 ) {
+                return array();
+            }
+        }
+        
         global $wpdb;
         $table = SponsorMigration::docs_table_name();
         $placeholders = implode( ',', array_fill( 0, count( $doc_ids ), '%d' ) );

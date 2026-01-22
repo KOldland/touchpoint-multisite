@@ -152,7 +152,12 @@ class SuggestAnswerCardsEndpoint {
                 $controller = new \KHM\Sponsors\SponsorController();
                 $controller->select_research_docs( $selection_request );
             } catch ( \Throwable $e ) {
-                // swallow selection errors so generation still proceeds
+                // Log selection errors but allow generation to proceed
+                error_log( sprintf(
+                    '[AnswerCard] Sponsor selection failed for post %d: %s',
+                    $post_id,
+                    $e->getMessage()
+                ) );
             }
         }
 

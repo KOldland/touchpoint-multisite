@@ -108,9 +108,13 @@ class AnswerCardLibraryService {
 
         $args = wp_parse_args( $args, $defaults );
 
+        // Whitelist allowed orderby columns to prevent SQL injection
+        $allowed_orderby = [ 'created_at', 'updated_at', 'id' ];
+        $orderby = in_array( $args['orderby'], $allowed_orderby, true ) ? $args['orderby'] : 'created_at';
+
         $order_clause = sprintf(
             'ORDER BY %s %s',
-            sanitize_sql_orderby( $args['orderby'] ),
+            $orderby,
             $args['order'] === 'ASC' ? 'ASC' : 'DESC'
         );
 

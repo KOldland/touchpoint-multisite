@@ -633,10 +633,14 @@ add_action('login_enqueue_scripts', function() {
         $logo_url = wp_get_attachment_image_url( $logo_id, 'full' );
     }
     if ( ! $logo_url ) {
-        $logo_url = get_template_directory_uri() . '/path/to/default-logo.png'; // Fallback
+        // Use site name as fallback instead of non-existent image
+        $logo_url = '';
     }
     wp_enqueue_style('touchpoint-login', get_template_directory_uri() . '/assets/css/login-style.css', [], '1.0');
-    wp_add_inline_style('touchpoint-login', "#login h1 a { background-image: url('$logo_url'); }");
+    $logo_style = $logo_url 
+        ? "#login h1 a { background-image: url('$logo_url'); }"
+        : "#login h1 a { background-image: none; }";
+    wp_add_inline_style('touchpoint-login', $logo_style);
 });
 
 /* ACF Field Styling */

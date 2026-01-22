@@ -245,6 +245,12 @@ const openShareModal = ( card, data ) => {
         submitButton.textContent = 'Sending...';
 
         try {
+            // Validate ajaxUrl is from same origin
+            const ajaxUrl = data.ajaxUrl || '';
+            if ( ! ajaxUrl.startsWith( window.location.origin ) && ! ajaxUrl.startsWith( '/' ) ) {
+                throw new Error( 'Invalid AJAX URL' );
+            }
+
             const body = new URLSearchParams();
             body.append( 'action', 'khm_share_library_article' );
             body.append( 'nonce', data.shareNonce );
@@ -254,7 +260,7 @@ const openShareModal = ( card, data ) => {
             body.append( 'include_notes', 'false' );
             body.append( 'include_membership_info', 'false' );
 
-            const response = await fetch( data.ajaxUrl, {
+            const response = await fetch( ajaxUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',

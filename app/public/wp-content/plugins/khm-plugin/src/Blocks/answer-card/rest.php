@@ -518,18 +518,17 @@ function get_author_notes( $request ) {
     $notes = array();
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( $table_exists ) {
+        // Fetch all rows and filter in PHP to avoid SQL injection risks with JSON querying
         $rows = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT post_id, answer_card_id, question, topic_discussed_at FROM {$table} WHERE topic_discussed_at LIKE %s",
-                '%' . $wpdb->esc_like( '"author_id":' . $author_id ) . '%'
-            )
+            "SELECT post_id, answer_card_id, question, topic_discussed_at FROM {$table}",
+            ARRAY_A
         );
 
         foreach ( $rows as $row ) {
-            if ( 'publish' !== get_post_status( $row->post_id ) ) {
+            if ( 'publish' !== get_post_status( $row['post_id'] ) ) {
                 continue;
             }
-            $topic = json_decode( $row->topic_discussed_at, true );
+            $topic = json_decode( $row['topic_discussed_at'], true );
             if ( empty( $topic ) || absint( $topic['author_id'] ?? 0 ) !== $author_id ) {
                 continue;
             }
@@ -538,11 +537,11 @@ function get_author_notes( $request ) {
                 continue;
             }
             $notes[] = array(
-                'post_id'        => absint( $row->post_id ),
-                'post_title'     => get_the_title( $row->post_id ),
-                'post_url'       => get_permalink( $row->post_id ),
-                'answer_card_id' => sanitize_text_field( $row->answer_card_id ?? '' ),
-                'question'       => sanitize_text_field( $row->question ?? '' ),
+                'post_id'        => absint( $row['post_id'] ),
+                'post_title'     => get_the_title( $row['post_id'] ),
+                'post_url'       => get_permalink( $row['post_id'] ),
+                'answer_card_id' => sanitize_text_field( $row['answer_card_id'] ?? '' ),
+                'question'       => sanitize_text_field( $row['question'] ?? '' ),
                 'note'           => $note,
             );
         }
