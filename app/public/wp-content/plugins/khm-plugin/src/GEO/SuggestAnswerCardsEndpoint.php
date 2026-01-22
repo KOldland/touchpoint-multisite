@@ -136,6 +136,25 @@ class SuggestAnswerCardsEndpoint {
         $content       = $request->get_param( 'content' );
         $max_cards     = min( 8, max( 1, $request->get_param( 'max_cards' ) ?? 4 ) );
         $force_refresh = (bool) $request->get_param( 'force_refresh' );
+        $selection_job_id = wp_generate_uuid4();
+
+        // Sponsor research selection audit (side-effect)
+        if ( class_exists( '\\KHM\\Sponsors\\SponsorController' ) ) {
+            $selection_request = new \WP_REST_Request( 'POST', '/khm-geo/v1/research/select' );
+            $selection_request->set_body_params( array(
+                'post_id' => $post_id,
+                'topic' => $title ?: $url,
+                'job_id' => $selection_job_id,
+                'model_version' => $this->llm_client->get_model_name(),
+                'prompt_hash' => $content ? sha1( $content ) : 'n/a',
+            ) );
+            try {
+                $controller = new \KHM\Sponsors\SponsorController();
+                $controller->select_research_docs( $selection_request );
+            } catch ( \Throwable $e ) {
+                // swallow selection errors so generation still proceeds
+            }
+        }
 
 
         // Check rate limit
@@ -227,6 +246,7 @@ class SuggestAnswerCardsEndpoint {
             'estimated_cost'    => $result['estimated_cost'] ?? 0,
         ) );
 
+        $result['sponsor_selection_job_id'] = $selection_job_id;
         $response = rest_ensure_response( $result );
         $response->header( 'X-KHM-GEO-Cache', 'MISS' );
         return $response;
@@ -391,7 +411,7 @@ Example: "AI-powered last-mile delivery solutions can reduce logistics costs by 
       ],
       "citations": [{
         "title": "Fast forwarding last-mile delivery: implications for the ecosystem",
-        "url": "https://www.mckinsey.com/...",
+        "url": "https://www.mckinsey.com/~/media/mckinsey/industries/travel%20logistics%20and%20infrastructure/our%20insights/technology%20delivered%20implications%20for%20cost%20customers%20and%20competition%20in%20the%20last%20mile%20ecosystem/fast-forwarding-last-mile-delivery-implications-for-the-ecosystem.pdf?utm_source=servicebusinessreview.com",
         "author": "Jürgen Schröder et al.",
         "publisher": "McKinsey & Company",
         "year": "2020",
@@ -420,6 +440,7 @@ Example: "AI-powered last-mile delivery solutions can reduce logistics costs by 
 - Include exact source passages from the article that support claims
 - Prioritize Tier 1 > Tier 2 > Tier 3 evidence
 - Citations array MUST include author, publisher, year, and tier
+- Return full canonical URLs; do not truncate or use ellipses
 - Flag cards with confidence < 0.6 for human review
 - preferred_summary should be true for the canonical answer on a topic
 PROMPT;

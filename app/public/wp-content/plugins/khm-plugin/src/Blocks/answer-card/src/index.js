@@ -29,7 +29,7 @@ import {
 import { InspectorControls, useBlockProps } from '@wordpress/block-editor';
 import { Fragment, useState, useCallback, useEffect } from '@wordpress/element';
 import { useSelect } from '@wordpress/data';
-import { trash, plus, warning, info } from '@wordpress/icons';
+import { trash, plus, warning, info, check } from '@wordpress/icons';
 import apiFetch from '@wordpress/api-fetch';
 
 import './editor.scss';
@@ -60,6 +60,113 @@ const decodeHtmlEntities = ( text ) => {
     const textarea = document.createElement( 'textarea' );
     textarea.innerHTML = text;
     return textarea.value;
+};
+
+/**
+ * Detect truncated or placeholder URLs.
+ */
+const isTruncatedUrl = ( url ) => {
+    if ( ! url ) return true;
+    const lower = url.toLowerCase();
+    return lower.includes( '...' ) || lower.includes( 'example.com' );
+};
+
+/**
+ * Extract footnote references from ACF footnotes block content.
+ */
+const extractFootnoteReferences = ( content ) => {
+    if ( ! content ) return [];
+    const match = content.match( /<!--\s*wp:acf\/footnotes\s+([\s\S]*?)\s*\/-->/ );
+    if ( ! match || ! match[1] ) {
+        return [];
+    }
+
+    try {
+        const parsed = JSON.parse( match[1] );
+        const data = parsed?.data || {};
+        const refs = [];
+        Object.keys( data ).forEach( ( key ) => {
+            const textMatch = key.match( /^footnotes_(\d+)_reference_text$/ );
+            if ( textMatch ) {
+                const idx = textMatch[1];
+                const linkKey = `footnotes_${ idx }_reference_link`;
+                if ( data[ key ] && data[ linkKey ] ) {
+                    refs.push( {
+                        text: data[ key ],
+                        link: data[ linkKey ],
+                    } );
+                }
+            }
+        } );
+        return refs;
+    } catch ( error ) {
+        return [];
+    }
+};
+
+const normalizeReferenceText = ( text ) =>
+    ( text || '' ).toLowerCase().replace( /[^a-z0-9\s]/g, ' ' ).replace( /\s+/g, ' ' ).trim();
+
+const resolveCitationUrlFromRefs = ( citation, refs ) => {
+    const title = normalizeReferenceText( citation?.title || '' );
+    const publisher = normalizeReferenceText( citation?.publisher || '' );
+    if ( ! refs.length ) return '';
+
+    let best = { score: 0, link: '' };
+    refs.forEach( ( ref ) => {
+        const refText = normalizeReferenceText( ref.text );
+        let score = 0;
+        if ( title && refText.includes( title ) ) score += 3;
+        if ( publisher && refText.includes( publisher ) ) score += 2;
+        if ( title ) {
+            const titleParts = title.split( ' ' ).filter( ( part ) => part.length > 3 );
+            const hits = titleParts.filter( ( part ) => refText.includes( part ) ).length;
+            score += Math.min( hits, 3 );
+        }
+        if ( score > best.score ) {
+            best = { score, link: ref.link };
+        }
+    } );
+
+    return best.score > 0 ? best.link : '';
+};
+
+/**
+ * Convert a display date to ISO based on the configured format.
+ */
+const parseDateToIso = ( value, format ) => {
+    if ( ! value ) return '';
+    const trimmed = value.trim();
+    if ( /^\d{4}-\d{2}-\d{2}$/.test( trimmed ) ) {
+        return trimmed;
+    }
+
+    const valueSep = trimmed.includes( '/' ) ? '/' : ( trimmed.includes( '-' ) ? '-' : '' );
+    const formatSep = format.includes( '/' ) ? '/' : ( format.includes( '-' ) ? '-' : '' );
+    if ( ! valueSep || ! formatSep ) {
+        return '';
+    }
+
+    const valueParts = trimmed.split( valueSep );
+    const formatParts = format.split( formatSep );
+    if ( valueParts.length !== formatParts.length ) {
+        return '';
+    }
+
+    const map = {};
+    formatParts.forEach( ( token, idx ) => {
+        map[ token ] = valueParts[ idx ];
+    } );
+
+    const year = map.Y || map.y;
+    const month = map.m;
+    const day = map.d;
+    if ( ! year || ! month || ! day ) {
+        return '';
+    }
+
+    const iso = `${ String( year ).padStart( 4, '0' ) }-${ String( month ).padStart( 2, '0' ) }-${ String( day ).padStart( 2, '0' ) }`;
+    return /^\d{4}-\d{2}-\d{2}$/.test( iso ) ? iso : '';
 };
 
 /**
@@ -97,6 +204,40 @@ const formatCitationDisplay = ( citation ) => {
         link: citation.url || '',
         hasMeta: !! meta,
     };
+};
+
+const buildSponsorOptions = ( docs ) => {
+    const map = new Map();
+    ( docs || [] ).forEach( ( doc ) => {
+        const id = Number( doc.sponsor_id || 0 );
+        if ( ! id ) {
+            return;
+        }
+        const metaName = doc?.sponsor_name || doc?.meta?.sponsor_name;
+        const name = metaName || `Sponsor ${ id }`;
+        if ( ! map.has( id ) ) {
+            map.set( id, name );
+        }
+    } );
+    return [ { label: __( 'Select sponsor', 'khm-membership' ), value: 0 } ].concat(
+        Array.from( map.entries() ).map( ( [ value, label ] ) => ( { label, value } ) )
+    );
+};
+
+const reorderCitationsSponsorFirst = ( list, id ) => {
+    if ( ! Array.isArray( list ) || ! id ) {
+        return list;
+    }
+    const sponsor = [];
+    const publicCits = [];
+    list.forEach( ( citation ) => {
+        if ( citation && Number( citation.sponsor_id || 0 ) === Number( id ) ) {
+            sponsor.push( citation );
+        } else {
+            publicCits.push( citation );
+        }
+    } );
+    return sponsor.concat( publicCits );
 };
 
 /**
@@ -159,6 +300,61 @@ const ScoreIndicator = ( { score, isLoading } ) => {
     } else if ( scorePercent >= 60 ) {
         scoreClass = 'medium';
     }
+
+    const sponsorOptions = buildSponsorOptions( sponsorDocs );
+    const sponsorPreview = ( sponsorDocs || [] )
+        .filter( ( doc ) => Number( doc.sponsor_id || 0 ) === Number( sponsorId || 0 ) && doc.approved )
+        .slice( 0, 3 );
+
+    const persistSponsorToggle = ( enable, overrides = {} ) => {
+        if ( ! postId || ! answerCardId ) {
+            return;
+        }
+
+        setSponsorSaving( true );
+        apiFetch( {
+            path: `/khm-geo/v1/cards/${ postId }/sponsor-toggle`,
+            method: 'POST',
+            data: {
+                enable,
+                sponsor_id: overrides.sponsorId ?? sponsorId ?? 0,
+                sponsor_name: overrides.sponsorName ?? sponsorName ?? '',
+                sponsor_url: overrides.sponsorUrl ?? sponsorUrl ?? '',
+                sponsor_doc_ids: overrides.sponsorDocIds ?? sponsorDocIds ?? [],
+                answer_card_id: answerCardId,
+                sponsor_boost: overrides.sponsorBoost ?? sponsorBoost ?? 0,
+                approval_required: overrides.sponsorRequiresApproval ?? sponsorRequiresApproval ?? true,
+                approved: overrides.sponsorApproved ?? sponsorApproved ?? false,
+                justification: overrides.sponsorJustification ?? sponsorJustification ?? '',
+            },
+        } ).then( () => {
+            setSponsorSaving( false );
+        } ).catch( ( error ) => {
+            setSponsorError( error.message || __( 'Failed to save sponsor settings', 'khm-membership' ) );
+            setSponsorSaving( false );
+        } );
+    };
+
+    const approveSponsor = () => {
+        if ( ! postId || ! answerCardId ) {
+            return;
+        }
+        setSponsorSaving( true );
+        apiFetch( {
+            path: `/khm-geo/v1/cards/${ postId }/sponsor-approve`,
+            method: 'POST',
+            data: {
+                answer_card_id: answerCardId,
+                justification: sponsorJustification || '',
+            },
+        } ).then( () => {
+            setAttributes( { sponsorApproved: true } );
+            setSponsorSaving( false );
+        } ).catch( ( error ) => {
+            setSponsorError( error.message || __( 'Failed to approve sponsor', 'khm-membership' ) );
+            setSponsorSaving( false );
+        } );
+    };
 
     return (
         <div className={ `khm-answer-card-score khm-answer-card-score--${ scoreClass }` }>
@@ -251,10 +447,21 @@ const Edit = ( props ) => {
         topicDiscussedAt,
         siteKeywords,
         preferredSummary,
-        publicSummaryLabel,
         exposeInSchema,
         requiresReview,
         reviewJustification,
+        generationOverride,
+        generationOverrideNote,
+        sponsorToggle,
+        sponsorId,
+        sponsorName,
+        sponsorUrl,
+        sponsorBoost,
+        sponsorRequiresApproval,
+        sponsorApproved,
+        sponsorJustification,
+        sponsorDocIds,
+        citationOrdering,
     } = attributes;
 
     const [ score, setScore ] = useState( null );
@@ -269,20 +476,56 @@ const Edit = ( props ) => {
     const [ resolverCandidates, setResolverCandidates ] = useState( [] );
     const [ resolverLoading, setResolverLoading ] = useState( false );
     const [ resolverError, setResolverError ] = useState( '' );
+    const [ topicDefaultsLoading, setTopicDefaultsLoading ] = useState( false );
+    const [ topicDefaultsError, setTopicDefaultsError ] = useState( '' );
+    const [ dateFormat, setDateFormat ] = useState( 'd/m/Y' );
+    const [ siteKeywordsSource, setSiteKeywordsSource ] = useState( '' );
+    const [ autoResolveEnabled, setAutoResolveEnabled ] = useState( false );
+    const [ autoResolveThreshold, setAutoResolveThreshold ] = useState( 0.85 );
+    const [ didSyncServerSummary, setDidSyncServerSummary ] = useState( false );
+    const [ showAllReasons, setShowAllReasons ] = useState( false );
+    const [ showDiagnostics, setShowDiagnostics ] = useState( false );
+    const [ diagnosticsAudit, setDiagnosticsAudit ] = useState( null );
+    const [ regenJobId, setRegenJobId ] = useState( '' );
+    const [ regenStatus, setRegenStatus ] = useState( '' );
+    const [ entitySuggestions, setEntitySuggestions ] = useState( {} );
+    const [ sponsorDocs, setSponsorDocs ] = useState( [] );
+    const [ sponsorLoading, setSponsorLoading ] = useState( false );
+    const [ sponsorError, setSponsorError ] = useState( '' );
+    const [ sponsorSaving, setSponsorSaving ] = useState( false );
 
-    const { postId, postTitle } = useSelect( ( select ) => {
+    const { postId, postTitle, postContent } = useSelect( ( select ) => {
         try {
             return {
                 postId: select( 'core/editor' ).getCurrentPostId(),
                 postTitle: select( 'core/editor' ).getEditedPostAttribute( 'title' ) || '',
+                postContent: select( 'core/editor' ).getEditedPostAttribute( 'content' ) || '',
             };
         } catch ( error ) {
             return {
                 postId: null,
                 postTitle: '',
+                postContent: '',
             };
         }
     }, [] );
+
+    const authors = useSelect( ( select ) => {
+        try {
+            return select( 'core' ).getUsers( { per_page: 100, who: 'authors' } ) || [];
+        } catch ( error ) {
+            return [];
+        }
+    }, [] );
+
+    const currentUser = useSelect( ( select ) => {
+        try {
+            return select( 'core' ).getCurrentUser();
+        } catch ( error ) {
+            return null;
+        }
+    }, [] );
+    const canApproveSponsor = !! currentUser?.capabilities?.publish_posts;
 
     // Generate answerCardId if not present
     useEffect( () => {
@@ -290,6 +533,203 @@ const Edit = ( props ) => {
             setAttributes( { answerCardId: generateClientId() } );
         }
     }, [ answerCardId, setAttributes ] );
+
+    // Prefill Topic Discussed At defaults on mount
+    useEffect( () => {
+        if ( ! postId || topicDefaultsLoading ) {
+            return;
+        }
+
+        setTopicDefaultsLoading( true );
+        apiFetch( {
+            path: `/khm-geo/v1/topic-defaults?post_id=${ postId }`,
+            method: 'GET',
+        } ).then( ( result ) => {
+            const defaults = result?.topic || {};
+            const current = topicDiscussedAt || {};
+            const nextTopic = { ...current };
+
+            if ( ! nextTopic.title && defaults.title ) nextTopic.title = defaults.title;
+            if ( ! nextTopic.url && defaults.url ) nextTopic.url = defaults.url;
+
+            const currentAuthorName = nextTopic.author_name || nextTopic.author || '';
+            const currentAuthorId = nextTopic.author_id || 0;
+            const shouldUseLeadAuthor = !! ( defaults.author_name && (
+                ! currentAuthorName ||
+                ( defaults.wp_author_name && currentAuthorName === defaults.wp_author_name ) ||
+                ( defaults.wp_author_id && currentAuthorId === defaults.wp_author_id )
+            ) );
+            if ( shouldUseLeadAuthor ) {
+                nextTopic.author_name = defaults.author_name;
+                nextTopic.author = defaults.author_name;
+            }
+            if ( shouldUseLeadAuthor && defaults.author_id ) {
+                nextTopic.author_id = defaults.author_id;
+            }
+            if ( ! nextTopic.publisher && defaults.publisher ) nextTopic.publisher = defaults.publisher;
+            if ( ! nextTopic.date && defaults.date ) nextTopic.date = defaults.date;
+
+            setAttributes( { topicDiscussedAt: nextTopic } );
+            setAttributes( { siteKeywords: result?.site_keywords || [] } );
+            setAttributes( { publicSummaryLabel: result?.public_summary_label || '' } );
+
+            setDateFormat( result?.date_format || 'd/m/Y' );
+            setSiteKeywordsSource( result?.site_keywords_source || '' );
+            setAutoResolveEnabled( !! result?.auto_resolve );
+            setAutoResolveThreshold( typeof result?.auto_resolve_threshold === 'number'
+                ? result.auto_resolve_threshold
+                : 0.85 );
+            setTopicDefaultsLoading( false );
+        } ).catch( ( error ) => {
+            setTopicDefaultsError( error.message || __( 'Failed to load topic defaults', 'khm-membership' ) );
+            setTopicDefaultsLoading( false );
+        } );
+    }, [ postId ] );
+
+    // Load sponsor docs for selector and preview
+    useEffect( () => {
+        if ( sponsorLoading ) {
+            return;
+        }
+        setSponsorLoading( true );
+        apiFetch( { path: '/khm-geo/v1/sponsor-docs', method: 'GET' } )
+            .then( ( result ) => {
+                setSponsorDocs( Array.isArray( result ) ? result : [] );
+                setSponsorLoading( false );
+            } )
+            .catch( ( error ) => {
+                setSponsorError( error.message || __( 'Failed to load sponsor docs', 'khm-membership' ) );
+                setSponsorLoading( false );
+            } );
+    }, [] );
+
+    // Sync server-generated preferred summary into block attributes once.
+    useEffect( () => {
+        if ( ! postId || ! answerCardId || didSyncServerSummary ) {
+            return;
+        }
+
+        apiFetch( {
+            path: `/khm-geo/v1/tracker/posts/${ postId }/answercards`,
+            method: 'GET',
+        } ).then( ( result ) => {
+            const cards = result?.cards || [];
+            const serverCard = cards.find( ( card ) => card?.answer_card_id === answerCardId );
+            if ( serverCard?.preferred_summary && ! preferredSummary ) {
+                setAttributes( { preferredSummary: serverCard.preferred_summary } );
+            }
+            setDidSyncServerSummary( true );
+        } ).catch( () => {
+            setDidSyncServerSummary( true );
+        } );
+    }, [ postId, answerCardId, didSyncServerSummary, preferredSummary, setAttributes ] );
+
+    // Normalize citations: default tracking + resolve truncated URLs from footnotes.
+    useEffect( () => {
+        if ( ! Array.isArray( citations ) || citations.length === 0 ) {
+            return;
+        }
+        const refs = extractFootnoteReferences( postContent );
+        let updated = false;
+        const normalized = citations.map( ( citation ) => {
+            if ( ! citation || typeof citation !== 'object' ) {
+                return citation;
+            }
+            let next = { ...citation };
+            if ( next.enableTracking === undefined && next.enable_tracking !== undefined ) {
+                next.enableTracking = !! next.enable_tracking;
+                updated = true;
+            } else if ( next.enableTracking === undefined && next.enable_tracking === undefined ) {
+                next.enableTracking = true;
+                updated = true;
+            }
+
+            if ( isTruncatedUrl( next.url ) && refs.length > 0 ) {
+                const resolvedUrl = resolveCitationUrlFromRefs( next, refs );
+                if ( resolvedUrl ) {
+                    next.url = resolvedUrl;
+                    updated = true;
+                }
+            }
+            return next;
+        } );
+
+        if ( updated ) {
+            setAttributes( { citations: normalized } );
+        }
+    }, [ citations, postContent, setAttributes ] );
+
+    const openPanelByTitle = ( title ) => {
+        const buttons = document.querySelectorAll( '.components-panel__body-toggle' );
+        buttons.forEach( ( btn ) => {
+            if ( btn.textContent && btn.textContent.trim() === title ) {
+                const expanded = btn.getAttribute( 'aria-expanded' );
+                if ( expanded === 'false' ) {
+                    btn.click();
+                }
+            }
+        } );
+    };
+
+    const openCitationEditor = ( citationIndex ) => {
+        if ( citationIndex === null || citationIndex === undefined ) return;
+        openPanelByTitle( __( 'Citation Details', 'khm-membership' ) );
+        const input = document.getElementById( `citation-author-${ citationIndex }` )
+            || document.getElementById( `citation-year-${ citationIndex }` )
+            || document.getElementById( 'evidence-source-passage' );
+        if ( input ) {
+            input.focus();
+            input.scrollIntoView( { behavior: 'smooth', block: 'center' } );
+        }
+    };
+
+    const openEntityResolver = ( entityName ) => {
+        if ( ! entityName ) return;
+        const index = normalizedEntities.findIndex( ( entity ) => entity?.name === entityName );
+        if ( index >= 0 ) {
+            openResolver( index );
+        }
+    };
+
+    const regenerate = async () => {
+        if ( ! postId ) return;
+        setRegenStatus( 'queued' );
+        try {
+            const result = await apiFetch( {
+                path: '/khm-geo/v1/enqueue',
+                method: 'POST',
+                data: {
+                    post_id: postId,
+                    answer_card_id: answerCardId,
+                    force: true,
+                },
+            } );
+            if ( result?.job_id ) {
+                setRegenJobId( result.job_id );
+                setRegenStatus( result.status || 'processing' );
+                const interval = setInterval( async () => {
+                    try {
+                        const job = await apiFetch( {
+                            path: `/khm-geo/v1/job/${ result.job_id }?post_id=${ postId }`,
+                            method: 'GET',
+                        } );
+                        if ( job?.status && job.status !== 'queued' && job.status !== 'processing' ) {
+                            clearInterval( interval );
+                            setRegenStatus( job.status );
+                            fetchSavedScoreDetails();
+                            setDidSyncServerSummary( false );
+                        }
+                    } catch ( error ) {
+                        clearInterval( interval );
+                        setRegenStatus( 'error' );
+                    }
+                }, 1500 );
+                setTimeout( () => clearInterval( interval ), 15000 );
+            }
+        } catch ( error ) {
+            setRegenStatus( 'error' );
+        }
+    };
 
     const confidence = scoreDetails?.scores?.evidence_confidence ?? evidence?.confidence ?? 0;
     const isLowConfidence = confidence < 0.6;
@@ -395,6 +835,28 @@ const Edit = ( props ) => {
         }
     }, [ postId, answerCardId, question ] );
 
+    const recomputePersistedScore = useCallback( async () => {
+        if ( ! postId ) {
+            return;
+        }
+
+        setIsScoring( true );
+        setScoreError( null );
+        setScoreMessage( '' );
+
+        try {
+            await apiFetch( {
+                path: `/khm-geo/v1/posts/${ postId }/score/recompute`,
+                method: 'POST',
+            } );
+            await fetchSavedScoreDetails();
+        } catch ( error ) {
+            setScoreError( error.message || __( 'Failed to recompute score', 'khm-membership' ) );
+        } finally {
+            setIsScoring( false );
+        }
+    }, [ postId, fetchSavedScoreDetails ] );
+
     useEffect( () => {
         fetchSavedScoreDetails();
     }, [ fetchSavedScoreDetails, answerCardId, question, citationsKey, entitiesKey, evidenceKey ] );
@@ -434,7 +896,7 @@ const Edit = ( props ) => {
             tier: 'tier3',
             doi: '',
             keywords: [],
-            enableTracking: false,
+            enableTracking: true,
         } );
         setAttributes( { citations: c } );
     };
@@ -461,18 +923,14 @@ const Edit = ( props ) => {
         } );
     };
 
-    /**
-     * Site Keywords handlers - parse comma-separated input
-     */
-    const siteKeywordsAsString = ( siteKeywords || [] ).join( ', ' );
-    
-    const updateSiteKeywordsFromString = ( str ) => {
-        const keywords = str
-            .split( ',' )
-            .map( ( s ) => s.trim() )
-            .filter( ( s ) => s.length > 0 );
-        setAttributes( { siteKeywords: keywords } );
-    };
+    const topicAuthorName = topicDiscussedAt?.author_name || topicDiscussedAt?.author || '';
+    const topicIsComplete = !! (
+        ( topicDiscussedAt?.title || '' ).trim() &&
+        ( topicDiscussedAt?.url || '' ).trim() &&
+        ( topicAuthorName || '' ).trim() &&
+        ( topicDiscussedAt?.publisher || '' ).trim() &&
+        ( topicDiscussedAt?.date || '' ).trim()
+    );
 
     /**
      * Copy source passage to preferred summary
@@ -493,7 +951,10 @@ const Edit = ( props ) => {
      */
     const addEntity = () => {
         const e = Array.isArray( entities ) ? [ ...entities ] : [];
-        e.push( { name: '', sameAs: '' } );
+        if ( e.length >= 5 ) {
+            return;
+        }
+        e.push( { name: '', sameAs: '', resolvedBy: '', resolvedConfidence: null, resolvedAt: '', resolvedMethod: '' } );
         setAttributes( { entities: e } );
     };
 
@@ -517,7 +978,8 @@ const Edit = ( props ) => {
             .split( ',' )
             .map( ( s ) => s.trim() )
             .filter( ( s ) => s.length )
-            .map( ( name ) => ( { name, sameAs: '' } ) );
+            .slice( 0, 5 )
+            .map( ( name ) => ( { name, sameAs: '', resolvedBy: '', resolvedConfidence: null, resolvedAt: '', resolvedMethod: '' } ) );
         setAttributes( { entities: arr } );
     };
 
@@ -525,43 +987,65 @@ const Edit = ( props ) => {
         .map( ( e ) => ( typeof e === 'string' ? e : e.name ) )
         .join( ', ' );
 
-    const normalizedEntities = ( entities || [] ).map( ( entity ) => (
-        typeof entity === 'string' ? { name: entity, sameAs: '' } : entity
-    ) );
+    const normalizeEntity = ( entity ) => {
+        if ( typeof entity === 'string' ) {
+            return {
+                name: entity,
+                sameAs: '',
+                resolvedBy: '',
+                resolvedConfidence: null,
+                resolvedAt: '',
+                resolvedMethod: '',
+            };
+        }
+        return {
+            ...entity,
+            sameAs: entity?.sameAs || entity?.same_as || '',
+            resolvedBy: entity?.resolvedBy || entity?.resolved_by || '',
+            resolvedConfidence: entity?.resolvedConfidence ?? entity?.resolved_confidence ?? null,
+            resolvedAt: entity?.resolvedAt || entity?.resolved_at || '',
+            resolvedMethod: entity?.resolvedMethod || entity?.resolved_method || '',
+        };
+    };
+
+    const normalizedEntities = ( entities || [] ).map( normalizeEntity );
 
     const getEntityQid = ( entity ) => {
-        const sameAs = entity?.sameAs || '';
+        const sameAs = entity?.sameAs || entity?.same_as || '';
         if ( ! sameAs ) return '';
         const parts = sameAs.split( '/' );
         return parts[ parts.length - 1 ] || '';
     };
 
-    const openResolver = ( index ) => {
-        setResolverIndex( index );
-        setResolverOpen( true );
-        setResolverCandidates( [] );
-        setResolverError( '' );
-
+    const fetchEntitySuggestions = ( index ) => {
         const entityName = normalizedEntities[ index ]?.name || '';
         if ( ! entityName ) {
-            return;
+            return Promise.resolve( [] );
+        }
+        if ( entitySuggestions[ entityName ]?.status === 'ready' ) {
+            return Promise.resolve( entitySuggestions[ entityName ]?.candidates || [] );
         }
 
-        setResolverLoading( true );
-        apiFetch( {
+        setEntitySuggestions( ( prev ) => ( {
+            ...prev,
+            [ entityName ]: { status: 'loading', candidates: [] },
+        } ) );
+
+        return apiFetch( {
             path: `/khm-geo/v1/entity/suggest?term=${ encodeURIComponent( entityName ) }&context=${ encodeURIComponent( question || postTitle || '' ) }`,
             method: 'GET',
         } ).then( ( result ) => {
-            setResolverCandidates( result?.candidates || [] );
-            setResolverLoading( false );
-        } ).catch( ( error ) => {
-            setResolverError( error.message || __( 'Failed to load candidates', 'khm-membership' ) );
-            setResolverLoading( false );
+            const candidates = Array.isArray( result ) ? result : ( result?.candidates || [] );
+            setEntitySuggestions( ( prev ) => ( {
+                ...prev,
+                [ entityName ]: { status: 'ready', candidates },
+            } ) );
+            return candidates;
         } );
     };
 
-    const resolveEntity = ( candidate, pageRole ) => {
-        const entity = normalizedEntities[ resolverIndex ];
+    const resolveEntityAtIndex = ( index, candidate, resolvedBy = 'editor' ) => {
+        const entity = normalizedEntities[ index ];
         if ( ! entity ) {
             return;
         }
@@ -574,32 +1058,129 @@ const Edit = ( props ) => {
             method: 'POST',
             data: {
                 post_id: postId,
+                answer_card_id: answerCardId,
                 entity_name: entity.name,
                 qid: candidate.qid,
                 label: candidate.label,
                 provider: 'wikidata',
-                page_role: pageRole || '',
+                page_role: '',
+                resolved_by: resolvedBy,
+                resolved_confidence: candidate.score ?? null,
+                resolved_method: 'wikidata',
             },
         } ).then( ( result ) => {
             const updated = [ ...normalizedEntities ];
-            updated[ resolverIndex ] = {
-                ...updated[ resolverIndex ],
+            updated[ index ] = {
+                ...updated[ index ],
                 sameAs: result?.same_as?.url || `https://www.wikidata.org/wiki/${ candidate.qid }`,
+                resolvedBy,
+                resolvedConfidence: candidate.score ?? null,
+                resolvedAt: result?.resolved_at || new Date().toISOString(),
+                resolvedMethod: 'wikidata',
             };
             setAttributes( { entities: updated } );
-
-            if ( ! pageRole ) {
-                const anchors = Array.isArray( evidence?.anchor_entities ) ? [ ...evidence.anchor_entities ] : [];
-                if ( ! anchors.includes( entity.name ) ) {
-                    anchors.push( entity.name );
-                }
-                setAttributes( { evidence: { ...evidence, anchor_entities: anchors } } );
-            }
 
             setResolverOpen( false );
             setResolverLoading( false );
         } ).catch( ( error ) => {
             setResolverError( error.message || __( 'Failed to resolve entity', 'khm-membership' ) );
+            setResolverLoading( false );
+        } );
+    };
+
+    const openResolver = ( index ) => {
+        setResolverIndex( index );
+        setResolverOpen( true );
+        setResolverCandidates( [] );
+        setResolverError( '' );
+        const entityName = normalizedEntities[ index ]?.name || '';
+        if ( ! entityName ) {
+            return;
+        }
+
+        setResolverLoading( true );
+        fetchEntitySuggestions( index ).then( ( candidates ) => {
+            setResolverCandidates( candidates );
+            setResolverLoading( false );
+
+            if ( autoResolveEnabled && candidates.length > 0 ) {
+                const top = candidates[ 0 ];
+                const entity = normalizedEntities[ index ];
+                if ( top?.score !== undefined && top.score >= autoResolveThreshold && entity && ! entity.sameAs ) {
+                    resolveEntityAtIndex( index, top, 'ai' );
+                }
+            }
+        } ).catch( ( error ) => {
+            setResolverError( error.message || __( 'Failed to load candidates', 'khm-membership' ) );
+            setResolverLoading( false );
+        } );
+    };
+
+    const resolveEntity = ( candidate ) => {
+        if ( resolverIndex === null || resolverIndex === undefined ) {
+            return;
+        }
+        resolveEntityAtIndex( resolverIndex, candidate, 'editor' );
+    };
+
+    useEffect( () => {
+        if ( normalizedEntities.length === 0 ) {
+            return;
+        }
+        const timeout = setTimeout( () => {
+            normalizedEntities.forEach( ( entity, index ) => {
+                if ( ! entity?.name || entity?.sameAs ) {
+                    return;
+                }
+                if ( entitySuggestions[ entity.name ]?.status ) {
+                    return;
+                }
+                fetchEntitySuggestions( index ).then( ( candidates ) => {
+                    if ( autoResolveEnabled && candidates?.length ) {
+                        const top = candidates[ 0 ];
+                        if ( top?.score !== undefined && top.score >= autoResolveThreshold && ! entity.sameAs ) {
+                            resolveEntityAtIndex( index, top, 'ai' );
+                        }
+                    }
+                } ).catch( () => {} );
+            } );
+        }, 500 );
+
+        return () => clearTimeout( timeout );
+    }, [ normalizedEntities, autoResolveEnabled, autoResolveThreshold, entitySuggestions ] );
+
+    const unresolveEntity = ( index ) => {
+        const entity = normalizedEntities[ index ];
+        if ( ! entity?.name ) {
+            return;
+        }
+
+        setResolverLoading( true );
+        setResolverError( '' );
+
+        apiFetch( {
+            path: '/khm-geo/v1/entity/unresolve',
+            method: 'POST',
+            data: {
+                post_id: postId,
+                answer_card_id: answerCardId,
+                entity_name: entity.name,
+                qid: getEntityQid( entity ),
+            },
+        } ).then( () => {
+            const updated = [ ...normalizedEntities ];
+            updated[ index ] = {
+                ...updated[ index ],
+                sameAs: '',
+                resolvedBy: '',
+                resolvedConfidence: null,
+                resolvedAt: '',
+                resolvedMethod: '',
+            };
+            setAttributes( { entities: updated } );
+            setResolverLoading( false );
+        } ).catch( ( error ) => {
+            setResolverError( error.message || __( 'Failed to unresolve entity', 'khm-membership' ) );
             setResolverLoading( false );
         } );
     };
@@ -654,6 +1235,137 @@ const Edit = ( props ) => {
                     </div>
                 </PanelBody>
 
+                <PanelBody title={ __( 'Sponsor', 'khm-membership' ) } initialOpen={ false }>
+                    { sponsorError && (
+                        <Notice status="error" isDismissible={ false }>
+                            { sponsorError }
+                        </Notice>
+                    ) }
+                    <PanelRow>
+                        <ToggleControl
+                            label={ __( 'Mark as Sponsored', 'khm-membership' ) }
+                            checked={ !! sponsorToggle }
+                            onChange={ ( val ) => {
+                                const nextDocIds = sponsorPreview.map( ( doc ) => doc.id );
+                                setAttributes( {
+                                    sponsorToggle: val,
+                                    citationOrdering: val ? 'sponsor_first' : '',
+                                    sponsorDocIds: val ? nextDocIds : [],
+                                } );
+                                if ( val && sponsorId ) {
+                                    setAttributes( { citations: reorderCitationsSponsorFirst( citations || [], sponsorId ) } );
+                                }
+                                persistSponsorToggle( val, { sponsorId: sponsorId || 0, sponsorDocIds: nextDocIds } );
+                            } }
+                        />
+                    </PanelRow>
+                    <SelectControl
+                        label={ __( 'Sponsor', 'khm-membership' ) }
+                        value={ sponsorId || 0 }
+                        options={ sponsorOptions }
+                        onChange={ ( value ) => {
+                            const nextId = Number( value || 0 );
+                            const match = sponsorDocs.find( ( doc ) => Number( doc.sponsor_id || 0 ) === nextId );
+                            const nextDocIds = ( sponsorDocs || [] )
+                                .filter( ( doc ) => Number( doc.sponsor_id || 0 ) === nextId && doc.approved )
+                                .slice( 0, 3 )
+                                .map( ( doc ) => doc.id );
+                            setAttributes( {
+                                sponsorId: nextId,
+                                sponsorName: match?.sponsor_name || match?.meta?.sponsor_name || sponsorName || '',
+                                sponsorDocIds: nextDocIds,
+                            } );
+                            if ( sponsorToggle && nextId ) {
+                                setAttributes( { citations: reorderCitationsSponsorFirst( citations || [], nextId ), citationOrdering: 'sponsor_first' } );
+                                persistSponsorToggle( true, { sponsorId: nextId, sponsorDocIds: nextDocIds } );
+                            }
+                        } }
+                    />
+                    <TextControl
+                        label={ __( 'Sponsor name', 'khm-membership' ) }
+                        value={ sponsorName || '' }
+                        onChange={ ( value ) => setAttributes( { sponsorName: value } ) }
+                    />
+                    <TextControl
+                        label={ __( 'Sponsor URL', 'khm-membership' ) }
+                        value={ sponsorUrl || '' }
+                        onChange={ ( value ) => setAttributes( { sponsorUrl: value } ) }
+                    />
+                    <ToggleControl
+                        label={ __( 'Require approval before schema', 'khm-membership' ) }
+                        checked={ sponsorRequiresApproval !== false }
+                        onChange={ ( value ) => {
+                            setAttributes( { sponsorRequiresApproval: value } );
+                            if ( sponsorToggle ) {
+                                persistSponsorToggle( true, { sponsorRequiresApproval: value } );
+                            }
+                        } }
+                    />
+                    <ToggleControl
+                        label={ __( 'Sponsor approved', 'khm-membership' ) }
+                        checked={ !! sponsorApproved }
+                        onChange={ ( value ) => {
+                            setAttributes( { sponsorApproved: value } );
+                            if ( sponsorToggle ) {
+                                persistSponsorToggle( true, { sponsorApproved: value } );
+                            }
+                        } }
+                    />
+                    <TextControl
+                        label={ __( 'Sponsor boost (0.00–0.10)', 'khm-membership' ) }
+                        type="number"
+                        min="0"
+                        max="0.1"
+                        step="0.01"
+                        value={ sponsorBoost ?? 0 }
+                        onChange={ ( value ) => {
+                            const numeric = Math.max( 0, Math.min( 0.1, parseFloat( value ) || 0 ) );
+                            setAttributes( { sponsorBoost: numeric } );
+                            if ( sponsorToggle ) {
+                                persistSponsorToggle( true, { sponsorBoost: numeric } );
+                            }
+                        } }
+                    />
+                    <TextareaControl
+                        label={ __( 'Justification', 'khm-membership' ) }
+                        value={ sponsorJustification || '' }
+                        onChange={ ( value ) => {
+                            setAttributes( { sponsorJustification: value } );
+                            if ( sponsorToggle ) {
+                                persistSponsorToggle( true, { sponsorJustification: value } );
+                            }
+                        } }
+                        rows={ 2 }
+                    />
+                    { canApproveSponsor && sponsorRequiresApproval && sponsorToggle && ! sponsorApproved && (
+                        <Button
+                            variant="primary"
+                            onClick={ approveSponsor }
+                            disabled={ sponsorSaving }
+                        >
+                            { __( 'Approve sponsor for schema', 'khm-membership' ) }
+                        </Button>
+                    ) }
+                    { sponsorLoading && <Spinner /> }
+                    { sponsorPreview.length > 0 && (
+                        <div className="khm-sponsor-preview">
+                            <strong>{ __( 'Sponsor documents', 'khm-membership' ) }</strong>
+                            <ul>
+                                { sponsorPreview.map( ( doc ) => (
+                                    <li key={ doc.id }>
+                                        { doc.title }
+                                    </li>
+                                ) ) }
+                            </ul>
+                        </div>
+                    ) }
+                    { sponsorSaving && (
+                        <p className="components-base-control__help">
+                            { __( 'Saving sponsor settings…', 'khm-membership' ) }
+                        </p>
+                    ) }
+                </PanelBody>
+
                 <PanelBody title={ __( 'GEO Score', 'khm-membership' ) } initialOpen={ false }>
                     <PanelRow>
                         <ScoreIndicator score={ score } isLoading={ isScoring } />
@@ -702,93 +1414,262 @@ const Edit = ( props ) => {
                             </ul>
                         </div>
                     ) }
-                    { ( scoreDetails?.reasons || [] ).length > 0 && (
-                        <div className="khm-score-reasons">
-                            <strong>{ __( 'Confidence reasons', 'khm-membership' ) }</strong>
-                            <ul>
-                                { scoreDetails.reasons.map( ( reason ) => (
-                                    <li key={ reason.code }>
-                                        <span>{ reason.label }</span>
-                                        { reason.severity && (
-                                            <span className="khm-score-reasons__severity">
-                                                { reason.severity }
-                                            </span>
-                                        ) }
-                                    </li>
-                                ) ) }
-                            </ul>
-                        </div>
-                    ) }
-                    <PanelRow>
-                        <Button
-                            variant="secondary"
-                            onClick={ calculateScore }
-                            disabled={ isScoring }
-                        >
-                            { __( 'Recompute Score', 'khm-membership' ) }
+                    <div className="khm-reasons-header">
+                        <strong>{ __( 'Confidence reasons', 'khm-membership' ) }</strong>
+                        { scoreDetails?.generated_at && (
+                            <span className="khm-reasons-header__meta">
+                                { __( 'Last run:', 'khm-membership' ) } { scoreDetails.generated_at }
+                            </span>
+                        ) }
+                        { (() => {
+                            const reasons = scoreDetails?.reasons || [];
+                            const issues = reasons.filter( ( reason ) => ( reason.polarity || 'issue' ) === 'issue' );
+                            const supports = reasons.filter( ( reason ) => reason.polarity === 'support' );
+                            const confidenceScore = scoreDetails?.scores?.evidence_confidence ?? scoreDetails?.total_score;
+                            const confidencePercent = Number.isFinite( confidenceScore )
+                                ? `${ Math.round( confidenceScore * 100 ) }%`
+                                : __( 'n/a', 'khm-membership' );
+                            return (
+                                <span className="khm-reasons-header__meta">
+                                    { __( 'Score:', 'khm-membership' ) } { confidencePercent } • { supports.length } { __( 'supports', 'khm-membership' ) } · { issues.length } { __( 'issues', 'khm-membership' ) }
+                                </span>
+                            );
+                        })() }
+                        <Button variant="secondary" onClick={ recomputePersistedScore } disabled={ isScoring }>
+                            { __( 'Recompute score', 'khm-membership' ) }
                         </Button>
-                    </PanelRow>
+                    </div>
+                    { (() => {
+                        const reasons = scoreDetails?.reasons || [];
+                        const issues = reasons.filter( ( reason ) => ( reason.polarity || 'issue' ) === 'issue' );
+                        const supports = reasons.filter( ( reason ) => reason.polarity === 'support' );
+                        return (
+                            <>
+                                { issues.length === 0 && supports.length === 0 && (
+                                    <p className="components-base-control__help">
+                                        { __( 'No confidence issues detected.', 'khm-membership' ) }
+                                    </p>
+                                ) }
+                                { issues.length === 0 && supports.length > 0 && (
+                                    <p className="components-base-control__help">
+                                        { __( 'No confidence issues detected.', 'khm-membership' ) }
+                                    </p>
+                                ) }
+                                { issues.length > 0 && (
+                                    <>
+                                        { issues
+                                            .slice()
+                                            .sort( ( a, b ) => {
+                                                const order = { high: 3, medium: 2, low: 1, info: 0 };
+                                                return ( order[ b.severity ] || 0 ) - ( order[ a.severity ] || 0 );
+                                            } )
+                                            .slice( 0, showAllReasons ? undefined : 3 )
+                                            .map( ( reason, idx ) => (
+                                                <div key={ `reason-${ idx }` } className="khm-reason-item">
+                                                    <div className="khm-reason-item__header">
+                                                        <span>{ reason.label }</span>
+                                                        { reason.severity && (
+                                                            <span className={ `khm-reason-badge khm-reason-badge--${ reason.severity }` }>
+                                                                { reason.severity }
+                                                            </span>
+                                                        ) }
+                                                    </div>
+                                                    { reason.component && (
+                                                        <div className="khm-reason-item__meta">
+                                                            { reason.component }
+                                                        </div>
+                                                    ) }
+                                                    { reason.detail && (
+                                                        <div className="khm-reason-item__detail">
+                                                            { reason.detail }
+                                                        </div>
+                                                    ) }
+                                                    { reason.suggestion && (
+                                                        <div className="khm-reason-item__suggestion">
+                                                            { reason.suggestion }
+                                                        </div>
+                                                    ) }
+                                                    <div className="khm-reason-item__actions">
+                                                        { Number.isInteger( reason.citation_index ) && (
+                                                            <Button
+                                                                variant="link"
+                                                                onClick={ () => openCitationEditor( reason.citation_index ) }
+                                                            >
+                                                                { __( 'Open citation', 'khm-membership' ) }
+                                                            </Button>
+                                                        ) }
+                                                        { reason.entity_name && (
+                                                            <Button
+                                                                variant="secondary"
+                                                                onClick={ () => openEntityResolver( reason.entity_name ) }
+                                                            >
+                                                                { __( 'Resolve entity', 'khm-membership' ) }
+                                                            </Button>
+                                                        ) }
+                                                    </div>
+                                                </div>
+                                            ) ) }
+                                        { issues.length > 3 && (
+                                            <Button variant="link" onClick={ () => setShowAllReasons( ! showAllReasons ) }>
+                                                { showAllReasons ? __( 'Show top 3', 'khm-membership' ) : __( 'Show all', 'khm-membership' ) }
+                                            </Button>
+                                        ) }
+                                    </>
+                                ) }
+                                { supports.length > 0 && (
+                                    <div className="khm-reason-supports">
+                                        <strong>{ __( 'Supports', 'khm-membership' ) }</strong>
+                                        <ul>
+                                            { supports.map( ( reason, idx ) => (
+                                                <li key={ reason.code || `support-${ idx }` }>
+                                                    { reason.label }
+                                                    { reason.detail ? ` — ${ reason.detail }` : '' }
+                                                </li>
+                                            ) ) }
+                                        </ul>
+                                    </div>
+                                ) }
+                                <div className="khm-reason-item__actions">
+                                    <Button
+                                        variant="secondary"
+                                        onClick={ regenerate }
+                                        disabled={ regenStatus === 'processing' || regenStatus === 'queued' }
+                                    >
+                                        { __( 'Regenerate', 'khm-membership' ) }
+                                    </Button>
+                                </div>
+                                { regenJobId && (
+                                    <p className="components-base-control__help">
+                                        { __( 'Regeneration job:', 'khm-membership' ) } { regenJobId } { regenStatus ? `(${ regenStatus })` : '' }
+                                    </p>
+                                ) }
+                                { currentUser?.roles?.includes( 'administrator' ) && (
+                                    <Button
+                                        variant="link"
+                                        onClick={ async () => {
+                                            setShowDiagnostics( ! showDiagnostics );
+                                            if ( ! diagnosticsAudit && postId ) {
+                                                const result = await apiFetch( {
+                                                    path: `/khm-geo/v1/tracker/posts/${ postId }/answercards`,
+                                                    method: 'GET',
+                                                } );
+                                                const cards = result?.cards || [];
+                                                const serverCard = cards.find( ( card ) => card?.answer_card_id === answerCardId );
+                                                setDiagnosticsAudit( serverCard?.audit || [] );
+                                            }
+                                        } }
+                                    >
+                                        { __( 'Show full diagnostics', 'khm-membership' ) }
+                                    </Button>
+                                ) }
+                                { showDiagnostics && (
+                                    <pre className="khm-reason-diagnostics">
+                                        { JSON.stringify( { reasons: scoreDetails?.reasons || [], audit: diagnosticsAudit || [] }, null, 2 ) }
+                                    </pre>
+                                ) }
+                            </>
+                        );
+                    })() }
                     <p className="components-base-control__help">
                         { __( 'Score is also calculated automatically when you save the post.', 'khm-membership' ) }
                     </p>
                 </PanelBody>
 
                 <PanelBody title={ __( 'Topic Discussed At', 'khm-membership' ) } initialOpen={ false }>
-                    <p className="components-base-control__help">
-                        { __( 'Configure where this topic is canonically discussed (your site). This tells AI your page is the human synthesis.', 'khm-membership' ) }
-                    </p>
+                    <div className="khm-topic-status">
+                        <Icon icon={ topicIsComplete ? check : warning } className={ topicIsComplete ? 'is-complete' : 'is-incomplete' } />
+                        <span>
+                            { topicIsComplete
+                                ? __( 'All required fields are populated.', 'khm-membership' )
+                                : __( 'Missing required fields: title, URL, author, publisher, date.', 'khm-membership' ) }
+                        </span>
+                    </div>
+                    { topicDefaultsLoading && (
+                        <p className="components-base-control__help">
+                            { __( 'Loading defaults...', 'khm-membership' ) }
+                        </p>
+                    ) }
+                    { topicDefaultsError && (
+                        <Notice status="warning" isDismissible={ false }>
+                            { topicDefaultsError }
+                        </Notice>
+                    ) }
                     <TextControl
                         label={ __( 'Title', 'khm-membership' ) }
                         value={ topicDiscussedAt?.title || '' }
                         onChange={ ( val ) => updateTopicDiscussedAt( 'title', val ) }
-                        placeholder={ __( 'Auto-filled with post title on save', 'khm-membership' ) }
                     />
                     <TextControl
                         label={ __( 'URL', 'khm-membership' ) }
                         value={ topicDiscussedAt?.url || '' }
                         onChange={ ( val ) => updateTopicDiscussedAt( 'url', val ) }
-                        placeholder={ __( 'Auto-filled with post URL on save', 'khm-membership' ) }
                     />
                     <TextControl
                         label={ __( 'Author', 'khm-membership' ) }
-                        value={ topicDiscussedAt?.author || '' }
-                        onChange={ ( val ) => updateTopicDiscussedAt( 'author', val ) }
-                        placeholder={ __( 'Auto-filled with post author on save', 'khm-membership' ) }
+                        value={ topicAuthorName }
+                        onChange={ ( val ) => {
+                            updateTopicDiscussedAt( 'author', val );
+                            updateTopicDiscussedAt( 'author_name', val );
+                        } }
                     />
                     <TextControl
                         label={ __( 'Publisher', 'khm-membership' ) }
                         value={ topicDiscussedAt?.publisher || '' }
                         onChange={ ( val ) => updateTopicDiscussedAt( 'publisher', val ) }
-                        placeholder={ __( 'Auto-filled with site name on save', 'khm-membership' ) }
                     />
                     <TextControl
                         label={ __( 'Date', 'khm-membership' ) }
                         value={ topicDiscussedAt?.date || '' }
                         onChange={ ( val ) => updateTopicDiscussedAt( 'date', val ) }
-                        placeholder={ __( 'YYYY-MM-DD', 'khm-membership' ) }
+                        help={ dateFormat ? `${ __( 'Format:', 'khm-membership' ) } ${ dateFormat }` : '' }
                     />
+                    { topicDiscussedAt?.date && (
+                        <p className="components-base-control__help">
+                            { __( 'ISO:', 'khm-membership' ) } { parseDateToIso( topicDiscussedAt.date, dateFormat ) || __( 'Invalid date', 'khm-membership' ) }
+                        </p>
+                    ) }
+                    <div className="khm-topic-keywords">
+                        <strong>{ __( 'Site Keywords', 'khm-membership' ) }</strong>
+                        { ( siteKeywords || [] ).length > 0 ? (
+                            <div className="khm-topic-keywords__chips">
+                                { siteKeywords.map( ( keyword, idx ) => (
+                                    <span key={ `kw-${ idx }` } className="khm-topic-keywords__chip">
+                                        { keyword }
+                                    </span>
+                                ) ) }
+                            </div>
+                        ) : (
+                            <p className="components-base-control__help">
+                                { __( 'No site keywords found from SEO metadata.', 'khm-membership' ) }
+                            </p>
+                        ) }
+                        { siteKeywordsSource && siteKeywordsSource !== 'none' && (
+                            <p className="components-base-control__help">
+                                { __( 'Source:', 'khm-membership' ) } { siteKeywordsSource }
+                            </p>
+                        ) }
+                    </div>
+
                     <TextareaControl
-                        label={ __( 'Note', 'khm-membership' ) }
+                        label={ __( 'Additional note', 'khm-membership' ) }
                         value={ topicDiscussedAt?.note || '' }
                         onChange={ ( val ) => updateTopicDiscussedAt( 'note', val ) }
-                        placeholder={ __( 'Optional editorial note about this discussion', 'khm-membership' ) }
+                        placeholder={ __( 'Optional editorial note for the author authority view', 'khm-membership' ) }
                         rows={ 2 }
+                        maxLength={ 280 }
                     />
-                    
-                    <TextControl
-                        label={ __( 'Site Keywords', 'khm-membership' ) }
-                        help={ __( 'Comma-separated keywords for this card. Added to JSON-LD schema.', 'khm-membership' ) }
-                        value={ siteKeywordsAsString }
-                        onChange={ updateSiteKeywordsFromString }
-                        placeholder={ __( 'e.g., customer retention, SaaS metrics, churn', 'khm-membership' ) }
-                    />
-                    
-                    <TextControl
-                        label={ __( 'Public Summary Label', 'khm-membership' ) }
-                        help={ __( 'Optional label displayed above the answer (e.g., "Quick Answer", "Summary").', 'khm-membership' ) }
-                        value={ publicSummaryLabel || '' }
-                        onChange={ ( val ) => setAttributes( { publicSummaryLabel: val } ) }
-                        placeholder={ __( 'e.g., Quick Answer', 'khm-membership' ) }
+
+                    <SelectControl
+                        label={ __( 'Note author', 'khm-membership' ) }
+                        value={ topicDiscussedAt?.author_id || 0 }
+                        onChange={ ( val ) => updateTopicDiscussedAt( 'author_id', parseInt( val, 10 ) || 0 ) }
+                        options={ [
+                            { label: __( 'Select an author', 'khm-membership' ), value: 0 },
+                            ...( authors || [] ).map( ( author ) => ( {
+                                label: author.name || author.slug || author.id,
+                                value: author.id,
+                            } ) ),
+                        ] }
                     />
                 </PanelBody>
 
@@ -828,6 +1709,13 @@ const Edit = ( props ) => {
                                             <blockquote className="khm-source-quote">
                                                 "{ decodeHtmlEntities( evidence.source_passage || evidence.sourcePassage ) }"
                                             </blockquote>
+                                            <TextareaControl
+                                                label={ __( 'Source passage', 'khm-membership' ) }
+                                                value={ evidence.source_passage || evidence.sourcePassage || '' }
+                                                onChange={ ( val ) => setAttributes( { evidence: { ...evidence, source_passage: val } } ) }
+                                                rows={ 3 }
+                                                id="evidence-source-passage"
+                                            />
                                             <Button
                                                 variant="secondary"
                                                 onClick={ useSourcePassageAsQuote }
@@ -860,12 +1748,6 @@ const Edit = ( props ) => {
                     ) }
                 </PanelBody>
 
-                <PanelBody title={ __( 'Confidence Reasons', 'khm-membership' ) } initialOpen={ false }>
-                    <p className="components-base-control__help">
-                        { __( 'Use the GEO Score panel for the latest server-side confidence reasons.', 'khm-membership' ) }
-                    </p>
-                </PanelBody>
-
                 <PanelBody title={ __( 'Citation Details', 'khm-membership' ) } initialOpen={ false }>
                     <p className="components-base-control__help">
                         { __( 'Configure detailed citation metadata for better SEO and attribution.', 'khm-membership' ) }
@@ -890,13 +1772,16 @@ const Edit = ( props ) => {
                                 label={ __( 'URL (Publisher Canonical)', 'khm-membership' ) }
                                 value={ c.url || '' }
                                 onChange={ ( val ) => updateCitation( i, 'url', val ) }
-                                type="url"
+                                type="text"
+                                inputMode="url"
+                                autoComplete="off"
                             />
                             <TextControl
                                 label={ __( 'Author', 'khm-membership' ) }
                                 value={ c.author || '' }
                                 onChange={ ( val ) => updateCitation( i, 'author', val ) }
                                 placeholder="e.g., Jürgen Schröder et al."
+                                id={ `citation-author-${ i }` }
                             />
                             <TextControl
                                 label={ __( 'Publisher', 'khm-membership' ) }
@@ -909,6 +1794,7 @@ const Edit = ( props ) => {
                                 value={ c.year || '' }
                                 onChange={ ( val ) => updateCitation( i, 'year', val ) }
                                 placeholder="e.g., 2020"
+                                id={ `citation-year-${ i }` }
                             />
                             <SelectControl
                                 label={ __( 'Evidence Tier', 'khm-membership' ) }
@@ -949,29 +1835,82 @@ const Edit = ( props ) => {
                     </Button>
                 </PanelBody>
 
-                <PanelBody title={ __( 'Entities (Advanced)', 'khm-membership' ) } initialOpen={ false }>
+                <PanelBody title={ __( 'Card Tags', 'khm-membership' ) } initialOpen={ false }>
                     <p className="components-base-control__help">
-                        { __( 'Add entities with their schema.org sameAs URLs for better semantic linking.', 'khm-membership' ) }
+                        { __( 'Link card tags to canonical entities to improve machine linking. Unresolved tags do not affect scoring.', 'khm-membership' ) }
                     </p>
+                    { normalizedEntities.length > 0 && (
+                        <div className="khm-topic-keywords__chips">
+                            { normalizedEntities.map( ( entity, idx ) => (
+                                <span key={ `tag-${ idx }` } className="khm-topic-keywords__chip">
+                                    { decodeHtmlEntities( entity.name ) || __( 'Untitled', 'khm-membership' ) }
+                                </span>
+                            ) ) }
+                        </div>
+                    ) }
                     { ( entities || [] ).map( ( entity, i ) => (
                         <div key={ `entity-adv-${ i }` } className="khm-entity-advanced">
                             <TextControl
-                                label={ __( 'Entity Name', 'khm-membership' ) }
+                                label={ __( 'Card Tag', 'khm-membership' ) }
                                 value={ entity.name || '' }
                                 onChange={ ( val ) => updateEntity( i, 'name', val ) }
                             />
                             <TextControl
                                 label={ __( 'sameAs URL (optional)', 'khm-membership' ) }
-                                value={ entity.sameAs || '' }
+                                value={ entity.sameAs || entity.same_as || '' }
                                 onChange={ ( val ) => updateEntity( i, 'sameAs', val ) }
                                 placeholder="https://www.wikidata.org/wiki/Q..."
                             />
+                            { (() => {
+                                const normalized = normalizeEntity( entity );
+                                const suggestion = entitySuggestions[ normalized.name ]?.candidates?.[ 0 ];
+                                if ( normalized.sameAs || ! suggestion ) {
+                                    return null;
+                                }
+                                return (
+                                    <div className="khm-entity-resolution__meta">
+                                        { __( 'Suggested:', 'khm-membership' ) } { suggestion.label } { suggestion.qid ? `(${ suggestion.qid })` : '' }
+                                        { suggestion.score !== undefined ? ` • ${ Math.round( suggestion.score * 100 ) }%` : '' }
+                                        <Button
+                                            variant="link"
+                                            onClick={ () => resolveEntityAtIndex( i, suggestion, 'editor' ) }
+                                        >
+                                            { __( 'Accept', 'khm-membership' ) }
+                                        </Button>
+                                        <Button
+                                            variant="link"
+                                            onClick={ () => openResolver( i ) }
+                                        >
+                                            { __( 'View options', 'khm-membership' ) }
+                                        </Button>
+                                    </div>
+                                );
+                            })() }
                             <Button
                                 icon={ trash }
                                 isDestructive
                                 onClick={ () => removeEntity( i ) }
-                                label={ __( 'Remove entity', 'khm-membership' ) }
+                                label={ __( 'Remove tag', 'khm-membership' ) }
                             />
+                            { (() => {
+                                const normalized = normalizeEntity( entity );
+                                return normalized.sameAs ? (
+                                    <Tooltip text={ __( 'Confirmed', 'khm-membership' ) }>
+                                        <span className="khm-entity-resolution__badge khm-entity-resolution__badge--resolved">
+                                            <Icon icon={ check } />
+                                        </span>
+                                    </Tooltip>
+                                ) : (
+                                    <Tooltip text={ __( 'Confirm', 'khm-membership' ) }>
+                                        <Button
+                                            variant="link"
+                                            icon="media-document"
+                                            label={ __( 'Confirm', 'khm-membership' ) }
+                                            onClick={ () => openResolver( i ) }
+                                        />
+                                    </Tooltip>
+                                );
+                            })() }
                         </div>
                     ) ) }
                     <Button
@@ -979,42 +1918,8 @@ const Edit = ( props ) => {
                         icon={ plus }
                         onClick={ addEntity }
                     >
-                        { __( 'Add Entity', 'khm-membership' ) }
+                        { __( 'Add Card Tag', 'khm-membership' ) }
                     </Button>
-                </PanelBody>
-
-                <PanelBody title={ __( 'Entity Resolution', 'khm-membership' ) } initialOpen={ false }>
-                    { normalizedEntities.length === 0 && (
-                        <p className="components-base-control__help">
-                            { __( 'Add entities to resolve them against Wikidata.', 'khm-membership' ) }
-                        </p>
-                    ) }
-                    { normalizedEntities.map( ( entity, index ) => {
-                        const qid = getEntityQid( entity );
-                        return (
-                            <div key={ `entity-res-${ index }` } className="khm-entity-resolution">
-                                <div className="khm-entity-resolution__row">
-                                    <span className="khm-entity-resolution__name">{ decodeHtmlEntities( entity.name ) }</span>
-                                    { qid ? (
-                                        <span className="khm-entity-resolution__badge khm-entity-resolution__badge--resolved">
-                                            { __( 'Resolved', 'khm-membership' ) } { qid }
-                                        </span>
-                                    ) : (
-                                        <span className="khm-entity-resolution__badge khm-entity-resolution__badge--unresolved">
-                                            { __( 'Unresolved', 'khm-membership' ) }
-                                        </span>
-                                    ) }
-                                </div>
-                                <Button
-                                    variant="secondary"
-                                    onClick={ () => openResolver( index ) }
-                                    disabled={ resolverLoading }
-                                >
-                                    { __( 'Resolve', 'khm-membership' ) }
-                                </Button>
-                            </div>
-                        );
-                    } ) }
                 </PanelBody>
 
                 <PanelBody title={ __( 'Help', 'khm-membership' ) } initialOpen={ false }>
@@ -1026,7 +1931,7 @@ const Edit = ( props ) => {
                         <li>{ __( 'Concise Answer: 40-80 words ideal for featured snippets', 'khm-membership' ) }</li>
                         <li>{ __( 'Key Points: Scannable takeaways', 'khm-membership' ) }</li>
                         <li>{ __( 'Citations: Authoritative sources', 'khm-membership' ) }</li>
-                        <li>{ __( 'Entities: Key concepts and topics', 'khm-membership' ) }</li>
+                        <li>{ __( 'Card tags: Key topics for discovery', 'khm-membership' ) }</li>
                     </ul>
                     <ExternalLink href="https://developers.google.com/search/docs/appearance/structured-data/faqpage">
                         { __( 'Learn about FAQ Schema', 'khm-membership' ) }
@@ -1190,17 +2095,17 @@ const Edit = ( props ) => {
 
                 <div className="khm-answer-card-editor__section">
                     <TextControl
-                        label={ __( 'Entities (comma-separated)', 'khm-membership' ) }
+                        label={ __( 'Card Tags (Topics)', 'khm-membership' ) }
                         value={ entitiesAsString }
                         onChange={ updateEntitiesFromString }
                         placeholder={ __( 'e.g., SEO, Content Marketing, Google', 'khm-membership' ) }
-                        help={ __( 'Key topics and concepts this content covers. Use the sidebar for advanced entity linking.', 'khm-membership' ) }
+                        help={ __( 'Key topics and concepts this content covers. Use Advanced to link tags to canonical entities.', 'khm-membership' ) }
                     />
                 </div>
             </div>
             { resolverOpen && (
                 <Modal
-                    title={ __( 'Resolve Entity', 'khm-membership' ) }
+                    title={ __( 'Resolve Card Tag', 'khm-membership' ) }
                     onRequestClose={ () => setResolverOpen( false ) }
                     className="khm-entity-resolver-modal"
                 >
@@ -1218,6 +2123,9 @@ const Edit = ( props ) => {
                             <div className="khm-entity-resolver-candidate__meta">
                                 <strong>{ candidate.label }</strong>
                                 <span>{ candidate.qid }</span>
+                                { candidate.score !== undefined && (
+                                    <span>{ __( 'Score:', 'khm-membership' ) } { Math.round( candidate.score * 100 ) }%</span>
+                                ) }
                             </div>
                             { candidate.description && <p>{ candidate.description }</p> }
                             <div className="khm-entity-resolver-candidate__actions">
@@ -1226,14 +2134,13 @@ const Edit = ( props ) => {
                                     onClick={ () => resolveEntity( candidate, '' ) }
                                     disabled={ resolverLoading }
                                 >
-                                    { __( 'Resolve + Anchor', 'khm-membership' ) }
+                                    { __( 'Accept', 'khm-membership' ) }
                                 </Button>
                                 <Button
                                     variant="secondary"
-                                    onClick={ () => resolveEntity( candidate, 'about' ) }
-                                    disabled={ resolverLoading }
+                                    onClick={ () => setResolverOpen( false ) }
                                 >
-                                    { __( 'Resolve + Add to Page', 'khm-membership' ) }
+                                    { __( 'Reject', 'khm-membership' ) }
                                 </Button>
                             </div>
                         </div>

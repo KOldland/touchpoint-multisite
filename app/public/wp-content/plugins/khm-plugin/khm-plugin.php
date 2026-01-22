@@ -78,6 +78,10 @@ require_once __DIR__ . '/src/GEO/RateLimiter.php';
 require_once __DIR__ . '/src/GEO/SuggestionAuditLogger.php';
 require_once __DIR__ . '/src/GEO/SuggestAnswerCardsEndpoint.php';
 require_once __DIR__ . '/src/GEO/RedirectHandler.php';
+require_once __DIR__ . '/src/Sponsors/SponsorMigration.php';
+require_once __DIR__ . '/src/Sponsors/SponsorAudit.php';
+require_once __DIR__ . '/src/Sponsors/SponsorController.php';
+require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
 
 // Register GEO Suggestion Endpoint at rest_api_init
 add_action( 'rest_api_init', function() {
@@ -97,6 +101,14 @@ add_action( 'rest_api_init', function() {
     }
 } );
 
+// Register Sponsor endpoints
+add_action( 'rest_api_init', function() {
+    if ( class_exists( 'KHM\\Sponsors\\SponsorController' ) ) {
+        $controller = new KHM\Sponsors\SponsorController();
+        $controller->register_routes();
+    }
+} );
+
 // Load GEO Migration (for table creation)
 require_once __DIR__ . '/src/Migrations/GeoAnswerCardMigration.php';
 
@@ -106,6 +118,10 @@ require_once plugin_dir_path(__FILE__) . 'src/Attribution/AttributionManager.php
 // Load Attribution Admin Interface
 if (is_admin()) {
     require_once plugin_dir_path(__FILE__) . 'admin/attribution-admin.php';
+    if ( class_exists( 'KHM\\Sponsors\\SponsorAdminUI' ) ) {
+        $sponsor_admin = new KHM\Sponsors\SponsorAdminUI();
+        $sponsor_admin->register();
+    }
 }
 
 // Initialize Attribution System
@@ -246,6 +262,7 @@ function khm_register_elementor_widgets( $widgets_manager ) {
         'PortalDashboard_Widget.php',
         'PortalCredits_Widget.php',
         'PortalDownloads_Widget.php',
+        'PortalAnswerCards_Widget.php',
         'PortalGiftsSent_Widget.php',
         'PortalMembership_Widget.php',
         'PortalAccount_Widget.php',
@@ -319,6 +336,13 @@ function khm_register_elementor_widgets( $widgets_manager ) {
             $widgets_manager->register( new \KHM\Elementor\Widgets\PortalDownloads_Widget() );
         } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
             $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\PortalDownloads_Widget() );
+        }
+    }
+    if ( class_exists( '\KHM\Elementor\Widgets\PortalAnswerCards_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\PortalAnswerCards_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\PortalAnswerCards_Widget() );
         }
     }
     if ( class_exists( '\KHM\Elementor\Widgets\PortalGiftsSent_Widget' ) ) {
@@ -985,6 +1009,30 @@ register_activation_hook(__FILE__, function () {
         }
     }
 
+    // Initialize answer card library tables
+    if ( class_exists('KHM\\Services\\AnswerCardLibraryService') ) {
+        try {
+            $memberships = new KHM\Services\MembershipRepository();
+            $answercard_library = new KHM\Services\AnswerCardLibraryService($memberships);
+            $answercard_library->create_tables();
+            error_log('KHM AnswerCard Library tables created successfully');
+        } catch (\Exception $e) {
+            error_log('Failed to create answer card library tables: ' . $e->getMessage());
+            $activation_errors[] = 'AnswerCard library tables failed: ' . $e->getMessage();
+        }
+    }
+
+    // Initialize sponsor tables
+    if ( class_exists('KHM\\Sponsors\\SponsorMigration') ) {
+        try {
+            KHM\Sponsors\SponsorMigration::create_tables();
+            error_log('KHM Sponsor tables created successfully');
+        } catch (\Exception $e) {
+            error_log('Failed to create sponsor tables: ' . $e->getMessage());
+            $activation_errors[] = 'Sponsor tables failed: ' . $e->getMessage();
+        }
+    }
+
     // Initialize eCommerce system tables
     if ( class_exists('KHM\\Services\\ECommerceService') ) {
         try {
@@ -1220,6 +1268,17 @@ add_action('init', function() {
         new KHM\PublicFrontend\PortalShortcodes();
     }
 }, 5);
+
+// Ensure answer card library table exists for legacy installs.
+add_action('init', function() {
+    if ( class_exists('KHM\\Services\\AnswerCardLibraryService') ) {
+        $memberships = new KHM\Services\MembershipRepository();
+        $answercard_library = new KHM\Services\AnswerCardLibraryService($memberships);
+        if ( ! $answercard_library->table_exists() ) {
+            $answercard_library->create_tables();
+        }
+    }
+}, 6);
 
 // Register admin menu and pages
 add_action('init', function () {

@@ -11,7 +11,8 @@
     "textdomain": "khm-membership",
     "editorScript": "file:./build/index.js",
     "editorStyle": "file:./build/index.css",
-    "style": "file:./build/index.css",
+    "style": "file:./build/view.css",
+    "viewScript": "file:./build/view.js",
     "attributes": {
         "answerCardId": {
             "type": "string",
@@ -45,6 +46,9 @@
                     "year": { "type": "string" },
                     "tier": { "type": "string", "enum": ["tier1", "tier2", "tier3"] },
                     "doi": { "type": "string" },
+                    "sponsor_id": { "type": "number" },
+                    "sponsor_doc_id": { "type": "number" },
+                    "sponsor_approved": { "type": "boolean" },
                     "keywords": { "type": "array", "items": { "type": "string" } },
                     "trackedUrl": { "type": "string" },
                     "enableTracking": { "type": "boolean" }
@@ -58,7 +62,16 @@
                 "type": "object",
                 "properties": {
                     "name": { "type": "string" },
-                    "sameAs": { "type": "string" }
+                    "sameAs": { "type": "string" },
+                    "same_as": { "type": "string" },
+                    "resolvedBy": { "type": "string" },
+                    "resolved_by": { "type": "string" },
+                    "resolvedConfidence": { "type": "number" },
+                    "resolved_confidence": { "type": "number" },
+                    "resolvedAt": { "type": "string" },
+                    "resolved_at": { "type": "string" },
+                    "resolvedMethod": { "type": "string" },
+                    "resolved_method": { "type": "string" }
                 }
             }
         },
@@ -83,6 +96,8 @@
                 "url": { "type": "string" },
                 "title": { "type": "string" },
                 "author": { "type": "string" },
+                "author_name": { "type": "string" },
+                "author_id": { "type": "number" },
                 "publisher": { "type": "string" },
                 "date": { "type": "string" },
                 "note": { "type": "string" }
@@ -101,6 +116,14 @@
             "type": "string",
             "default": ""
         },
+        "generationOverride": {
+            "type": "boolean",
+            "default": false
+        },
+        "generationOverrideNote": {
+            "type": "string",
+            "default": ""
+        },
         "exposeInSchema": {
             "type": "boolean",
             "default": true
@@ -110,6 +133,47 @@
             "default": false
         },
         "reviewJustification": {
+            "type": "string",
+            "default": ""
+        },
+        "sponsorToggle": {
+            "type": "boolean",
+            "default": false
+        },
+        "sponsorId": {
+            "type": "number",
+            "default": 0
+        },
+        "sponsorName": {
+            "type": "string",
+            "default": ""
+        },
+        "sponsorUrl": {
+            "type": "string",
+            "default": ""
+        },
+        "sponsorBoost": {
+            "type": "number",
+            "default": 0.05
+        },
+        "sponsorRequiresApproval": {
+            "type": "boolean",
+            "default": true
+        },
+        "sponsorApproved": {
+            "type": "boolean",
+            "default": false
+        },
+        "sponsorJustification": {
+            "type": "string",
+            "default": ""
+        },
+        "sponsorDocIds": {
+            "type": "array",
+            "default": [],
+            "items": { "type": "number" }
+        },
+        "citationOrdering": {
             "type": "string",
             "default": ""
         },
