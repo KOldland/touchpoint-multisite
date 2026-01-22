@@ -141,6 +141,12 @@ class Framework_Generator_API {
             if (!$existing_session) {
                 return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
             }
+
+            // Verify session ownership
+            if (!$this->can_access_session($existing_session, $user_id)) {
+                return new WP_Error('rest_forbidden', 'You are not allowed to access this session', array('status' => 403));
+            }
+
             $session_id = $params['session_id'];
         } else {
             $session_id = $db->insert_session($session_data);
@@ -174,15 +180,45 @@ class Framework_Generator_API {
     }
 
     /**
+     * Check if current user can access a session
+     */
+    private function can_access_session($session, $user_id = null) {
+        if ($user_id === null) {
+            $user_id = get_current_user_id();
+        }
+
+        // Admins can access any session
+        if (current_user_can('manage_options')) {
+            return true;
+        }
+
+        // Check session ownership
+        $session_owner_id = null;
+        if (is_array($session) && isset($session['created_by'])) {
+            $session_owner_id = (int) $session['created_by'];
+        } elseif (is_object($session) && isset($session->created_by)) {
+            $session_owner_id = (int) $session->created_by;
+        }
+
+        return $session_owner_id && (int) $user_id === $session_owner_id;
+    }
+
+    /**
      * Get session status
      */
     public function get_session_status($request) {
         $session_id = $request->get_param('session_id');
         $db = new Dual_GPT_DB_Handler();
+        $user_id = get_current_user_id();
 
         $session = $db->get_session($session_id);
         if (!$session) {
             return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+
+        // Verify session ownership
+        if (!$this->can_access_session($session, $user_id)) {
+            return new WP_Error('rest_forbidden', 'You are not allowed to access this session', array('status' => 403));
         }
 
         // Get jobs
@@ -232,28 +268,54 @@ class Framework_Generator_API {
         $params = $request->get_params();
 
         $db = new Dual_GPT_DB_Handler();
+        $user_id = get_current_user_id();
 
-        // Update approved citations
-        if (!empty($params['approved_citation_ids'])) {
-            global $wpdb;
-            $placeholders = str_repeat('%s,', count($params['approved_citation_ids']) - 1) . '%s';
-            $wpdb->query(
-                $wpdb->prepare(
-                    "UPDATE {$wpdb->prefix}fg_validated_citations SET approved = 1 WHERE id IN ($placeholders) AND session_id = %s",
-                    array_merge($params['approved_citation_ids'], array($session_id))
-                )
-            );
+        // Verify session ownership
+        $session = $db->get_session($session_id);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
         }
 
-        // Mark rejected citations
-        if (!empty($params['rejected_citation_ids'])) {
-            $placeholders = str_repeat('%s,', count($params['rejected_citation_ids']) - 1) . '%s';
-            $wpdb->query(
-                $wpdb->prepare(
-                    "UPDATE {$wpdb->prefix}fg_validated_citations SET approved = 0 WHERE id IN ($placeholders) AND session_id = %s",
-                    array_merge($params['rejected_citation_ids'], array($session_id))
-                )
-            );
+        if (!$this->can_access_session($session, $user_id)) {
+            return new WP_Error('rest_forbidden', 'You are not allowed to access this session', array('status' => 403));
+        }
+
+        global $wpdb;
+
+        // Update approved citations - use individual updates for proper SQL safety
+        if (!empty($params['approved_citation_ids']) && is_array($params['approved_citation_ids'])) {
+            foreach ($params['approved_citation_ids'] as $citation_id) {
+                // Validate UUID format
+                if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i', $citation_id)) {
+                    error_log("Invalid UUID format for approved citation: " . sanitize_text_field($citation_id));
+                    continue;
+                }
+                $wpdb->query(
+                    $wpdb->prepare(
+                        "UPDATE {$wpdb->prefix}fg_validated_citations SET approved = 1 WHERE id = %s AND session_id = %s",
+                        $citation_id,
+                        $session_id
+                    )
+                );
+            }
+        }
+
+        // Mark rejected citations - use individual updates for proper SQL safety
+        if (!empty($params['rejected_citation_ids']) && is_array($params['rejected_citation_ids'])) {
+            foreach ($params['rejected_citation_ids'] as $citation_id) {
+                // Validate UUID format
+                if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i', $citation_id)) {
+                    error_log("Invalid UUID format for rejected citation: " . sanitize_text_field($citation_id));
+                    continue;
+                }
+                $wpdb->query(
+                    $wpdb->prepare(
+                        "UPDATE {$wpdb->prefix}fg_validated_citations SET approved = 0 WHERE id = %s AND session_id = %s",
+                        $citation_id,
+                        $session_id
+                    )
+                );
+            }
         }
 
         // Create Phase 3 job
@@ -282,6 +344,8 @@ class Framework_Generator_API {
      */
     public function get_brief($request) {
         $brief_id = $request->get_param('fg_brief_id');
+        $db = new Dual_GPT_DB_Handler();
+        $user_id = get_current_user_id();
 
         global $wpdb;
         $brief = $wpdb->get_row(
@@ -296,6 +360,12 @@ class Framework_Generator_API {
             return new WP_Error('brief_not_found', 'Brief not found', array('status' => 404));
         }
 
+        // Verify session ownership through brief's session_id
+        $session = $db->get_session($brief['session_id']);
+        if (!$session || !$this->can_access_session($session, $user_id)) {
+            return new WP_Error('rest_forbidden', 'You are not allowed to access this brief', array('status' => 403));
+        }
+
         return $brief;
     }
 
@@ -305,6 +375,8 @@ class Framework_Generator_API {
     public function export_brief($request) {
         $brief_id = $request->get_param('fg_brief_id');
         $format = $request->get_param('format');
+        $db = new Dual_GPT_DB_Handler();
+        $user_id = get_current_user_id();
 
         // Get brief
         global $wpdb;
@@ -320,11 +392,17 @@ class Framework_Generator_API {
             return new WP_Error('brief_not_found', 'Brief not found', array('status' => 404));
         }
 
-        // Generate export file (simplified - would need actual implementation)
+        // Verify session ownership
+        $session = $db->get_session($brief['session_id']);
+        if (!$session || !$this->can_access_session($session, $user_id)) {
+            return new WP_Error('rest_forbidden', 'You are not allowed to export this brief', array('status' => 403));
+        }
+
+        // Generate export file
         $file_url = $this->generate_export_file($brief, $format);
 
-        // Record export
-        $wpdb->insert(
+        // Record export with error checking
+        $insert_result = $wpdb->insert(
             $wpdb->prefix . 'fg_exports',
             array(
                 'fg_brief_id' => $brief_id,
@@ -332,6 +410,17 @@ class Framework_Generator_API {
                 'file_url' => $file_url,
             )
         );
+
+        if ($insert_result === false) {
+            return new WP_Error(
+                'export_record_failed',
+                'Failed to record export in database.',
+                array(
+                    'status' => 500,
+                    'db_error' => $wpdb->last_error,
+                )
+            );
+        }
 
         return array(
             'file_url' => $file_url,
@@ -348,6 +437,7 @@ class Framework_Generator_API {
         $instructions = $request->get_param('instructions');
 
         $db = new Dual_GPT_DB_Handler();
+        $user_id = get_current_user_id();
 
         // Get brief
         global $wpdb;
@@ -361,6 +451,12 @@ class Framework_Generator_API {
 
         if (!$brief) {
             return new WP_Error('brief_not_found', 'Brief not found', array('status' => 404));
+        }
+
+        // Verify session ownership
+        $session = $db->get_session($brief['session_id']);
+        if (!$session || !$this->can_access_session($session, $user_id)) {
+            return new WP_Error('rest_forbidden', 'You are not allowed to pass this brief to author', array('status' => 403));
         }
 
         if ($target === 'author-agent') {
@@ -389,20 +485,44 @@ class Framework_Generator_API {
             );
         }
 
-        // For human author, just log
-        $db->insert_audit_log(null, 'passed_to_human', array(
+        // For human author, create a placeholder job to maintain audit trail consistency
+        $human_job_data = array(
+            'session_id' => $brief['session_id'],
+            'model' => 'human-author',
+            'input_prompt' => wp_json_encode(array(
+                'brief' => $brief,
+                'instructions' => $instructions,
+            )),
+            'preset_id' => 'human-default',
+            'idempotency_key' => 'human-' . wp_generate_uuid4(),
+        );
+
+        $human_job_id = $db->insert_job($human_job_data);
+        if (is_wp_error($human_job_id)) {
+            return $human_job_id;
+        }
+
+        $db->insert_audit_log($human_job_id, 'passed_to_human', array(
             'brief_id' => $brief_id,
             'instructions' => $instructions,
         ));
 
-        return array('status' => 'passed_to_human');
+        return array('status' => 'passed_to_human', 'job_id' => $human_job_id);
     }
 
     /**
-     * Generate export file (placeholder)
+     * Generate export file
+     * 
+     * NOTE: This is a placeholder implementation. Full implementation would
+     * generate actual files in various formats (PDF, DOCX, etc.) and save them
+     * to the uploads directory.
      */
     private function generate_export_file($brief, $format) {
-        // This would implement actual file generation
+        // Placeholder: In production, this would create actual export files
+        // Example implementation would:
+        // 1. Create a file in wp-content/uploads/fg-exports/
+        // 2. Populate it with formatted brief content
+        // 3. Return the actual file URL
         // For now, return a placeholder URL
         return home_url('/wp-content/uploads/fg-exports/' . $brief['id'] . '.' . $format);
     }
