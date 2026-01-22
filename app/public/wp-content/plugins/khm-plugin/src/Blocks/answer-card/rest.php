@@ -518,11 +518,9 @@ function get_author_notes( $request ) {
     $notes = array();
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( $table_exists ) {
+        // Fetch all rows and filter in PHP to avoid SQL injection risks with JSON LIKE queries
         $rows = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT post_id, answer_card_id, question, topic_discussed_at FROM {$table} WHERE topic_discussed_at LIKE %s",
-                '%' . $wpdb->esc_like( '"author_id":' . $author_id ) . '%'
-            )
+            "SELECT post_id, answer_card_id, question, topic_discussed_at FROM {$table} WHERE topic_discussed_at IS NOT NULL"
         );
 
         foreach ( $rows as $row ) {

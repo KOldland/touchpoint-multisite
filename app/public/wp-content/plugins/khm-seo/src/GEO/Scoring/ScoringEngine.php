@@ -256,7 +256,7 @@ class ScoringEngine {
             return 1.0;
         }
 
-        if ( empty( $citation['sponsor_id'] ) || empty( $citation['sponsor_approved'] ) ) {
+        if ( empty( $citation['sponsor_id'] ) || $citation['sponsor_approved'] !== true ) {
             return 1.0;
         }
 
