@@ -582,13 +582,26 @@ class Framework_Generator_Workers {
             return null;
         }
 
+        // Validate response structure
+        if (!isset($response['choices'][0]['message']['content']) || !isset($response['usage'])) {
+            error_log('Invalid LLM response structure in generate_framework_brief');
+            return null;
+        }
+
         $content = $response['choices'][0]['message']['content'];
         $usage = $response['usage'];
 
         // Update job with usage
         $db->update_token_usage(get_current_user_id(), ($usage['prompt_tokens'] ?? 0) + ($usage['completion_tokens'] ?? 0));
 
-        return json_decode($content, true);
+        // Validate JSON decode
+        $brief = json_decode($content, true);
+        if ($brief === null && json_last_error() !== JSON_ERROR_NONE) {
+            error_log('Failed to decode LLM response JSON: ' . json_last_error_msg());
+            return null;
+        }
+
+        return $brief;
     }
 
     /**

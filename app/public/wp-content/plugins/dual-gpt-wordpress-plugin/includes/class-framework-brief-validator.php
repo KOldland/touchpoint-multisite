@@ -197,9 +197,15 @@ class Framework_Brief_Validator {
 
             $response = $llm_client->create_chat_completion($messages, 'gpt-4o-mini', array(), 'none');
 
-            if (!is_wp_error($response)) {
+            if (!is_wp_error($response) && isset($response['choices'][0]['message']['content'])) {
                 $new_brief_json = $response['choices'][0]['message']['content'];
                 $new_brief = json_decode($new_brief_json, true);
+                
+                // Skip validation if JSON decode failed
+                if ($new_brief === null && json_last_error() !== JSON_ERROR_NONE) {
+                    continue;
+                }
+                
                 $new_validation = $this->validate($new_brief);
 
                 if ($new_validation['valid']) {
