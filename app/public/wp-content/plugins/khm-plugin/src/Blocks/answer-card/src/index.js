@@ -29,7 +29,7 @@ import {
 import { InspectorControls, useBlockProps } from '@wordpress/block-editor';
 import { Fragment, useState, useCallback, useEffect } from '@wordpress/element';
 import { useSelect } from '@wordpress/data';
-import { trash, plus, warning, info, check } from '@wordpress/icons';
+import { trash, plus, warning, check } from '@wordpress/icons';
 import apiFetch from '@wordpress/api-fetch';
 
 import './editor.scss';
@@ -2131,7 +2131,7 @@ const Edit = ( props ) => {
                             <div className="khm-entity-resolver-candidate__actions">
                                 <Button
                                     variant="primary"
-                                    onClick={ () => resolveEntity( candidate, '' ) }
+                                    onClick={ () => resolveEntity( candidate ) }
                                     disabled={ resolverLoading }
                                 >
                                     { __( 'Accept', 'khm-membership' ) }
