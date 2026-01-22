@@ -300,7 +300,7 @@ class Framework_Generator_Exporter {
                 'file_path' => $file_path,
                 'created_at' => current_time('mysql'),
             ),
-            array('%d', '%s', '%s', '%s', '%s')
+            array('%s', '%s', '%s', '%s', '%s')
         );
     }
 }

@@ -19,6 +19,26 @@ class Editorial_Planner_Plugin {
     public function __construct() {
         $this->worker = new EP_Worker();
         add_action( 'rest_api_init', array( $this, 'register_routes' ) );
+        add_action( 'init', array( $this, 'register_blocks' ) );
+        add_action( 'admin_menu', array( $this, 'register_admin_page' ) );
+    }
+
+    public function register_blocks() {
+        $block_json = __DIR__ . '/block.json';
+        if ( file_exists( $block_json ) ) {
+            register_block_type( __DIR__ );
+        }
+    }
+
+    public function register_admin_page() {
+        add_submenu_page(
+            'tools.php',
+            'Editorial Planner Dashboard',
+            'Editorial Planner',
+            'manage_options',
+            'ep-dashboard',
+            array( $this, 'render_admin_page' )
+        );
     }
 
     public function register_routes() {
@@ -80,6 +100,8 @@ class Editorial_Planner_Plugin {
         }
         $db_handler = new Dual_GPT_DB_Handler();
 
+        self::install_tables();
+
         $preset_data = array(
             'id' => 'ep-editorial-planner',
             'name' => 'Editorial Planner',
@@ -97,8 +119,82 @@ class Editorial_Planner_Plugin {
         }
     }
 
+    private static function install_tables() {
+        global $wpdb;
+
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+        $migrations_dir = __DIR__ . '/sql/migrations';
+        if ( ! is_dir( $migrations_dir ) ) {
+            return;
+        }
+
+        $files = glob( $migrations_dir . '/*.sql' );
+        if ( empty( $files ) ) {
+            return;
+        }
+
+        sort( $files );
+
+        $charset_collate = $wpdb->get_charset_collate();
+
+        foreach ( $files as $file ) {
+            $sql = file_get_contents( $file );
+            if ( false === $sql ) {
+                continue;
+            }
+
+            $sql = str_replace( '`wp_', '`' . $wpdb->prefix, $sql );
+            $sql = str_replace( 'CREATE TABLE wp_', 'CREATE TABLE ' . $wpdb->prefix, $sql );
+            $sql = trim( $sql );
+
+            if ( ! $sql ) {
+                continue;
+            }
+
+            if ( stripos( $sql, 'CHARACTER SET' ) === false && stripos( $sql, 'COLLATE' ) === false ) {
+                $sql = preg_replace( '/\)\s*;$/', ") $charset_collate;", $sql );
+            }
+
+            dbDelta( $sql );
+        }
+    }
+
     public function get_permission() {
         return current_user_can( 'edit_posts' );
+    }
+
+    private function get_db_handler() {
+        if ( class_exists( 'Dual_GPT_DB_Handler' ) ) {
+            return new Dual_GPT_DB_Handler();
+        }
+
+        $db_handler_file = WP_PLUGIN_DIR . '/dual-gpt-wordpress-plugin/includes/class-db-handler.php';
+        if ( file_exists( $db_handler_file ) ) {
+            require_once $db_handler_file;
+            return new Dual_GPT_DB_Handler();
+        }
+
+        return null;
+    }
+
+    private function check_rate_limit( $type, $user_id, $limit, $window_seconds ) {
+        $key = "ep_rate_{$type}_{$user_id}";
+        $data = get_transient( $key );
+        $now = time();
+
+        if ( ! $data || ! isset( $data['window_start'] ) || ( $now - $data['window_start'] ) > $window_seconds ) {
+            set_transient( $key, array( 'window_start' => $now, 'count' => 1 ), $window_seconds );
+            return true;
+        }
+
+        if ( $data['count'] >= $limit ) {
+            return false;
+        }
+
+        $data['count']++;
+        set_transient( $key, $data, $window_seconds );
+        return true;
     }
 
     public function start_session( WP_REST_Request $request ) {
@@ -108,20 +204,24 @@ class Editorial_Planner_Plugin {
             return new WP_Error( 'missing_parameters', 'Missing required parameters.', array( 'status' => 400 ) );
         }
 
-        if ( ! class_exists( 'Dual_GPT_DB_Handler' ) ) {
-            $db_handler_file = WP_PLUGIN_DIR . '/dual-gpt-wordpress-plugin/includes/class-db-handler.php';
-            if ( file_exists( $db_handler_file ) ) {
-                require_once $db_handler_file;
-            } else {
-                return new WP_Error( 'class_not_found', 'Dual_GPT_DB_Handler class not found.', array( 'status' => 500 ) );
-            }
+        $db_handler = $this->get_db_handler();
+        if ( ! $db_handler ) {
+            return new WP_Error( 'class_not_found', 'Dual_GPT_DB_Handler class not found.', array( 'status' => 500 ) );
         }
 
-        $db_handler = new Dual_GPT_DB_Handler();
+        $user_id = get_current_user_id();
+        if ( ! $this->check_rate_limit( 'start', $user_id, 4, 60 ) ) {
+            return new WP_Error( 'rate_limit_exceeded', 'Rate limit exceeded. Please try again later.', array( 'status' => 429 ) );
+        }
+
+        $budget = $db_handler->check_user_budget( $user_id );
+        if ( ( $budget['token_used'] ?? 0 ) >= ( $budget['token_limit'] ?? 0 ) ) {
+            return new WP_Error( 'budget_exceeded', 'Token budget exceeded', array( 'status' => 403 ) );
+        }
 
         $session_data = array(
             'idempotency_key' => $params['idempotency_key'],
-            'created_by'      => get_current_user_id(),
+            'created_by'      => $user_id,
             'status'          => 'queued',
             'meta'            => wp_json_encode( $params ),
         );
@@ -136,6 +236,7 @@ class Editorial_Planner_Plugin {
             'session_id' => $session_id,
             'phase'      => 'phase_1',
             'status'     => 'queued',
+            'idempotency_key' => 'phase1-' . $params['idempotency_key'],
         );
 
         $job_id = $db_handler->insert_job( $job_data );
@@ -144,6 +245,7 @@ class Editorial_Planner_Plugin {
             return $job_id;
         }
 
+        $db_handler->insert_audit_log( $job_id, 'queued', array( 'phase' => 'phase_1' ) );
         wp_schedule_single_event( time(), 'ep_run_phase_1_job', array( $job_id ) );
 
         return new WP_REST_Response(
@@ -160,16 +262,11 @@ class Editorial_Planner_Plugin {
     public function get_session_status( WP_REST_Request $request ) {
         $session_id = $request->get_param( 'session_id' );
 
-        if ( ! class_exists( 'Dual_GPT_DB_Handler' ) ) {
-            $db_handler_file = WP_PLUGIN_DIR . '/dual-gpt-wordpress-plugin/includes/class-db-handler.php';
-            if ( file_exists( $db_handler_file ) ) {
-                require_once $db_handler_file;
-            } else {
-                return new WP_Error( 'class_not_found', 'Dual_GPT_DB_Handler class not found.', array( 'status' => 500 ) );
-            }
+        $db_handler = $this->get_db_handler();
+        if ( ! $db_handler ) {
+            return new WP_Error( 'class_not_found', 'Dual_GPT_DB_Handler class not found.', array( 'status' => 500 ) );
         }
 
-        $db_handler = new Dual_GPT_DB_Handler();
         $session = $db_handler->get_session( $session_id );
 
         if ( empty( $session ) ) {
@@ -183,20 +280,65 @@ class Editorial_Planner_Plugin {
             ARRAY_A
         );
 
-        // TODO: Get results for each phase.
+        $jobs_payload = array();
+        $has_waiting = false;
+        foreach ( $jobs as $job ) {
+            if ( $job['status'] === 'waiting_for_human' ) {
+                $has_waiting = true;
+            }
+            $jobs_payload[] = array(
+                'job_id'         => $job['id'],
+                'phase'          => $job['phase'] ?? null,
+                'status'         => $job['status'],
+                'progress'       => $job['progress'] ?? null,
+                'tokens_used'    => (int) ( ( $job['usage_prompt_tokens'] ?? 0 ) + ( $job['usage_completion_tokens'] ?? 0 ) ),
+                'estimated_cost' => isset( $job['cost_micro'] ) ? ( (float) $job['cost_micro'] / 1000000 ) : null,
+                'cache_hit'      => isset( $job['cache_hit'] ) ? (bool) $job['cache_hit'] : null,
+            );
+        }
 
-        return new WP_REST_Response(
+        $results = array(
+            'phase_1' => array(),
+            'phase_2' => array(),
+            'phase_3' => array(),
+        );
+
+        $citations_table = $wpdb->prefix . 'ep_citations';
+        $citation_count = (int) $wpdb->get_var(
+            $wpdb->prepare( "SELECT COUNT(*) FROM $citations_table WHERE session_id = %s", $session_id )
+        );
+
+        $trends_table = $wpdb->prefix . 'ep_trends';
+        $trend_count = (int) $wpdb->get_var(
+            $wpdb->prepare( "SELECT COUNT(*) FROM $trends_table WHERE session_id = %s", $session_id )
+        );
+
+        $results['phase_1']['citations_count'] = $citation_count;
+        $results['phase_2']['citations_approved'] = (int) $wpdb->get_var(
+            $wpdb->prepare( "SELECT COUNT(*) FROM $citations_table WHERE session_id = %s AND approved = 1", $session_id )
+        );
+        $results['phase_3']['trends_count'] = $trend_count;
+
+        $citations = array();
+        if ( $has_waiting ) {
+            $citations = $wpdb->get_results(
+                $wpdb->prepare( "SELECT * FROM $citations_table WHERE session_id = %s ORDER BY confidence DESC", $session_id ),
+                ARRAY_A
+            );
+        }
+
+        $response = new WP_REST_Response(
             array(
                 'session' => $session,
-                'jobs'    => $jobs,
-                'results' => array(
-                    'phase_1' => new stdClass(),
-                    'phase_2' => new stdClass(),
-                    'phase_3' => new stdClass(),
-                ),
+                'jobs'    => $jobs_payload,
+                'results' => $results,
+                'citations' => $citations,
             ),
             200
         );
+
+        $response->header( 'X-EP-Cache', 'MISS' );
+        return $response;
     }
 
     public function submit_citation_qa( WP_REST_Request $request ) {
@@ -209,6 +351,11 @@ class Editorial_Planner_Plugin {
             return new WP_Error( 'missing_parameters', 'Missing required parameters.', array( 'status' => 400 ) );
         }
 
+        $db_handler = $this->get_db_handler();
+        if ( ! $db_handler ) {
+            return new WP_Error( 'class_not_found', 'Dual_GPT_DB_Handler class not found.', array( 'status' => 500 ) );
+        }
+
         // Update approved citations
         if ( ! empty( $params['approved_citation_ids'] ) ) {
             $citations_table = $wpdb->prefix . 'ep_citations';
@@ -218,20 +365,12 @@ class Editorial_Planner_Plugin {
 
         // Update session meta with rejected citations and additional keywords
         if ( ! empty( $params['rejected_citation_ids'] ) || ! empty( $params['additional_keywords'] ) ) {
-            if ( ! class_exists( 'Dual_GPT_DB_Handler' ) ) {
-                $db_handler_file = WP_PLUGIN_DIR . '/dual-gpt-wordpress-plugin/includes/class-db-handler.php';
-                if ( file_exists( $db_handler_file ) ) {
-                    require_once $db_handler_file;
-                } else {
-                    return new WP_Error( 'class_not_found', 'Dual_GPT_DB_Handler class not found.', array( 'status' => 500 ) );
-                }
-            }
-            $db_handler = new Dual_GPT_DB_Handler();
             $session = $db_handler->get_session( $session_id );
             $meta = json_decode( $session['meta'], true );
 
             if ( ! empty( $params['rejected_citation_ids'] ) ) {
                 $meta['rejected_citations'] = array_merge( $meta['rejected_citations'] ?? [], $params['rejected_citation_ids'] );
+                $meta['rejected_domains'] = array_merge( $meta['rejected_domains'] ?? [], $this->get_rejected_domains( $params['rejected_citation_ids'] ) );
             }
 
             if ( ! empty( $params['additional_keywords'] ) ) {
@@ -254,6 +393,7 @@ class Editorial_Planner_Plugin {
             return $job_id;
         }
 
+        $db_handler->insert_audit_log( $job_id, 'queued', array( 'phase' => 'phase_3' ) );
         wp_schedule_single_event( time(), 'ep_run_phase_3_job', array( $job_id ) );
 
         return new WP_REST_Response(
@@ -274,15 +414,10 @@ class Editorial_Planner_Plugin {
             return new WP_Error( 'missing_parameters', 'Missing idempotency_key.', array( 'status' => 400 ) );
         }
 
-        if ( ! class_exists( 'Dual_GPT_DB_Handler' ) ) {
-            $db_handler_file = WP_PLUGIN_DIR . '/dual-gpt-wordpress-plugin/includes/class-db-handler.php';
-            if ( file_exists( $db_handler_file ) ) {
-                require_once $db_handler_file;
-            } else {
-                return new WP_Error( 'class_not_found', 'Dual_GPT_DB_Handler class not found.', array( 'status' => 500 ) );
-            }
+        $db_handler = $this->get_db_handler();
+        if ( ! $db_handler ) {
+            return new WP_Error( 'class_not_found', 'Dual_GPT_DB_Handler class not found.', array( 'status' => 500 ) );
         }
-        $db_handler = new Dual_GPT_DB_Handler();
 
         $job_data = array(
             'session_id'      => $session_id,
@@ -298,6 +433,7 @@ class Editorial_Planner_Plugin {
             return $job_id;
         }
 
+        $db_handler->insert_audit_log( $job_id, 'queued', array( 'phase' => 'phase_2', 'force_regenerate' => true ) );
         wp_schedule_single_event( time(), 'ep_run_phase_2_job', array( $job_id ) );
 
         return new WP_REST_Response(
@@ -313,15 +449,10 @@ class Editorial_Planner_Plugin {
     public function generate_article_ideas( WP_REST_Request $request ) {
         $session_id = $request->get_param( 'session_id' );
 
-        if ( ! class_exists( 'Dual_GPT_DB_Handler' ) ) {
-            $db_handler_file = WP_PLUGIN_DIR . '/dual-gpt-wordpress-plugin/includes/class-db-handler.php';
-            if ( file_exists( $db_handler_file ) ) {
-                require_once $db_handler_file;
-            } else {
-                return new WP_Error( 'class_not_found', 'Dual_GPT_DB_Handler class not found.', array( 'status' => 500 ) );
-            }
+        $db_handler = $this->get_db_handler();
+        if ( ! $db_handler ) {
+            return new WP_Error( 'class_not_found', 'Dual_GPT_DB_Handler class not found.', array( 'status' => 500 ) );
         }
-        $db_handler = new Dual_GPT_DB_Handler();
 
         $job_data = array(
             'session_id' => $session_id,
@@ -335,6 +466,7 @@ class Editorial_Planner_Plugin {
             return $job_id;
         }
 
+        $db_handler->insert_audit_log( $job_id, 'queued', array( 'phase' => 'phase_3' ) );
         return new WP_REST_Response(
             array(
                 'job_id'  => $job_id,
@@ -343,6 +475,32 @@ class Editorial_Planner_Plugin {
             ),
             202
         );
+    }
+
+    private function get_rejected_domains( $citation_ids ) {
+        global $wpdb;
+        $citations_table = $wpdb->prefix . 'ep_citations';
+        $domains = array();
+
+        if ( empty( $citation_ids ) ) {
+            return $domains;
+        }
+
+        $placeholders = implode( ',', array_fill( 0, count( $citation_ids ), '%s' ) );
+        $results = $wpdb->get_results(
+            $wpdb->prepare( "SELECT url FROM $citations_table WHERE id IN ($placeholders)", $citation_ids ),
+            ARRAY_A
+        );
+
+        foreach ( $results as $row ) {
+            $host = parse_url( $row['url'], PHP_URL_HOST );
+            if ( $host ) {
+                $host = preg_replace( '/^www\./', '', $host );
+                $domains[] = $host;
+            }
+        }
+
+        return array_values( array_unique( $domains ) );
     }
 
     public function get_final_brief( WP_REST_Request $request ) {
@@ -401,7 +559,162 @@ class Editorial_Planner_Plugin {
         }
 
 
-        return new WP_REST_Response( $brief, 200 );
+        $response = new WP_REST_Response( $brief, 200 );
+        $response->header( 'X-EP-Cache', 'MISS' );
+        return $response;
+    }
+
+    public function render_admin_page() {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            return;
+        }
+
+        global $wpdb;
+
+        $session_id = sanitize_text_field( $_GET['session_id'] ?? '' );
+        $created_by = absint( $_GET['created_by'] ?? 0 );
+        $status = sanitize_text_field( $_GET['status'] ?? '' );
+        $start_date = sanitize_text_field( $_GET['start_date'] ?? '' );
+        $end_date = sanitize_text_field( $_GET['end_date'] ?? '' );
+
+        $where = array();
+        $params = array();
+
+        if ( $session_id ) {
+            $where[] = 's.id = %s';
+            $params[] = $session_id;
+        }
+
+        if ( $created_by ) {
+            $where[] = 's.created_by = %d';
+            $params[] = $created_by;
+        }
+
+        if ( $start_date ) {
+            $where[] = 'DATE(s.created_at) >= %s';
+            $params[] = $start_date;
+        }
+
+        if ( $end_date ) {
+            $where[] = 'DATE(s.created_at) <= %s';
+            $params[] = $end_date;
+        }
+
+        if ( $status ) {
+            $where[] = "EXISTS (
+                SELECT 1 FROM {$wpdb->prefix}ai_jobs j
+                WHERE j.session_id = s.id AND j.status = %s
+            )";
+            $params[] = $status;
+        }
+
+        $where_sql = $where ? 'WHERE ' . implode( ' AND ', $where ) : '';
+
+        $query = "
+            SELECT
+                s.id,
+                s.created_by,
+                s.created_at,
+                s.updated_at,
+                s.role,
+                s.idempotency_key,
+                (SELECT COUNT(*) FROM {$wpdb->prefix}ai_jobs j WHERE j.session_id = s.id) AS job_count,
+                (SELECT MAX(j.created_at) FROM {$wpdb->prefix}ai_jobs j WHERE j.session_id = s.id) AS last_job_at,
+                (SELECT SUM(j.usage_prompt_tokens + j.usage_completion_tokens) FROM {$wpdb->prefix}ai_jobs j WHERE j.session_id = s.id) AS total_tokens,
+                (SELECT SUM(j.cost_micro) FROM {$wpdb->prefix}ai_jobs j WHERE j.session_id = s.id) AS total_cost_micro,
+                (SELECT COUNT(*) FROM {$wpdb->prefix}ep_citations c WHERE c.session_id = s.id) AS citations_count,
+                (SELECT COUNT(*) FROM {$wpdb->prefix}ep_citations c WHERE c.session_id = s.id AND c.approved = 1) AS citations_approved,
+                (SELECT COUNT(*) FROM {$wpdb->prefix}ep_trends t WHERE t.session_id = s.id) AS trends_count,
+                (SELECT COUNT(*) FROM {$wpdb->prefix}ep_briefs b WHERE b.session_id = s.id) AS briefs_count
+            FROM {$wpdb->prefix}ai_sessions s
+            $where_sql
+            ORDER BY s.created_at DESC
+            LIMIT 50
+        ";
+
+        $prepared = $params ? $wpdb->prepare( $query, $params ) : $query;
+        $sessions = $wpdb->get_results( $prepared, ARRAY_A );
+
+        ?>
+        <div class="wrap">
+            <h1>Editorial Planner Dashboard</h1>
+            <form method="get">
+                <input type="hidden" name="page" value="ep-dashboard" />
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="session_id">Session ID</label></th>
+                        <td><input type="text" name="session_id" id="session_id" value="<?php echo esc_attr( $session_id ); ?>" class="regular-text" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="created_by">Created By (User ID)</label></th>
+                        <td><input type="number" name="created_by" id="created_by" value="<?php echo esc_attr( $created_by ); ?>" class="small-text" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="status">Job Status</label></th>
+                        <td>
+                            <select name="status" id="status">
+                                <option value="">Any</option>
+                                <?php
+                                $statuses = array( 'queued', 'running', 'waiting_for_human', 'completed', 'failed' );
+                                foreach ( $statuses as $option ) {
+                                    printf(
+                                        '<option value="%1$s"%2$s>%1$s</option>',
+                                        esc_attr( $option ),
+                                        selected( $status, $option, false )
+                                    );
+                                }
+                                ?>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="start_date">Start Date</label></th>
+                        <td><input type="date" name="start_date" id="start_date" value="<?php echo esc_attr( $start_date ); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="end_date">End Date</label></th>
+                        <td><input type="date" name="end_date" id="end_date" value="<?php echo esc_attr( $end_date ); ?>" /></td>
+                    </tr>
+                </table>
+                <?php submit_button( 'Filter' ); ?>
+            </form>
+
+            <table class="widefat fixed striped">
+                <thead>
+                    <tr>
+                        <th>Session ID</th>
+                        <th>Created By</th>
+                        <th>Created At</th>
+                        <th>Jobs</th>
+                        <th>Citations (Approved)</th>
+                        <th>Trends</th>
+                        <th>Briefs</th>
+                        <th>Tokens</th>
+                        <th>Cost (USD)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ( empty( $sessions ) ) : ?>
+                        <tr><td colspan="9">No sessions found.</td></tr>
+                    <?php else : ?>
+                        <?php foreach ( $sessions as $session ) : ?>
+                            <tr>
+                                <td><?php echo esc_html( $session['id'] ); ?></td>
+                                <td><?php echo esc_html( $session['created_by'] ); ?></td>
+                                <td><?php echo esc_html( $session['created_at'] ); ?></td>
+                                <td><?php echo esc_html( $session['job_count'] ); ?></td>
+                                <td><?php echo esc_html( $session['citations_count'] ); ?> (<?php echo esc_html( $session['citations_approved'] ); ?>)</td>
+                                <td><?php echo esc_html( $session['trends_count'] ); ?></td>
+                                <td><?php echo esc_html( $session['briefs_count'] ); ?></td>
+                                <td><?php echo esc_html( (int) ( $session['total_tokens'] ?? 0 ) ); ?></td>
+                                <td><?php echo esc_html( number_format_i18n( ( (int) ( $session['total_cost_micro'] ?? 0 ) ) / 1000000, 6 ) ); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php
     }
 
     public function export_brief( WP_REST_Request $request ) {

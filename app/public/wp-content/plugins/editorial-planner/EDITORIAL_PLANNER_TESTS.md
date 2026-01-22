@@ -79,6 +79,45 @@ curl -X GET http://localhost/wp-json/ep/v1/session/a1b2c3d4-e5f6-7890-1234-56789
   }
 }
 ```
+
+---
+
+## 2a. Validate Phase 1 Domain Diversity (SQL)
+
+> Ensures at least 16 distinct domains are stored for the session.
+
+```sql
+SELECT COUNT(DISTINCT domain) AS distinct_domains
+FROM wp_ep_citations
+WHERE session_id = 'a1b2c3d4-e5f6-7890-1234-567890abcdef';
+```
+
+Expected: `distinct_domains >= 16`
+
+---
+
+## 2b. Validate Phase 2 Citation Diversity (SQL)
+
+> Ensures required source types and org cap rules.
+
+```sql
+SELECT type, COUNT(*) AS type_count
+FROM wp_ep_citations
+WHERE session_id = 'a1b2c3d4-e5f6-7890-1234-567890abcdef'
+GROUP BY type;
+```
+
+Expected: at least 1 each of `academic`, `analyst`, `industry`, `case_study`
+
+```sql
+SELECT organisation, COUNT(*) AS org_count
+FROM wp_ep_citations
+WHERE session_id = 'a1b2c3d4-e5f6-7890-1234-567890abcdef'
+GROUP BY organisation
+ORDER BY org_count DESC;
+```
+
+Expected: no `org_count` > 2
 ---
 
 ## 3. Submit Citation QA
@@ -105,6 +144,21 @@ curl -X POST http://localhost/wp-json/ep/v1/citation-qa/a1b2c3d4-e5f6-7890-1234-
   "message": "Phase 3 generation job has been queued."
 }
 ```
+
+---
+
+## 3a. Validate Regeneration Exclusions (SQL)
+
+> After rejecting a citation domain and regenerating Phase 2, ensure the domain no longer appears.
+
+```sql
+SELECT url
+FROM wp_ep_citations
+WHERE session_id = 'a1b2c3d4-e5f6-7890-1234-567890abcdef'
+  AND domain = 'rejected-domain.example';
+```
+
+Expected: zero rows.
 ---
 
 ## 4. Regenerate Citations
@@ -202,3 +256,45 @@ curl -X GET http://localhost/wp-json/ep/v1/brief/a1b2c3d4-e5f6-7890-1234-567890a
   "produced_at": "2026-02-12T10:00:00Z"
 }
 ```
+
+---
+
+## 6a. Validate Evidence Requirements (SQL)
+
+> Ensures observations contain evidence snippets longer than 20 chars.
+
+```sql
+SELECT observations
+FROM wp_ep_briefs
+WHERE session_id = 'a1b2c3d4-e5f6-7890-1234-567890abcdef';
+```
+
+Expected: `observations.items[].evidence[].passage_snippet` length > 20.
+
+---
+
+## 7. Rate Limit Check
+
+> Make 5 start requests within a minute. The 5th should return 429.
+
+```bash
+for i in {1..5}; do
+  curl -X POST http://localhost/wp-json/ep/v1/start \
+  -H "Content-Type: application/json" \
+  -H "X-WP-Nonce: YOUR_NONCE" \
+  -d '{
+    "broad_focus": ["field service transformation"],
+    "idempotency_key": "rate-test-'$i'"
+  }';
+done
+```
+
+Expected: HTTP 429 on the 5th request.
+
+---
+
+## 8. Budget Enforcement Check
+
+> With a low token budget set for the user, start a session to confirm a 403 response.
+
+Expected: HTTP 403 with `budget_exceeded`.

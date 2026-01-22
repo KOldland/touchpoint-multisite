@@ -99,6 +99,12 @@ class Dual_GPT_Plugin {
         wp_localize_script('dual-gpt-sidebar', 'dualGptData', array(
             'nonce' => wp_create_nonce('wp_rest'),
             'restUrl' => rest_url('dual-gpt/v1/'),
+            'coreSettings' => array(
+                'industry_focus' => get_option('dual_gpt_core_industry_focus', 'General'),
+                'audience_tier' => get_option('dual_gpt_core_audience_tier', 'General'),
+                'risk_tolerance' => get_option('dual_gpt_core_risk_tolerance', 'Moderate'),
+                'brand_profile' => get_option('dual_gpt_core_brand_profile', 'Brand A (FSI)'),
+            ),
         ));
     }
 
@@ -186,6 +192,10 @@ class Dual_GPT_Plugin {
         // Framework Generator endpoints
         $fg_api = new Framework_Generator_API();
         $fg_api->register_routes();
+
+        // Author Agent endpoints
+        $author_api = new Dual_GPT_Author_Agent_API();
+        $author_api->register_routes();
     }
 
     /**
@@ -715,6 +725,12 @@ class Dual_GPT_Plugin {
             return;
         }
 
+        // Author Agent jobs
+        if ($this->is_author_agent_job($job)) {
+            $this->process_author_agent_job($job);
+            return;
+        }
+
         // Special handling for Framework Generator jobs
         if ($this->is_framework_generator_job($job)) {
             $this->process_framework_generator_job($job);
@@ -929,6 +945,60 @@ class Dual_GPT_Plugin {
     }
 
     /**
+     * Check if job should run through Author Agent
+     */
+    private function is_author_agent_job($job) {
+        if (!empty($job['idempotency_key']) && strpos($job['idempotency_key'], 'author-') === 0) {
+            return true;
+        }
+
+        $payload = json_decode($job['input_prompt'] ?? '', true);
+        if (is_array($payload) && !empty($payload['author_mode'])) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Process Author Agent job
+     */
+    private function process_author_agent_job($job) {
+        $db = new Dual_GPT_DB_Handler();
+
+        $db->update_job_status($job['id'], 'running');
+
+        $payload = json_decode($job['input_prompt'] ?? '', true);
+        if (!is_array($payload)) {
+            $db->update_job_status($job['id'], 'failed', array('error_message' => 'Invalid author agent payload.'));
+            return;
+        }
+
+        $agent = new Dual_GPT_Author_Agent();
+        $result = $agent->run($payload, $job['created_by'] ?? get_current_user_id());
+
+        if (is_wp_error($result)) {
+            $db->update_job_status($job['id'], 'failed', array('error_message' => $result->get_error_message()));
+            return;
+        }
+
+        $update_data = array(
+            'response_json' => wp_json_encode($result),
+        );
+
+        if (!empty($result['output']['blocks'])) {
+            $update_data['output_blocks_json'] = wp_json_encode(array('blocks' => $result['output']['blocks']));
+        }
+
+        $db->update_job_status($job['id'], 'completed', $update_data);
+
+        $db->insert_audit_log($job['id'], 'finish', array(
+            'status' => 'completed',
+            'mode' => $result['mode'] ?? null,
+        ));
+    }
+
+    /**
      * Execute a tool
      */
     private function execute_tool($tool_name, $args, $session) {
@@ -1082,6 +1152,30 @@ class Dual_GPT_Plugin {
                             "<p>$content</p>",
                             "<cite>$cite</cite>",
                             "</blockquote>"
+                        ),
+                    );
+                    break;
+
+                case 'pullquote':
+                    $cite = $block_data['cite'] ?? '';
+                    $meta = $block_data['meta'] ?? array();
+                    $data_attrs = '';
+                    foreach ($meta as $key => $value) {
+                        if ($value === '' || $value === null) {
+                            continue;
+                        }
+                        $data_attrs .= ' data-' . esc_attr($key) . '="' . esc_attr($value) . '"';
+                    }
+                    $gutenberg_blocks[] = array(
+                        'blockName' => 'core/pullquote',
+                        'attrs' => array(),
+                        'innerBlocks' => array(),
+                        'innerHTML' => "<figure class=\"wp-block-pullquote\"$data_attrs><blockquote><p>$content</p><cite>$cite</cite></blockquote></figure>",
+                        'innerContent' => array(
+                            "<figure class=\"wp-block-pullquote\"$data_attrs><blockquote>",
+                            "<p>$content</p>",
+                            "<cite>$cite</cite>",
+                            "</blockquote></figure>"
                         ),
                     );
                     break;
@@ -1265,6 +1359,9 @@ class Dual_GPT_Plugin {
         // Include OpenAI connector
         require_once DUAL_GPT_PLUGIN_DIR . 'includes/class-openai-connector.php';
 
+        // Include LLM client
+        require_once DUAL_GPT_PLUGIN_DIR . 'includes/class-llm-client.php';
+
         // Include Framework Generator API
         require_once DUAL_GPT_PLUGIN_DIR . 'includes/class-framework-generator-api.php';
 
@@ -1277,12 +1374,18 @@ class Dual_GPT_Plugin {
         // Include Framework Generator Exporter
         require_once DUAL_GPT_PLUGIN_DIR . 'includes/class-framework-generator-exporter.php';
 
+        // Include Framework Generator Blocks
+        require_once DUAL_GPT_PLUGIN_DIR . 'blocks/citation-qa/citation-qa.php';
+
         // Include Framework Brief Validator
         require_once DUAL_GPT_PLUGIN_DIR . 'includes/class-framework-brief-validator.php';
 
         // Include tool classes
         require_once DUAL_GPT_PLUGIN_DIR . 'includes/tools/class-research-tools.php';
         require_once DUAL_GPT_PLUGIN_DIR . 'includes/tools/class-author-tools.php';
+
+        // Include Author Agent
+        require_once DUAL_GPT_PLUGIN_DIR . 'includes/class-author-agent.php';
 
         // Include admin class
         if (is_admin()) {
@@ -1419,7 +1522,62 @@ class Dual_GPT_Plugin {
             id VARCHAR(36) NOT NULL PRIMARY KEY,
             session_id VARCHAR(36) NOT NULL,
             job_id VARCHAR(36) NULL,
-        // Framework Generator tables
+            brief_id VARCHAR(36) NULL,
+            title TEXT,
+            lead_author VARCHAR(255),
+            publication VARCHAR(255),
+            organisation VARCHAR(255),
+            year SMALLINT,
+            url TEXT,
+            apa_string TEXT,
+            apa_details_available TINYINT(1) DEFAULT 1,
+            passage_snippet TEXT,
+            type VARCHAR(50),
+            tier VARCHAR(10),
+            authority_score FLOAT DEFAULT 0.0,
+            confidence FLOAT DEFAULT 0.5,
+            sponsored TINYINT(1) DEFAULT 0,
+            approved TINYINT(1) DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_session_id (session_id),
+            INDEX idx_org (organisation),
+            INDEX idx_type (type),
+            INDEX idx_brief_id (brief_id),
+            INDEX idx_approved (approved)
+        ) $charset_collate;";
+
+        // Framework Generator Briefs table
+        $table_fg_briefs = $wpdb->prefix . 'fg_briefs';
+        $sql_fg_briefs = "CREATE TABLE $table_fg_briefs (
+            id VARCHAR(36) NOT NULL PRIMARY KEY,
+            session_id VARCHAR(36) NOT NULL,
+            article_idea JSON,
+            title VARCHAR(1000),
+            overview TEXT,
+            context TEXT,
+            application JSON,
+            observations JSON,
+            key_themes JSON,
+            citations JSON,
+            writer_guidance JSON,
+            metadata JSON,
+            produced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            scoring JSON,
+            INDEX idx_session_id (session_id)
+        ) $charset_collate;";
+
+        // Framework Generator Exports table
+        $table_fg_exports = $wpdb->prefix . 'fg_exports';
+        $sql_fg_exports = "CREATE TABLE $table_fg_exports (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            brief_id VARCHAR(36),
+            format VARCHAR(20),
+            file_url TEXT,
+            file_path TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) $charset_collate;";
+
+        // Framework Generator Raw Articles table (staging)
         $table_fg_raw_articles = $wpdb->prefix . 'fg_raw_articles';
         $sql_fg_raw_articles = "CREATE TABLE $table_fg_raw_articles (
             id VARCHAR(36) NOT NULL PRIMARY KEY,
@@ -1438,112 +1596,25 @@ class Dual_GPT_Plugin {
             FOREIGN KEY (session_id) REFERENCES $table_sessions(id) ON DELETE CASCADE
         ) $charset_collate;";
 
-        $table_fg_validated_citations = $wpdb->prefix . 'fg_validated_citations';
-        $sql_fg_validated_citations = "CREATE TABLE $table_fg_validated_citations (
-            id VARCHAR(36) NOT NULL PRIMARY KEY,
-            session_id VARCHAR(36) NOT NULL,
-            job_id VARCHAR(36) NOT NULL,
-            title TEXT,
-            lead_author VARCHAR(255),
-            publication VARCHAR(255),
-            organisation VARCHAR(255),
-            year SMALLINT,
-            url TEXT,
-            apa_string TEXT,
-            apa_details_available TINYINT(1) DEFAULT 1,
-            passage_snippet TEXT,
-            type VARCHAR(50),
-            tier VARCHAR(10),
-            authority_score FLOAT DEFAULT 0.0,
-            confidence FLOAT DEFAULT 0.5,
-            sponsored TINYINT(1) DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_session_id (session_id),
-            INDEX idx_org (organisation),
-            INDEX idx_type (type)
-        ) $charset_collate;";
-
-        // Framework Generator Briefs table
-            year INT,
-            url TEXT,
-            apa_string TEXT,
-            apa_details_available BOOLEAN DEFAULT FALSE,
-            passage_snippet TEXT,
-            type VARCHAR(50),
-            tier VARCHAR(20),
-            authority_score DECIMAL(3,2),
-            confidence DECIMAL(3,2),
-            sponsored BOOLEAN DEFAULT FALSE,
-            approved TINYINT(1) DEFAULT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_session_id (session_id),
-            INDEX idx_job_id (job_id),
-            INDEX idx_approved (approved),
-            FOREIGN KEY (session_id) REFERENCES $table_sessions(id) ON DELETE CASCADE,
-            FOREIGN KEY (job_id) REFERENCES $table_jobs(id) ON DELETE CASCADE
-        ) $charset_collate;";
-
-        $table_fg_briefs = $wpdb->prefix . 'fg_briefs';
-        $sql_fg_briefs = "CREATE TABLE $table_fg_briefs (
-            id VARCHAR(36) NOT NULL PRIMARY KEY,
-            session_id VARCHAR(36) NOT NULL,
-            article_idea JSON,
-            title VARCHAR(1000),
-            title TEXT,
-            overview TEXT,
-            context TEXT,
-            application JSON,
-            observations JSON,
-            key_themes JSON,
-            citations JSON,
-            writer_guidance JSON,
-            metadata JSON,
-            produced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            scoring JSON,
-            INDEX idx_session_id (session_id)
-        ) $charset_collate;";
-
-        // Framework Generator Exports table
-        $table_fg_exports = $wpdb->prefix . 'fg_exports';
-        $sql_fg_exports = "CREATE TABLE $table_fg_exports (
+        // Framework Generator Session Exclusions table
+        $table_fg_exclusions = $wpdb->prefix . 'fg_session_exclusions';
+        $sql_fg_exclusions = "CREATE TABLE $table_fg_exclusions (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            fg_brief_id VARCHAR(36),
-            format VARCHAR(20),
-            file_url TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        ) $charset_collate;";
-
-        // Framework Generator Raw Articles table (staging)
-        $table_fg_raw = $wpdb->prefix . 'fg_raw_articles';
-        $sql_fg_raw = "CREATE TABLE $table_fg_raw (
-            id VARCHAR(36) PRIMARY KEY,
             session_id VARCHAR(36) NOT NULL,
-            title TEXT,
-            url TEXT,
-            domain VARCHAR(255),
-            author VARCHAR(255),
-            date DATE,
-            source_type VARCHAR(50),
-            snippet TEXT,
-            extracted_claims JSON,
-            keywords JSON,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            INDEX(session_id)
-            scoring JSON,
+            domain VARCHAR(255) NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_session_id (session_id),
-            FOREIGN KEY (session_id) REFERENCES $table_sessions(id) ON DELETE CASCADE
+            UNIQUE KEY idx_session_domain (session_id, domain)
         ) $charset_collate;";
 
-        $table_fg_exports = $wpdb->prefix . 'fg_exports';
-        $sql_fg_exports = "CREATE TABLE $table_fg_exports (
-            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            fg_brief_id VARCHAR(36) NOT NULL,
-            format VARCHAR(50) NOT NULL,
-            file_url TEXT,
+        // Framework Generator Session Keywords table
+        $table_fg_keywords = $wpdb->prefix . 'fg_session_keywords';
+        $sql_fg_keywords = "CREATE TABLE $table_fg_keywords (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            session_id VARCHAR(36) NOT NULL,
+            keyword VARCHAR(255) NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_brief_id (fg_brief_id),
-            FOREIGN KEY (fg_brief_id) REFERENCES $table_fg_briefs(id) ON DELETE CASCADE
+            INDEX idx_session_id (session_id)
         ) $charset_collate;";
 
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -1555,11 +1626,9 @@ class Dual_GPT_Plugin {
         dbDelta($sql_fg_citations);
         dbDelta($sql_fg_briefs);
         dbDelta($sql_fg_exports);
-        dbDelta($sql_fg_raw);
         dbDelta($sql_fg_raw_articles);
-        dbDelta($sql_fg_validated_citations);
-        dbDelta($sql_fg_briefs);
-        dbDelta($sql_fg_exports);
+        dbDelta($sql_fg_exclusions);
+        dbDelta($sql_fg_keywords);
     }
 
     /**

@@ -11,7 +11,16 @@ const { apiFetch } = wp;
 
 const DualGPTSidebar = () => {
     const [researchPrompt, setResearchPrompt] = useState('');
-    const [authorPrompt, setAuthorPrompt] = useState('');
+    const [authorMode, setAuthorMode] = useState('draft');
+    const [frameworkBriefId, setFrameworkBriefId] = useState('');
+    const [plannerSessionId, setPlannerSessionId] = useState('');
+    const [authorInstructions, setAuthorInstructions] = useState('');
+    const [authorCoreSettings, setAuthorCoreSettings] = useState({
+        industry_focus: dualGptData?.coreSettings?.industry_focus || 'General',
+        audience_tier: dualGptData?.coreSettings?.audience_tier || 'General',
+        risk_tolerance: dualGptData?.coreSettings?.risk_tolerance || 'Moderate',
+        brand_profile: dualGptData?.coreSettings?.brand_profile || 'Brand A (FSI)',
+    });
     const [researchLoading, setResearchLoading] = useState(false);
     const [authorLoading, setAuthorLoading] = useState(false);
     const [researchResults, setResearchResults] = useState('');
@@ -20,9 +29,15 @@ const DualGPTSidebar = () => {
     const [authorError, setAuthorError] = useState('');
     const [researchJobId, setResearchJobId] = useState(null);
     const [authorJobId, setAuthorJobId] = useState(null);
+    const [authorBlocks, setAuthorBlocks] = useState([]);
+    const [authorAbstract, setAuthorAbstract] = useState(null);
+    const [authorWarnings, setAuthorWarnings] = useState([]);
+    const [authorValidationErrors, setAuthorValidationErrors] = useState([]);
 
     const { insertBlocks } = useDispatch('core/block-editor');
     const { createNotice } = useDispatch('core/notices');
+
+    const draftContent = useSelect((select) => select('core/editor').getEditedPostContent(), []);
 
     const handleResearchSubmit = async () => {
         if (!researchPrompt.trim()) {
@@ -82,42 +97,43 @@ const DualGPTSidebar = () => {
     };
 
     const handleAuthorSubmit = async () => {
-        if (!authorPrompt.trim()) {
-            setAuthorError('Please enter an authoring prompt');
-            return;
-        }
-
         setAuthorLoading(true);
         setAuthorError('');
         setAuthorResults('');
+        setAuthorBlocks([]);
+        setAuthorAbstract(null);
+        setAuthorWarnings([]);
+        setAuthorValidationErrors([]);
 
         try {
-            // First create a session
-            const sessionResponse = await apiFetch({
-                path: 'dual-gpt/v1/sessions',
+            const payload = {
+                mode: authorMode,
+                framework_brief_id: frameworkBriefId || undefined,
+                planner_session_id: plannerSessionId || undefined,
+                draft_content: authorMode !== 'draft' ? draftContent : undefined,
+                instructions: authorInstructions || undefined,
+                core_settings: authorCoreSettings,
+            };
+
+            const response = await apiFetch({
+                path: 'dual-gpt/v1/author/run',
                 method: 'POST',
-                data: {
-                    role: 'author',
-                    title: 'Author Session - ' + new Date().toLocaleString(),
-                },
+                data: payload,
             });
 
-            // Then create the job
-            const jobResponse = await apiFetch({
-                path: 'dual-gpt/v1/jobs',
-                method: 'POST',
-                data: {
-                    session_id: sessionResponse.session_id,
-                    prompt: authorPrompt,
-                    model: 'gpt-4',
-                },
-            });
+            setAuthorWarnings(response.warnings || []);
+            setAuthorValidationErrors(response.validation_errors || []);
 
-            setAuthorJobId(jobResponse.job_id);
-            setAuthorResults('Job submitted successfully. Processing...');
-
-            // Start polling for results
-            pollJobStatus(jobResponse.job_id, 'author');
+            if (response.mode === 'draft') {
+                setAuthorBlocks(response.output?.blocks || []);
+                setAuthorResults('Draft completed successfully.');
+            } else if (response.mode === 'abstract') {
+                setAuthorAbstract(response.output?.abstract || null);
+                setAuthorResults('Abstract completed successfully.');
+            } else if (response.mode === 'enrichment') {
+                setAuthorBlocks(response.output?.blocks || []);
+                setAuthorResults('Enrichment completed successfully.');
+            }
 
         } catch (error) {
             console.error('Author error:', error);
@@ -175,10 +191,47 @@ const DualGPTSidebar = () => {
     };
 
     const insertBlocksFromAuthor = () => {
-        // Placeholder for inserting blocks from author output
-        const blocks = [
-            wp.blocks.createBlock('core/paragraph', { content: 'Sample paragraph from AI' }),
-        ];
+        if (!authorBlocks || authorBlocks.length === 0) {
+            return;
+        }
+
+        const blocks = authorBlocks.map((block) => {
+            switch (block.type) {
+                case 'heading':
+                    return wp.blocks.createBlock('core/heading', {
+                        level: block.level || 2,
+                        content: block.content || '',
+                    });
+                case 'paragraph':
+                    return wp.blocks.createBlock('core/paragraph', {
+                        content: block.content || '',
+                    });
+                case 'list':
+                    const listItems = (block.items || []).map((item) => `<li>${item}</li>`).join('');
+                    const listTag = block.ordered ? 'ol' : 'ul';
+                    return wp.blocks.createBlock('core/list', {
+                        ordered: !!block.ordered,
+                        values: `<${listTag}>${listItems}</${listTag}>`,
+                    });
+                case 'pullquote':
+                    return wp.blocks.createBlock('core/pullquote', {
+                        value: `<p>${block.content || ''}</p>`,
+                        citation: block.cite || '',
+                    });
+                case 'quote':
+                    return wp.blocks.createBlock('core/quote', {
+                        value: `<p>${block.content || ''}</p>`,
+                        citation: block.cite || '',
+                    });
+                case 'separator':
+                    return wp.blocks.createBlock('core/separator', {});
+                default:
+                    return wp.blocks.createBlock('core/paragraph', {
+                        content: block.content || '',
+                    });
+            }
+        });
+
         insertBlocks(blocks);
     };
 
@@ -218,27 +271,71 @@ const DualGPTSidebar = () => {
                 )}
             </PanelBody>
 
-            <PanelBody title="Author Pane" initialOpen={true}>
+            <PanelBody title="Author Agent" initialOpen={true}>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600 }}>Mode</label>
+                <select
+                    value={authorMode}
+                    onChange={(event) => setAuthorMode(event.target.value)}
+                    style={{ width: '100%', marginBottom: '12px' }}
+                >
+                    <option value="draft">Draft</option>
+                    <option value="abstract">Abstract</option>
+                    <option value="enrichment">Enrichment</option>
+                </select>
+
                 <TextareaControl
-                    label="Author Prompt"
-                    value={authorPrompt}
-                    onChange={(value) => {
-                        setAuthorPrompt(value);
-                        if (authorError) setAuthorError(''); // Clear error on input
-                    }}
-                    placeholder="Enter your authoring prompt..."
+                    label="Framework Brief ID"
+                    value={frameworkBriefId}
+                    onChange={(value) => setFrameworkBriefId(value)}
+                    placeholder="FG brief ID (required for draft)"
                 />
+                <TextareaControl
+                    label="Planner Session ID"
+                    value={plannerSessionId}
+                    onChange={(value) => setPlannerSessionId(value)}
+                    placeholder="Editorial Planner session ID (required for draft)"
+                />
+                <TextareaControl
+                    label="Author Instructions (optional)"
+                    value={authorInstructions}
+                    onChange={(value) => setAuthorInstructions(value)}
+                    placeholder="Optional constraints or notes"
+                />
+
+                <PanelBody title="Core Settings" initialOpen={false}>
+                    <TextareaControl
+                        label="Industry Focus"
+                        value={authorCoreSettings.industry_focus}
+                        onChange={(value) => setAuthorCoreSettings({ ...authorCoreSettings, industry_focus: value })}
+                    />
+                    <TextareaControl
+                        label="Audience Tier"
+                        value={authorCoreSettings.audience_tier}
+                        onChange={(value) => setAuthorCoreSettings({ ...authorCoreSettings, audience_tier: value })}
+                    />
+                    <TextareaControl
+                        label="Risk Tolerance"
+                        value={authorCoreSettings.risk_tolerance}
+                        onChange={(value) => setAuthorCoreSettings({ ...authorCoreSettings, risk_tolerance: value })}
+                    />
+                    <TextareaControl
+                        label="Brand Profile"
+                        value={authorCoreSettings.brand_profile}
+                        onChange={(value) => setAuthorCoreSettings({ ...authorCoreSettings, brand_profile: value })}
+                    />
+                </PanelBody>
+
                 <Button
                     isPrimary
                     onClick={handleAuthorSubmit}
-                    disabled={authorLoading || !authorPrompt.trim()}
+                    disabled={authorLoading}
                 >
-                    {authorLoading ? <Spinner /> : 'Generate Content'}
+                    {authorLoading ? <Spinner /> : 'Run Author Agent'}
                 </Button>
                 <Button
                     isSecondary
                     onClick={insertBlocksFromAuthor}
-                    disabled={!authorResults || authorError}
+                    disabled={!authorBlocks.length || authorError}
                     style={{ marginLeft: '10px' }}
                 >
                     Insert Blocks
@@ -248,10 +345,36 @@ const DualGPTSidebar = () => {
                         <strong>Error:</strong> {authorError}
                     </div>
                 )}
+                {authorWarnings.length > 0 && (
+                    <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#fff4e5', border: '1px solid #ffb74d', borderRadius: '4px' }}>
+                        <strong>Warnings:</strong>
+                        <ul>
+                            {authorWarnings.map((warning, index) => (
+                                <li key={index}>{warning}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+                {authorValidationErrors.length > 0 && (
+                    <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#ffe6e6', border: '1px solid #ff9999', borderRadius: '4px' }}>
+                        <strong>Validation Errors:</strong>
+                        <ul>
+                            {authorValidationErrors.map((error, index) => (
+                                <li key={index}>{error}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
                 {authorResults && !authorError && (
                     <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#e6ffe6', border: '1px solid #99ff99', borderRadius: '4px' }}>
                         <strong>Author Results:</strong>
                         <p>{authorResults}</p>
+                    </div>
+                )}
+                {authorAbstract && (
+                    <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#f0f4ff', border: '1px solid #99b5ff', borderRadius: '4px' }}>
+                        <strong>Abstract Output:</strong>
+                        <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(authorAbstract, null, 2)}</pre>
                     </div>
                 )}
             </PanelBody>

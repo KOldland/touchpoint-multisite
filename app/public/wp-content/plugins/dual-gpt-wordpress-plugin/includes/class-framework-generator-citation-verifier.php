@@ -3,6 +3,11 @@
  * Citation Verifier
  *
  * Handles citation verification via CrossRef, OpenAlex, and URL metadata extraction.
+ * This file contains the consolidated logic for the citation verifier, including
+ * client-like functionality for external APIs and URL fetching utilities.
+ *
+ * @package    Dual_GPT_WordPress_Plugin
+ * @subpackage Includes
  */
 
 if (!defined('ABSPATH')) {
@@ -20,6 +25,63 @@ class Framework_Generator_Citation_Verifier {
      * OpenAlex API base URL
      */
     const OPENALEX_API_BASE = 'https://api.openalex.org/works/';
+
+    /**
+     * Main verification method.
+     *
+     * @param array $candidate An array containing 'url', 'doi', and 'title'.
+     * @param int   $job_id    The ID of the job triggering the verification.
+     *
+     * @return array The validated citation data.
+     */
+    public function verify_citation($candidate, $job_id = 0) {
+        $verified_data = [
+            'apa_string' => 'details_unavailable',
+            'apa_details_available' => false,
+            'passage_snippet' => '',
+            'confidence' => 0.0,
+            'url' => $candidate['url'] ?? '',
+            'title' => $candidate['title'] ?? '',
+            'doi' => $candidate['doi'] ?? null,
+        ];
+
+        $doi = $candidate['doi'] ?? $this->extract_doi_from_url($candidate['url']);
+
+        if ($doi) {
+            $academic_meta = $this->fetch_by_doi($doi);
+            if ($academic_meta) {
+                $this->log_verification_attempt($candidate['url'], 'doi_lookup', true, $job_id, 'DOI lookup successful.');
+                $verified_data = array_merge($verified_data, $academic_meta);
+                $verified_data['confidence'] = 0.9;
+                $verified_data['apa_details_available'] = true;
+            } else {
+                 $this->log_verification_attempt($candidate['url'], 'doi_lookup', false, $job_id, 'DOI lookup failed.');
+            }
+        }
+        
+        // If no DOI or academic lookup failed, fetch from URL
+        if (!$verified_data['apa_details_available']) {
+            $url_meta = $this->fetch_url_metadata($candidate['url']);
+            if (!empty($url_meta)) {
+                $this->log_verification_attempt($candidate['url'], 'url_fetch', true, $job_id, 'URL fetch successful.');
+                $verified_data = array_merge($verified_data, $url_meta);
+                $verified_data['confidence'] = max($verified_data['confidence'], 0.6);
+
+                if(!empty($verified_data['apa_string'])) {
+                    $verified_data['apa_details_available'] = true;
+                }
+            } else {
+                 $this->log_verification_attempt($candidate['url'], 'url_fetch', false, $job_id, 'URL fetch failed.');
+            }
+        }
+
+        // Final confidence boost if we have a title
+        if(!empty($verified_data['title'])) {
+             $verified_data['confidence'] = max($verified_data['confidence'], 0.3);
+        }
+
+        return $verified_data;
+    }
 
     /**
      * Fetch URL metadata
@@ -54,7 +116,7 @@ class Framework_Generator_Citation_Verifier {
         if (preg_match_all('/<meta[^>]+name=["\']citation[_-]([^"\']+)["\'][^>]+content=["\']([^"\']+)["\'][^>]*>/i', $html, $matches)) {
             foreach ($matches[1] as $index => $key) {
                 $value = $matches[2][$index];
-                $metadata[$key] = $value;
+                $metadata[strtolower($key)] = $value;
             }
         }
 
@@ -71,9 +133,29 @@ class Framework_Generator_Citation_Verifier {
             $metadata['title'] = trim(strip_tags($title_match[1]));
         }
 
+        // Extract passage snippet
+        if (empty($metadata['passage_snippet'])) {
+            $metadata['passage_snippet'] = $this->extract_passage_snippet($html);
+        }
+
         return $metadata;
     }
 
+    /**
+     * Extract a relevant passage snippet from HTML content.
+     */
+    private function extract_passage_snippet($html) {
+        $text = strip_tags($html, '<p>');
+        $paragraphs = explode('</p>', $text);
+        foreach ($paragraphs as $p) {
+            $trimmed_p = trim(strip_tags($p));
+            if (strlen($trimmed_p) > 100) { // Find a reasonably long paragraph
+                return substr($trimmed_p, 0, 250) . '...';
+            }
+        }
+        return '';
+    }
+    
     /**
      * Extract citation data from JSON-LD
      */
@@ -182,7 +264,8 @@ class Framework_Generator_Citation_Verifier {
         $response = wp_remote_get($url, array(
             'timeout' => 10,
             'headers' => array(
-                'User-Agent' => 'FrameworkGenerator/1.0 (mailto:contact@example.com)',
+                // It is polite to identify your client and provide a contact.
+                'User-Agent' => 'FrameworkGenerator/1.0 (mailto:dev@example.com)',
             ),
         ));
 
@@ -204,14 +287,14 @@ class Framework_Generator_Citation_Verifier {
      */
     private function search_crossref($title) {
         $url = add_query_arg(array(
-            'query' => urlencode($title),
+            'query.bibliographic' => urlencode($title),
             'rows' => 1,
         ), 'https://api.crossref.org/works');
 
         $response = wp_remote_get($url, array(
             'timeout' => 10,
             'headers' => array(
-                'User-Agent' => 'FrameworkGenerator/1.0 (mailto:contact@example.com)',
+                'User-Agent' => 'FrameworkGenerator/1.0 (mailto:dev@example.com)',
             ),
         ));
 
@@ -283,36 +366,37 @@ class Framework_Generator_Citation_Verifier {
 
         // Authors
         if (isset($item['author']) && is_array($item['author'])) {
-            $authors = array();
-            foreach (array_slice($item['author'], 0, 20) as $author) { // Limit to 20 authors
-                if (isset($author['family']) && isset($author['given'])) {
-                    $authors[] = $author['family'] . ', ' . substr($author['given'], 0, 1) . '.';
+            $authors_list = array_slice($item['author'], 0, 20); // APA style limit
+            $author_strings = [];
+            foreach ($authors_list as $author) {
+                if (!empty($author['family']) && !empty($author['given'])) {
+                    $author_strings[] = $author['family'] . ', ' . mb_substr($author['given'], 0, 1) . '.';
+                } elseif (!empty($author['name'])) {
+                     $author_strings[] = $author['name'];
                 }
             }
-            if (!empty($authors)) {
-                if (count($authors) > 1) {
-                    $last_author = array_pop($authors);
-                    $apa_parts[] = implode(', ', $authors) . ', & ' . $last_author;
-                } else {
-                    $apa_parts[] = $authors[0];
-                }
+            if(count($author_strings) > 1) {
+                $last_author = array_pop($author_strings);
+                $apa_parts[] = implode(', ', $author_strings) . ' & ' . $last_author;
+            } elseif(!empty($author_strings)) {
+                $apa_parts[] = $author_strings[0];
             }
         }
 
         // Year
-        if (isset($item['published-print']) && isset($item['published-print']['date-parts'])) {
-            $apa_parts[] = '(' . $item['published-print']['date-parts'][0][0] . ')';
-        } elseif (isset($item['published-online']) && isset($item['published-online']['date-parts'])) {
-            $apa_parts[] = '(' . $item['published-online']['date-parts'][0][0] . ')';
+        if (isset($item['published-print']['date-parts'][0][0])) {
+            $apa_parts[] = '(' . $item['published-print']['date-parts'][0][0] . ').';
+        } elseif (isset($item['published-online']['date-parts'][0][0])) {
+            $apa_parts[] = '(' . $item['published-online']['date-parts'][0][0] . ').';
         }
 
         // Title
-        if (isset($item['title']) && is_array($item['title'])) {
-            $apa_parts[] = '<em>' . $item['title'][0] . '</em>';
+        if (isset($item['title'][0])) {
+            $apa_parts[] = '<em>' . rtrim($item['title'][0], '.') . '.</em>';
         }
 
         // Journal/Publication
-        if (isset($item['container-title']) && is_array($item['container-title'])) {
+        if (isset($item['container-title'][0])) {
             $apa_parts[] = $item['container-title'][0];
         }
 
@@ -321,7 +405,7 @@ class Framework_Generator_Citation_Verifier {
             $apa_parts[] = 'https://doi.org/' . $item['DOI'];
         }
 
-        return implode('. ', $apa_parts) . '.';
+        return implode(' ', $apa_parts);
     }
 
     /**
@@ -333,7 +417,7 @@ class Framework_Generator_Citation_Verifier {
         $response = wp_remote_get($url, array(
             'timeout' => 10,
             'headers' => array(
-                'User-Agent' => 'FrameworkGenerator/1.0 (mailto:contact@example.com)',
+                'User-Agent' => 'FrameworkGenerator/1.0 (mailto:dev@example.com)',
             ),
         ));
 
@@ -362,7 +446,7 @@ class Framework_Generator_Citation_Verifier {
         $response = wp_remote_get($url, array(
             'timeout' => 10,
             'headers' => array(
-                'User-Agent' => 'FrameworkGenerator/1.0 (mailto:contact@example.com)',
+                'User-Agent' => 'FrameworkGenerator/1.0 (mailto:dev@example.com)',
             ),
         ));
 
@@ -426,37 +510,36 @@ class Framework_Generator_Citation_Verifier {
 
         // Authors
         if (isset($item['authorships']) && is_array($item['authorships'])) {
-            $authors = array();
-            foreach (array_slice($item['authorships'], 0, 20) as $authorship) {
+            $authors_list = array_slice($item['authorships'], 0, 20);
+            $author_strings = [];
+            foreach ($authors_list as $authorship) {
                 if (isset($authorship['author']['display_name'])) {
                     $name_parts = explode(' ', $authorship['author']['display_name']);
-                    if (count($name_parts) > 1) {
+                    if(count($name_parts) > 1) {
                         $last_name = array_pop($name_parts);
-                        $first_initial = substr($name_parts[0], 0, 1);
-                        $authors[] = $last_name . ', ' . $first_initial . '.';
+                        $first_initial = mb_substr($name_parts[0], 0, 1);
+                        $author_strings[] = $last_name . ', ' . $first_initial . '.';
                     } else {
-                        $authors[] = $authorship['author']['display_name'];
+                        $author_strings[] = $authorship['author']['display_name'];
                     }
                 }
             }
-            if (!empty($authors)) {
-                if (count($authors) > 1) {
-                    $last_author = array_pop($authors);
-                    $apa_parts[] = implode(', ', $authors) . ', & ' . $last_author;
-                } else {
-                    $apa_parts[] = $authors[0];
-                }
+             if(count($author_strings) > 1) {
+                $last_author = array_pop($author_strings);
+                $apa_parts[] = implode(', ', $author_strings) . ' & ' . $last_author;
+            } elseif(!empty($author_strings)) {
+                $apa_parts[] = $author_strings[0];
             }
         }
 
         // Year
         if (isset($item['publication_year'])) {
-            $apa_parts[] = '(' . $item['publication_year'] . ')';
+            $apa_parts[] = '(' . $item['publication_year'] . ').';
         }
 
         // Title
         if (isset($item['title'])) {
-            $apa_parts[] = '<em>' . $item['title'] . '</em>';
+            $apa_parts[] = '<em>' . rtrim($item['title'],'.') . '.</em>';
         }
 
         // Journal/Publication
@@ -469,19 +552,21 @@ class Framework_Generator_Citation_Verifier {
             $apa_parts[] = $item['doi'];
         }
 
-        return implode('. ', $apa_parts) . '.';
+        return implode(' ', $apa_parts);
     }
 
     /**
      * Log verification attempt
      */
-    public function log_verification_attempt($url, $method, $success, $details = '') {
-        $db = new Dual_GPT_DB_Handler();
-        $db->insert_audit_log(0, 'citation_verification_attempt', array(
-            'url' => $url,
-            'method' => $method,
-            'success' => $success ? 1 : 0,
-            'details' => $details,
-        ));
+    public function log_verification_attempt($url, $method, $success, $job_id = 0, $details = '') {
+        if (class_exists('Dual_GPT_DB_Handler')) {
+            $db = new Dual_GPT_DB_Handler();
+            $db->insert_audit_log($job_id, 'citation_verification_attempt', array(
+                'url' => $url,
+                'method' => $method,
+                'success' => $success ? 1 : 0,
+                'details' => $details,
+            ));
+        }
     }
 }

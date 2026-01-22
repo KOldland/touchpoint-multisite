@@ -103,6 +103,34 @@ class Framework_Generator_API {
                     'type' => 'string',
                     'required' => false,
                 ),
+                'planner_session_id' => array(
+                    'type' => 'string',
+                    'required' => false,
+                ),
+            ),
+        ));
+
+        register_rest_route('fg/v1', '/citation-qa/(?P<session_id>[a-zA-Z0-9-]+)', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'citation_qa'),
+            'permission_callback' => array($this, 'check_permissions'),
+            'args' => array(
+                'approved_citation_ids' => array(
+                    'type' => 'array',
+                    'items' => array('type' => 'integer'),
+                    'required' => true,
+                ),
+                'rejected_citation_ids' => array(
+                    'type' => 'array',
+                    'items' => array('type' => 'integer'),
+                    'required' => true,
+                ),
+                'additional_keywords' => array(
+                    'type' => 'array',
+                    'items' => array('type' => 'string'),
+                    'required' => false,
+                    'default' => array(),
+                ),
             ),
         ));
     }
@@ -115,13 +143,40 @@ class Framework_Generator_API {
     }
 
     /**
+     * Simple per-user rate limiting
+     */
+    private function check_rate_limit($type, $user_id, $limit, $window_seconds) {
+        $key = "fg_rate_{$type}_{$user_id}";
+        $data = get_transient($key);
+        $now = time();
+
+        if (!$data || !isset($data['window_start']) || ($now - $data['window_start']) > $window_seconds) {
+            set_transient($key, array('window_start' => $now, 'count' => 1), $window_seconds);
+            return true;
+        }
+
+        if ($data['count'] >= $limit) {
+            return false;
+        }
+
+        $data['count']++;
+        set_transient($key, $data, $window_seconds);
+        return true;
+    }
+
+    /**
      * Start framework generation
      */
     public function start_framework_generation($request) {
         $db = new Dual_GPT_DB_Handler();
 
-        // Check budget
+        // Check rate limit
         $user_id = get_current_user_id();
+        if (!$this->check_rate_limit('fg_start', $user_id, 5, 3600)) { // 5 per hour
+            return new WP_Error('rate_limit_exceeded', 'Rate limit exceeded. Please try again later.', array('status' => 429));
+        }
+
+        // Check budget
         $budget = $db->check_user_budget($user_id);
         if ($budget['token_used'] >= $budget['token_limit']) {
             return new WP_Error('budget_exceeded', 'Token budget exceeded', array('status' => 403));
@@ -377,9 +432,12 @@ class Framework_Generator_API {
         $format = $request->get_param('format');
         $db = new Dual_GPT_DB_Handler();
         $user_id = get_current_user_id();
-
-        // Get brief
         global $wpdb;
+
+        if (!in_array($format, array('docx', 'html'))) {
+            return new WP_Error('invalid_format', 'Invalid format. Supported: docx, html', array('status' => 400));
+        }
+
         $brief = $wpdb->get_row(
             $wpdb->prepare(
                 "SELECT * FROM {$wpdb->prefix}fg_briefs WHERE id = %s",
@@ -398,33 +456,22 @@ class Framework_Generator_API {
             return new WP_Error('rest_forbidden', 'You are not allowed to export this brief', array('status' => 403));
         }
 
-        // Generate export file
-        $file_url = $this->generate_export_file($brief, $format);
+        $exporter = new Framework_Generator_Exporter();
 
-        // Record export with error checking
-        $insert_result = $wpdb->insert(
-            $wpdb->prefix . 'fg_exports',
-            array(
-                'fg_brief_id' => $brief_id,
-                'format' => $format,
-                'file_url' => $file_url,
-            )
-        );
+        if ($format === 'docx') {
+            $result = $exporter->export_to_docx($brief_id);
+        } else {
+            $result = $exporter->export_to_html($brief_id);
+        }
 
-        if ($insert_result === false) {
-            return new WP_Error(
-                'export_record_failed',
-                'Failed to record export in database.',
-                array(
-                    'status' => 500,
-                    'db_error' => $wpdb->last_error,
-                )
-            );
+        if (is_wp_error($result)) {
+            return $result;
         }
 
         return array(
-            'file_url' => $file_url,
+            'file_url' => $result['file_url'],
             'format' => $format,
+            'filename' => $result['filename'],
         );
     }
 
@@ -435,6 +482,7 @@ class Framework_Generator_API {
         $brief_id = $request->get_param('fg_brief_id');
         $target = $request->get_param('target');
         $instructions = $request->get_param('instructions');
+        $planner_session_id = $request->get_param('planner_session_id');
 
         $db = new Dual_GPT_DB_Handler();
         $user_id = get_current_user_id();
@@ -465,7 +513,9 @@ class Framework_Generator_API {
                 'session_id' => $brief['session_id'],
                 'model' => 'gpt-4',
                 'input_prompt' => wp_json_encode(array(
-                    'brief' => $brief,
+                    'author_mode' => 'draft',
+                    'framework_brief_id' => $brief_id,
+                    'planner_session_id' => $planner_session_id,
                     'instructions' => $instructions,
                 )),
                 'preset_id' => 'author-default',
@@ -511,19 +561,115 @@ class Framework_Generator_API {
     }
 
     /**
-     * Generate export file
-     * 
-     * NOTE: This is a placeholder implementation. Full implementation would
-     * generate actual files in various formats (PDF, DOCX, etc.) and save them
-     * to the uploads directory.
+     * Citation QA endpoint
      */
-    private function generate_export_file($brief, $format) {
-        // Placeholder: In production, this would create actual export files
-        // Example implementation would:
-        // 1. Create a file in wp-content/uploads/fg-exports/
-        // 2. Populate it with formatted brief content
-        // 3. Return the actual file URL
-        // For now, return a placeholder URL
-        return home_url('/wp-content/uploads/fg-exports/' . $brief['id'] . '.' . $format);
+    public function citation_qa($request) {
+        $session_id = $request->get_param('session_id');
+        $approved_citation_ids = $request->get_param('approved_citation_ids');
+        $rejected_citation_ids = $request->get_param('rejected_citation_ids');
+        $additional_keywords = $request->get_param('additional_keywords');
+
+        global $wpdb;
+
+        // Update approved citations
+        if (!empty($approved_citation_ids)) {
+            $placeholders = implode(',', array_fill(0, count($approved_citation_ids), '%d'));
+            $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}fg_validated_citations SET status = 'approved' WHERE id IN ($placeholders)",
+                    $approved_citation_ids
+                )
+            );
+        }
+
+        // Update rejected citations and add domains to exclusions
+        if (!empty($rejected_citation_ids)) {
+            $placeholders = implode(',', array_fill(0, count($rejected_citation_ids), '%d'));
+            $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}fg_validated_citations SET status = 'rejected' WHERE id IN ($placeholders)",
+                    $rejected_citation_ids
+                )
+            );
+
+            // Add domains to exclusions
+            foreach ($rejected_citation_ids as $citation_id) {
+                $citation = $wpdb->get_row(
+                    $wpdb->prepare(
+                        "SELECT url FROM {$wpdb->prefix}fg_validated_citations WHERE id = %d",
+                        $citation_id
+                    ),
+                    ARRAY_A
+                );
+                if ($citation) {
+                    $domain = $this->extract_domain_from_url($citation['url']);
+                    if ($domain) {
+                        $this->add_session_exclusion($session_id, $domain);
+                    }
+                }
+            }
+        }
+
+        // Add additional keywords to session
+        if (!empty($additional_keywords)) {
+            $this->add_session_keywords($session_id, $additional_keywords);
+        }
+
+        // Log audit
+        $db = new Dual_GPT_DB_Handler();
+        $db->insert_audit_log(null, 'citation_qa_completed', array(
+            'session_id' => $session_id,
+            'approved_count' => count($approved_citation_ids),
+            'rejected_count' => count($rejected_citation_ids),
+            'additional_keywords' => $additional_keywords,
+        ));
+
+        return array(
+            'status' => 'qa_completed',
+            'approved_count' => count($approved_citation_ids),
+            'rejected_count' => count($rejected_citation_ids),
+        );
+    }
+
+    /**
+     * Extract domain from URL
+     */
+    private function extract_domain_from_url($url) {
+        $parsed = parse_url($url);
+        return $parsed['host'] ?? '';
+    }
+
+    /**
+     * Add domain to session exclusions
+     */
+    private function add_session_exclusion($session_id, $domain) {
+        global $wpdb;
+        $wpdb->insert(
+            $wpdb->prefix . 'fg_session_exclusions',
+            array(
+                'session_id' => $session_id,
+                'domain' => $domain,
+                'created_at' => current_time('mysql'),
+            ),
+            array('%s', '%s', '%s')
+        );
+    }
+
+    /**
+     * Add keywords to session
+     */
+    private function add_session_keywords($session_id, $keywords) {
+        global $wpdb;
+        foreach ($keywords as $keyword) {
+            $wpdb->insert(
+                $wpdb->prefix . 'fg_session_keywords',
+                array(
+                    'session_id' => $session_id,
+                    'keyword' => $keyword,
+                    'created_at' => current_time('mysql'),
+                ),
+                array('%s', '%s', '%s')
+            );
+        }
     }
 }

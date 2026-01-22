@@ -1,0 +1,25 @@
+{
+    "$schema": "https://schemas.wp.org/trunk/block.json",
+    "apiVersion": 3,
+    "name": "ep/citation-qa",
+    "version": "1.0.0",
+    "title": "Editorial Planner Citation QA",
+    "category": "text",
+    "icon": "editor-help",
+    "description": "Review and approve citations for Editorial Planner sessions.",
+    "keywords": ["citation", "qa", "editorial", "planner"],
+    "textdomain": "editorial-planner",
+    "editorScript": "file:./build/index.js",
+    "editorStyle": "file:./build/index.css",
+    "attributes": {
+        "sessionId": {
+            "type": "string",
+            "default": ""
+        }
+    },
+    "supports": {
+        "customClassName": false,
+        "className": false,
+        "html": false
+    }
+}

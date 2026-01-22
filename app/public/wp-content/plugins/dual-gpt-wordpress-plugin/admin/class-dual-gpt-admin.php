@@ -77,6 +77,10 @@ class Dual_GPT_Admin {
         register_setting('dual_gpt_settings', 'dual_gpt_default_model');
         register_setting('dual_gpt_settings', 'dual_gpt_max_tokens');
         register_setting('dual_gpt_settings', 'dual_gpt_default_budget');
+        register_setting('dual_gpt_settings', 'dual_gpt_core_industry_focus');
+        register_setting('dual_gpt_settings', 'dual_gpt_core_audience_tier');
+        register_setting('dual_gpt_settings', 'dual_gpt_core_risk_tolerance');
+        register_setting('dual_gpt_settings', 'dual_gpt_core_brand_profile');
     }
 
     /**
@@ -150,6 +154,37 @@ class Dual_GPT_Admin {
                         <td>
                             <input type="number" name="dual_gpt_default_budget" value="<?php echo esc_attr(get_option('dual_gpt_default_budget', 100000)); ?>" min="1000" />
                             <p class="description">Default monthly token budget per user.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Industry Focus</th>
+                        <td>
+                            <input type="text" name="dual_gpt_core_industry_focus" value="<?php echo esc_attr(get_option('dual_gpt_core_industry_focus', 'General')); ?>" class="regular-text" />
+                            <p class="description">Core industry focus used by the Author Agent.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Audience Tier</th>
+                        <td>
+                            <input type="text" name="dual_gpt_core_audience_tier" value="<?php echo esc_attr(get_option('dual_gpt_core_audience_tier', 'General')); ?>" class="regular-text" />
+                            <p class="description">Audience tier (e.g., executive, practitioner, general).</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Risk Tolerance</th>
+                        <td>
+                            <input type="text" name="dual_gpt_core_risk_tolerance" value="<?php echo esc_attr(get_option('dual_gpt_core_risk_tolerance', 'Moderate')); ?>" class="regular-text" />
+                            <p class="description">Risk tolerance guiding the Author Agent tone.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Brand Profile</th>
+                        <td>
+                            <select name="dual_gpt_core_brand_profile">
+                                <option value="Brand A (FSI)" <?php selected(get_option('dual_gpt_core_brand_profile', 'Brand A (FSI)'), 'Brand A (FSI)'); ?>>Brand A (FSI)</option>
+                                <option value="Brand B" <?php selected(get_option('dual_gpt_core_brand_profile'), 'Brand B'); ?>>Brand B</option>
+                            </select>
+                            <p class="description">Controls expression only, not reasoning.</p>
                         </td>
                     </tr>
                 </table>

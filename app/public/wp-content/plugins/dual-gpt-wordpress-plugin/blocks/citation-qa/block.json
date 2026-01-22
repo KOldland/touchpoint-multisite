@@ -1,0 +1,29 @@
+{
+    "$schema": "https://schemas.wp.org/trunk/block.json",
+    "apiVersion": 3,
+    "name": "fg/citation-qa",
+    "version": "1.0.0",
+    "title": "Framework Generator Citation QA",
+    "category": "text",
+    "icon": "editor-help",
+    "description": "Review and approve citations for Framework Generator briefs.",
+    "keywords": ["citation", "qa", "framework", "generator"],
+    "textdomain": "dual-gpt-wordpress-plugin",
+    "editorScript": "file:./build/index.js",
+    "editorStyle": "file:./build/index.css",
+    "attributes": {
+        "sessionId": {
+            "type": "string",
+            "default": ""
+        },
+        "briefId": {
+            "type": "string",
+            "default": ""
+        }
+    },
+    "supports": {
+        "customClassName": false,
+        "className": false,
+        "html": false
+    }
+}

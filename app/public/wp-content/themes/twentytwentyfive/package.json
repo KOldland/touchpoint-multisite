@@ -18,15 +18,16 @@
 	},
 	"devDependencies": {
 		"@wordpress/browserslist-config": "^6.34.0",
+		"baseline-browser-mapping": "^2.9.17",
+		"cssnano": "^7.1.2",
 		"postcss": "^8.5.6",
-		"postcss-cli": "^11.0.1",
-		"cssnano": "^7.1.2"
+		"postcss-cli": "^11.0.1"
 	},
 	"browserslist": [
 		"extends @wordpress/browserslist-config"
 	],
-  "scripts": {
-    "build": "postcss style.css --use cssnano -o style.min.css --no-map",
-    "watch": "postcss style.css --use cssnano -o style.min.css --no-map --watch"
-  }
+	"scripts": {
+		"build": "postcss style.css --use cssnano -o style.min.css --no-map",
+		"watch": "postcss style.css --use cssnano -o style.min.css --no-map --watch"
+	}
 }

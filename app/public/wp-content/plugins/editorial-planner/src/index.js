@@ -7,5 +7,6 @@ import './style.scss';
 const container = document.getElementById( 'ep-citation-qa-root' );
 
 if ( container ) {
-    render( <App />, container );
+    const sessionId = container.dataset.sessionId || '';
+    render( <App sessionId={ sessionId } />, container );
 }
