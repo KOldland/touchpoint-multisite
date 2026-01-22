@@ -247,7 +247,7 @@ const openShareModal = ( card, data ) => {
         try {
             // Validate ajaxUrl is from same origin
             const ajaxUrl = data.ajaxUrl || '';
-            if ( ! ajaxUrl.startsWith( window.location.origin ) && ! ajaxUrl.startsWith( '/' ) ) {
+            if ( ! ajaxUrl.startsWith( window.location.origin ) && ! ajaxUrl.startsWith( '/' ) || ajaxUrl.startsWith( '//' ) ) {
                 throw new Error( 'Invalid AJAX URL' );
             }
 

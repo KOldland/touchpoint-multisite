@@ -481,13 +481,6 @@ class SponsorController {
             return array();
         }
         
-        // Double-check all values are positive integers
-        foreach ( $doc_ids as $id ) {
-            if ( ! is_int( $id ) || $id <= 0 ) {
-                return array();
-            }
-        }
-        
         global $wpdb;
         $table = SponsorMigration::docs_table_name();
         $placeholders = implode( ',', array_fill( 0, count( $doc_ids ), '%d' ) );
