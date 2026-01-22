@@ -320,16 +320,24 @@ class ArticleSchema {
             $schema['inLanguage'] = str_replace( '_', '-', $language );
         }
         
-        // Add keywords from tags
+        // Add keywords from tags and SEO meta
+        $keywords = array();
         $tags = \get_the_tags( $post->ID );
         if ( $tags && ! \is_wp_error( $tags ) ) {
             $keywords = array_map( function( $tag ) {
                 return $tag->name;
             }, $tags );
-            
-            if ( ! empty( $keywords ) ) {
-                $schema['keywords'] = $keywords;
-            }
+        }
+
+        $seo_keywords = \get_post_meta( $post->ID, '_khm_seo_keywords', true );
+        if ( ! empty( $seo_keywords ) ) {
+            $seo_keywords = array_map( 'trim', preg_split( '/[,;]+/', $seo_keywords ) );
+            $seo_keywords = array_filter( array_map( 'sanitize_text_field', $seo_keywords ) );
+            $keywords = array_merge( $keywords, $seo_keywords );
+        }
+
+        if ( ! empty( $keywords ) ) {
+            $schema['keywords'] = array_values( array_unique( $keywords ) );
         }
         
         // Add about property for better content understanding

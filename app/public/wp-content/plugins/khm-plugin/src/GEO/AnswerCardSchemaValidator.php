@@ -106,6 +106,8 @@ class AnswerCardSchemaValidator {
                         $this->errors[] = $prefix . "citations[{$cit_index}].url is required";
                     } elseif ( ! filter_var( $citation['url'], FILTER_VALIDATE_URL ) ) {
                         $this->errors[] = $prefix . "citations[{$cit_index}].url must be a valid URL";
+                    } elseif ( strpos( $citation['url'], '...' ) !== false ) {
+                        $this->errors[] = $prefix . "citations[{$cit_index}].url appears truncated";
                     }
                 }
             }

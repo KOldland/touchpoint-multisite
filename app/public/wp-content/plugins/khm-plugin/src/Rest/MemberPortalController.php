@@ -8,6 +8,7 @@ use WP_Error;
 use KHM\Services\MembershipRepository;
 use KHM\Services\CreditService;
 use KHM\Services\LibraryService;
+use KHM\Services\AnswerCardLibraryService;
 use KHM\Services\LevelRepository;
 use KHM\Services\CreditDownloadService;
 
@@ -32,6 +33,7 @@ class MemberPortalController {
     private MembershipRepository $memberships;
     private CreditService $credits;
     private LibraryService $library;
+    private AnswerCardLibraryService $answercards;
     private LevelRepository $levels;
     private CreditDownloadService $downloads;
 
@@ -40,6 +42,7 @@ class MemberPortalController {
         $this->levels = new LevelRepository();
         $this->credits = new CreditService($this->memberships, $this->levels);
         $this->library = new LibraryService($this->memberships);
+        $this->answercards = new AnswerCardLibraryService($this->memberships);
         $this->downloads = new CreditDownloadService($this->memberships, $this->credits, $this->library);
     }
 
@@ -128,6 +131,33 @@ class MemberPortalController {
         register_rest_route('khm/v1', '/portal/library/remove', [
             'methods' => 'POST',
             'callback' => [$this, 'remove_from_library_post'],
+            'permission_callback' => [$this, 'check_auth'],
+        ]);
+
+        // AnswerCards
+        register_rest_route('khm/v1', '/portal/answercards', [
+            'methods' => 'GET',
+            'callback' => [$this, 'get_answercards'],
+            'permission_callback' => [$this, 'check_auth'],
+            'args' => [
+                'limit' => ['type' => 'integer', 'default' => 20],
+                'offset' => ['type' => 'integer', 'default' => 0],
+            ],
+        ]);
+
+        register_rest_route('khm/v1', '/portal/answercards/(?P<post_id>\d+)', [
+            'methods' => 'POST',
+            'callback' => [$this, 'save_answercard'],
+            'permission_callback' => [$this, 'check_auth'],
+            'args' => [
+                'post_id' => ['type' => 'integer', 'required' => true],
+                'answer_card_id' => ['type' => 'string', 'required' => true],
+            ],
+        ]);
+
+        register_rest_route('khm/v1', '/portal/answercards/remove', [
+            'methods' => 'POST',
+            'callback' => [$this, 'remove_answercard'],
             'permission_callback' => [$this, 'check_auth'],
         ]);
 
@@ -558,6 +588,136 @@ class MemberPortalController {
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * GET /portal/answercards - Get saved answer cards
+     */
+    public function get_answercards(WP_REST_Request $request): WP_REST_Response {
+        $user_id = get_current_user_id();
+        $limit = (int) $request->get_param('limit');
+        $offset = (int) $request->get_param('offset');
+
+        $items = $this->answercards->get_member_answercards($user_id, [
+            'limit' => $limit,
+            'offset' => $offset,
+        ]);
+
+        $formatted = array_map(function($item) {
+            $post = get_post($item->post_id);
+            $card = $this->find_answercard($item->post_id, $item->answer_card_id);
+            return [
+                'id' => $item->id,
+                'post_id' => $item->post_id,
+                'answer_card_id' => $item->answer_card_id,
+                'question' => $card['question'] ?? ($post ? $post->post_title : 'Section Summary'),
+                'post_url' => $post ? get_permalink($post->ID) : '#',
+                'saved_at' => $item->created_at,
+            ];
+        }, $items);
+
+        return new WP_REST_Response([
+            'success' => true,
+            'items' => $formatted,
+        ], 200);
+    }
+
+    /**
+     * POST /portal/answercards/{post_id} - Save answer card
+     */
+    public function save_answercard(WP_REST_Request $request): WP_REST_Response {
+        $user_id = get_current_user_id();
+        $post_id = (int) $request->get_param('post_id');
+        $answer_card_id = sanitize_text_field($request->get_param('answer_card_id'));
+        $question = sanitize_text_field($request->get_param('question'));
+
+        if (!$answer_card_id && $question) {
+            $cards = get_post_meta($post_id, '_geo_answercards', true);
+            if (is_array($cards)) {
+                foreach ($cards as $index => $card) {
+                    $card_question = isset($card['question']) ? sanitize_text_field($card['question']) : '';
+                    if ($card_question && $card_question === $question) {
+                        $answer_card_id = $card['answer_card_id'] ?? '';
+                        if (!$answer_card_id && class_exists('\KHM\Migrations\GeoAnswerCardMigration')) {
+                            $answer_card_id = \KHM\Migrations\GeoAnswerCardMigration::generate_answer_card_id($post_id);
+                            $cards[$index]['answer_card_id'] = $answer_card_id;
+                            update_post_meta($post_id, '_geo_answercards', $cards);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!$answer_card_id) {
+            return new WP_REST_Response([
+                'success' => false,
+                'error' => __('Missing answer_card_id.', 'khm-membership'),
+            ], 400);
+        }
+
+        if ($this->answercards->is_saved($user_id, $answer_card_id)) {
+            return new WP_REST_Response([
+                'success' => false,
+                'error' => __('Section summary already saved.', 'khm-membership'),
+            ], 400);
+        }
+
+        $success = $this->answercards->save_to_library($user_id, $post_id, $answer_card_id);
+
+        if ($success) {
+            return new WP_REST_Response([
+                'success' => true,
+                'message' => __('Section summary saved.', 'khm-membership'),
+            ], 200);
+        }
+
+        return new WP_REST_Response([
+            'success' => false,
+            'error' => __('Failed to save section summary.', 'khm-membership'),
+        ], 500);
+    }
+
+    /**
+     * POST /portal/answercards/remove - Remove answer card
+     */
+    public function remove_answercard(WP_REST_Request $request): WP_REST_Response {
+        $user_id = get_current_user_id();
+        $answer_card_id = sanitize_text_field($request->get_param('answer_card_id'));
+
+        if (!$answer_card_id) {
+            return new WP_REST_Response([
+                'success' => false,
+                'error' => __('Missing answer_card_id.', 'khm-membership'),
+            ], 400);
+        }
+
+        $success = $this->answercards->remove_from_library($user_id, $answer_card_id);
+
+        if ($success) {
+            return new WP_REST_Response([
+                'success' => true,
+                'message' => __('Section summary removed.', 'khm-membership'),
+            ], 200);
+        }
+
+        return new WP_REST_Response([
+            'success' => false,
+            'error' => __('Failed to remove section summary.', 'khm-membership'),
+        ], 500);
+    }
+
+    private function find_answercard(int $post_id, string $answer_card_id): array {
+        $cards = get_post_meta($post_id, '_geo_answercards', true);
+        if (!is_array($cards)) {
+            return [];
+        }
+        foreach ($cards as $card) {
+            if (!empty($card['answer_card_id']) && $card['answer_card_id'] === $answer_card_id) {
+                return $card;
+            }
+        }
+        return [];
     }
 
     /**

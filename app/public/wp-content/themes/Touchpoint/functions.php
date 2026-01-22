@@ -576,6 +576,10 @@ JS;
 	wp_add_inline_script( 'jquery', $script );
 } );
 
+/* Enqueue Block Editor Styles for Previews */
+add_action( 'enqueue_block_editor_assets', function() {
+    wp_enqueue_style( 'touchpoint-block-editor', get_template_directory_uri() . '/assets/css/block-editor-style.css', [], '1.0' );
+} );
 
 /* DEque Hello and enque Touch */
 function redirect_hello_elementor_assets() {
@@ -615,6 +619,48 @@ add_action( 'wp_enqueue_scripts', 'redirect_hello_elementor_assets', 11 );
 	}
 		
 add_action('wp_enqueue_scripts', 'touchpointcrm_enqueue_styles', 10); // Priority 10, load first
+
+/* Enqueue Admin Styles */
+add_action('admin_enqueue_scripts', function() {
+    wp_enqueue_style('touchpoint-admin', get_template_directory_uri() . '/assets/css/admin-style.css', [], '1.0');
+});
+
+/* Enqueue Login Styles */
+add_action('login_enqueue_scripts', function() {
+    $logo_url = '';
+    if ( has_custom_logo() ) {
+        $logo_id = get_theme_mod( 'custom_logo' );
+        $logo_url = wp_get_attachment_image_url( $logo_id, 'full' );
+    }
+    if ( ! $logo_url ) {
+        $logo_url = get_template_directory_uri() . '/path/to/default-logo.png'; // Fallback
+    }
+    wp_enqueue_style('touchpoint-login', get_template_directory_uri() . '/assets/css/login-style.css', [], '1.0');
+    wp_add_inline_style('touchpoint-login', "#login h1 a { background-image: url('$logo_url'); }");
+});
+
+/* ACF Field Styling */
+add_action('acf/input/admin_head', function() {
+    echo '<style>
+        .acf-field[data-name="overview"] textarea {
+            background: #fffef5;
+            border-left: 4px solid #6b0b0b;
+        }
+        .acf-field[data-name="key_points"] .acf-repeater .acf-row {
+            border-left: 3px solid #6b0b0b;
+            margin-bottom: 10px;
+            padding-left: 10px;
+        }
+        .acf-field label {
+            font-weight: 600;
+            color: #000;
+        }
+        .acf-field textarea, .acf-field input[type="text"] {
+            border-radius: 4px;
+            border: 1px solid #d0d0d0;
+        }
+    </style>';
+});
 
 /* PDF export (native, no ACF dependency) */
 function touchpointcrm_get_primary_author( $post_id ) {

@@ -344,6 +344,53 @@ class EntityManager {
 
         return $this->update_entity( $entity_id, array( 'same_as' => $deduped ) );
     }
+
+    /**
+     * Commit sameAs data for a canonical entity name.
+     *
+     * @param array $entity_data {canonical, qid, label, provider, type, scope, status}
+     * @return array{entity:object|null,same_as:array}|false
+     */
+    public function commit_same_as( $entity_data ) {
+        $canonical = sanitize_text_field( $entity_data['canonical'] ?? '' );
+        $qid       = sanitize_text_field( $entity_data['qid'] ?? '' );
+        $label     = sanitize_text_field( $entity_data['label'] ?? '' );
+        $provider  = sanitize_text_field( $entity_data['provider'] ?? 'wikidata' );
+
+        if ( ! $canonical || ! $qid ) {
+            return false;
+        }
+
+        $entity = $this->find_entity_by_canonical( $canonical, 'site' );
+        if ( ! $entity ) {
+            $entity_id = $this->create_entity( array(
+                'canonical' => $canonical,
+                'type'      => $entity_data['type'] ?? 'Thing',
+                'scope'     => $entity_data['scope'] ?? 'site',
+                'status'    => $entity_data['status'] ?? 'active',
+            ) );
+            if ( ! $entity_id ) {
+                return false;
+            }
+        } else {
+            $entity_id = $entity->id;
+        }
+
+        $same_as_entry = array(
+            'source' => $provider,
+            'id'     => $qid,
+            'url'    => 'https://www.wikidata.org/wiki/' . $qid,
+            'label'  => $label,
+        );
+
+        $this->set_same_as( $entity_id, array( $same_as_entry ) );
+        $resolved_entity = $this->get_entity( $entity_id );
+
+        return array(
+            'entity'  => $resolved_entity,
+            'same_as' => $same_as_entry,
+        );
+    }
     
     /**
      * Get entity by ID

@@ -387,6 +387,23 @@ class Dual_GPT_DB_Handler {
                 'tool_whitelist' => wp_json_encode(array('outline_from_brief', 'expand_section', 'style_guard', 'citation_guard')),
                 'is_locked' => true,
             ),
+            array(
+                'id' => 'fg-framework-generator',
+                'name' => 'Framework Generator',
+                'role' => 'research',
+                'system_prompt' => 'You are the Framework Generator. Produce a Research Brief from the provided article idea and constraints. Follow the Research Process:
+Phase 1: Foundational Discovery — source 12–16 unique articles across diverse domains (no duplicate domains). Group findings into strategic insight areas. Do not output raw URLs in Phase 1 JSON (persist them separately).
+Phase 2: Deep Dive & Validation — validate 6–8 citations including at least 1 academic journal, 1 analyst report, 1 industry media source, and 1 case study. Use fetch_url and CrossRef/OpenAlex to verify APA metadata. If APA metadata can\'t be verified, set apa_string: \'details_unavailable\'. No invented metadata.
+Phase 3: Synthesis — produce the final Research Brief JSON with required sections. All observations must be grounded in citations with passage_snippets and confidence values. Prioritise 2023–2026 research. Label sponsored citations. Ensure style: grounded, pragmatic, enterprise-informed. Validate output against the framework_brief schema. If validation fails, retry up to 2 times.',
+                'default_model' => 'gpt-4o-mini',
+                'params_json' => wp_json_encode(array(
+                    'temperature' => 0.2,
+                    'max_tokens' => 3000,
+                    'response_format' => array('type' => 'json_object'),
+                )),
+                'tool_whitelist' => wp_json_encode(array('web_search', 'fetch_url', 'summarize_pdf', 'citation_check', 'crossref_api', 'openalex_api')),
+                'is_locked' => true,
+            ),
         );
 
         foreach ($defaults as $preset) {

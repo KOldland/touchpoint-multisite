@@ -1,0 +1,81 @@
+/* Touchpoint Block Editor Styles for Previews */
+
+/* Abstract Block Preview */
+.block-editor-block-list__block .abstract-block {
+    font-family: 'DM Sans', sans-serif;
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    padding: 1.5em;
+    margin-bottom: 1em;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.block-editor-block-list__block .abstract-block h2 {
+    font-family: 'Georgia', serif;
+    color: #000;
+    text-decoration: underline;
+    margin-bottom: 1em;
+}
+
+.block-editor-block-list__block .abstract-block h4 {
+    font-family: 'Georgia', serif;
+    color: #000;
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+}
+
+.block-editor-block-list__block .abstract-block p {
+    color: #6a6a6a;
+    line-height: 1.6;
+    margin-bottom: 1em;
+}
+
+.block-editor-block-list__block .abstract-block ul {
+    margin-left: 1em;
+}
+
+.block-editor-block-list__block .abstract-block li {
+    color: #6a6a6a;
+    margin-bottom: 0.5em;
+}
+
+.block-editor-block-list__block .abstract-block .inline-keywords {
+    font-style: italic;
+}
+
+.block-editor-block-list__block .abstract-block .inline-keywords a {
+    color: #6b0b0b;
+    text-decoration: none;
+}
+
+.block-editor-block-list__block .abstract-block .inline-keywords a:hover {
+    text-decoration: underline;
+}
+
+/* Footnotes Block Preview */
+.block-editor-block-list__block .footnotes-block {
+    background-color: #f8f8f8;
+    border-left: 4px solid #6b0b0b;
+    padding: 1em;
+    margin-bottom: 1em;
+}
+
+.block-editor-block-list__block .footnotes-block h3 {
+    font-family: 'Georgia', serif;
+    color: #000;
+    margin-bottom: 0.5em;
+}
+
+.block-editor-block-list__block .footnotes-block ol {
+    margin-left: 1em;
+}
+
+.block-editor-block-list__block .footnotes-block li {
+    color: #6a6a6a;
+    margin-bottom: 0.5em;
+}
+
+/* General Block Spacing */
+.block-editor-block-list__block {
+    margin-bottom: 2em;
+}

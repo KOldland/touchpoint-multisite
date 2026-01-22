@@ -246,6 +246,8 @@ class PortalAccount_Widget extends Widget_Base {
             wp_localize_script('khm-portal-widgets', 'khmPortalWidgets', [
                 'restUrl' => esc_url_raw(rest_url('khm/v1/portal/')),
                 'restNonce' => wp_create_nonce('wp_rest'),
+                'ajaxUrl' => admin_url('admin-ajax.php'),
+                'shareNonce' => wp_create_nonce('khm_library_nonce'),
                 'strings' => [
                     'saving' => __('Saving...', 'khm-membership'),
                     'saved' => __('Saved!', 'khm-membership'),

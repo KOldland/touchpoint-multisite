@@ -203,13 +203,21 @@ class Framework_Generator_Workers {
      * Validate citation with external APIs
      */
     private function validate_citation($article) {
+        $verifier = new Framework_Generator_Citation_Verifier();
+
         // Fetch URL to get metadata
-        $metadata = $this->fetch_url_metadata($article['url']);
+        $metadata = $verifier->fetch_url_metadata($article['url']);
+        $verifier->log_verification_attempt($article['url'], 'url_metadata', !empty($metadata));
 
         // Try CrossRef/OpenAlex for academic sources
         if ($this->is_academic_source($article['source_type'])) {
-            $api_metadata = $this->fetch_academic_metadata($article['title'], $article['url']);
-            $metadata = array_merge($metadata, $api_metadata);
+            $api_metadata = $verifier->fetch_academic_metadata($article['title'], $article['url']);
+            if ($api_metadata) {
+                $metadata = array_merge($metadata, $api_metadata);
+                $verifier->log_verification_attempt($article['url'], 'academic_api', true, 'Found via ' . (isset($api_metadata['doi']) ? 'DOI' : 'title search'));
+            } else {
+                $verifier->log_verification_attempt($article['url'], 'academic_api', false);
+            }
         }
 
         return array(
@@ -234,8 +242,7 @@ class Framework_Generator_Workers {
      * Fetch URL metadata (simplified)
      */
     private function fetch_url_metadata($url) {
-        // This would use wp_remote_get to fetch and parse metadata
-        // For now, return empty array
+        // This method is now handled by Framework_Generator_Citation_Verifier
         return array();
     }
 
@@ -243,8 +250,7 @@ class Framework_Generator_Workers {
      * Fetch academic metadata from CrossRef/OpenAlex
      */
     private function fetch_academic_metadata($title, $url) {
-        // This would query CrossRef or OpenAlex APIs
-        // For now, return empty array
+        // This method is now handled by Framework_Generator_Citation_Verifier
         return array();
     }
 

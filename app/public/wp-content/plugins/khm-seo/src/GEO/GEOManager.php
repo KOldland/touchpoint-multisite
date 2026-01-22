@@ -702,6 +702,16 @@ class GEOManager {
             'type' => 'array',
             'sanitize_callback' => array( $this, 'sanitize_geo_config' )
         ) );
+
+        register_setting( 'khm_seo_geo', 'khm_geo_public_label', array(
+            'type'              => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+        ) );
+
+        register_setting( 'khm_seo_geo', 'khm_geo_date_format', array(
+            'type'              => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+        ) );
     }
     
     /**
