@@ -50,6 +50,7 @@ add_action('init', function() {
 require_once AM_PATH . 'includes/cpt-ad-unit.php';
 require_once AM_PATH . 'includes/ad-helper.php';
 require_once AM_PATH . 'includes/campaigns.php';
+require_once AM_PATH . 'includes/cpt-sponsor.php';
 require_once AM_PATH . 'includes/tracking.php';
 require_once AM_PATH . 'includes/admin-columns.php';
 require_once AM_PATH . 'includes/render-ad.php';

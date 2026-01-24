@@ -337,40 +337,48 @@ class Framework_Generator_API {
 
         global $wpdb;
 
+        $approved_ids = is_array($params['approved_citation_ids'] ?? null) ? $params['approved_citation_ids'] : array();
+        $rejected_ids = is_array($params['rejected_citation_ids'] ?? null) ? $params['rejected_citation_ids'] : array();
+        $additional_keywords = is_array($params['additional_keywords'] ?? null) ? $params['additional_keywords'] : array();
+
+        if (empty($approved_ids) && empty($rejected_ids)) {
+            return new WP_Error('missing_decisions', 'At least one approved or rejected citation ID is required.', array('status' => 400));
+        }
+
+        $invalid_ids = array();
+
         // Update approved citations - use individual updates for proper SQL safety
-        if (!empty($params['approved_citation_ids']) && is_array($params['approved_citation_ids'])) {
-            foreach ($params['approved_citation_ids'] as $citation_id) {
-                // Validate UUID format
-                if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i', $citation_id)) {
-                    error_log("Invalid UUID format for approved citation: " . sanitize_text_field($citation_id));
-                    continue;
-                }
-                $wpdb->query(
-                    $wpdb->prepare(
-                        "UPDATE {$wpdb->prefix}fg_validated_citations SET approved = 1 WHERE id = %s AND session_id = %s",
-                        $citation_id,
-                        $session_id
-                    )
-                );
+        foreach ($approved_ids as $citation_id) {
+            $citation_id = sanitize_text_field($citation_id);
+            // Validate UUID format
+            if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i', $citation_id)) {
+                $invalid_ids[] = $citation_id;
+                continue;
             }
+            $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}fg_validated_citations SET approved = 1 WHERE id = %s AND session_id = %s",
+                    $citation_id,
+                    $session_id
+                )
+            );
         }
 
         // Mark rejected citations - use individual updates for proper SQL safety
-        if (!empty($params['rejected_citation_ids']) && is_array($params['rejected_citation_ids'])) {
-            foreach ($params['rejected_citation_ids'] as $citation_id) {
-                // Validate UUID format
-                if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i', $citation_id)) {
-                    error_log("Invalid UUID format for rejected citation: " . sanitize_text_field($citation_id));
-                    continue;
-                }
-                $wpdb->query(
-                    $wpdb->prepare(
-                        "UPDATE {$wpdb->prefix}fg_validated_citations SET approved = 0 WHERE id = %s AND session_id = %s",
-                        $citation_id,
-                        $session_id
-                    )
-                );
+        foreach ($rejected_ids as $citation_id) {
+            $citation_id = sanitize_text_field($citation_id);
+            // Validate UUID format
+            if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i', $citation_id)) {
+                $invalid_ids[] = $citation_id;
+                continue;
             }
+            $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}fg_validated_citations SET approved = 0 WHERE id = %s AND session_id = %s",
+                    $citation_id,
+                    $session_id
+                )
+            );
         }
 
         // Create Phase 3 job
@@ -388,9 +396,19 @@ class Framework_Generator_API {
 
         $db->insert_audit_log($job_id, 'queued', array('phase' => 'framework_synthesis'));
 
+        $warnings = array();
+        if (!empty($invalid_ids)) {
+            $warnings[] = 'Some citation IDs were invalid and were skipped.';
+        }
+        if (empty($approved_ids)) {
+            $warnings[] = 'No citations were approved. Framework generation will use remaining data.';
+        }
+
         return array(
             'job_id' => $job_id,
             'status' => 'queued',
+            'warnings' => $warnings,
+            'invalid_ids' => $invalid_ids,
         );
     }
 
@@ -508,10 +526,16 @@ class Framework_Generator_API {
         }
 
         if ($target === 'author-agent') {
+            $model = 'gpt-4o-mini';
+            if (class_exists('\\Dual_GPT\\Dual_GPT_LLM_Client')) {
+                $llm_client = new \Dual_GPT\Dual_GPT_LLM_Client();
+                $model = $llm_client->get_model_name();
+            }
+
             // Create author job
             $job_data = array(
                 'session_id' => $brief['session_id'],
-                'model' => 'gpt-4',
+                'model' => $model,
                 'input_prompt' => wp_json_encode(array(
                     'author_mode' => 'draft',
                     'framework_brief_id' => $brief_id,

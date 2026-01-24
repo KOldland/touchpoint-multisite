@@ -189,6 +189,62 @@ class Dual_GPT_Plugin {
             'permission_callback' => array($this, 'check_permissions'),
         ));
 
+        // Pull quote metadata endpoint
+        register_rest_route('dual-gpt/v1', '/pullquote-meta/(?P<post_id>\\d+)', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_pullquote_metadata'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/user-preferences/pullquote-view', array(
+            array(
+                'methods' => 'GET',
+                'callback' => array($this, 'get_pullquote_view_preference'),
+                'permission_callback' => array($this, 'check_permissions'),
+            ),
+            array(
+                'methods' => 'POST',
+                'callback' => array($this, 'set_pullquote_view_preference'),
+                'permission_callback' => array($this, 'check_permissions'),
+                'args' => array(
+                    'view' => array(
+                        'type' => 'string',
+                        'enum' => array('list', 'table'),
+                        'required' => true,
+                    ),
+                ),
+            ),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/user-preferences', array(
+            array(
+                'methods' => 'GET',
+                'callback' => array($this, 'get_user_preferences'),
+                'permission_callback' => array($this, 'check_permissions'),
+                'args' => array(
+                    'key' => array(
+                        'type' => 'string',
+                        'required' => false,
+                    ),
+                ),
+            ),
+            array(
+                'methods' => 'POST',
+                'callback' => array($this, 'set_user_preference'),
+                'permission_callback' => array($this, 'check_permissions'),
+                'args' => array(
+                    'key' => array(
+                        'type' => 'string',
+                        'required' => true,
+                    ),
+                    'value' => array(
+                        'type' => 'string',
+                        'required' => true,
+                    ),
+                ),
+            ),
+        ));
+
         // Framework Generator endpoints
         $fg_api = new Framework_Generator_API();
         $fg_api->register_routes();
@@ -203,7 +259,7 @@ class Dual_GPT_Plugin {
      */
     private function is_framework_generator_job($job) {
         return strpos($job['idempotency_key'] ?? '', 'phase') !== false ||
-               ($job['preset_id'] === 'fg-framework-generator');
+               (($job['preset_id'] ?? null) === 'fg-framework-generator');
     }
 
     /**
@@ -230,6 +286,158 @@ class Dual_GPT_Plugin {
      */
     public function check_admin_permissions() {
         return current_user_can('manage_options');
+    }
+
+    /**
+     * Check basic permissions
+     */
+    public function check_permissions() {
+        return current_user_can('edit_posts');
+    }
+
+    /**
+     * Get pull quote metadata for a post
+     */
+    public function get_pullquote_metadata($request) {
+        $post_id = (int) $request->get_param('post_id');
+        if ($post_id <= 0) {
+            return new WP_Error('invalid_post_id', 'Invalid post ID.', array('status' => 400));
+        }
+
+        $post = get_post($post_id);
+        if (!$post) {
+            return new WP_Error('post_not_found', 'Post not found.', array('status' => 404));
+        }
+
+        if (!current_user_can('edit_post', $post_id)) {
+            return new WP_Error('rest_forbidden', 'You are not allowed to access this post.', array('status' => 403));
+        }
+
+        if (!function_exists('\\Dual_GPT\\Blocks\\CitationQA\\extract_pullquote_metadata_from_post')) {
+            return new WP_Error('metadata_unavailable', 'Pull quote metadata helper is unavailable.', array('status' => 500));
+        }
+
+        $metadata = \Dual_GPT\Blocks\CitationQA\extract_pullquote_metadata_from_post($post_id);
+
+        return array(
+            'post_id' => $post_id,
+            'count' => count($metadata),
+            'items' => $metadata,
+        );
+    }
+
+    /**
+     * Get pull quote view preference
+     */
+    public function get_pullquote_view_preference() {
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            return new WP_Error('not_logged_in', 'User not logged in.', array('status' => 401));
+        }
+
+        $view = get_user_meta($user_id, 'dual_gpt_pullquote_view', true);
+        if (!in_array($view, array('list', 'table'), true)) {
+            $view = 'list';
+        }
+
+        return array('view' => $view);
+    }
+
+    /**
+     * Set pull quote view preference
+     */
+    public function set_pullquote_view_preference($request) {
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            return new WP_Error('not_logged_in', 'User not logged in.', array('status' => 401));
+        }
+
+        $view = sanitize_text_field($request->get_param('view'));
+        if (!in_array($view, array('list', 'table'), true)) {
+            return new WP_Error('invalid_view', 'View must be list or table.', array('status' => 400));
+        }
+
+        update_user_meta($user_id, 'dual_gpt_pullquote_view', $view);
+
+        return array('view' => $view);
+    }
+
+    /**
+     * Get user preferences
+     */
+    public function get_user_preferences($request) {
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            return new WP_Error('not_logged_in', 'User not logged in.', array('status' => 401));
+        }
+
+        $key = sanitize_text_field($request->get_param('key'));
+        $allowed = $this->get_allowed_user_preferences();
+
+        if ($key) {
+            if (!array_key_exists($key, $allowed)) {
+                return new WP_Error('invalid_key', 'Preference key is not allowed.', array('status' => 400));
+            }
+            $meta_key = $allowed[$key]['meta_key'];
+            $value = get_user_meta($user_id, $meta_key, true);
+            if ($value === '') {
+                $value = $allowed[$key]['default'];
+            }
+            return array('key' => $key, 'value' => $value);
+        }
+
+        $values = array();
+        foreach ($allowed as $pref_key => $config) {
+            $value = get_user_meta($user_id, $config['meta_key'], true);
+            if ($value === '') {
+                $value = $config['default'];
+            }
+            $values[$pref_key] = $value;
+        }
+
+        return array('preferences' => $values);
+    }
+
+    /**
+     * Set user preference
+     */
+    public function set_user_preference($request) {
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            return new WP_Error('not_logged_in', 'User not logged in.', array('status' => 401));
+        }
+
+        $key = sanitize_text_field($request->get_param('key'));
+        $value = sanitize_text_field($request->get_param('value'));
+        $allowed = $this->get_allowed_user_preferences();
+
+        if (!array_key_exists($key, $allowed)) {
+            return new WP_Error('invalid_key', 'Preference key is not allowed.', array('status' => 400));
+        }
+
+        $validator = $allowed[$key]['validate'];
+        if (is_callable($validator) && !$validator($value)) {
+            return new WP_Error('invalid_value', 'Preference value is invalid.', array('status' => 400));
+        }
+
+        update_user_meta($user_id, $allowed[$key]['meta_key'], $value);
+
+        return array('key' => $key, 'value' => $value);
+    }
+
+    /**
+     * Allowed preference keys
+     */
+    private function get_allowed_user_preferences() {
+        return array(
+            'pullquote_view' => array(
+                'meta_key' => 'dual_gpt_pullquote_view',
+                'default' => 'list',
+                'validate' => function($value) {
+                    return in_array($value, array('list', 'table'), true);
+                },
+            ),
+        );
     }
 
     /**
@@ -780,6 +988,9 @@ class Dual_GPT_Plugin {
                 } elseif ($session && $session['role'] === 'author') {
                     $author_tools = new Dual_GPT_Author_Tools();
                     $tools = $author_tools->get_tool_definitions();
+                } elseif ($session && $session['role'] === 'seo') {
+                    $seo_tools = new Dual_GPT_SEO_Tools();
+                    $tools = $seo_tools->get_tool_definitions();
                 }
 
                 // Make OpenAI call with timeout handling
@@ -1006,6 +1217,8 @@ class Dual_GPT_Plugin {
             $tools = new Dual_GPT_Research_Tools();
         } elseif ($session['role'] === 'author') {
             $tools = new Dual_GPT_Author_Tools();
+        } elseif ($session['role'] === 'seo') {
+            $tools = new Dual_GPT_SEO_Tools();
         } else {
             return array('error' => 'Unknown role');
         }
@@ -1383,6 +1596,7 @@ class Dual_GPT_Plugin {
         // Include tool classes
         require_once DUAL_GPT_PLUGIN_DIR . 'includes/tools/class-research-tools.php';
         require_once DUAL_GPT_PLUGIN_DIR . 'includes/tools/class-author-tools.php';
+        require_once DUAL_GPT_PLUGIN_DIR . 'includes/tools/class-seo-tools.php';
 
         // Include Author Agent
         require_once DUAL_GPT_PLUGIN_DIR . 'includes/class-author-agent.php';
@@ -1425,7 +1639,7 @@ class Dual_GPT_Plugin {
         $sql_sessions = "CREATE TABLE $table_sessions (
             id VARCHAR(36) NOT NULL PRIMARY KEY,
             post_id BIGINT(20) UNSIGNED NULL,
-            role ENUM('research', 'author') NOT NULL,
+            role ENUM('research', 'author', 'seo') NOT NULL,
             preset_id VARCHAR(36) NULL,
             title VARCHAR(255) NULL,
             system_prompt TEXT NULL,
@@ -1475,7 +1689,7 @@ class Dual_GPT_Plugin {
         $sql_presets = "CREATE TABLE $table_presets (
             id VARCHAR(36) NOT NULL PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
-            role ENUM('research', 'author', 'both') NOT NULL,
+            role ENUM('research', 'author', 'seo', 'both') NOT NULL,
             system_prompt TEXT NULL,
             default_model VARCHAR(50) NULL,
             params_json LONGTEXT NULL,

@@ -85,7 +85,6 @@ class Dual_GPT_DB_Handler {
 
         $data = array_merge($additional_data, array(
             'status' => $status,
-            'updated_at' => current_time('mysql'),
         ));
 
         if ($status === 'completed' || $status === 'failed') {
@@ -385,6 +384,19 @@ class Dual_GPT_DB_Handler {
                     'frequency_penalty' => 0.1,
                 )),
                 'tool_whitelist' => wp_json_encode(array('outline_from_brief', 'expand_section', 'style_guard', 'citation_guard')),
+                'is_locked' => true,
+            ),
+            array(
+                'id' => 'seo-agent',
+                'name' => 'SEO Agent',
+                'role' => 'seo',
+                'system_prompt' => 'You are the KHM SEO Agent. Analyze content for SEO, prioritize improvements and produce structured JSON. Only use allowed tools. Do NOT apply changes directly without a confirmed apply action from a human. For upstream proposals return structured proposals and preview content. Return errors in a strict JSON schema when failing. Respect sponsor_safe and no_hallucination constraints.',
+                'default_model' => 'gpt-4-turbo',
+                'params_json' => wp_json_encode(array(
+                    'temperature' => 0.2,
+                    'max_tokens' => 2000,
+                )),
+                'tool_whitelist' => wp_json_encode(array('seo_tools', 'research_tools')),
                 'is_locked' => true,
             ),
             array(

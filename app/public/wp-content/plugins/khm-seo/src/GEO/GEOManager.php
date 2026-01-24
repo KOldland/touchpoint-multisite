@@ -303,11 +303,12 @@ class GEOManager {
      * Initialize WordPress hooks
      */
     private function init_hooks() {
-    add_action( 'wp_ajax_khm_geo_remove_alias', array( $this, 'ajax_remove_alias' ) );
-    add_action( 'wp_ajax_khm_geo_add_alias', array( $this, 'ajax_add_alias' ) );
+        add_action( 'wp_ajax_khm_geo_remove_alias', array( $this, 'ajax_remove_alias' ) );
+        add_action( 'wp_ajax_khm_geo_add_alias', array( $this, 'ajax_add_alias' ) );
         // Plugin initialization
         add_action( 'init', array( $this, 'on_init' ) );
         add_action( 'admin_init', array( $this, 'on_admin_init' ) );
+        add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
         
         // Admin menu integration
         add_action( 'admin_menu', array( $this, 'add_admin_pages' ), 15 );
@@ -338,6 +339,55 @@ class GEOManager {
         // Pre-publish validation hooks
         add_action( 'save_post', array( $this->validation_manager, 'validate_on_save' ), 20 );
         add_action( 'wp_ajax_khm_geo_validate_answer_card', array( $this->validation_manager, 'ajax_validate_answer_card' ) );
+    }
+
+    /**
+     * Register GEO REST routes.
+     */
+    public function register_rest_routes() {
+        register_rest_route( 'khm-seo/v1', '/geo-sponsor', array(
+            'methods'  => 'GET',
+            'callback' => array( $this, 'handle_geo_sponsor_rest' ),
+            'permission_callback' => function () {
+                return current_user_can( 'edit_posts' );
+            },
+        ) );
+    }
+
+    /**
+     * REST handler for GEO sponsor mapping.
+     */
+    public function handle_geo_sponsor_rest( $request ) {
+        $post_id = (int) $request->get_param( 'post_id' );
+        $geo = sanitize_text_field( $request->get_param( 'geo' ) ?? 'global' );
+        if ( ! $post_id ) {
+            return new \WP_Error( 'khm_geo_missing_post', 'post_id is required.', array( 'status' => 400 ) );
+        }
+
+        $policy = $this->getSponsorPolicyForPost( $post_id, $geo );
+        return rest_ensure_response( array( 'policy' => $policy ) );
+    }
+
+    /**
+     * Return sponsor policy for a post + geo code.
+     */
+    public function getSponsorPolicyForPost( int $post_id, string $geo_code ): ?array {
+        if ( ! $post_id ) {
+            return null;
+        }
+
+        $geo_code = $geo_code ?: 'global';
+        $post_map = get_post_meta( $post_id, '_khm_geo_sponsor_map', true );
+        if ( is_array( $post_map ) && isset( $post_map[ $geo_code ] ) ) {
+            return $post_map[ $geo_code ];
+        }
+
+        $global_map = get_option( 'khm_geo_sponsor_map', array() );
+        if ( is_array( $global_map ) && isset( $global_map[ $geo_code ] ) ) {
+            return $global_map[ $geo_code ];
+        }
+
+        return null;
     }
     
     /**

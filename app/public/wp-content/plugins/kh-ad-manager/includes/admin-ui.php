@@ -50,6 +50,35 @@ add_action( 'init', function () {
         );
     }
 
+    $sponsor_meta = array(
+        'linkedin_page_url',
+        'linkedin_handles',
+        'quotable_representatives',
+        'content_library_url',
+        'allowed_claims',
+        'co_brand_policy',
+        'geo_rules',
+        'ppc_budget_total',
+        'ppc_daily_cap',
+        'ppc_account_id',
+        'approval_contact',
+        'sponsor_assets',
+    );
+
+    foreach ( $sponsor_meta as $key ) {
+        register_post_meta(
+            'kh_sponsor',
+            $key,
+            [
+                'type'         => 'string',
+                'single'       => true,
+                'show_in_rest' => false,
+                'sanitize_callback' => 'sanitize_text_field',
+                'auth_callback'     => function() { return current_user_can( 'edit_posts' ); },
+            ]
+        );
+    }
+
     // Slot override meta for posts (mode and manual/auto code).
     $slots = [ 'exit_overlay', 'footer', 'header', 'popup', 'sidebar1', 'sidebar2', 'ticker', 'slide_in' ];
     foreach ( $slots as $slot ) {
@@ -107,6 +136,120 @@ add_action( 'add_meta_boxes', function() {
         'normal',
         'default'
     );
+
+    add_meta_box(
+        'kh_sponsor_details',
+        __( 'Sponsor Details', 'kh-ad-manager' ),
+        'kh_ad_manager_render_sponsor_metabox',
+        'kh_sponsor',
+        'normal',
+        'high'
+    );
+} );
+
+function kh_ad_manager_render_sponsor_metabox( $post ) {
+    wp_nonce_field( 'kh_ad_sponsor_meta', 'kh_ad_sponsor_meta_nonce' );
+
+    $fields = array(
+        'linkedin_page_url' => array( 'label' => __( 'LinkedIn Page URL', 'kh-ad-manager' ), 'type' => 'url' ),
+        'linkedin_handles' => array( 'label' => __( 'LinkedIn Handles (comma-separated)', 'kh-ad-manager' ), 'type' => 'text' ),
+        'quotable_representatives' => array( 'label' => __( 'Quotable Representatives (JSON)', 'kh-ad-manager' ), 'type' => 'textarea' ),
+        'content_library_url' => array( 'label' => __( 'Content Library URL', 'kh-ad-manager' ), 'type' => 'url' ),
+        'allowed_claims' => array( 'label' => __( 'Allowed Claims (one per line)', 'kh-ad-manager' ), 'type' => 'textarea' ),
+        'co_brand_policy' => array( 'label' => __( 'Co-brand Policy', 'kh-ad-manager' ), 'type' => 'select', 'options' => array( 'co-brand' => 'Co-brand', 'sponsor-author' => 'Sponsor-author', 'replace-creative' => 'Replace creative' ) ),
+        'geo_rules' => array( 'label' => __( 'GEO Rules (JSON)', 'kh-ad-manager' ), 'type' => 'textarea' ),
+        'ppc_budget_total' => array( 'label' => __( 'PPC Budget Total', 'kh-ad-manager' ), 'type' => 'number' ),
+        'ppc_daily_cap' => array( 'label' => __( 'PPC Daily Cap', 'kh-ad-manager' ), 'type' => 'number' ),
+        'ppc_account_id' => array( 'label' => __( 'PPC Account ID', 'kh-ad-manager' ), 'type' => 'text' ),
+        'approval_contact' => array( 'label' => __( 'Approval Contact (email)', 'kh-ad-manager' ), 'type' => 'email' ),
+        'sponsor_assets' => array( 'label' => __( 'Sponsor Assets (JSON)', 'kh-ad-manager' ), 'type' => 'textarea' ),
+    );
+
+    echo '<table class="form-table">';
+    foreach ( $fields as $key => $config ) {
+        $val = get_post_meta( $post->ID, $key, true );
+        if ( 'allowed_claims' === $key && is_array( $val ) ) {
+            $val = implode( "\n", $val );
+        }
+        echo '<tr><th><label for="' . esc_attr( $key ) . '">' . esc_html( $config['label'] ) . '</label></th><td>';
+        switch ( $config['type'] ) {
+            case 'select':
+                echo '<select name="' . esc_attr( $key ) . '" id="' . esc_attr( $key ) . '">';
+                foreach ( $config['options'] as $opt_key => $opt_label ) {
+                    echo '<option value="' . esc_attr( $opt_key ) . '" ' . selected( $val, $opt_key, false ) . '>' . esc_html( $opt_label ) . '</option>';
+                }
+                echo '</select>';
+                break;
+            case 'textarea':
+                echo '<textarea name="' . esc_attr( $key ) . '" id="' . esc_attr( $key ) . '" class="large-text" rows="4">' . esc_textarea( is_array( $val ) ? wp_json_encode( $val ) : $val ) . '</textarea>';
+                break;
+            default:
+                echo '<input type="' . esc_attr( $config['type'] ) . '" name="' . esc_attr( $key ) . '" id="' . esc_attr( $key ) . '" value="' . esc_attr( $val ) . '" class="regular-text" />';
+                break;
+        }
+        echo '</td></tr>';
+    }
+    echo '</table>';
+}
+
+add_action( 'save_post_kh_sponsor', function( $post_id ) {
+    if ( ! isset( $_POST['kh_ad_sponsor_meta_nonce'] ) || ! wp_verify_nonce( $_POST['kh_ad_sponsor_meta_nonce'], 'kh_ad_sponsor_meta' ) ) {
+        return;
+    }
+    if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+        return;
+    }
+    if ( ! current_user_can( 'edit_post', $post_id ) ) {
+        return;
+    }
+
+    $fields = array(
+        'linkedin_page_url' => 'url',
+        'linkedin_handles' => 'list',
+        'quotable_representatives' => 'json',
+        'content_library_url' => 'url',
+        'allowed_claims' => 'lines',
+        'co_brand_policy' => 'text',
+        'geo_rules' => 'json',
+        'ppc_budget_total' => 'float',
+        'ppc_daily_cap' => 'float',
+        'ppc_account_id' => 'text',
+        'approval_contact' => 'email',
+        'sponsor_assets' => 'json',
+    );
+
+    foreach ( $fields as $field => $type ) {
+        if ( ! isset( $_POST[ $field ] ) ) {
+            continue;
+        }
+        $raw = wp_unslash( $_POST[ $field ] );
+        switch ( $type ) {
+            case 'url':
+                $value = esc_url_raw( $raw );
+                break;
+            case 'email':
+                $value = sanitize_email( $raw );
+                break;
+            case 'list':
+                $value = array_filter( array_map( 'sanitize_text_field', array_map( 'trim', explode( ',', $raw ) ) ) );
+                break;
+            case 'lines':
+                $lines = preg_split( '/\r\n|\r|\n/', $raw );
+                $value = array_filter( array_map( 'sanitize_text_field', array_map( 'trim', $lines ) ) );
+                break;
+            case 'json':
+                $decoded = json_decode( $raw, true );
+                $value = is_array( $decoded ) ? $decoded : array();
+                break;
+            case 'float':
+                $value = (float) $raw;
+                break;
+            default:
+                $value = sanitize_text_field( $raw );
+                break;
+        }
+        update_post_meta( $post_id, $field, $value );
+    }
 } );
 
 function kh_ad_manager_render_ad_metabox( $post ) {

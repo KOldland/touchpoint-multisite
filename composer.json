@@ -1,0 +1,11 @@
+{
+  "name": "kh/touchpoint-template",
+  "description": "Local tooling for SMMA tests",
+  "type": "project",
+  "require-dev": {
+    "phpunit/phpunit": "^9.6"
+  },
+  "config": {
+    "sort-packages": true
+  }
+}

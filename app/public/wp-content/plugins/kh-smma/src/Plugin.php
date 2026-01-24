@@ -14,14 +14,19 @@ use KH_SMMA\Services\AuditLogger;
 use KH_SMMA\Services\AnalyticsFeedbackService;
 use KH_SMMA\Services\LifecycleSimulator;
 use KH_SMMA\Services\EngagementMetricsService;
+use KH_SMMA\Services\FeatureFlags;
+use KH_SMMA\Services\SmmaGenerator;
 use KH_SMMA\Security\CredentialVault;
 use KH_SMMA\Security\CapabilityManager;
+use KH_SMMA\API\RestController;
 use KH_SMMA\Integration\MarketingSuiteBridge;
 use KH_SMMA\Integration\SocialStripBridge;
 use KH_SMMA\Adapters\ManualExportAdapter;
 use KH_SMMA\Adapters\MetaChannelAdapter;
 use KH_SMMA\Adapters\LinkedInChannelAdapter;
 use KH_SMMA\Adapters\TwitterChannelAdapter;
+use KH_SMMA\Adapters\LinkedInAdsAdapter;
+use KH_SMMA\Adapters\GoogleAdsAdapter;
 use KH_SMMA\OAuth\OAuthManager;
 use KH_SMMA\CLI\LifecycleSimulatorCommand;
 
@@ -66,6 +71,11 @@ class Plugin {
     private $lifecycle_simulator;
 
     /**
+     * @var FeatureFlags
+     */
+    private $feature_flags;
+
+    /**
      * Primary bootstrap entrypoint.
      */
     public function register() {
@@ -79,6 +89,7 @@ class Plugin {
         $this->register_integrations();
         $this->register_oauth();
         $this->register_cli();
+        $this->register_rest();
         $this->capability_manager->register();
     }
 
@@ -114,6 +125,7 @@ class Plugin {
         $this->analytics_feedback  = new AnalyticsFeedbackService();
         $this->lifecycle_simulator = new LifecycleSimulator();
         $this->engagement_metrics  = new EngagementMetricsService();
+        $this->feature_flags       = new FeatureFlags();
     }
 
     /**
@@ -154,6 +166,8 @@ class Plugin {
         ( new MetaChannelAdapter( $this->token_repository ) )->register();
         ( new LinkedInChannelAdapter( $this->token_repository ) )->register();
         ( new TwitterChannelAdapter( $this->token_repository ) )->register();
+        ( new LinkedInAdsAdapter( $this->token_repository, $this->feature_flags ) )->register();
+        ( new GoogleAdsAdapter( $this->token_repository, $this->feature_flags ) )->register();
     }
 
     private function register_integrations() {
@@ -163,6 +177,10 @@ class Plugin {
 
     private function register_oauth() {
         ( new OAuthManager( $this->token_repository ) )->register();
+    }
+
+    private function register_rest() {
+        ( new RestController( $this->feature_flags, new SmmaGenerator(), $this->audit_logger ) )->register();
     }
 
     private function register_cli() {
@@ -228,6 +246,7 @@ class Plugin {
         $plugin->register_meta();
         add_filter( 'cron_schedules', array( $plugin, 'register_custom_cron_interval' ) );
         $plugin->token_repository->install();
+        $plugin->feature_flags->ensure_defaults();
 
         flush_rewrite_rules();
 

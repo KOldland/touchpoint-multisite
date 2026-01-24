@@ -69,12 +69,15 @@ class Dual_GPT_OpenAI_Connector {
                 'Authorization' => 'Bearer ' . $this->api_key,
                 'Content-Type' => 'application/json',
             ),
-            'body' => wp_json_encode($data),
             'timeout' => 120, // Increased timeout for AI requests
             'redirection' => 5,
             'httpversion' => '1.1',
             'blocking' => true,
         );
+
+        if ($method !== 'GET') {
+            $args['body'] = wp_json_encode($data);
+        }
 
         $response = wp_remote_request($url, $args);
 

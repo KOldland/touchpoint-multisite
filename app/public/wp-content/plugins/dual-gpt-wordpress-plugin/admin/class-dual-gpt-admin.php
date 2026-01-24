@@ -262,6 +262,7 @@ class Dual_GPT_Admin {
                                 <select id="preset-role" name="role" required>
                                     <option value="research">Research</option>
                                     <option value="author">Author</option>
+                                    <option value="seo">SEO</option>
                                     <option value="both">Both</option>
                                 </select>
                             </td>

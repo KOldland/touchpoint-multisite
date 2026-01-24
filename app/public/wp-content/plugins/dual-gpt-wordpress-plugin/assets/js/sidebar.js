@@ -195,6 +195,33 @@ const DualGPTSidebar = () => {
             return;
         }
 
+        const escapeHtml = (value) => {
+            if (value === null || value === undefined) {
+                return '';
+            }
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        };
+
+        const buildPullquoteMetaSpan = (meta) => {
+            if (!meta || typeof meta !== 'object') {
+                return '';
+            }
+            const attributes = [
+                `data-source-author="${escapeHtml(meta.source_author || '')}"`,
+                `data-publication="${escapeHtml(meta.publication || '')}"`,
+                `data-organisation="${escapeHtml(meta.organisation || '')}"`,
+                `data-date="${escapeHtml(meta.date || '')}"`,
+                `data-citation-ref-id="${escapeHtml(meta.citation_ref_id || '')}"`,
+            ];
+
+            return `<span class="dual-gpt-pullquote-meta" style="display:none" ${attributes.join(' ')}></span>`;
+        };
+
         const blocks = authorBlocks.map((block) => {
             switch (block.type) {
                 case 'heading':
@@ -214,8 +241,9 @@ const DualGPTSidebar = () => {
                         values: `<${listTag}>${listItems}</${listTag}>`,
                     });
                 case 'pullquote':
+                    const pullquoteMeta = buildPullquoteMetaSpan(block.meta || block.metadata);
                     return wp.blocks.createBlock('core/pullquote', {
-                        value: `<p>${block.content || ''}</p>`,
+                        value: `<p>${block.content || ''}</p>${pullquoteMeta}`,
                         citation: block.cite || '',
                     });
                 case 'quote':

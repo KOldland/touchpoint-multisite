@@ -5,6 +5,7 @@ use KH_SMMA\Services\TokenRepository;
 use KH_SMMA\Services\AuditLogger;
 use KH_SMMA\Services\AnalyticsFeedbackService;
 use KH_SMMA\Services\LifecycleSimulator;
+use KH_SMMA\Services\FeatureFlags;
 use KH_SMMA\Security\CapabilityManager;
 use WP_Query;
 
@@ -53,12 +54,14 @@ class AdminInterface {
     private AuditLogger $logger;
     private AnalyticsFeedbackService $analytics;
     private LifecycleSimulator $simulator;
+    private FeatureFlags $flags;
 
     public function __construct( TokenRepository $tokens, AuditLogger $logger, AnalyticsFeedbackService $analytics, LifecycleSimulator $simulator ) {
         $this->tokens     = $tokens;
         $this->logger     = $logger;
         $this->analytics  = $analytics;
         $this->simulator  = $simulator;
+        $this->flags      = new FeatureFlags();
     }
 
     public function register(): void {
@@ -70,6 +73,7 @@ class AdminInterface {
         add_action( 'admin_post_kh_smma_approve_schedule', array( $this, 'handle_schedule_approve' ) );
         add_action( 'admin_post_kh_smma_deny_schedule', array( $this, 'handle_schedule_deny' ) );
         add_action( 'admin_post_kh_smma_simulate_lifecycle', array( $this, 'handle_simulate_lifecycle' ) );
+        add_action( 'admin_post_kh_smma_update_flags', array( $this, 'handle_update_flags' ) );
     }
 
     public function register_menu(): void {
@@ -98,6 +102,18 @@ class AdminInterface {
         <div class="wrap kh-smma-admin">
             <h1><?php esc_html_e( 'KH Social Media Management & Automation', 'kh-smma' ); ?></h1>
             <p><?php esc_html_e( 'Connect accounts, schedule posts, and monitor queue health.', 'kh-smma' ); ?></p>
+
+            <h2><?php esc_html_e( 'Feature Flags', 'kh-smma' ); ?></h2>
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                <?php wp_nonce_field( 'kh_smma_update_flags' ); ?>
+                <input type="hidden" name="action" value="kh_smma_update_flags" />
+                <label>
+                    <input type="checkbox" name="smma_enabled" value="1" <?php checked( $this->flags->is_enabled( 'smma' ) ); ?> />
+                    <?php esc_html_e( 'Enable SMMA endpoints & Boost Visibility integration', 'kh-smma' ); ?>
+                </label>
+                <p class="description"><?php esc_html_e( 'Disabling this will block SMMA REST endpoints and UI actions.', 'kh-smma' ); ?></p>
+                <?php submit_button( __( 'Save Flags', 'kh-smma' ), 'secondary', 'submit', false ); ?>
+            </form>
 
             <h2><?php esc_html_e( '1. Connect Social Account', 'kh-smma' ); ?></h2>
             <?php if ( CapabilityManager::can_manage_accounts() ) : ?>
@@ -855,6 +871,23 @@ class AdminInterface {
         ) );
 
         wp_safe_redirect( add_query_arg( array( 'page' => 'kh-smma-dashboard', 'message' => 'schedule-denied' ), admin_url( 'admin.php' ) ) );
+        exit;
+    }
+
+    public function handle_update_flags(): void {
+        if ( ! CapabilityManager::can_manage_accounts() ) {
+            wp_die( esc_html__( 'Insufficient permissions.', 'kh-smma' ) );
+        }
+
+        check_admin_referer( 'kh_smma_update_flags' );
+
+        $enabled = ! empty( $_POST['smma_enabled'] );
+        $flags = $this->flags->get_flags();
+        $flags['smma'] = (bool) $enabled;
+
+        update_option( FeatureFlags::OPTION_KEY, $flags );
+
+        wp_safe_redirect( add_query_arg( array( 'page' => 'kh-smma-dashboard', 'message' => 'flags-updated' ), admin_url( 'admin.php' ) ) );
         exit;
     }
 

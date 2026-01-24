@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="app/public/wp-content/plugins/kh-smma/tests/bootstrap.php"
+         colors="true"
+         stopOnFailure="false"
+         beStrictAboutTestsThatDoNotTestAnything="false">
+    <testsuites>
+        <testsuite name="kh-smma">
+            <directory>app/public/wp-content/plugins/kh-smma/tests</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>

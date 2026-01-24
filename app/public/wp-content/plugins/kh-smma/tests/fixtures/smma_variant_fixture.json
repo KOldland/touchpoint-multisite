@@ -1,0 +1,31 @@
+{
+  "variant_id": "v-fixture-1",
+  "channel": "linkedin",
+  "text": "Fixture variant for schema validation.",
+  "phase_tag": "Attention",
+  "tone": "Authority",
+  "recommended_post_time_gmt": 1712345678,
+  "time_window": "08:30-10:00 GMT",
+  "geo_recommendations": [
+    {
+      "geo": "GB",
+      "time_window": "08:30-10:00 GMT",
+      "rationale": "Sample rationale"
+    }
+  ],
+  "asset_hints": {
+    "image_aspect": "1.91:1",
+    "alt_text": "Alt text"
+  },
+  "sponsor_flag": false,
+  "sponsor_mode": "co-brand",
+  "sponsor_asset": {},
+  "compliance_notes": "OK",
+  "explainability": "Fixture explanation.",
+  "audit": {
+    "source_post_id": 123,
+    "generated_by": "smma-ai-v1",
+    "model_version": "fixture",
+    "created_at": 1712340000
+  }
+}

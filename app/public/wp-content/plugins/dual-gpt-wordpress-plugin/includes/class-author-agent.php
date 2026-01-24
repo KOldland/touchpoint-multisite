@@ -144,8 +144,11 @@ class Dual_GPT_Author_Agent {
             }
 
             $validation = $this->validate_citations_in_text($draft_result['text'] ?? '', $citations);
+            $constraint_validation = $this->validate_draft_constraints($draft_result['blocks'] ?? array(), $core_settings);
             $warnings = array_merge($warnings, $validation['warnings']);
             $validation_errors = array_merge($validation_errors, $validation['errors']);
+            $warnings = array_merge($warnings, $constraint_validation['warnings']);
+            $validation_errors = array_merge($validation_errors, $constraint_validation['errors']);
 
             return array(
                 'mode' => 'draft',
@@ -413,7 +416,7 @@ class Dual_GPT_Author_Agent {
         }
 
         $system_prompt = $this->build_draft_system_prompt($core_settings);
-        $user_prompt = $this->build_draft_user_prompt($framework_brief, $planner_brief, $citations, $instructions);
+        $user_prompt = $this->build_draft_user_prompt($framework_brief, $planner_brief, $citations, $instructions, $core_settings);
 
         $response = $llm_client->call($system_prompt, $user_prompt, array(
             'temperature' => 0.4,
@@ -571,6 +574,7 @@ class Dual_GPT_Author_Agent {
             $output_blocks[] = array('type' => 'heading', 'level' => 2, 'content' => 'References');
             $output_blocks[] = array('type' => 'list', 'ordered' => false, 'items' => $footnotes);
         }
+        $warnings = array_merge($warnings, $this->validate_footnotes($citations));
 
         return array(
             'blocks' => $output_blocks,
@@ -586,15 +590,19 @@ class Dual_GPT_Author_Agent {
      */
     private function build_draft_system_prompt($core_settings) {
         $brand_profile = $core_settings['brand_profile'] ?? 'Brand A (FSI)';
+        $em_dash_guidance = $this->get_em_dash_guidance($brand_profile);
 
         return implode("\n", array(
             'You are the Author Agent. You execute an approved editorial plan and framework without adding new strategy, SEO, or distribution logic.',
             'You must not introduce new citations, entities, or claims beyond provided materials.',
+            'Do not modify the topic scope or angle.',
             'Persona: Experienced Analyst / Senior Journalist.',
             'Industry focus: ' . $core_settings['industry_focus'],
             'Audience tier: ' . $core_settings['audience_tier'],
             'Risk tolerance: ' . $core_settings['risk_tolerance'],
             'Brand profile: ' . $brand_profile,
+            $em_dash_guidance,
+            'No tidy conclusions. No omniscient voice. Allow tonal variation and friction.',
             'Output must be JSON only (no markdown or commentary).',
         ));
     }
@@ -602,7 +610,7 @@ class Dual_GPT_Author_Agent {
     /**
      * Build draft user prompt
      */
-    private function build_draft_user_prompt($framework_brief, $planner_brief, $citations, $instructions) {
+    private function build_draft_user_prompt($framework_brief, $planner_brief, $citations, $instructions, $core_settings) {
         $prompt = array();
 
         $prompt[] = 'Editorial Planner Output (read-only):';
@@ -616,7 +624,7 @@ class Dual_GPT_Author_Agent {
         if (!empty($citations)) {
             foreach ($citations as $citation) {
                 $prompt[] = sprintf(
-                    '[%d] %s — %s (%s). %s. URL: %s. Snippet: %s',
+                    '[%d] %s - %s (%s). %s. URL: %s. Snippet: %s',
                     $citation['ref_id'],
                     $citation['lead_author'] ?: 'Unknown Author',
                     $citation['title'],
@@ -643,13 +651,17 @@ class Dual_GPT_Author_Agent {
         $prompt[] = '- No listicle framing.';
         $prompt[] = '- No punchline one-liners.';
         $prompt[] = '- No over-smoothed transitions.';
-        $prompt[] = '- Em-dash usage per brand profile.';
+        $prompt[] = '- Em-dash usage per brand profile: ' . $this->get_em_dash_guidance($core_settings['brand_profile'] ?? 'Brand A (FSI)');
         $prompt[] = '- Every paragraph: at least one sentence >20 words and one sentence <8 words.';
         $prompt[] = '- At least one contradiction or self-correction per 500 words.';
+        $prompt[] = '- Paragraphs broken by thought, not template.';
         $prompt[] = '- Preserve ambiguity, temporal drift, unresolved tension.';
         $prompt[] = '- Observational, reported, investigative stance.';
+        $prompt[] = '- No tidy conclusions or definitive resolution.';
         $prompt[] = '- No fabricated data, names, or quotes.';
+        $prompt[] = '- No inferred academic claims.';
         $prompt[] = '- All claims must be attributable or framed with humility.';
+        $prompt[] = '- Do not add SEO keywords or optimize copy.';
 
         $prompt[] = '';
         $prompt[] = 'Output JSON schema:';
@@ -680,6 +692,13 @@ class Dual_GPT_Author_Agent {
         $prompt[] = 'Draft Article:';
         $prompt[] = $this->strip_tags_preserve_whitespace($draft_content);
         $prompt[] = '';
+        $prompt[] = 'Abstract Constraints:';
+        $prompt[] = '- Overview: 2-3 sentences.';
+        $prompt[] = '- Key Points: 3-6 bullets.';
+        $prompt[] = '- Context: 3 sentences or fewer.';
+        $prompt[] = '- Application: 3 sentences or fewer.';
+        $prompt[] = '- Editorial Summary: 100-200 words.';
+        $prompt[] = '- Meta Summary: 160 characters or fewer.';
         $prompt[] = 'Output JSON schema:';
         $prompt[] = '{"overview":"","key_points":[""],"context":"","application":"","keywords":[""],"editorial_summary":"","meta_summary":""}';
 
@@ -701,8 +720,93 @@ class Dual_GPT_Author_Agent {
         }
 
         $text_blob = wp_json_encode($abstract);
-        if (strpos($text_blob, '—') !== false) {
+        if (preg_match('/\x{2014}/u', $text_blob)) {
             $warnings[] = 'Abstract output includes em dash characters.';
+        }
+        if ($this->contains_rhetorical_binary($text_blob)) {
+            $warnings[] = 'Abstract output includes a rhetorical binary ("not X but Y").';
+        }
+        if ($this->contains_listicle_framing($text_blob)) {
+            $warnings[] = 'Abstract output may include listicle framing.';
+        }
+
+        $overview_sentences = $this->count_sentences($abstract['overview'] ?? '');
+        if ($overview_sentences < 2 || $overview_sentences > 3) {
+            $warnings[] = 'Overview should be 2-3 sentences.';
+        }
+        $context_sentences = $this->count_sentences($abstract['context'] ?? '');
+        if ($context_sentences > 3) {
+            $warnings[] = 'Context should be 3 sentences or fewer.';
+        }
+        $application_sentences = $this->count_sentences($abstract['application'] ?? '');
+        if ($application_sentences > 3) {
+            $warnings[] = 'Application should be 3 sentences or fewer.';
+        }
+        $key_points_count = is_array($abstract['key_points'] ?? null) ? count($abstract['key_points']) : 0;
+        if ($key_points_count < 3 || $key_points_count > 6) {
+            $warnings[] = 'Key Points should have 3-6 bullets.';
+        }
+        $editorial_word_count = str_word_count($abstract['editorial_summary'] ?? '');
+        if ($editorial_word_count > 0 && ($editorial_word_count < 100 || $editorial_word_count > 200)) {
+            $warnings[] = 'Editorial Summary should be 100-200 words.';
+        }
+        $meta_summary = $abstract['meta_summary'] ?? '';
+        if (!empty($meta_summary) && strlen($meta_summary) > 160) {
+            $warnings[] = 'Meta Summary should be 160 characters or fewer.';
+        }
+
+        return array(
+            'warnings' => $warnings,
+            'errors' => $errors,
+        );
+    }
+
+    /**
+     * Validate draft against core constraints
+     */
+    private function validate_draft_constraints($blocks, $core_settings) {
+        $warnings = array();
+        $errors = array();
+
+        if (empty($blocks) || !is_array($blocks)) {
+            return array('warnings' => $warnings, 'errors' => $errors);
+        }
+
+        $text = $this->blocks_to_text($blocks);
+        $word_count = str_word_count($text);
+
+        $em_dash_count = preg_match_all('/\x{2014}|--/u', $text);
+        $em_dash_limit = $this->get_em_dash_limit($core_settings['brand_profile'] ?? 'Brand A (FSI)', $word_count);
+        if ($em_dash_limit > 0 && $em_dash_count > $em_dash_limit) {
+            $warnings[] = sprintf('Em dash usage exceeds guidance (%d used, max %d for this length).', $em_dash_count, $em_dash_limit);
+        }
+
+        $paragraphs = $this->extract_paragraphs_from_blocks($blocks);
+        $violations = 0;
+        foreach ($paragraphs as $paragraph) {
+            $sentence_lengths = $this->get_sentence_word_counts($paragraph);
+            if (!$this->has_sentence_length_between($sentence_lengths, 21, 999) || !$this->has_sentence_length_between($sentence_lengths, 1, 7)) {
+                $violations++;
+            }
+        }
+        if ($violations > 0) {
+            $warnings[] = sprintf('Paragraph sentence-length constraint failed in %d paragraph(s).', $violations);
+        }
+
+        $required_contradictions = $this->get_required_contradictions($word_count);
+        $contradiction_count = $this->count_contradictions($text);
+        if ($required_contradictions > 0 && $contradiction_count < $required_contradictions) {
+            $warnings[] = sprintf('Contradiction/self-correction density is low (%d found, expected %d).', $contradiction_count, $required_contradictions);
+        }
+
+        if ($this->contains_rhetorical_binary($text)) {
+            $warnings[] = 'Rhetorical binary detected ("not X but Y").';
+        }
+        if ($this->contains_listicle_framing($text)) {
+            $warnings[] = 'Listicle-style framing detected.';
+        }
+        if ($this->has_tidy_conclusion($blocks)) {
+            $warnings[] = 'Draft may include a tidy conclusion (avoid definitive wrap-ups).';
         }
 
         return array(
@@ -829,6 +933,34 @@ class Dual_GPT_Author_Agent {
     }
 
     /**
+     * Validate footnote readiness
+     */
+    private function validate_footnotes($citations) {
+        $warnings = array();
+        $missing_apa = 0;
+        $missing_url = 0;
+
+        foreach ($citations as $citation) {
+            $apa = $citation['apa_string'] ?? '';
+            if (empty($apa) || $apa === 'details_unavailable') {
+                $missing_apa++;
+            }
+            if (empty($citation['url'])) {
+                $missing_url++;
+            }
+        }
+
+        if ($missing_apa > 0) {
+            $warnings[] = sprintf('APA details missing for %d citation(s).', $missing_apa);
+        }
+        if ($missing_url > 0) {
+            $warnings[] = sprintf('Source URL missing for %d citation(s).', $missing_url);
+        }
+
+        return $warnings;
+    }
+
+    /**
      * Find citation by reference id
      */
     private function find_citation_by_ref($citations, $ref_id) {
@@ -892,6 +1024,158 @@ class Dual_GPT_Author_Agent {
         $content = wp_strip_all_tags($content);
 
         return trim($content);
+    }
+
+    /**
+     * Em dash guidance text
+     */
+    private function get_em_dash_guidance($brand_profile) {
+        if (stripos($brand_profile, 'brand b') !== false) {
+            return 'Em-dash usage: max 1 per 300+ words (Brand B).';
+        }
+
+        return 'Em-dash usage: max 1 per 1500 words (Brand A).';
+    }
+
+    /**
+     * Em dash limit count based on brand and length
+     */
+    private function get_em_dash_limit($brand_profile, $word_count) {
+        if ($word_count <= 0) {
+            return 0;
+        }
+
+        $limit = (stripos($brand_profile, 'brand b') !== false) ? 300 : 1500;
+        return (int) ceil($word_count / $limit);
+    }
+
+    /**
+     * Extract paragraph text from blocks
+     */
+    private function extract_paragraphs_from_blocks($blocks) {
+        $paragraphs = array();
+        foreach ($blocks as $block) {
+            if (($block['type'] ?? '') === 'paragraph' && !empty($block['content'])) {
+                $paragraphs[] = $block['content'];
+            }
+        }
+
+        return $paragraphs;
+    }
+
+    /**
+     * Count sentences in text
+     */
+    private function count_sentences($text) {
+        if (!is_string($text) || trim($text) === '') {
+            return 0;
+        }
+
+        $sentences = preg_split('/(?<=[.!?])\s+/', trim($text));
+        $sentences = array_filter(array_map('trim', $sentences));
+        return count($sentences);
+    }
+
+    /**
+     * Sentence word counts for a paragraph
+     */
+    private function get_sentence_word_counts($paragraph) {
+        $sentences = preg_split('/(?<=[.!?])\s+/', trim($paragraph));
+        $counts = array();
+        foreach ($sentences as $sentence) {
+            $sentence = trim($sentence);
+            if ($sentence === '') {
+                continue;
+            }
+            $counts[] = str_word_count($sentence);
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Check for sentence length range
+     */
+    private function has_sentence_length_between($lengths, $min, $max) {
+        foreach ($lengths as $length) {
+            if ($length >= $min && $length <= $max) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Required contradiction count per word count
+     */
+    private function get_required_contradictions($word_count) {
+        if ($word_count <= 0) {
+            return 0;
+        }
+
+        return (int) ceil($word_count / 500);
+    }
+
+    /**
+     * Count contradiction/self-correction markers
+     */
+    private function count_contradictions($text) {
+        $markers = array(
+            'however',
+            'but',
+            'yet',
+            'although',
+            'though',
+            'still',
+            'nevertheless',
+            'on the other hand',
+            'that said',
+            'to be fair',
+            'on second thought',
+            'i might be wrong',
+            'i should',
+        );
+
+        $count = 0;
+        $lower = strtolower($text);
+        foreach ($markers as $marker) {
+            $count += substr_count($lower, $marker);
+        }
+
+        return $count;
+    }
+
+    /**
+     * Detect rhetorical binaries
+     */
+    private function contains_rhetorical_binary($text) {
+        return preg_match('/\bnot\b[^.]{0,80}\bbut\b/i', $text) === 1;
+    }
+
+    /**
+     * Detect listicle framing
+     */
+    private function contains_listicle_framing($text) {
+        return preg_match('/\b(top|best)\s+\d+\b|\b\d+\s+(ways|reasons|tips|steps)\b/i', $text) === 1;
+    }
+
+    /**
+     * Detect tidy conclusion markers
+     */
+    private function has_tidy_conclusion($blocks) {
+        $last_heading = '';
+        foreach ($blocks as $block) {
+            if (($block['type'] ?? '') === 'heading' && !empty($block['content'])) {
+                $last_heading = $block['content'];
+            }
+        }
+
+        if ($last_heading && preg_match('/\b(conclusion|summary|final thoughts)\b/i', $last_heading)) {
+            return true;
+        }
+
+        $text = $this->blocks_to_text($blocks);
+        return preg_match('/\bin conclusion\b|\bto conclude\b/i', $text) === 1;
     }
 
     /**

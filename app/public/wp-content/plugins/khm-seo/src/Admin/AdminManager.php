@@ -242,6 +242,138 @@ class AdminManager {
                 <?php submit_button( __( 'Load Actions', 'khm-seo' ), 'primary', false ); ?>
             </form>
 
+                <hr />
+                <h2><?php esc_html_e( 'Promotion Planner', 'khm-seo' ); ?></h2>
+                <p class="description">
+                    <?php esc_html_e( 'Create promotion variants & optionally boost visibility on LinkedIn or Google.', 'khm-seo' ); ?>
+                </p>
+
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <th><?php esc_html_e( 'Title', 'khm-seo' ); ?></th>
+                            <th><?php esc_html_e( 'Published', 'khm-seo' ); ?></th>
+                            <th><?php esc_html_e( 'SEO Score', 'khm-seo' ); ?></th>
+                            <th><?php esc_html_e( 'GEO Score / Policy', 'khm-seo' ); ?></th>
+                            <th><?php esc_html_e( 'Sponsor', 'khm-seo' ); ?></th>
+                            <th><?php esc_html_e( 'Promote', 'khm-seo' ); ?></th>
+                            <th><?php esc_html_e( 'Boost', 'khm-seo' ); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ( $posts as $post_item ) : ?>
+                            <?php
+                            $seo_score = (int) get_post_meta( $post_item->ID, '_khm_seo_score', true );
+                            $geo_score = (int) get_post_meta( $post_item->ID, '_khm_geo_score', true );
+                            $geo_policy = '';
+                            $sponsor_name = '';
+
+                            if ( function_exists( 'khm_seo' ) && khm_seo()->get_geo_manager() ) {
+                                $geo_manager = khm_seo()->get_geo_manager();
+                                if ( method_exists( $geo_manager, 'getSponsorPolicyForPost' ) ) {
+                                    $policy = $geo_manager->getSponsorPolicyForPost( $post_item->ID, 'global' );
+                                    if ( is_array( $policy ) ) {
+                                        $geo_policy = $policy['policy'] ?? '';
+                                        if ( ! empty( $policy['sponsor_id'] ) && function_exists( 'kh_ad_manager_get_sponsor_meta' ) ) {
+                                            $sponsor_meta = kh_ad_manager_get_sponsor_meta( (int) $policy['sponsor_id'] );
+                                            $sponsor_name = $sponsor_meta['name'] ?? '';
+                                        }
+                                    }
+                                }
+                            }
+
+                            $promote_url = admin_url( 'admin.php?page=khm-seo-boost-visibility&post_type=' . $selected_type . '&post_id=' . $post_item->ID . '&smma_action=promote' );
+                            $boost_url = admin_url( 'admin.php?page=khm-seo-boost-visibility&post_type=' . $selected_type . '&post_id=' . $post_item->ID . '&smma_action=boost' );
+                            ?>
+                            <tr>
+                                <td>
+                                    <strong><?php echo esc_html( $post_item->post_title ?: sprintf( __( '(Untitled #%d)', 'khm-seo' ), $post_item->ID ) ); ?></strong>
+                                </td>
+                                <td><?php echo esc_html( get_the_date( '', $post_item ) ); ?></td>
+                                <td><?php echo esc_html( $seo_score ?: '—' ); ?></td>
+                                <td>
+                                    <?php echo esc_html( $geo_score ?: '—' ); ?>
+                                    <?php if ( $geo_policy ) : ?>
+                                        <br /><small><?php echo esc_html( strtoupper( $geo_policy ) ); ?></small>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?php echo esc_html( $sponsor_name ?: '—' ); ?></td>
+                                <td><a class="button" href="<?php echo esc_url( $promote_url ); ?>"><?php esc_html_e( 'Promote', 'khm-seo' ); ?></a></td>
+                                <td><a class="button" href="<?php echo esc_url( $boost_url ); ?>"><?php esc_html_e( 'Boost', 'khm-seo' ); ?></a></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+
+                <hr />
+                <h2><?php esc_html_e( 'Pending Sponsor Approvals', 'khm-seo' ); ?></h2>
+                <?php
+                $pending = new \WP_Query( array(
+                    'post_type'      => 'kh_smma_schedule',
+                    'post_status'    => 'publish',
+                    'posts_per_page' => 20,
+                    'fields'         => 'ids',
+                    'meta_query'     => array(
+                        array(
+                            'key'     => '_kh_smma_approval_status',
+                            'value'   => 'pending',
+                            'compare' => '=',
+                        ),
+                    ),
+                ) );
+                ?>
+                <?php if ( $pending->have_posts() ) : ?>
+                    <table class="wp-list-table widefat fixed striped">
+                        <thead>
+                            <tr>
+                                <th><?php esc_html_e( 'Schedule', 'khm-seo' ); ?></th>
+                                <th><?php esc_html_e( 'Post', 'khm-seo' ); ?></th>
+                                <th><?php esc_html_e( 'Sponsor', 'khm-seo' ); ?></th>
+                                <th><?php esc_html_e( 'Telemetry', 'khm-seo' ); ?></th>
+                                <th><?php esc_html_e( 'Actions', 'khm-seo' ); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ( $pending->posts as $schedule_id ) : ?>
+                                <?php
+                                $payload = get_post_meta( $schedule_id, '_kh_smma_payload', true );
+                                $source_post_id = isset( $payload['post_id'] ) ? (int) $payload['post_id'] : 0;
+                                $source_post = $source_post_id ? get_post( $source_post_id ) : null;
+                                $sponsor_id = (int) get_post_meta( $schedule_id, '_kh_smma_sponsor_id', true );
+                                $sponsor_name = '';
+                                if ( $sponsor_id && function_exists( 'kh_ad_manager_get_sponsor_meta' ) ) {
+                                    $sponsor = kh_ad_manager_get_sponsor_meta( $sponsor_id );
+                                    $sponsor_name = $sponsor['name'] ?? '';
+                                }
+                                $telemetry = get_post_meta( $schedule_id, '_kh_smma_last_telemetry', true );
+                                ?>
+                                <tr>
+                                    <td>#<?php echo esc_html( $schedule_id ); ?></td>
+                                    <td><?php echo esc_html( $source_post ? $source_post->post_title : __( 'Unknown', 'khm-seo' ) ); ?></td>
+                                    <td><?php echo esc_html( $sponsor_name ?: '—' ); ?></td>
+                                    <td><small><?php echo esc_html( wp_json_encode( $telemetry ) ); ?></small></td>
+                                    <td>
+                                        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block;">
+                                            <?php wp_nonce_field( 'kh_smma_approve_schedule' ); ?>
+                                            <input type="hidden" name="action" value="kh_smma_approve_schedule" />
+                                            <input type="hidden" name="schedule_id" value="<?php echo esc_attr( $schedule_id ); ?>" />
+                                            <button type="submit" class="button button-primary"><?php esc_html_e( 'Approve', 'khm-seo' ); ?></button>
+                                        </form>
+                                        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block;">
+                                            <?php wp_nonce_field( 'kh_smma_deny_schedule' ); ?>
+                                            <input type="hidden" name="action" value="kh_smma_deny_schedule" />
+                                            <input type="hidden" name="schedule_id" value="<?php echo esc_attr( $schedule_id ); ?>" />
+                                            <button type="submit" class="button"><?php esc_html_e( 'Reject', 'khm-seo' ); ?></button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php else : ?>
+                    <p><?php esc_html_e( 'No pending approvals.', 'khm-seo' ); ?></p>
+                <?php endif; ?>
+
             <?php if ( $selected_post ) : ?>
                 <hr />
                 <h2><?php echo esc_html( get_the_title( $selected_post ) ); ?></h2>
@@ -558,6 +690,8 @@ class AdminManager {
         }
 
         $actions['boost_visibility'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-boost-visibility&post_type=' . $post->post_type . '&post_id=' . $post->ID ) ) . '">' . esc_html__( 'Boost Visibility', 'khm-seo' ) . '</a>';
+        $actions['smma_promote'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-boost-visibility&post_type=' . $post->post_type . '&post_id=' . $post->ID . '&smma_action=promote' ) ) . '">' . esc_html__( 'Promote', 'khm-seo' ) . '</a>';
+        $actions['smma_boost'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-boost-visibility&post_type=' . $post->post_type . '&post_id=' . $post->ID . '&smma_action=boost' ) ) . '">' . esc_html__( 'Boost', 'khm-seo' ) . '</a>';
         $actions['boost_social'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-social-preview&post_type=' . $post->post_type . '&post_id=' . $post->ID ) ) . '">' . esc_html__( 'Social', 'khm-seo' ) . '</a>';
         $actions['boost_geo'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-geo-post&post_type=' . $post->post_type . '&post_id=' . $post->ID ) ) . '">' . esc_html__( 'GEO', 'khm-seo' ) . '</a>';
         $actions['boost_health'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-post-health&post_type=' . $post->post_type . '&post_id=' . $post->ID ) ) . '">' . esc_html__( 'Post Health', 'khm-seo' ) . '</a>';
