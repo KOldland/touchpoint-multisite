@@ -31,13 +31,50 @@ class Editorial_Planner_Plugin {
     }
 
     public function register_admin_page() {
+        add_menu_page(
+            'Editorial',
+            'Editorial',
+            'edit_posts',
+            'editorial_planner',
+            array( $this, 'render_admin_page' ),
+            'dashicons-welcome-write-blog',
+            6
+        );
+
         add_submenu_page(
-            'tools.php',
-            'Editorial Planner Dashboard',
-            'Editorial Planner',
-            'manage_options',
-            'ep-dashboard',
+            'editorial_planner',
+            'Planner',
+            'Planner',
+            'edit_posts',
+            'editorial_planner',
             array( $this, 'render_admin_page' )
+        );
+
+        add_submenu_page(
+            'editorial_planner',
+            'Frameworks',
+            'Frameworks',
+            'edit_posts',
+            'editorial_frameworks',
+            array( $this, 'render_frameworks_page' )
+        );
+
+        add_submenu_page(
+            'editorial_planner',
+            'Sessions',
+            'Sessions',
+            'edit_posts',
+            'editorial_sessions',
+            array( $this, 'render_sessions_page' )
+        );
+
+        add_submenu_page(
+            'editorial_planner',
+            'Exports',
+            'Exports',
+            'edit_posts',
+            'editorial_exports',
+            array( $this, 'render_exports_page' )
         );
     }
 
@@ -161,7 +198,10 @@ class Editorial_Planner_Plugin {
     }
 
     public function get_permission() {
-        return current_user_can( 'edit_posts' );
+        $user_id = get_current_user_id();
+        $can_edit = current_user_can( 'edit_posts' );
+        error_log( 'EP: get_permission called, user_id: ' . $user_id . ', can_edit_posts: ' . ($can_edit ? 'yes' : 'no') );
+        return $can_edit;
     }
 
     private function get_db_handler() {
@@ -198,24 +238,32 @@ class Editorial_Planner_Plugin {
     }
 
     public function start_session( WP_REST_Request $request ) {
+        error_log( 'EP: start_session called' );
         $params = $request->get_json_params();
+        error_log( 'EP: params received: ' . json_encode( $params ) );
 
         if ( empty( $params['broad_focus'] ) || empty( $params['idempotency_key'] ) ) {
+            error_log( 'EP: missing required parameters' );
             return new WP_Error( 'missing_parameters', 'Missing required parameters.', array( 'status' => 400 ) );
         }
 
         $db_handler = $this->get_db_handler();
         if ( ! $db_handler ) {
+            error_log( 'EP: Dual_GPT_DB_Handler not found' );
             return new WP_Error( 'class_not_found', 'Dual_GPT_DB_Handler class not found.', array( 'status' => 500 ) );
         }
 
         $user_id = get_current_user_id();
+        error_log( 'EP: user_id: ' . $user_id );
         if ( ! $this->check_rate_limit( 'start', $user_id, 4, 60 ) ) {
+            error_log( 'EP: rate limit exceeded' );
             return new WP_Error( 'rate_limit_exceeded', 'Rate limit exceeded. Please try again later.', array( 'status' => 429 ) );
         }
 
         $budget = $db_handler->check_user_budget( $user_id );
+        error_log( 'EP: budget check: ' . json_encode( $budget ) );
         if ( ( $budget['token_used'] ?? 0 ) >= ( $budget['token_limit'] ?? 0 ) ) {
+            error_log( 'EP: budget exceeded' );
             return new WP_Error( 'budget_exceeded', 'Token budget exceeded', array( 'status' => 403 ) );
         }
 
@@ -565,7 +613,7 @@ class Editorial_Planner_Plugin {
     }
 
     public function render_admin_page() {
-        if ( ! current_user_can( 'manage_options' ) ) {
+        if ( ! current_user_can( 'edit_posts' ) ) {
             return;
         }
 
@@ -713,6 +761,42 @@ class Editorial_Planner_Plugin {
                     <?php endif; ?>
                 </tbody>
             </table>
+        </div>
+        <?php
+    }
+
+    public function render_frameworks_page() {
+        if ( ! current_user_can( 'edit_posts' ) ) {
+            return;
+        }
+        ?>
+        <div class="wrap">
+            <h1>Frameworks</h1>
+            <p>Frameworks will appear here.</p>
+        </div>
+        <?php
+    }
+
+    public function render_sessions_page() {
+        if ( ! current_user_can( 'edit_posts' ) ) {
+            return;
+        }
+        ?>
+        <div class="wrap">
+            <h1>Sessions</h1>
+            <p>Sessions will appear here.</p>
+        </div>
+        <?php
+    }
+
+    public function render_exports_page() {
+        if ( ! current_user_can( 'edit_posts' ) ) {
+            return;
+        }
+        ?>
+        <div class="wrap">
+            <h1>Exports</h1>
+            <p>Exports will appear here.</p>
         </div>
         <?php
     }

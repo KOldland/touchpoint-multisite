@@ -109,6 +109,32 @@ add_action( 'rest_api_init', function() {
     }
 } );
 
+// Register planner_session post type
+add_action('init', function() {
+    $args = array(
+        'label' => 'Planner Sessions',
+        'public' => false,
+        'show_ui' => true,
+        'supports' => array('title','editor','author','custom-fields'),
+        'capability_type' => 'post',
+        'show_in_rest' => true,
+    );
+    register_post_type('planner_session', $args);
+    
+    // Register meta fields for REST API
+    $meta_fields = array('audience', 'angle', 'key_messages', 'framework', 'geo', 'tone', 'word_count', 'status', 'created_by');
+    foreach ($meta_fields as $field) {
+        register_post_meta('planner_session', $field, array(
+            'show_in_rest' => true,
+            'single' => true,
+            'type' => 'string',
+            'auth_callback' => function() {
+                return current_user_can('edit_posts');
+            }
+        ));
+    }
+}, 0);
+
 // Load GEO Migration (for table creation)
 require_once __DIR__ . '/src/Migrations/GeoAnswerCardMigration.php';
 
@@ -1635,3 +1661,179 @@ add_filter('cron_schedules', function($schedules) {
     );
     return $schedules;
 });
+
+// Editorial Admin Menu and Subpages
+add_action('admin_menu', function() {
+    add_menu_page(
+        __('Editorial','khm-membership'),
+        __('Editorial','khm-membership'),
+        'edit_posts',
+        'editorial_planner',
+        'render_editorial_planner_page',
+        'dashicons-welcome-write-blog',
+        6
+    );
+
+    add_submenu_page('editorial_planner', __('Planner','khm-membership'), __('Planner','khm-membership'), 'edit_posts', 'editorial_planner', 'render_editorial_planner_page');
+    add_submenu_page('editorial_planner', __('Frameworks','khm-membership'), __('Frameworks','khm-membership'), 'edit_posts', 'editorial_frameworks', 'render_frameworks_page');
+    add_submenu_page('editorial_planner', __('Sessions','khm-membership'), __('Sessions','khm-membership'), 'edit_posts', 'editorial_sessions', 'render_sessions_page');
+    add_submenu_page('editorial_planner', __('Exports','khm-membership'), __('Exports','khm-membership'), 'manage_options', 'editorial_exports', 'render_exports_page');
+});
+
+function render_editorial_planner_page() {
+    // Bootstrap existing Planner UI
+    echo '<div id="editorial-planner-app"></div>';
+    $planner_path = plugin_dir_path(__FILE__) . 'assets/js/editorial-planner.js';
+    $planner_version = file_exists($planner_path) ? filemtime($planner_path) : '1.0';
+    wp_enqueue_script(
+        'editorial-planner',
+        plugins_url('assets/js/editorial-planner.js', __FILE__),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
+        $planner_version,
+        true
+    );
+    wp_localize_script(
+        'editorial-planner',
+        'dualGptData',
+        array(
+            'nonce' => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
+    );
+}
+
+function render_frameworks_page() {
+    echo '<div id="editorial-frameworks-app"></div>';
+    wp_enqueue_script('editorial-frameworks', plugins_url('assets/js/editorial-frameworks.js', __FILE__), ['wp-element', 'wp-api-fetch'], '1.0', true);
+}
+
+function render_sessions_page() {
+    echo '<div id="editorial-sessions-app"></div>';
+    wp_enqueue_script('editorial-sessions', plugins_url('assets/js/editorial-sessions.js', __FILE__), ['wp-element', 'wp-api-fetch'], '1.0', true);
+}
+
+function render_exports_page() {
+    echo '<div id="editorial-exports-app"></div>';
+    wp_enqueue_script('editorial-exports', plugins_url('assets/js/editorial-exports.js', __FILE__), ['wp-element', 'wp-api-fetch'], '1.0', true);
+}
+
+// Dashboard Widgets
+add_action('wp_dashboard_setup', function() {
+    wp_add_dashboard_widget('plnr_quick_create','Quick Create Planner','render_planner_quick_create_widget');
+    wp_add_dashboard_widget('plnr_recent_sessions','Recent Planner Sessions','render_planner_recent_sessions_widget');
+});
+
+function render_planner_quick_create_widget() {
+    echo '<div id="plnr-quick-create" data-nonce="' . wp_create_nonce('wp_rest') . '"></div>';
+}
+
+function render_planner_recent_sessions_widget() {
+    echo '<div id="plnr-recent-sessions" data-nonce="' . wp_create_nonce('wp_rest') . '"></div>';
+}
+
+// Enqueue dashboard JS
+add_action('admin_enqueue_scripts', function($hook) {
+    if ($hook !== 'index.php') {
+        return;
+    }
+
+    wp_enqueue_script(
+        'editorial-dashboard',
+        plugins_url('assets/js/editorial-dashboard.js', __FILE__),
+        array( 'wp-api-fetch' ),
+        '1.0.0',
+        true
+    );
+
+    wp_localize_script(
+        'editorial-dashboard',
+        'editorialData',
+        array(
+            'restBase' => rest_url( 'editorial/v1/' ),
+            'nonce'    => wp_create_nonce( 'wp_rest' )
+        )
+    );
+});
+
+// REST Endpoints
+add_action('rest_api_init', function() {
+    register_rest_route('editorial/v1','/sessions',[
+        'methods' => 'GET',
+        'callback' => 'ed_get_sessions',
+        'permission_callback' => function(){ return current_user_can('edit_posts'); }
+    ]);
+    register_rest_route('editorial/v1','/sessions',[
+        'methods' => 'POST',
+        'callback' => 'ed_create_session',
+        'permission_callback' => function(){ return current_user_can('edit_posts'); },
+        'args' => [ 'title' => ['required' => true] ]
+    ]);
+    register_rest_route('editorial/v1','/frameworks',[
+        'methods' => 'GET',
+        'callback' => 'ed_get_frameworks',
+        'permission_callback' => function(){ return current_user_can('edit_posts'); }
+    ]);
+    register_rest_route('editorial/v1','/pipeline',[
+        'methods' => 'GET',
+        'callback' => 'ed_get_pipeline',
+        'permission_callback' => function(){ return current_user_can('edit_posts'); }
+    ]);
+});
+
+function ed_get_sessions($request){
+    $limit = intval($request->get_param('limit') ?: 6);
+    $args = ['post_type'=>'planner_session','posts_per_page'=>$limit,'post_status'=>'any'];
+    $q = get_posts($args);
+    $out = array_map(function($p){ return ['id'=>$p->ID,'title'=>$p->post_title,'status'=>get_post_meta($p->ID,'status',true),'link'=>admin_url("admin.php?page=editorial_planner&session_id={$p->ID}")]; }, $q);
+    return rest_ensure_response($out);
+}
+
+function ed_create_session( WP_REST_Request $request ) {
+    $params = $request->get_json_params();
+    $title  = isset($params['title']) ? sanitize_text_field($params['title']) : '';
+
+    if ( empty( $title ) ) {
+        return new WP_Error( 'missing_title', 'Title is required', array( 'status' => 400 ) );
+    }
+
+    // prepare post array
+    $postarr = array(
+        'post_type'    => 'planner_session',
+        'post_title'   => $title,
+        'post_status'  => 'draft',
+        'post_author'  => get_current_user_id(),
+    );
+
+    // attempt insert with WP_Error return allowed
+    $post_id = wp_insert_post( $postarr, true );
+
+    if ( is_wp_error( $post_id ) ) {
+        // explicit log for debugging — include user id and request data (careful with secrets)
+        error_log( '[PLANNER] wp_insert_post failed: ' . $post_id->get_error_message() . ' | user:' . get_current_user_id() . ' | title:' . $title );
+        return new WP_Error( 'insert_failed', 'Failed to insert session: ' . $post_id->get_error_message(), array( 'status' => 500 ) );
+    }
+
+    if ( empty( $post_id ) || intval( $post_id ) === 0 ) {
+        global $wpdb;
+        error_log( '[PLANNER] wp_insert_post returned 0. DB error: ' . $wpdb->last_error . ' | user:' . get_current_user_id() );
+        return new WP_Error( 'insert_failed', 'Failed to insert session (DB error).', array( 'status' => 500, 'db_error' => $wpdb->last_error ) );
+    }
+
+    // set default meta and return
+    update_post_meta( $post_id, 'status', 'draft' );
+    update_post_meta( $post_id, 'created_by', get_current_user_id() );
+    return rest_ensure_response( array(
+        'id'   => (int) $post_id,
+        'link' => admin_url( 'admin.php?page=editorial_planner&session_id=' . $post_id ),
+    ));
+}
+
+function ed_get_frameworks($request){
+    // Placeholder - implement based on your frameworks
+    return rest_ensure_response([]);
+}
+
+function ed_get_pipeline($request){
+    // Placeholder - implement based on your pipeline
+    return rest_ensure_response([]);
+}

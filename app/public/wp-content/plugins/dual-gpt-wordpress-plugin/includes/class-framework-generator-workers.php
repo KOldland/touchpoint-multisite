@@ -245,12 +245,36 @@ class Framework_Generator_Workers {
             $year = (int) date('Y');
         }
 
+        $publication_date = $metadata['publication_date'] ?? $article['date'] ?? '';
+        if ($publication_date === '' && $year) {
+            $publication_date = (string) $year;
+        }
+
+        $authors_raw = $metadata['authors'] ?? '';
+        $additional_authors = '';
+        if ($authors_raw) {
+            $authors_list = array_map('trim', explode(',', $authors_raw));
+            if (!empty($authors_list)) {
+                $lead = $metadata['lead_author'] ?? $article['author'] ?? '';
+                if ($lead !== '') {
+                    $authors_list = array_values(array_filter($authors_list, function ($name) use ($lead) {
+                        return $name !== '' && $name !== $lead;
+                    }));
+                }
+                if (!empty($authors_list)) {
+                    $additional_authors = implode(', ', $authors_list);
+                }
+            }
+        }
+
         return array(
             'title' => $metadata['title'] ?? $article['title'],
-            'lead_author' => $metadata['lead_author'] ?? $article['author'],
+            'lead_author' => $metadata['lead_author'] ?? $article['author'] ?? $article['domain'],
+            'additional_authors' => $additional_authors,
             'publication' => $metadata['publication'] ?? '',
             'organisation' => $metadata['organisation'] ?? $article['domain'],
             'year' => $year,
+            'publication_date' => $publication_date,
             'url' => $article['url'],
             'apa_string' => $metadata['apa_string'] ?? 'details_unavailable',
             'apa_details_available' => !empty($metadata['apa_string']),
@@ -476,9 +500,11 @@ class Framework_Generator_Workers {
             'job_id' => $job_id,
             'title' => $citation['title'],
             'lead_author' => $citation['lead_author'],
+            'additional_authors' => $citation['additional_authors'] ?? '',
             'publication' => $citation['publication'],
             'organisation' => $citation['organisation'],
             'year' => $citation['year'],
+            'publication_date' => $citation['publication_date'] ?? '',
             'url' => $citation['url'],
             'apa_string' => $citation['apa_string'],
             'apa_details_available' => $citation['apa_details_available'],
@@ -624,9 +650,26 @@ class Framework_Generator_Workers {
             // Sanitize citation data to prevent prompt injection
             $title = isset($citation['title']) ? sanitize_text_field($citation['title']) : '';
             $type = isset($citation['type']) ? sanitize_text_field($citation['type']) : '';
+            $lead_author = isset($citation['lead_author']) ? sanitize_text_field($citation['lead_author']) : '';
+            $additional_authors = isset($citation['additional_authors']) ? sanitize_text_field($citation['additional_authors']) : '';
+            $publication_date = isset($citation['publication_date']) ? sanitize_text_field($citation['publication_date']) : '';
+            $organisation = isset($citation['organisation']) ? sanitize_text_field($citation['organisation']) : '';
             // Use sanitize_textarea_field for snippets to preserve formatting
             $snippet = isset($citation['passage_snippet']) ? sanitize_textarea_field($citation['passage_snippet']) : '';
-            $prompt .= "- {$title} ({$type}) - {$snippet}\n";
+            $prompt .= "- {$title} ({$type})\n";
+            if ($lead_author) {
+                $prompt .= "  Lead Author: {$lead_author}\n";
+            }
+            if ($additional_authors) {
+                $prompt .= "  Additional Authors: {$additional_authors}\n";
+            }
+            if ($organisation) {
+                $prompt .= "  Organisation: {$organisation}\n";
+            }
+            if ($publication_date) {
+                $prompt .= "  Publication Date: {$publication_date}\n";
+            }
+            $prompt .= "  Snippet: {$snippet}\n";
         }
 
         $article_title = isset($input['article_idea']['title']) ? sanitize_text_field($input['article_idea']['title']) : '';

@@ -189,6 +189,7 @@ class Framework_Generator_Citation_Verifier {
 
         if (isset($json_data['datePublished'])) {
             $citation['year'] = date('Y', strtotime($json_data['datePublished']));
+            $citation['publication_date'] = $json_data['datePublished'];
         }
 
         return $citation;

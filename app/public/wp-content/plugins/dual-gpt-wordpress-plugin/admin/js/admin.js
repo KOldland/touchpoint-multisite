@@ -3,6 +3,37 @@
  */
 
 jQuery(document).ready(function($) {
+    const modelWarning = $('#dual-gpt-model-warning');
+    const modelSelects = $('select[name^="dual_gpt_task_models"]');
+
+    const refreshModelWarning = () => {
+        if (!modelSelects.length || !dualGptAdmin.modelDefaults) {
+            return;
+        }
+        let hasOverride = false;
+        modelSelects.each(function() {
+            const $select = $(this);
+            const name = $select.attr('name');
+            const taskMatch = name.match(/dual_gpt_task_models\\[(.+)\\]/);
+            if (!taskMatch) {
+                return;
+            }
+            const task = taskMatch[1];
+            const defaultModel = dualGptAdmin.modelDefaults[task];
+            if (defaultModel && $select.val() !== defaultModel) {
+                hasOverride = true;
+            }
+        });
+
+        if (hasOverride) {
+            modelWarning.show();
+        } else {
+            modelWarning.hide();
+        }
+    };
+
+    modelSelects.on('change', refreshModelWarning);
+    refreshModelWarning();
 
     // Test API connection with enhanced error handling
     $('#test-api-connection').on('click', function() {
@@ -44,6 +75,47 @@ jQuery(document).ready(function($) {
             },
             complete: function() {
                 button.prop('disabled', false).text('Test OpenAI API Connection');
+            }
+        });
+    });
+
+    $('#test-integrations').on('click', function() {
+        const button = $(this);
+        const resultDiv = $('#integrations-test-result');
+
+        button.prop('disabled', true).text('Testing...');
+        resultDiv.html('<p>Testing integrations...</p>');
+
+        $.ajax({
+            url: dualGptAdmin.ajaxUrl,
+            type: 'POST',
+            data: {
+                action: 'dual_gpt_test_integrations',
+                nonce: dualGptAdmin.nonce
+            },
+            timeout: 30000,
+            success: function(response) {
+                if (response.success) {
+                    resultDiv.html('<div class="notice notice-success"><p>✓ ' + response.data.message + '</p></div>');
+                } else {
+                    resultDiv.html('<div class="notice notice-error"><p>✗ ' + (response.data.message || 'Unknown error') + '</p></div>');
+                }
+            },
+            error: function(xhr, status, error) {
+                let errorMessage = 'Network error occurred';
+
+                if (status === 'timeout') {
+                    errorMessage = 'Request timed out. Please check your connection.';
+                } else if (xhr.status === 403) {
+                    errorMessage = 'Access denied. Please check your permissions.';
+                } else if (xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
+                    errorMessage = xhr.responseJSON.data.message;
+                }
+
+                resultDiv.html('<div class="notice notice-error"><p>✗ ' + errorMessage + '</p></div>');
+            },
+            complete: function() {
+                button.prop('disabled', false).text('Test Search & Keyword Providers');
             }
         });
     });

@@ -415,12 +415,16 @@ class Dual_GPT_Author_Agent {
             return new WP_Error('no_api_key', 'OpenAI API key not configured.', array('status' => 500));
         }
 
+        $model_config = class_exists('Dual_GPT_Model_Config') ? new Dual_GPT_Model_Config() : null;
+        $model = $model_config ? $model_config->get_model_for_task('author') : $llm_client->get_model_name();
+
         $system_prompt = $this->build_draft_system_prompt($core_settings);
         $user_prompt = $this->build_draft_user_prompt($framework_brief, $planner_brief, $citations, $instructions, $core_settings);
 
         $response = $llm_client->call($system_prompt, $user_prompt, array(
             'temperature' => 0.4,
             'max_tokens' => 3000,
+            'model' => $model,
             'json_mode' => true,
         ));
 
@@ -436,6 +440,7 @@ class Dual_GPT_Author_Agent {
         }
 
         $usage = $llm_client->get_usage($response);
+        $cost = $llm_client->estimate_cost($usage, $model);
         $this->update_budget_usage($user_id, $usage);
 
         $text = $this->blocks_to_text($data['blocks']);
@@ -445,6 +450,8 @@ class Dual_GPT_Author_Agent {
             'text' => $text,
             'word_count' => str_word_count($text),
             'usage' => $usage,
+            'model_used' => $model,
+            'cost_estimate' => $cost,
         );
     }
 
@@ -457,12 +464,16 @@ class Dual_GPT_Author_Agent {
             return new WP_Error('no_api_key', 'OpenAI API key not configured.', array('status' => 500));
         }
 
+        $model_config = class_exists('Dual_GPT_Model_Config') ? new Dual_GPT_Model_Config() : null;
+        $model = $model_config ? $model_config->get_model_for_task('author') : $llm_client->get_model_name();
+
         $system_prompt = $this->build_abstract_system_prompt();
         $user_prompt = $this->build_abstract_user_prompt($draft_content);
 
         $response = $llm_client->call($system_prompt, $user_prompt, array(
             'temperature' => 0.2,
             'max_tokens' => 1200,
+            'model' => $model,
             'json_mode' => true,
         ));
 
@@ -478,11 +489,14 @@ class Dual_GPT_Author_Agent {
         }
 
         $usage = $llm_client->get_usage($response);
+        $cost = $llm_client->estimate_cost($usage, $model);
         $this->update_budget_usage($user_id, $usage);
 
         return array(
             'abstract' => $data,
             'usage' => $usage,
+            'model_used' => $model,
+            'cost_estimate' => $cost,
         );
     }
 

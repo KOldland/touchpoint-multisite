@@ -577,10 +577,15 @@ class ECommerceService {
      * Get session ID for cart persistence
      */
     private function get_session_id(): string {
-        if (!session_id()) {
-            session_start();
+        try {
+            if (!session_id()) {
+                session_start();
+            }
+            return session_id();
+        } catch ( \Exception $e ) {
+            error_log( 'KHM ECommerce Session Error: ' . $e->getMessage() );
+            return '';
         }
-        return session_id();
     }
 
     /**

@@ -69,7 +69,7 @@ class Dual_GPT_OpenAI_Connector {
                 'Authorization' => 'Bearer ' . $this->api_key,
                 'Content-Type' => 'application/json',
             ),
-            'timeout' => 120, // Increased timeout for AI requests
+            'timeout' => 300, // Increased timeout for AI requests
             'redirection' => 5,
             'httpversion' => '1.1',
             'blocking' => true,
@@ -187,6 +187,11 @@ class Dual_GPT_OpenAI_Connector {
     public function calculate_cost($model, $prompt_tokens, $completion_tokens) {
         // Pricing as of 2024 (approximate)
         $pricing = array(
+            'gpt-5.2' => array('prompt' => 0.03, 'completion' => 0.06),
+            'gpt-5' => array('prompt' => 0.03, 'completion' => 0.06),
+            'gpt-4.1' => array('prompt' => 0.01, 'completion' => 0.03),
+            'gpt-4o' => array('prompt' => 0.005, 'completion' => 0.015),
+            'gpt-4o-mini' => array('prompt' => 0.00015, 'completion' => 0.0006),
             'gpt-4' => array('prompt' => 0.03, 'completion' => 0.06),
             'gpt-4-turbo' => array('prompt' => 0.01, 'completion' => 0.03),
             'gpt-3.5-turbo' => array('prompt' => 0.0015, 'completion' => 0.002),

@@ -242,12 +242,15 @@ function kss_track_gift_conversion($user_id, $post_id, $gift_data, $price) {
  */
 function kss_get_affiliate_code_from_session() {
     // Check session first
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
-    
-    if (isset($_SESSION['kss_affiliate_code'])) {
-        return $_SESSION['kss_affiliate_code'];
+    try {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        if (isset($_SESSION['kss_affiliate_code'])) {
+            return $_SESSION['kss_affiliate_code'];
+        }
+    } catch ( \Exception $e ) {
+        error_log( 'KSS Affiliate Session Get Error: ' . $e->getMessage() );
     }
     
     // Check cookies as fallback
@@ -267,11 +270,14 @@ function kss_get_affiliate_code_from_session() {
  * Set affiliate code in session when someone clicks an affiliate link
  */
 function kss_set_affiliate_session($affiliate_code) {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
+    try {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        $_SESSION['kss_affiliate_code'] = $affiliate_code;
+    } catch ( \Exception $e ) {
+        error_log( 'KSS Affiliate Session Set Error: ' . $e->getMessage() );
     }
-    
-    $_SESSION['kss_affiliate_code'] = $affiliate_code;
     
     // Also set a cookie for longer persistence (30 days)
     setcookie('kss_affiliate_ref', $affiliate_code, time() + (30 * 24 * 60 * 60), '/');
@@ -281,11 +287,15 @@ function kss_set_affiliate_session($affiliate_code) {
  * Clear affiliate code from session after conversion
  */
 function kss_clear_affiliate_session() {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
+    try {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        unset($_SESSION['kss_affiliate_code']);
+    } catch ( \Exception $e ) {
+        error_log( 'KSS Affiliate Session Clear Error: ' . $e->getMessage() );
     }
     
-    unset($_SESSION['kss_affiliate_code']);
     setcookie('kss_affiliate_ref', '', time() - 3600, '/'); // Expire cookie
 }
 

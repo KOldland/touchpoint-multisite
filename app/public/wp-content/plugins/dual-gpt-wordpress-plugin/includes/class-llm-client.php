@@ -182,8 +182,15 @@ class Dual_GPT_LLM_Client {
                 ),
             ),
             'temperature' => $options['temperature'] ?? 0.7,
-            'max_tokens'  => $options['max_tokens'] ?? 2000,
         );
+
+        $model_name = $data['model'];
+        $max_tokens = $options['max_tokens'] ?? 2000;
+        if (is_string($model_name) && strpos($model_name, 'gpt-5') === 0) {
+            $data['max_completion_tokens'] = $options['max_completion_tokens'] ?? $max_tokens;
+        } else {
+            $data['max_tokens'] = $max_tokens;
+        }
 
         // Add JSON mode if requested
         if ( ! empty( $options['json_mode'] ) ) {
@@ -251,7 +258,7 @@ class Dual_GPT_LLM_Client {
                 'Content-Type'  => 'application/json',
             ),
             'body'        => wp_json_encode( $data ),
-            'timeout'     => 120,
+            'timeout'     => 300,
             'redirection' => 5,
             'httpversion' => '1.1',
             'blocking'    => true,
@@ -323,6 +330,18 @@ class Dual_GPT_LLM_Client {
 
         // Pricing per 1M tokens (as of 2024)
         $pricing = array(
+            'gpt-5.2' => array(
+                'input'  => 30.00,
+                'output' => 60.00,
+            ),
+            'gpt-5' => array(
+                'input'  => 30.00,
+                'output' => 60.00,
+            ),
+            'gpt-4.1' => array(
+                'input'  => 10.00,
+                'output' => 30.00,
+            ),
             'gpt-4o-mini' => array(
                 'input'  => 0.15,
                 'output' => 0.60,

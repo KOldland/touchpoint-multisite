@@ -167,6 +167,9 @@ add_action('wp_enqueue_scripts', function() {
 
 // Enqueue admin assets on ad_unit screen only
 add_action('admin_enqueue_scripts', function() {
+    // ensure sponsorOptions exists (avoid ReferenceError)
+    wp_add_inline_script('jquery', 'window.sponsorOptions = window.sponsorOptions || {};', 'before');
+
     $screen = get_current_screen();
     if ($screen && $screen->post_type === 'ad_unit') {
         wp_enqueue_style('ad-manager-admin', AM_URL . 'assets/ad-manager-admin.css', [], '0.1');

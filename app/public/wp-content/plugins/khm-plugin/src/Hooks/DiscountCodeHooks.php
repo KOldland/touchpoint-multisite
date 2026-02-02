@@ -340,10 +340,15 @@ class DiscountCodeHooks {
 	 * @return void
 	 */
 	private function set_session_discount_code( string $code ): void {
-		if ( ! session_id() ) {
-			session_start();
+		try {
+			if ( ! session_id() ) {
+				session_start();
+			}
+			$_SESSION[ self::SESSION_KEY ] = $code;
+		} catch ( \Exception $e ) {
+			// Session creation failed - log silently
+			error_log( 'KHM Discount Code Session Error: ' . $e->getMessage() );
 		}
-		$_SESSION[ self::SESSION_KEY ] = $code;
 	}
 
 	/**
@@ -352,10 +357,16 @@ class DiscountCodeHooks {
 	 * @return string The discount code or empty string.
 	 */
 	private function get_session_discount_code(): string {
-		if ( ! session_id() ) {
-			session_start();
+		try {
+			if ( ! session_id() ) {
+				session_start();
+			}
+			return isset( $_SESSION[ self::SESSION_KEY ] ) ? sanitize_text_field( $_SESSION[ self::SESSION_KEY ] ) : '';
+		} catch ( \Exception $e ) {
+			// Session read failed - return empty
+			error_log( 'KHM Discount Code Session Read Error: ' . $e->getMessage() );
+			return '';
 		}
-		return isset( $_SESSION[ self::SESSION_KEY ] ) ? sanitize_text_field( $_SESSION[ self::SESSION_KEY ] ) : '';
 	}
 
 	/**
@@ -364,9 +375,14 @@ class DiscountCodeHooks {
 	 * @return void
 	 */
 	private function clear_session_discount_code(): void {
-		if ( ! session_id() ) {
-			session_start();
+		try {
+			if ( ! session_id() ) {
+				session_start();
+			}
+			unset( $_SESSION[ self::SESSION_KEY ] );
+		} catch ( \Exception $e ) {
+			// Session clear failed - log silently
+			error_log( 'KHM Discount Code Session Clear Error: ' . $e->getMessage() );
 		}
-		unset( $_SESSION[ self::SESSION_KEY ] );
 	}
 }

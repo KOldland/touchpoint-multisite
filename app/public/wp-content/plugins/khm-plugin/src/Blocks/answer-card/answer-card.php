@@ -1621,7 +1621,7 @@ function enqueue_suggest_plugin() {
     
     // Add a debug script to the page to confirm this function runs
     if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-        echo '<script>console.log("[KHM GEO DEBUG] enqueue_suggest_plugin function called, hook: ' . esc_js($current_action) . '");</script>';
+        error_log('[KHM GEO DEBUG] enqueue_suggest_plugin function called, hook: ' . $current_action);
     }
     
     // Debug logging
@@ -1664,7 +1664,7 @@ function enqueue_suggest_plugin() {
     if ( ! wp_script_is( 'khm-geo-suggest-plugin', 'registered' ) ) {
         if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
             error_log( '[KHM GEO] Script khm-geo-suggest-plugin not registered, registering now' );
-            echo '<script>console.log("[KHM GEO DEBUG] Registering script...");</script>';
+            error_log('[KHM GEO DEBUG] Registering script...');
         }
         register_suggest_plugin_assets();
         
@@ -1672,22 +1672,22 @@ function enqueue_suggest_plugin() {
         if ( ! wp_script_is( 'khm-geo-suggest-plugin', 'registered' ) ) {
             if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
                 error_log( '[KHM GEO] Script registration failed' );
-                echo '<script>console.log("[KHM GEO DEBUG] Script registration failed");</script>';
+                error_log('[KHM GEO DEBUG] Script registration failed');
             }
             return;
         } else {
             if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-                echo '<script>console.log("[KHM GEO DEBUG] Script registration successful");</script>';
+                error_log('[KHM GEO DEBUG] Script registration successful');
             }
         }
     } else {
         if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-            echo '<script>console.log("[KHM GEO DEBUG] Script already registered");</script>';
+            error_log('[KHM GEO DEBUG] Script already registered');
         }
     }
     
     if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-        echo '<script>console.log("[KHM GEO DEBUG] About to enqueue scripts...");</script>';
+        error_log('[KHM GEO DEBUG] About to enqueue scripts...');
     }
     
     wp_enqueue_script( 'khm-geo-suggest-plugin' );
@@ -1695,7 +1695,7 @@ function enqueue_suggest_plugin() {
     
     // Add debug output to confirm enqueuing
     if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-        echo '<script>console.log("[KHM GEO DEBUG] Scripts enqueued successfully");</script>';
+        error_log('[KHM GEO DEBUG] Scripts enqueued successfully');
     }
     
     // Determine the current post ID in the editor context.
