@@ -1,0 +1,281 @@
+/**
+ * KH-SMMA Admin Styles
+ * Styles for promotion planning UI components
+ */
+
+/* Phase Badges */
+.khm-phase-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.khm-phase-badge:hover {
+    opacity: 0.9;
+}
+
+/* Compliance Badges */
+.khm-compliance-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    text-transform: uppercase;
+}
+
+/* Modal Styles */
+.khm-smma-modal {
+    display: none;
+    position: fixed;
+    z-index: 100000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.7);
+    animation: fadeIn 0.2s;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.khm-smma-modal-content {
+    background-color: #fefefe;
+    margin: 5% auto;
+    padding: 0;
+    border: 1px solid #888;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+    animation: slideDown 0.3s;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.khm-smma-modal-header {
+    padding: 15px 20px;
+    background-color: #f1f1f1;
+    border-bottom: 1px solid #ddd;
+    border-radius: 5px 5px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.khm-smma-modal-header h2 {
+    margin: 0;
+    font-size: 20px;
+    line-height: 1.4;
+}
+
+.khm-smma-modal-close {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.khm-smma-modal-close:hover,
+.khm-smma-modal-close:focus {
+    color: #000;
+}
+
+.khm-smma-modal-body {
+    padding: 20px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/* Variant Cards */
+.khm-variant-card {
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 15px;
+    margin-bottom: 15px;
+    background: #fff;
+    transition: box-shadow 0.2s;
+}
+
+.khm-variant-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.khm-variant-card details {
+    margin-top: 10px;
+}
+
+.khm-variant-card summary {
+    cursor: pointer;
+    color: #0073aa;
+    font-weight: 600;
+    padding: 5px 0;
+}
+
+.khm-variant-card summary:hover {
+    color: #005177;
+}
+
+/* Buttons */
+.khm-smma-promote-btn,
+.khm-smma-boost-btn,
+.khm-smma-approve-btn,
+.khm-smma-edit-variant-btn,
+.khm-smma-reject-btn {
+    margin-right: 5px;
+    margin-bottom: 5px;
+}
+
+/* Table Enhancements */
+.wp-list-table td {
+    vertical-align: middle;
+}
+
+.wp-list-table .khm-phase-badge {
+    display: inline-block;
+}
+
+/* Form Elements */
+.form-table th {
+    width: 200px;
+}
+
+.form-table input[type="text"],
+.form-table input[type="datetime-local"],
+.form-table select,
+.form-table textarea {
+    width: 100%;
+    max-width: 400px;
+}
+
+/* Spinner */
+.spinner {
+    float: none;
+    margin: 0 10px;
+}
+
+.spinner.is-active {
+    display: inline-block;
+}
+
+/* Responsive */
+@media screen and (max-width: 782px) {
+    .khm-smma-modal-content {
+        width: 95% !important;
+        margin: 10% auto;
+    }
+
+    .khm-smma-modal-body {
+        padding: 15px;
+    }
+
+    .form-table th,
+    .form-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .form-table th {
+        padding-bottom: 5px;
+    }
+
+    .khm-variant-card {
+        padding: 10px;
+    }
+}
+
+/* Pending Approvals Enhancement */
+#pending-approvals {
+    scroll-margin-top: 100px;
+}
+
+.khm-smma-preview-btn {
+    color: #0073aa;
+    text-decoration: none;
+    font-size: 13px;
+}
+
+.khm-smma-preview-btn:hover {
+    color: #005177;
+    text-decoration: underline;
+}
+
+/* Tooltip Styles */
+.khm-phase-badge[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    background: #333;
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: pre-wrap;
+    max-width: 300px;
+    z-index: 1000;
+    margin-top: 25px;
+    margin-left: -50px;
+}
+
+/* Compliance Result Messages */
+#khm-compliance-result {
+    margin-top: 20px;
+}
+
+#khm-compliance-result div {
+    padding: 15px;
+    border-radius: 5px;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* Loading States */
+button[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Success/Error Messages */
+.khm-message-success {
+    padding: 15px;
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 5px;
+    color: #155724;
+    margin: 15px 0;
+}
+
+.khm-message-error {
+    padding: 15px;
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 5px;
+    color: #721c24;
+    margin: 15px 0;
+}
+
+.khm-message-warning {
+    padding: 15px;
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 5px;
+    color: #856404;
+    margin: 15px 0;
+}

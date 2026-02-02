@@ -8,27 +8,28 @@ use KH_SMMA\Meta\MetaRegistrar;
 use KH_SMMA\Admin\AdminInterface;
 use KH_SMMA\Admin\AuditLogPage;
 use KH_SMMA\Admin\CapabilitySettingsPage;
+use KH_SMMA\Admin\AssetsManager;
 use KH_SMMA\Services\ScheduleQueueProcessor;
 use KH_SMMA\Services\TokenRepository;
 use KH_SMMA\Services\AuditLogger;
 use KH_SMMA\Services\AnalyticsFeedbackService;
 use KH_SMMA\Services\LifecycleSimulator;
 use KH_SMMA\Services\EngagementMetricsService;
+use KH_SMMA\Services\PhaseEngine;
 use KH_SMMA\Services\FeatureFlags;
 use KH_SMMA\Services\SmmaGenerator;
+use KH_SMMA\API\RestController;
 use KH_SMMA\Security\CredentialVault;
 use KH_SMMA\Security\CapabilityManager;
-use KH_SMMA\API\RestController;
 use KH_SMMA\Integration\MarketingSuiteBridge;
 use KH_SMMA\Integration\SocialStripBridge;
 use KH_SMMA\Adapters\ManualExportAdapter;
 use KH_SMMA\Adapters\MetaChannelAdapter;
 use KH_SMMA\Adapters\LinkedInChannelAdapter;
 use KH_SMMA\Adapters\TwitterChannelAdapter;
-use KH_SMMA\Adapters\LinkedInAdsAdapter;
-use KH_SMMA\Adapters\GoogleAdsAdapter;
 use KH_SMMA\OAuth\OAuthManager;
 use KH_SMMA\CLI\LifecycleSimulatorCommand;
+use KH_SMMA\CLI\EventCatalogCommand;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -38,6 +39,7 @@ class Plugin {
     /**
      * @var TokenRepository
      */
+
     private $token_repository;
 
     /**
@@ -71,11 +73,6 @@ class Plugin {
     private $lifecycle_simulator;
 
     /**
-     * @var FeatureFlags
-     */
-    private $feature_flags;
-
-    /**
      * Primary bootstrap entrypoint.
      */
     public function register() {
@@ -89,7 +86,6 @@ class Plugin {
         $this->register_integrations();
         $this->register_oauth();
         $this->register_cli();
-        $this->register_rest();
         $this->capability_manager->register();
     }
 
@@ -125,7 +121,6 @@ class Plugin {
         $this->analytics_feedback  = new AnalyticsFeedbackService();
         $this->lifecycle_simulator = new LifecycleSimulator();
         $this->engagement_metrics  = new EngagementMetricsService();
-        $this->feature_flags       = new FeatureFlags();
     }
 
     /**
@@ -150,24 +145,30 @@ class Plugin {
     private function register_admin() {
         global $wpdb;
 
-        ( new AdminInterface( $this->token_repository, $this->audit_logger, $this->analytics_feedback, $this->lifecycle_simulator ) )->register();
+        $phase_engine = new PhaseEngine( $wpdb );
+        ( new AdminInterface( $this->token_repository, $this->audit_logger, $this->analytics_feedback, $this->lifecycle_simulator, $phase_engine ) )->register();
         ( new AuditLogPage( $wpdb ) )->register();
         ( new CapabilitySettingsPage() )->register();
+        ( new AssetsManager() )->register();
     }
 
     /**
      * Register queue services and channel adapters.
      */
     private function register_services() {
+        global $wpdb;
+
         ( new ScheduleQueueProcessor( $this->token_repository, $this->audit_logger ) )->register();
         $this->analytics_feedback->register();
         $this->engagement_metrics->register();
+        ( new PhaseEngine( $wpdb ) )->register();
+        $flags = new FeatureFlags();
+        $flags->ensure_defaults();
+        ( new RestController( $flags, new SmmaGenerator(), $this->audit_logger, new PhaseEngine( $wpdb ) ) )->register();
         ( new ManualExportAdapter() )->register();
         ( new MetaChannelAdapter( $this->token_repository ) )->register();
         ( new LinkedInChannelAdapter( $this->token_repository ) )->register();
         ( new TwitterChannelAdapter( $this->token_repository ) )->register();
-        ( new LinkedInAdsAdapter( $this->token_repository, $this->feature_flags ) )->register();
-        ( new GoogleAdsAdapter( $this->token_repository, $this->feature_flags ) )->register();
     }
 
     private function register_integrations() {
@@ -179,12 +180,11 @@ class Plugin {
         ( new OAuthManager( $this->token_repository ) )->register();
     }
 
-    private function register_rest() {
-        ( new RestController( $this->feature_flags, new SmmaGenerator(), $this->audit_logger ) )->register();
-    }
-
     private function register_cli() {
+        global $wpdb;
+
         ( new LifecycleSimulatorCommand( $this->lifecycle_simulator, $this->analytics_feedback ) )->register();
+        ( new EventCatalogCommand( new PhaseEngine( $wpdb ) ) )->register();
     }
 
     /**
@@ -202,6 +202,10 @@ class Plugin {
     public function register_cron() {
         if ( ! wp_next_scheduled( 'kh_smma_process_queue' ) ) {
             wp_schedule_event( time(), 'kh_smma_minute', 'kh_smma_process_queue' );
+        }
+
+        if ( ! wp_next_scheduled( 'kh_smma_phase_aggregate' ) ) {
+            wp_schedule_event( time(), 'hourly', 'kh_smma_phase_aggregate' );
         }
     }
 
@@ -239,6 +243,8 @@ class Plugin {
      * Activation callback – ensures cron schedules exist and future DB tables can be created.
      */
     public static function activate() {
+        global $wpdb;
+
         $plugin = new self();
         $plugin->register_autoloader();
         $plugin->bootstrap_services();
@@ -246,12 +252,16 @@ class Plugin {
         $plugin->register_meta();
         add_filter( 'cron_schedules', array( $plugin, 'register_custom_cron_interval' ) );
         $plugin->token_repository->install();
-        $plugin->feature_flags->ensure_defaults();
+        ( new PhaseEngine( $wpdb ) )->install();
 
         flush_rewrite_rules();
 
         if ( ! wp_next_scheduled( 'kh_smma_process_queue' ) ) {
             wp_schedule_event( time(), 'kh_smma_minute', 'kh_smma_process_queue' );
+        }
+
+        if ( ! wp_next_scheduled( 'kh_smma_phase_aggregate' ) ) {
+            wp_schedule_event( time(), 'hourly', 'kh_smma_phase_aggregate' );
         }
     }
 
@@ -262,6 +272,11 @@ class Plugin {
         $timestamp = wp_next_scheduled( 'kh_smma_process_queue' );
         if ( $timestamp ) {
             wp_unschedule_event( $timestamp, 'kh_smma_process_queue' );
+        }
+
+        $timestamp = wp_next_scheduled( 'kh_smma_phase_aggregate' );
+        if ( $timestamp ) {
+            wp_unschedule_event( $timestamp, 'kh_smma_phase_aggregate' );
         }
 
         flush_rewrite_rules();
