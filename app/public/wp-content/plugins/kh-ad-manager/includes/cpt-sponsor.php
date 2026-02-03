@@ -107,11 +107,20 @@ add_action( 'init', function() {
 
     register_post_meta( 'kh_sponsor', 'allowed_claims', array(
         'type'              => 'array',
-        'sanitize_callback' => 'kh_ad_manager_sanitize_array',
+        'sanitize_callback' => 'kh_ad_manager_sanitize_allowed_claims',
         'show_in_rest'      => array(
             'schema' => array(
                 'type'  => 'array',
-                'items' => array( 'type' => 'string' ),
+                'items' => array(
+                    'type'       => 'object',
+                    'properties' => array(
+                        'claim'      => array( 'type' => 'string' ),
+                        'version'    => array( 'type' => 'integer' ),
+                        'approved_at' => array( 'type' => 'integer' ),
+                        'approved_by' => array( 'type' => 'integer' ),
+                    ),
+                    'required' => array( 'claim', 'version' ),
+                ),
             ),
         ),
     ) );
@@ -202,4 +211,54 @@ function kh_ad_manager_sanitize_array( $value ) {
         }
         return sanitize_text_field( $item );
     }, $value );
+}
+
+/**
+ * Sanitize and validate allowed_claims schema.
+ * 
+ * Enforces structured claim format to prevent free-text additions.
+ * Each claim must have: claim text, version, approval timestamp, approver.
+ * 
+ * @param mixed $value The value to sanitize.
+ * @return array Sanitized and validated claims array.
+ */
+function kh_ad_manager_sanitize_allowed_claims( $value ) {
+    if ( ! is_array( $value ) ) {
+        return array();
+    }
+
+    $sanitized = array();
+    
+    foreach ( $value as $claim ) {
+        // Skip non-array items
+        if ( ! is_array( $claim ) ) {
+            continue;
+        }
+
+        // Required fields validation
+        if ( empty( $claim['claim'] ) || ! isset( $claim['version'] ) ) {
+            continue; // Skip invalid claims
+        }
+
+        $sanitized_claim = array(
+            'claim'       => sanitize_text_field( $claim['claim'] ),
+            'version'     => absint( $claim['version'] ),
+            'approved_at' => isset( $claim['approved_at'] ) ? absint( $claim['approved_at'] ) : time(),
+            'approved_by' => isset( $claim['approved_by'] ) ? absint( $claim['approved_by'] ) : get_current_user_id(),
+        );
+
+        // Additional validation: claim text must be non-empty after sanitization
+        if ( empty( $sanitized_claim['claim'] ) ) {
+            continue;
+        }
+
+        // Version must be > 0
+        if ( $sanitized_claim['version'] < 1 ) {
+            continue;
+        }
+
+        $sanitized[] = $sanitized_claim;
+    }
+
+    return $sanitized;
 }

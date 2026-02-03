@@ -199,7 +199,11 @@ class RestController {
 
         $created = array();
         foreach ( $schedule as $item ) {
-            $scheduled_at = isset( $item['scheduled_at'] ) ? (int) $item['scheduled_at'] : time();
+            // Timezone handling: Convert ISO 8601 datetime to UTC timestamp
+            $scheduled_at_input = $item['scheduled_at'] ?? time();
+            $scheduled_at_utc = $this->parse_datetime_to_utc( $scheduled_at_input );
+            $original_timezone = $this->extract_timezone( $scheduled_at_input );
+
             $variant_id   = sanitize_text_field( $item['variant_id'] ?? '' );
             $geo          = sanitize_text_field( $item['geo'] ?? '' );
             $variant_text = $item['text'] ?? '';
@@ -213,6 +217,8 @@ class RestController {
                 'meta' => array(
                     'source' => 'smma_rest',
                     'generated_by' => 'smma-ai-v1',
+                    'original_timezone' => $original_timezone,
+                    'scheduled_at_input' => $scheduled_at_input,
                 ),
             );
 
@@ -231,7 +237,8 @@ class RestController {
             $schedule_status = $approval_required ? 'awaiting_approval' : 'pending';
 
             update_post_meta( $schedule_id, '_kh_smma_payload', $variant_payload );
-            update_post_meta( $schedule_id, '_kh_smma_scheduled_at', $scheduled_at );
+            update_post_meta( $schedule_id, '_kh_smma_scheduled_at', $scheduled_at_utc );
+            update_post_meta( $schedule_id, '_kh_smma_original_timezone', $original_timezone );
             update_post_meta( $schedule_id, '_kh_smma_schedule_status', $schedule_status );
             update_post_meta( $schedule_id, '_kh_smma_delivery_mode', 'manual_export' );
             update_post_meta( $schedule_id, '_kh_smma_sponsor_id', isset( $sponsor_context['sponsor_id'] ) ? (int) $sponsor_context['sponsor_id'] : 0 );
@@ -294,16 +301,71 @@ class RestController {
     public function handle_approve( WP_REST_Request $request ) {
         $payload = $request->get_json_params();
         $schedule_id = (int) ( $payload['schedule_id'] ?? 0 );
+        $approver_id = (int) ( $payload['approver_id'] ?? get_current_user_id() );
+        $notes = sanitize_textarea_field( $payload['notes'] ?? '' );
 
         if ( ! $schedule_id ) {
             return new WP_Error( 'kh_smma_missing_schedule', __( 'schedule_id is required.', 'kh-smma' ), array( 'status' => 400 ) );
         }
 
-        update_post_meta( $schedule_id, '_kh_smma_approval_status', 'approved' );
-        update_post_meta( $schedule_id, '_kh_smma_approved_by', get_current_user_id() );
-        update_post_meta( $schedule_id, '_kh_smma_approved_at', time() );
+        // Authorization: Check capability for sponsor approvals
+        if ( ! current_user_can( 'approve_sponsor_posts' ) && ! current_user_can( 'manage_options' ) ) {
+            return new WP_Error(
+                'kh_smma_insufficient_permissions',
+                __( 'You do not have permission to approve sponsored content.', 'kh-smma' ),
+                array( 'status' => 403 )
+            );
+        }
 
-        return rest_ensure_response( array( 'status' => 'approved' ) );
+        // Idempotency: Check if already approved
+        $current_status = get_post_meta( $schedule_id, '_kh_smma_approval_status', true );
+        if ( 'approved' === $current_status ) {
+            $approved_by = get_post_meta( $schedule_id, '_kh_smma_approved_by', true );
+            $approved_at = get_post_meta( $schedule_id, '_kh_smma_approved_at', true );
+
+            return rest_ensure_response( array(
+                'status' => 'approved',
+                'message' => __( 'This schedule was already approved.', 'kh-smma' ),
+                'approved_by' => $approved_by,
+                'approved_at' => $approved_at,
+                'idempotent' => true,
+            ) );
+        }
+
+        // Update approval status
+        update_post_meta( $schedule_id, '_kh_smma_approval_status', 'approved' );
+        update_post_meta( $schedule_id, '_kh_smma_approved_by', $approver_id );
+        update_post_meta( $schedule_id, '_kh_smma_approved_at', time() );
+        update_post_meta( $schedule_id, '_kh_smma_schedule_status', 'pending' );
+        if ( $notes ) {
+            update_post_meta( $schedule_id, '_kh_smma_approval_notes', $notes );
+        }
+
+        // Audit logging
+        $this->logger->log( 'smma_schedule_approve', array(
+            'object_type' => 'schedule',
+            'object_id' => $schedule_id,
+            'details' => array(
+                'approver_id' => $approver_id,
+                'notes' => $notes,
+            ),
+            'user_id' => get_current_user_id(),
+        ) );
+
+        // Telemetry
+        ScheduleQueueProcessor::log_telemetry( $schedule_id, array(
+            'mode' => 'approve',
+            'provider' => 'smma',
+            'approver_id' => $approver_id,
+            'notes' => $notes,
+        ) );
+
+        return rest_ensure_response( array(
+            'status' => 'approved',
+            'schedule_id' => $schedule_id,
+            'approved_by' => $approver_id,
+            'approved_at' => time(),
+        ) );
     }
 
     public function handle_get_sponsor( WP_REST_Request $request ) {
@@ -358,6 +420,9 @@ class RestController {
             return new WP_Error( 'kh_smma_schedule_not_found', __( 'Schedule not found.', 'kh-smma' ), array( 'status' => 404 ) );
         }
 
+        // Store original text for diff calculation
+        $original_text = $schedule_payload['text'] ?? '';
+
         $sponsor_id = (int) get_post_meta( $schedule_id, '_kh_smma_sponsor_id', true );
         $sponsor_context = array(
             'sponsor_id' => $sponsor_id,
@@ -378,6 +443,9 @@ class RestController {
             return new WP_Error( 'kh_smma_compliance_failed', $compliance_check['message'], array( 'status' => 422 ) );
         }
 
+        // Calculate unified diff
+        $unified_diff = $this->calculate_unified_diff( $original_text, $updated_text );
+
         $schedule_payload['text'] = sanitize_textarea_field( $updated_text );
         $schedule_payload['edited_at'] = time();
         $schedule_payload['edited_by'] = get_current_user_id();
@@ -385,14 +453,35 @@ class RestController {
         update_post_meta( $schedule_id, '_kh_smma_payload', $schedule_payload );
         update_post_meta( $schedule_id, '_kh_smma_compliance_notes', $compliance_check['notes'] );
 
+        // Store preview changes with full metadata
+        $preview_changes = array(
+            'variant_id' => $schedule_payload['variant_id'] ?? '',
+            'editor_id' => get_current_user_id(),
+            'full_text' => $updated_text,
+            'unified_diff' => $unified_diff,
+            'timestamp' => time(),
+            'compliance_result' => $compliance_check,
+        );
+        update_post_meta( $schedule_id, '_kh_smma_preview_changes', $preview_changes );
+
         $this->logger->log( 'smma_variant_edit', array(
             'object_type' => 'schedule',
             'object_id' => $schedule_id,
             'details' => array(
                 'compliance_passed' => $compliance_check['passed'],
                 'edited_by' => get_current_user_id(),
+                'diff_size' => strlen( $unified_diff ),
             ),
             'user_id' => get_current_user_id(),
+        ) );
+
+        // Enhanced telemetry with diff
+        ScheduleQueueProcessor::log_telemetry( $schedule_id, array(
+            'mode' => 'variant_edit',
+            'provider' => 'smma',
+            'editor_id' => get_current_user_id(),
+            'diff' => $unified_diff,
+            'compliance_result' => $compliance_check,
         ) );
 
         return rest_ensure_response( array(
@@ -410,9 +499,30 @@ class RestController {
             return new WP_Error( 'kh_smma_missing_schedule', __( 'schedule_id is required.', 'kh-smma' ), array( 'status' => 400 ) );
         }
 
+        // Authorization: Check capability for sponsor approvals/rejections
+        if ( ! current_user_can( 'approve_sponsor_posts' ) && ! current_user_can( 'manage_options' ) ) {
+            return new WP_Error(
+                'kh_smma_insufficient_permissions',
+                __( 'You do not have permission to reject sponsored content.', 'kh-smma' ),
+                array( 'status' => 403 )
+            );
+        }
+
+        // Idempotency: Check if already rejected
         $current_status = get_post_meta( $schedule_id, '_kh_smma_approval_status', true );
         if ( 'rejected' === $current_status ) {
-            return new WP_Error( 'kh_smma_already_rejected', __( 'This schedule is already rejected.', 'kh-smma' ), array( 'status' => 400 ) );
+            $rejected_by = get_post_meta( $schedule_id, '_kh_smma_rejected_by', true );
+            $rejected_at = get_post_meta( $schedule_id, '_kh_smma_rejected_at', true );
+            $existing_reason = get_post_meta( $schedule_id, '_kh_smma_rejection_reason', true );
+
+            return rest_ensure_response( array(
+                'status' => 'rejected',
+                'message' => __( 'This schedule was already rejected.', 'kh-smma' ),
+                'rejected_by' => $rejected_by,
+                'rejected_at' => $rejected_at,
+                'reason' => $existing_reason,
+                'idempotent' => true,
+            ) );
         }
 
         update_post_meta( $schedule_id, '_kh_smma_approval_status', 'rejected' );
@@ -434,13 +544,105 @@ class RestController {
         ScheduleQueueProcessor::log_telemetry( $schedule_id, array(
             'mode' => 'reject',
             'provider' => 'smma',
+            'rejected_by' => get_current_user_id(),
             'rejection_reason' => $reason,
         ) );
 
         return rest_ensure_response( array(
             'status' => 'rejected',
             'schedule_id' => $schedule_id,
+            'rejected_by' => get_current_user_id(),
+            'rejected_at' => time(),
         ) );
+    }
+
+    /**
+     * Parse datetime input (ISO 8601 or unix timestamp) to UTC timestamp.
+     *
+     * @param mixed $input Datetime input (ISO 8601 string or unix timestamp)
+     * @return int UTC unix timestamp
+     */
+    private function parse_datetime_to_utc( $input ): int {
+        // If already a unix timestamp, return as-is
+        if ( is_int( $input ) || ( is_string( $input ) && ctype_digit( $input ) ) ) {
+            return (int) $input;
+        }
+
+        // Parse ISO 8601 datetime string
+        if ( is_string( $input ) ) {
+            try {
+                $datetime = new \DateTime( $input );
+                // Convert to UTC
+                $datetime->setTimezone( new \DateTimeZone( 'UTC' ) );
+                return $datetime->getTimestamp();
+            } catch ( \Exception $e ) {
+                // Fallback to current time on parse error
+                return time();
+            }
+        }
+
+        return time();
+    }
+
+    /**
+     * Extract timezone from ISO 8601 datetime string.
+     *
+     * @param mixed $input Datetime input
+     * @return string Timezone identifier (e.g., "America/New_York", "-05:00", "UTC")
+     */
+    private function extract_timezone( $input ): string {
+        if ( ! is_string( $input ) ) {
+            return 'UTC';
+        }
+
+        try {
+            $datetime = new \DateTime( $input );
+            $timezone = $datetime->getTimezone();
+            return $timezone ? $timezone->getName() : 'UTC';
+        } catch ( \Exception $e ) {
+            return 'UTC';
+        }
+    }
+
+    /**
+     * Calculate unified diff between original and updated text.
+     *
+     * @param string $original Original text
+     * @param string $updated Updated text
+     * @return string Unified diff string
+     */
+    private function calculate_unified_diff( string $original, string $updated ): string {
+        if ( $original === $updated ) {
+            return '';
+        }
+
+        $original_lines = explode( "\n", $original );
+        $updated_lines = explode( "\n", $updated );
+
+        $diff = array();
+        $diff[] = '--- Original';
+        $diff[] = '+++ Updated';
+        $diff[] = '@@ -1,' . count( $original_lines ) . ' +1,' . count( $updated_lines ) . ' @@';
+
+        // Simple line-by-line diff
+        $max_lines = max( count( $original_lines ), count( $updated_lines ) );
+        for ( $i = 0; $i < $max_lines; $i++ ) {
+            $orig_line = $original_lines[ $i ] ?? null;
+            $upd_line = $updated_lines[ $i ] ?? null;
+
+            if ( $orig_line === null && $upd_line !== null ) {
+                $diff[] = '+' . $upd_line;
+            } elseif ( $orig_line !== null && $upd_line === null ) {
+                $diff[] = '-' . $orig_line;
+            } elseif ( $orig_line !== $upd_line ) {
+                $diff[] = '-' . $orig_line;
+                $diff[] = '+' . $upd_line;
+            } else {
+                $diff[] = ' ' . $orig_line;
+            }
+        }
+
+        return implode( "\n", $diff );
     }
 
 }

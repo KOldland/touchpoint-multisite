@@ -1,0 +1,15 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "{\"passed\":true,\"message\":\"\",\"confidence_score\":0.95,\"flags\":[]}"
+      }
+    }
+  ],
+  "model": "gpt-4-turbo",
+  "usage": {
+    "prompt_tokens": 150,
+    "completion_tokens": 20,
+    "total_tokens": 170
+  }
+}

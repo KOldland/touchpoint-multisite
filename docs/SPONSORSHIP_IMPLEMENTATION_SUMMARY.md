@@ -68,6 +68,7 @@ Built the foundation for canonical sponsor records, asset libraries, approval wo
   - `_kh_smma_sponsor_approved_at` - Timestamp
   - `_kh_smma_sponsor_approval_notes` - Audit trail
 - **Permissions:** Requires edit_posts capability
+- **⚠️ Important:** Sponsor approval enables paid amplification only and **does not override editorial policy**. Both editorial and sponsor approvals are required before dispatch.
 
 #### 6. **Pending Approvals Admin UI**
 - **File:** `/includes/sponsor-approvals-panel.php`

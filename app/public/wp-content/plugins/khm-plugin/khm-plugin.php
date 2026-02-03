@@ -82,6 +82,14 @@ require_once __DIR__ . '/src/Sponsors/SponsorMigration.php';
 require_once __DIR__ . '/src/Sponsors/SponsorAudit.php';
 require_once __DIR__ . '/src/Sponsors/SponsorController.php';
 require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
+require_once __DIR__ . '/src/Membership/MembershipMigration.php';
+require_once __DIR__ . '/src/Membership/AttributionEndpoint.php';
+require_once __DIR__ . '/src/Membership/SignupEndpoint.php';
+require_once __DIR__ . '/src/Membership/StatusEndpoint.php';
+require_once __DIR__ . '/src/Membership/StripeWebhookHandler.php';
+require_once __DIR__ . '/src/Membership/LandingPageShortcode.php';
+require_once __DIR__ . '/src/Membership/DashboardShortcode.php';
+require_once __DIR__ . '/src/Membership/Admin/ReportsPage.php';
 
 // Register GEO Suggestion Endpoint at rest_api_init
 add_action( 'rest_api_init', function() {
@@ -106,6 +114,18 @@ add_action( 'rest_api_init', function() {
     if ( class_exists( 'KHM\\Sponsors\\SponsorController' ) ) {
         $controller = new KHM\Sponsors\SponsorController();
         $controller->register_routes();
+    }
+    if ( class_exists( 'KHM\\Membership\\AttributionEndpoint' ) ) {
+        new KHM\Membership\AttributionEndpoint();
+    }
+    if ( class_exists( 'KHM\\Membership\\SignupEndpoint' ) ) {
+        new KHM\Membership\SignupEndpoint();
+    }
+    if ( class_exists( 'KHM\\Membership\\StatusEndpoint' ) ) {
+        new KHM\Membership\StatusEndpoint();
+    }
+    if ( class_exists( 'KHM\\Membership\\StripeWebhookHandler' ) ) {
+        new KHM\Membership\StripeWebhookHandler();
     }
 } );
 
@@ -244,6 +264,11 @@ add_action('admin_init', function() {
         $add_member_page = new KHM\Admin\AddMemberPage();
         $add_member_page->register();
         $GLOBALS['khm_add_member_page'] = $add_member_page;
+    }
+
+    // Register Membership Reports Page
+    if ( class_exists('KHM\\Membership\\Admin\\ReportsPage') ) {
+        new KHM\Membership\Admin\ReportsPage();
     }
 }, 1); // Priority 1 = very early
 
@@ -1059,6 +1084,17 @@ register_activation_hook(__FILE__, function () {
         }
     }
 
+    // Initialize membership tables
+    if ( class_exists('KHM\\Membership\\MembershipMigration') ) {
+        try {
+            KHM\Membership\MembershipMigration::create_tables();
+            error_log('KHM Membership tables created successfully');
+        } catch (\Exception $e) {
+            error_log('Failed to create membership tables: ' . $e->getMessage());
+            $activation_errors[] = 'Membership tables failed: ' . $e->getMessage();
+        }
+    }
+
     // Initialize eCommerce system tables
     if ( class_exists('KHM\\Services\\ECommerceService') ) {
         try {
@@ -1229,6 +1265,12 @@ add_action('init', function () {
             new KHM\Services\LevelRepository()
         );
         $checkout->register();
+    }
+    if ( class_exists('KHM\\Membership\\LandingPageShortcode') ) {
+        new KHM\Membership\LandingPageShortcode();
+    }
+    if ( class_exists('KHM\\Membership\\DashboardShortcode') ) {
+        new KHM\Membership\DashboardShortcode();
     }
 });
 

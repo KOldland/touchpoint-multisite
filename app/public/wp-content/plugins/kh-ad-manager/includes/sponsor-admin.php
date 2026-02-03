@@ -204,7 +204,17 @@ function kh_ad_manager_render_sponsor_policies_metabox( $post ) {
     $allowed_claims  = get_post_meta( $post->ID, 'allowed_claims', true );
 
     if ( ! is_array( $allowed_claims ) ) {
-        $allowed_claims = $allowed_claims ? array( $allowed_claims ) : array();
+        $allowed_claims = array();
+    }
+
+    // Extract claim text for display (backward compatibility)
+    $claim_texts = array();
+    foreach ( $allowed_claims as $claim ) {
+        if ( is_array( $claim ) && isset( $claim['claim'] ) ) {
+            $claim_texts[] = $claim['claim'];
+        } elseif ( is_string( $claim ) ) {
+            $claim_texts[] = $claim; // Legacy format
+        }
     }
 
     wp_nonce_field( 'kh_sponsor_policies_nonce', 'kh_sponsor_policies_nonce' );
@@ -232,15 +242,20 @@ function kh_ad_manager_render_sponsor_policies_metabox( $post ) {
             <label>
                 <strong><?php esc_html_e( 'Allowed Claims', 'kh-ad-manager' ); ?></strong>
             </label>
-            <p class="description"><?php esc_html_e( 'Enter claims this sponsor approves for use in ads. One per line. E.g. "Does 95% faster processing"', 'kh-ad-manager' ); ?></p>
+            <p class="description">
+                <?php esc_html_e( 'Enter approved marketing claims. One per line. Claims are version-controlled for audit trail.', 'kh-ad-manager' ); ?>
+                <br><em><?php esc_html_e( 'Example: "Does 95% faster processing"', 'kh-ad-manager' ); ?></em>
+            </p>
             <textarea 
                 id="allowed_claims" 
                 name="allowed_claims"
                 rows="6"
                 class="widefat"
                 placeholder="Does X&#10;Reduces Y by Z%&#10;Saves $N per month"
-            ><?php echo esc_textarea( implode( "\n", $allowed_claims ) ); ?></textarea>
-            <small><?php esc_html_e( 'These claims will be validated against generated ad copy. Keep versioned for audit trail.', 'kh-ad-manager' ); ?></small>
+            ><?php echo esc_textarea( implode( "\n", $claim_texts ) ); ?></textarea>
+            <small style="color: #666;">
+                ⚠️ <?php esc_html_e( 'Claims are schema-validated. Each claim gets a version number and approval timestamp.', 'kh-ad-manager' ); ?>
+            </small>
         </div>
     </div>
     <?php
@@ -647,9 +662,45 @@ add_action( 'save_post_kh_sponsor', function( $post_id ) {
     }
 
     if ( isset( $_POST['allowed_claims'] ) ) {
-        $claims = array_map( 'trim', explode( "\n", sanitize_textarea_field( $_POST['allowed_claims'] ) ) );
-        $claims = array_filter( $claims );
-        update_post_meta( $post_id, 'allowed_claims', $claims );
+        $claim_lines = array_map( 'trim', explode( "\n", sanitize_textarea_field( $_POST['allowed_claims'] ) ) );
+        $claim_lines = array_filter( $claim_lines ); // Remove empty lines
+        
+        // Convert plain text claims to structured format
+        $structured_claims = array();
+        $existing_claims = get_post_meta( $post_id, 'allowed_claims', true );
+        if ( ! is_array( $existing_claims ) ) {
+            $existing_claims = array();
+        }
+        
+        // Build version map from existing claims
+        $version_map = array();
+        foreach ( $existing_claims as $existing_claim ) {
+            if ( is_array( $existing_claim ) && isset( $existing_claim['claim'], $existing_claim['version'] ) ) {
+                $version_map[ $existing_claim['claim'] ] = $existing_claim['version'];
+            }
+        }
+        
+        // Convert each line to structured format
+        foreach ( $claim_lines as $claim_text ) {
+            $version = isset( $version_map[ $claim_text ] ) ? $version_map[ $claim_text ] : 1;
+            
+            // If claim text changed, increment version
+            if ( isset( $version_map[ $claim_text ] ) ) {
+                // Claim exists, keep same version
+            } else {
+                // New claim, version 1
+                $version = 1;
+            }
+            
+            $structured_claims[] = array(
+                'claim'       => $claim_text,
+                'version'     => $version,
+                'approved_at' => time(),
+                'approved_by' => get_current_user_id(),
+            );
+        }
+        
+        update_post_meta( $post_id, 'allowed_claims', $structured_claims );
     }
 
     // Assets

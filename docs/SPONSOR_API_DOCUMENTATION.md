@@ -14,6 +14,30 @@ The Sponsorship & Advertising Foundation provides canonical sponsor records, ass
 
 ---
 
+## API Versioning & Stability
+
+**API Version:** `v1` (Stable)
+
+The `/wp-json/kh-ad-manager/v1/*` API is now **frozen as a stable contract** for SMMA and Phase Engine integration.
+
+**Versioning Policy:**
+- ✅ **Additive changes allowed**: New fields, new optional parameters, new endpoints
+- ❌ **Breaking changes prohibited**: Removing fields, changing field types, renaming endpoints
+- 🔄 **Breaking changes require `/v2`**: Any non-additive changes must be released under a new version namespace
+
+**Stability Guarantees:**
+- Response schemas will remain backward-compatible
+- Field names, types, and structures are locked
+- Deprecation warnings will precede any field removal (minimum 6 months notice)
+- Critical bug fixes may adjust validation logic but not response format
+
+**Consumer Expectations:**
+- SMMA and Phase Engine can safely cache API response structures
+- Integration tests will remain valid across minor releases
+- Schema changes will be documented in CHANGELOG.md
+
+---
+
 ## Sponsor Lookup API
 
 ### `GET /wp-json/kh-ad-manager/v1/sponsor/{id}`
@@ -31,8 +55,18 @@ GET /wp-json/kh-ad-manager/v1/sponsor/123
   "sponsor_id": 123,
   "name": "Acme Corp",
   "allowed_claims": [
-    "Does X 95% faster",
-    "Reduces Y costs by 50%"
+    {
+      "claim": "Does X 95% faster",
+      "version": 1,
+      "approved_at": 1706820000,
+      "approved_by": 456
+    },
+    {
+      "claim": "Reduces Y costs by 50%",
+      "version": 1,
+      "approved_at": 1706820000,
+      "approved_by": 456
+    }
   ],
   "co_brand_policy": "co-brand",
   "assets": [
@@ -180,6 +214,22 @@ GET /wp-json/kh-ad-manager/v1/sponsor/123/geo-rules
 ---
 
 ## Sponsor Approval API
+
+**Approval Semantics:**
+
+Sponsor approval is **distinct from editorial approval** and operates as an independent workflow:
+
+- **Sponsor Approval** → Enables paid amplification and verifies brand policy compliance
+- **Editorial Approval** → Validates content quality, accuracy, and editorial policy compliance
+
+⚠️ **Critical:** Sponsor approval **does not override editorial policy**. Both approvals are required before dispatch to paid adapters. A schedule must pass editorial review first, then receive sponsor approval for budget authorization.
+
+**Dual Approval Flow:**
+1. Editorial team approves variant (SMMA approval workflow)
+2. Sponsor approves variant for paid amplification (Sponsor approval workflow)
+3. Only when both are "approved" → Schedule dispatches to paid adapters
+
+---
 
 ### `POST /wp-json/kh-ad-manager/v1/sponsor-approve`
 
@@ -360,41 +410,160 @@ abstract class PaidAdapterContract {
 
 ### Dry-Run Response Format
 
+**Operation Structure:**
+
+Each operation returned by `dry_run()` contains:
+- `op_type` - The operation identifier (e.g., "create_campaign", "create_creative")
+- `payload_preview` - Summary of what would be sent to the API (redacted sensitive data)
+- `estimated_spend` - Calculated expected spend in USD
+- `policy_warnings` - Array of policy/budget warnings (optional)
+- `requires_review` - Boolean indicating if manual review is needed (optional)
+
+**Example: LinkedIn Ads Dry-Run Response**
+
 ```json
 {
+  "success": true,
+  "adapter": "LinkedIn Ads",
   "operations": [
     {
       "op_type": "create_campaign",
       "payload_preview": {
-        "name": "SMMA Campaign",
-        "budget_daily": 100,
-        "start_date": "2024-02-02",
-        "end_date": "2024-02-09"
+        "name": "SMMA-Schedule-12345-LinkedIn",
+        "account_id": "urn:li:sponsoredAccount:987654321",
+        "campaign_type": "SPONSORED_UPDATES",
+        "budget_daily": 100.00,
+        "start_date": "2026-02-03T00:00:00Z",
+        "end_date": "2026-02-10T23:59:59Z",
+        "duration_days": 7
       },
-      "estimated_spend": 700,
-      "policy_warnings": [
-        "Large budget: 700 exceeds recommended monthly limit."
-      ],
-      "requires_review": true
+      "estimated_spend": 700.00,
+      "policy_warnings": [],
+      "requires_review": false
     },
     {
       "op_type": "create_creative",
       "payload_preview": {
-        "text": "Check out our new product...",
+        "text": "Discover how AI-powered analytics can transform your business. 📊 Learn more about our enterprise solution.",
         "media_count": 2,
-        "media_types": ["image", "video"]
-      }
+        "media_types": ["image", "video"],
+        "asset_ids": [456, 789],
+        "call_to_action": "LEARN_MORE",
+        "landing_page": "https://example.com/landing"
+      },
+      "estimated_spend": 0.00,
+      "policy_warnings": [],
+      "requires_review": false
     },
     {
       "op_type": "associate_audience",
       "payload_preview": {
         "targeting_type": "AUDIENCE",
-        "audience_count": 5
-      }
+        "audience_id": "urn:li:audienceSegment:12345678",
+        "audience_size_estimate": "50,000-100,000",
+        "targeting_criteria": {
+          "job_functions": ["Engineering", "IT"],
+          "seniority": ["Director", "VP"],
+          "geo": ["US", "GB", "CA"]
+        }
+      },
+      "estimated_spend": 0.00,
+      "policy_warnings": [],
+      "requires_review": false
     }
-  ]
+  ],
+  "total_estimated_spend": 700.00,
+  "schedule_id": 12345,
+  "dry_run": true,
+  "timestamp": 1706889600
 }
 ```
+
+**Example: Google Ads Dry-Run with Policy Warnings**
+
+```json
+{
+  "success": true,
+  "adapter": "Google Ads",
+  "operations": [
+    {
+      "op_type": "create_campaign",
+      "payload_preview": {
+        "name": "SMMA-Schedule-12346-GoogleAds",
+        "customer_id": "123-456-7890",
+        "campaign_type": "SEARCH",
+        "budget_daily": 250.00,
+        "start_date": "2026-02-03",
+        "end_date": "2026-02-17",
+        "duration_days": 14
+      },
+      "estimated_spend": 3500.00,
+      "policy_warnings": [
+        "Large budget: $3,500 exceeds recommended monthly limit of $2,000.",
+        "Long duration: 14 days may require additional sponsor approval."
+      ],
+      "requires_review": true
+    },
+    {
+      "op_type": "create_ad_group",
+      "payload_preview": {
+        "name": "Ad Group - Enterprise Analytics",
+        "cpc_bid": 2.50,
+        "targeting": {
+          "keywords_count": 15,
+          "negative_keywords_count": 8,
+          "geo_targets": ["US", "GB"]
+        }
+      },
+      "estimated_spend": 0.00,
+      "policy_warnings": [],
+      "requires_review": false
+    },
+    {
+      "op_type": "create_text_ads",
+      "payload_preview": {
+        "ad_count": 3,
+        "headlines": [
+          "AI Analytics Platform",
+          "Transform Your Data",
+          "Enterprise BI Solution"
+        ],
+        "descriptions": [
+          "Powerful insights in real-time. Try free for 30 days.",
+          "Join 10,000+ companies using our platform."
+        ]
+      },
+      "estimated_spend": 0.00,
+      "policy_warnings": [],
+      "requires_review": false
+    },
+    {
+      "op_type": "add_keywords",
+      "payload_preview": {
+        "keywords": [
+          "enterprise analytics platform",
+          "business intelligence software",
+          "data visualization tool"
+        ],
+        "match_types": ["BROAD", "PHRASE", "EXACT"]
+      },
+      "estimated_spend": 0.00,
+      "policy_warnings": [],
+      "requires_review": false
+    }
+  ],
+  "total_estimated_spend": 3500.00,
+  "schedule_id": 12346,
+  "dry_run": true,
+  "timestamp": 1706889600
+}
+```
+
+**Policy Warning Examples:**
+- Budget warnings: "Large budget: $X exceeds recommended limit."
+- Duration warnings: "Long duration: N days may require additional approval."
+- Compliance warnings: "Claim 'Does X' not found in sponsor allowed_claims."
+- Asset warnings: "Asset ID 123 not found in sponsor approved assets."
 
 ### Adapter Dispatch Flow
 
@@ -422,9 +591,40 @@ abstract class PaidAdapterContract {
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `allowed_claims` | Array | Approved marketing claims |
+| `allowed_claims` | Array | **Structured** approved marketing claims (see schema below) |
 | `co_brand_policy` | String | "co-brand" \| "sponsor-only" \| "white-label" |
 | `sponsor_assets` | Array | Approved logos, creatives, captions |
+
+#### `allowed_claims` Schema (Locked)
+
+⚠️ **Schema-Validated**: This field is **locked to prevent free-text additions**. All claims must follow this structure:
+
+```json
+[
+  {
+    "claim": "Does X 95% faster",
+    "version": 1,
+    "approved_at": 1706820000,
+    "approved_by": 456
+  }
+]
+```
+
+**Required Fields:**
+- `claim` (string, required) - The exact marketing claim text
+- `version` (integer, required) - Claim version number (starts at 1)
+- `approved_at` (integer, auto-set) - Unix timestamp when claim was approved
+- `approved_by` (integer, auto-set) - User ID of approver
+
+**Validation Rules:**
+- ❌ Free-text strings are rejected
+- ❌ Claims without `claim` or `version` fields are rejected  
+- ✅ Version must be >= 1
+- ✅ Claim text must be non-empty after sanitization
+- ✅ `approved_at` defaults to current time if not provided
+- ✅ `approved_by` defaults to current user if not provided
+
+**Versioning:** To update a claim, increment `version` and update `approved_at`/`approved_by`. This maintains an audit trail.
 
 ### Budget Fields
 

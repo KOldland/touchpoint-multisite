@@ -1,0 +1,15 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "{\"passed\":false,\"message\":\"Text contains potentially misleading claim that requires sponsor verification.\",\"confidence_score\":0.85,\"flags\":[\"unverified_claim\",\"sponsor_approval_required\"]}"
+      }
+    }
+  ],
+  "model": "gpt-4-turbo",
+  "usage": {
+    "prompt_tokens": 150,
+    "completion_tokens": 35,
+    "total_tokens": 185
+  }
+}
