@@ -125,7 +125,7 @@ function kh_ad_manager_rest_sponsor_approve( \WP_REST_Request $request ) {
     }
 
     // Log telemetry
-    if ( is_callable( array( '\\KH_SMMA\\Services\\ScheduleQueueProcessor', 'log_telemetry' ) ) ) {
+    if ( is_callable( array( 'KH_SMMA\\Services\\ScheduleQueueProcessor', 'log_telemetry' ) ) ) {
         \KH_SMMA\Services\ScheduleQueueProcessor::log_telemetry( $schedule_id, array(
             'event'                 => 'sponsor_approval',
             'decision'              => $decision,
