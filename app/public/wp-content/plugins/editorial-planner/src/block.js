@@ -1,5 +1,5 @@
 import { registerBlockType } from '@wordpress/blocks';
-import { InspectorControls } from '@wordpress/block-editor';
+import { InspectorControls, useBlockProps } from '@wordpress/block-editor';
 import { RawHTML } from '@wordpress/element';
 import { PanelBody, TextControl } from '@wordpress/components';
 
@@ -12,9 +12,22 @@ registerBlockType( 'ep/citation-qa', {
             type: 'string',
             default: '',
         },
+        blockId: {
+            type: 'string',
+            default: '',
+        },
     },
-    edit: ( { attributes, setAttributes } ) => {
-        const { sessionId } = attributes;
+    edit: ( { attributes, setAttributes, clientId } ) => {
+        const { sessionId, blockId } = attributes;
+        
+        // Set unique block ID on first render
+        if ( ! blockId ) {
+            setAttributes( { blockId: clientId } );
+        }
+        
+        const uniqueId = blockId || clientId;
+        const blockProps = useBlockProps();
+        
         return (
             <>
                 <InspectorControls>
@@ -28,17 +41,21 @@ registerBlockType( 'ep/citation-qa', {
                     </PanelBody>
                 </InspectorControls>
                 <div
-                    id="ep-citation-qa-root"
+                    { ...blockProps }
+                    className="ep-citation-qa-root"
+                    data-block-id={ uniqueId }
                     data-session-id={ sessionId }
                 />
             </>
         );
     },
     save: ( { attributes } ) => {
+        const { sessionId, blockId } = attributes;
         return (
             <div
-                id="ep-citation-qa-root"
-                data-session-id={ attributes.sessionId }
+                className="ep-citation-qa-root"
+                data-block-id={ blockId }
+                data-session-id={ sessionId }
             />
         );
     },
