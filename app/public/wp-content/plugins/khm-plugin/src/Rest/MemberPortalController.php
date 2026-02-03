@@ -214,6 +214,16 @@ class MemberPortalController {
         return is_user_logged_in();
     }
 
+    private function record_phase_event( int $user_id, string $event_id, string $source, array $metadata = array() ): void {
+        if ( ! class_exists( '\\KH_SMMA\\Services\\PhaseEngine' ) ) {
+            return;
+        }
+
+        global $wpdb;
+        $engine = new \KH_SMMA\Services\PhaseEngine( $wpdb );
+        $engine->record_event( $user_id, $event_id, $source, $metadata );
+    }
+
     /**
      * GET /portal/dashboard - Get dashboard overview
      */
@@ -237,6 +247,8 @@ class MemberPortalController {
 
         // Get recent activity
         $activity = $this->get_recent_activity($user_id, 5);
+
+        $this->record_phase_event( $user_id, 'portal_dashboard_view', 'khm_portal', array() );
 
         return new WP_REST_Response([
             'success' => true,
@@ -312,6 +324,10 @@ class MemberPortalController {
         $post_id = $result['post_id'] ?? 0;
         $post = $post_id ? get_post($post_id) : null;
 
+        $this->record_phase_event( $user_id, 'gift_voucher_redeem', 'khm_portal', array(
+            'post_id' => $post_id,
+        ) );
+
         return new WP_REST_Response([
             'success' => true,
             'post_id' => $post_id,
@@ -353,7 +369,11 @@ class MemberPortalController {
         // In production, this would create a Stripe checkout session
         try {
             $this->credits->addBonusCredits($user_id, $amount, 'Top-up purchase');
-            
+
+            $this->record_phase_event( $user_id, 'credit_topup', 'khm_portal', array(
+                'amount' => $amount,
+            ) );
+
             return new WP_REST_Response([
                 'success' => true,
                 'message' => sprintf(__('%d credits added to your account.', 'khm-membership'), $amount),
@@ -437,6 +457,12 @@ class MemberPortalController {
         // Generate download token
         $token = $this->generateDownloadToken($user_id, $post_id);
         $download_url = rest_url("khm/v1/download/{$post_id}/pdf") . '?token=' . $token;
+
+        $this->record_phase_event( $user_id, 'download_regenerate', 'khm_portal', array(
+            'post_id' => $post_id,
+            'is_free' => $result['is_free'] ?? false,
+            'credits_used' => $result['credits_used'] ?? null,
+        ) );
 
         return new WP_REST_Response([
             'success' => true,
@@ -526,7 +552,11 @@ class MemberPortalController {
 
         try {
             $this->library->save_to_library($user_id, $post_id);
-            
+
+            $this->record_phase_event( $user_id, 'library_save', 'khm_portal', array(
+                'post_id' => $post_id,
+            ) );
+
             return new WP_REST_Response([
                 'success' => true,
                 'message' => __('Article saved to library.', 'khm-membership'),
@@ -548,7 +578,11 @@ class MemberPortalController {
 
         try {
             $this->library->remove_from_library($user_id, $post_id);
-            
+
+            $this->record_phase_event( $user_id, 'library_remove', 'khm_portal', array(
+                'post_id' => $post_id,
+            ) );
+
             return new WP_REST_Response([
                 'success' => true,
                 'message' => __('Article removed from library.', 'khm-membership'),
@@ -577,7 +611,11 @@ class MemberPortalController {
 
         try {
             $this->library->remove_from_library($user_id, $post_id);
-            
+
+            $this->record_phase_event( $user_id, 'library_remove', 'khm_portal', array(
+                'post_id' => $post_id,
+            ) );
+
             return new WP_REST_Response([
                 'success' => true,
                 'message' => __('Article removed from library.', 'khm-membership'),
@@ -779,7 +817,11 @@ class MemberPortalController {
 
         try {
             $this->memberships->pauseById($membership->id);
-            
+
+            $this->record_phase_event( $user_id, 'membership_pause', 'khm_portal', array(
+                'membership_id' => $membership->id,
+            ) );
+
             return new WP_REST_Response([
                 'success' => true,
                 'message' => __('Membership paused successfully.', 'khm-membership'),
@@ -818,7 +860,11 @@ class MemberPortalController {
 
         try {
             $this->memberships->resumeById($membership->id);
-            
+
+            $this->record_phase_event( $user_id, 'membership_resume', 'khm_portal', array(
+                'membership_id' => $membership->id,
+            ) );
+
             return new WP_REST_Response([
                 'success' => true,
                 'message' => __('Membership resumed successfully.', 'khm-membership'),
@@ -860,7 +906,11 @@ class MemberPortalController {
 
         try {
             $this->memberships->cancelById($membership->id);
-            
+
+            $this->record_phase_event( $user_id, 'membership_cancel', 'khm_portal', array(
+                'membership_id' => $membership->id,
+            ) );
+
             return new WP_REST_Response([
                 'success' => true,
                 'message' => __('Membership cancelled. You will retain access until the end of your billing period.', 'khm-membership'),

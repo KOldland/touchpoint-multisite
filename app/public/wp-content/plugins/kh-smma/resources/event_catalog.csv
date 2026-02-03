@@ -1,0 +1,20 @@
+event_id,label,points,phase_tag,biases,default_decay_days
+article_view_25,Article read 25%,4,Attention,authority|relevance,14
+article_completion_75,Article read 75%,10,Antagonistic,authority|relationship,21
+newsletter_optin,Newsletter opt-in,12,Anxiety,relevance|consistency,30
+webinar_attended,Webinar attended,18,Anxiety,authority|commitment,45
+case_study_download,Case study download,16,Antagonistic,authority|proof,30
+pricing_page_view,Pricing page view,14,Anxiety,scarcity|relevance,21
+trial_started,Trial started,25,Acceptance,commitment|point_of_sale,30
+checkout_initiated,Checkout initiated,30,Acceptance,scarcity|point_of_sale,10
+exclusivity_accepted,Exclusivity accepted,40,Acceptance,authority|point_of_sale,7
+subscription_renewed,Subscription renewed,35,Acceptance,consistency|point_of_sale,14
+portal_dashboard_view,Member portal dashboard view,2,Attention,authority|relevance,7
+library_save,Library save,6,Antagonistic,relationship|consistency,21
+library_remove,Library remove,2,Attention,consistency,14
+download_regenerate,Download regenerate,8,Anxiety,commitment|relevance,14
+credit_topup,Credit top-up purchase,20,Acceptance,commitment|point_of_sale,30
+gift_voucher_redeem,Gift voucher redeem,18,Acceptance,commitment|relationship,21
+membership_pause,Membership pause,8,Anxiety,loss_aversion|relevance,14
+membership_resume,Membership resume,15,Acceptance,consistency|commitment,21
+membership_cancel,Membership cancel,12,Antagonistic,loss_aversion|relevance,14

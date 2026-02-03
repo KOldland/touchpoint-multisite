@@ -18,6 +18,7 @@ class SmmaGenerator {
 
     public function generate( array $input ) {
         $input = $this->hydrate_input( $input );
+        $input = $this->hydrate_phase_context( $input );
         $model = 'fallback';
         $variants = array();
         $llm_available = class_exists( '\\Dual_GPT\\Dual_GPT_LLM_Client' );
@@ -71,6 +72,18 @@ class SmmaGenerator {
 
         if ( empty( $input['sponsor_context'] ) && ! empty( $input['geo_targets'] ) && $post_id ) {
             $input['sponsor_context'] = $this->get_sponsor_context_for_geo( $post_id, (array) $input['geo_targets'] );
+        }
+
+        return $input;
+    }
+
+    private function hydrate_phase_context( array $input ): array {
+        if ( empty( $input['phase_tag'] ) && ! empty( $input['phase_context']['assigned_phase'] ) ) {
+            $input['phase_tag'] = $input['phase_context']['assigned_phase'];
+        }
+
+        if ( empty( $input['phase_tag'] ) ) {
+            $input['phase_tag'] = 'Attention';
         }
 
         return $input;
@@ -176,6 +189,7 @@ class SmmaGenerator {
             'post_id' => $input['post_id'] ?? 0,
             'blocks_json' => $input['blocks_json'] ?? array(),
             'phase_tag' => $input['phase_tag'] ?? 'Attention',
+            'phase_context' => $input['phase_context'] ?? array(),
             'keywords' => $input['keywords'] ?? array(),
             'intent_scores' => $input['intent_scores'] ?? array(),
             'geo_targets' => $input['geo_targets'] ?? array(),
