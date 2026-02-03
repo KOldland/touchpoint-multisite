@@ -369,6 +369,8 @@ class PortalDownloads_Widget extends Widget_Base {
                 'restUrl' => esc_url_raw(rest_url('khm/v1/portal/')),
                 'downloadRestUrl' => esc_url_raw(rest_url('khm/v1/download/')),
                 'restNonce' => wp_create_nonce('wp_rest'),
+                'ajaxUrl' => admin_url('admin-ajax.php'),
+                'shareNonce' => wp_create_nonce('khm_library_nonce'),
             ]);
         }
     }

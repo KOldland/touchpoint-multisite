@@ -13,48 +13,177 @@ class Dual_GPT_Research_Tools {
      * Web search tool - Enhanced implementation
      */
     public function web_search($query, $top_k = 10, $site_filter = array()) {
-        // In production, this would use a real search API like:
-        // - Google Custom Search API
-        // - Bing Web Search API
-        // - DuckDuckGo Instant Answer API
-        // - Serply (privacy-focused search API)
+        $query = sanitize_text_field($query);
+        $top_k = max(1, intval($top_k));
+        $site_filter = $this->normalize_site_filter($site_filter);
 
-        // For now, we'll simulate realistic search results
-        // In production, replace this with actual API calls
+        $providers = class_exists('Dual_GPT_Search_Providers') ? new Dual_GPT_Search_Providers() : null;
+        $provider_chain = $providers ? $providers->get_active_provider_chain() : array();
 
-        $results = array();
-
-        // Simulate different types of results based on query
-        $query_lower = strtolower($query);
-
-        if (strpos($query_lower, 'wordpress') !== false) {
-            $results = $this->get_wordpress_search_results($query, $top_k);
-        } elseif (strpos($query_lower, 'ai') !== false || strpos($query_lower, 'gpt') !== false) {
-            $results = $this->get_ai_search_results($query, $top_k);
-        } elseif (strpos($query_lower, 'research') !== false) {
-            $results = $this->get_research_search_results($query, $top_k);
-        } else {
-            $results = $this->get_general_search_results($query, $top_k);
+        foreach ($provider_chain as $provider) {
+            $results = $this->search_with_provider($provider, $query, $top_k, $site_filter, $providers);
+            if (!is_wp_error($results) && !empty($results['results'])) {
+                return $results;
+            }
         }
 
-        // Apply site filter if specified
-        if (!empty($site_filter)) {
-            $results = array_filter($results, function($result) use ($site_filter) {
-                $url = parse_url($result['url'], PHP_URL_HOST);
-                foreach ($site_filter as $site) {
-                    if (strpos($url, $site) !== false) {
-                        return true;
-                    }
-                }
-                return false;
-            });
-        }
+        $results = $this->get_simulated_search_results($query, $top_k);
 
         return array(
             'results' => array_slice($results, 0, $top_k),
             'query' => $query,
             'total_results' => count($results),
         );
+    }
+
+    private function search_with_provider($provider, $query, $top_k, $site_filter, $providers) {
+        if ($provider === 'serpapi') {
+            return $this->search_serpapi($query, $top_k, $site_filter, $providers);
+        }
+
+        return new WP_Error('search_provider_not_supported', 'Search provider not supported yet.');
+    }
+
+    private function search_serpapi($query, $top_k, $site_filter, $providers) {
+        if (!$providers) {
+            return new WP_Error('search_provider_missing', 'Search provider registry unavailable.');
+        }
+
+        $config = $providers->get_provider_config('serpapi');
+        if (empty($config['api_key'])) {
+            return new WP_Error('search_provider_missing_key', 'SerpAPI key not configured.');
+        }
+
+        $cache_key = 'dual_gpt_serpapi_' . md5(wp_json_encode(array($query, $top_k, $site_filter)));
+        $cached = get_transient($cache_key);
+        if ($cached) {
+            return $cached;
+        }
+
+        $results = array();
+        $pages = min(2, (int) ceil($top_k / 10));
+        $normalized_query = $this->apply_site_filter_to_query($query, $site_filter);
+
+        for ($page = 0; $page < $pages; $page++) {
+            $params = array(
+                'engine' => 'google',
+                'q' => $normalized_query,
+                'num' => 10,
+                'start' => $page * 10,
+                'hl' => 'en',
+                'gl' => 'us',
+                'api_key' => $config['api_key'],
+            );
+
+            $url = add_query_arg($params, 'https://serpapi.com/search.json');
+            $response = wp_remote_get($url, array(
+                'timeout' => 20,
+            ));
+
+            if (is_wp_error($response)) {
+                return $response;
+            }
+
+            $status = wp_remote_retrieve_response_code($response);
+            if ($status !== 200) {
+                return new WP_Error('search_provider_error', 'SerpAPI request failed with status ' . $status);
+            }
+
+            $body = wp_remote_retrieve_body($response);
+            $data = json_decode($body, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return new WP_Error('search_provider_invalid', 'SerpAPI response was invalid JSON.');
+            }
+
+            $organic = $data['organic_results'] ?? array();
+            foreach ($organic as $item) {
+                if (count($results) >= $top_k) {
+                    break 2;
+                }
+                $url = $item['link'] ?? '';
+                if (empty($url)) {
+                    continue;
+                }
+                $results[] = array(
+                    'title' => $item['title'] ?? '',
+                    'url' => $url,
+                    'snippet' => $item['snippet'] ?? '',
+                    'published_at' => $item['date'] ?? '',
+                );
+            }
+        }
+
+        if (!empty($site_filter)) {
+            $results = array_filter($results, function($result) use ($site_filter) {
+                $host = parse_url($result['url'], PHP_URL_HOST);
+                if (!$host) {
+                    return false;
+                }
+                foreach ($site_filter as $site) {
+                    if (strpos($host, $site) !== false) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+            $results = array_values($results);
+        }
+
+        $payload = array(
+            'results' => array_slice($results, 0, $top_k),
+            'query' => $query,
+            'total_results' => count($results),
+            'provider' => 'serpapi',
+        );
+
+        $ttl = $providers->get_cache_ttl_minutes() * MINUTE_IN_SECONDS;
+        set_transient($cache_key, $payload, $ttl);
+
+        return $payload;
+    }
+
+    private function normalize_site_filter($site_filter) {
+        if (empty($site_filter)) {
+            return array();
+        }
+        if (!is_array($site_filter)) {
+            $site_filter = array($site_filter);
+        }
+        $normalized = array();
+        foreach ($site_filter as $site) {
+            $site = strtolower(trim((string) $site));
+            if ($site === '') {
+                continue;
+            }
+            $normalized[] = $site;
+        }
+        return $normalized;
+    }
+
+    private function apply_site_filter_to_query($query, $site_filter) {
+        if (empty($site_filter)) {
+            return $query;
+        }
+        $filters = array_map(function($site) {
+            return 'site:' . $site;
+        }, $site_filter);
+        return trim($query . ' ' . implode(' OR ', $filters));
+    }
+
+    private function get_simulated_search_results($query, $top_k) {
+        $query_lower = strtolower($query);
+
+        if (strpos($query_lower, 'wordpress') !== false) {
+            return $this->get_wordpress_search_results($query, $top_k);
+        }
+        if (strpos($query_lower, 'ai') !== false || strpos($query_lower, 'gpt') !== false) {
+            return $this->get_ai_search_results($query, $top_k);
+        }
+        if (strpos($query_lower, 'research') !== false) {
+            return $this->get_research_search_results($query, $top_k);
+        }
+
+        return $this->get_general_search_results($query, $top_k);
     }
 
     /**
@@ -253,6 +382,7 @@ class Dual_GPT_Research_Tools {
             'title' => '',
             'description' => '',
             'author' => '',
+            'authors' => array(),
             'published_date' => '',
             'url' => $url,
         );
@@ -271,6 +401,9 @@ class Dual_GPT_Research_Tools {
         if (preg_match('/<meta[^>]*name=["\']author["\'][^>]*content=["\']([^"\']*)["\'][^>]*>/i', $html, $matches)) {
             $meta['author'] = trim($matches[1]);
         }
+        if ($meta['author'] === '' && preg_match('/<meta[^>]*property=["\']article:author["\'][^>]*content=["\']([^"\']*)["\'][^>]*>/i', $html, $matches)) {
+            $meta['author'] = trim($matches[1]);
+        }
 
         // Try to extract publication date from various meta tags
         $date_patterns = array(
@@ -286,7 +419,90 @@ class Dual_GPT_Research_Tools {
             }
         }
 
+        // Try to extract author/date from JSON-LD
+        if ($meta['author'] === '' || $meta['published_date'] === '') {
+            if (preg_match_all('/<script[^>]*type=["\']application\\/ld\\+json["\'][^>]*>(.*?)<\\/script>/is', $html, $matches)) {
+                $ld_blocks = $matches[1];
+                foreach ($ld_blocks as $block) {
+                    $decoded = json_decode(trim($block), true);
+                    if ($decoded === null) {
+                        continue;
+                    }
+                    $items = is_array($decoded) && isset($decoded[0]) ? $decoded : array($decoded);
+                    foreach ($items as $item) {
+                        if (!is_array($item)) {
+                            continue;
+                        }
+                        $authors = $this->extract_ld_json_authors($item);
+                        if (!empty($authors) && empty($meta['authors'])) {
+                            $meta['authors'] = $authors;
+                            $meta['author'] = $authors[0];
+                        }
+                        if ($meta['published_date'] === '') {
+                            $published = $this->extract_ld_json_date($item);
+                            if ($published !== '') {
+                                $meta['published_date'] = $published;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!empty($meta['author']) && empty($meta['authors'])) {
+            $meta['authors'] = $this->normalize_author_list($meta['author']);
+            if (!empty($meta['authors'])) {
+                $meta['author'] = $meta['authors'][0];
+            }
+        }
+
         return $meta;
+    }
+
+    private function normalize_author_list($author_text) {
+        $author_text = trim((string) $author_text);
+        if ($author_text === '') {
+            return array();
+        }
+        $author_text = preg_replace('/\\s+/', ' ', $author_text);
+        $parts = preg_split('/\\s*(?:,|;|\\band\\b)\\s*/i', $author_text);
+        $authors = array();
+        foreach ($parts as $part) {
+            $part = trim($part);
+            if ($part !== '') {
+                $authors[] = $part;
+            }
+        }
+        return array_values(array_unique($authors));
+    }
+
+    private function extract_ld_json_authors($item) {
+        $authors = array();
+        $author_field = $item['author'] ?? null;
+        if (is_string($author_field)) {
+            $authors = array_merge($authors, $this->normalize_author_list($author_field));
+        } elseif (is_array($author_field)) {
+            foreach ($author_field as $author) {
+                if (is_string($author)) {
+                    $authors = array_merge($authors, $this->normalize_author_list($author));
+                } elseif (is_array($author)) {
+                    $name = $author['name'] ?? '';
+                    if (is_string($name) && $name !== '') {
+                        $authors = array_merge($authors, $this->normalize_author_list($name));
+                    }
+                }
+            }
+        }
+        $authors = array_values(array_unique(array_filter($authors)));
+        return $authors;
+    }
+
+    private function extract_ld_json_date($item) {
+        $date = $item['datePublished'] ?? ($item['dateModified'] ?? '');
+        if (is_string($date)) {
+            return trim($date);
+        }
+        return '';
     }
 
     /**

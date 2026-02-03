@@ -1,0 +1,15 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "{\"variants\":[{\"variant_id\":\"v-test-001\",\"channel\":\"linkedin\",\"text\":\"Discover proven strategies to transform your business outcomes. Learn from industry experts and apply actionable insights today.\",\"phase_tag\":\"Attention\",\"tone\":\"Authority\",\"recommended_post_time_gmt\":1675209600,\"geo_recommendations\":[{\"geo\":\"US-East\",\"time_window\":\"08:30-10:00 GMT\"}],\"sponsor_flag\":false,\"explainability\":\"Optimized for Attention phase with authoritative tone.\"},{\"variant_id\":\"v-test-002\",\"channel\":\"linkedin\",\"text\":\"Are you struggling with implementation challenges? This comprehensive guide addresses common pain points and provides practical solutions.\",\"phase_tag\":\"Anxiety\",\"tone\":\"Authority\",\"recommended_post_time_gmt\":1675213200,\"geo_recommendations\":[{\"geo\":\"US-East\",\"time_window\":\"09:30-11:00 GMT\"}],\"sponsor_flag\":false,\"explainability\":\"Addresses anxiety phase concerns with solution-focused messaging.\"}]}"
+      }
+    }
+  ],
+  "model": "gpt-4-turbo",
+  "usage": {
+    "prompt_tokens": 250,
+    "completion_tokens": 180,
+    "total_tokens": 430
+  }
+}

@@ -96,4 +96,60 @@ class ScoringEngineTest extends TestCase {
 
         $this->assertContains( 'entities_unresolved', $codes );
     }
+
+    public function test_sponsor_boost_applies_when_eligible() {
+        $engine = new \KHM_SEO\GEO\Scoring\ScoringEngine();
+
+        $settings = array(
+            'question'       => 'What is GEO?',
+            'answer'         => 'Answer text.',
+            'sponsor_toggle' => true,
+            'sponsor_boost'  => 0.05,
+            'citations'      => array(
+                array(
+                    'tier'             => 'tier1',
+                    'author'           => 'Author',
+                    'year'             => '2024',
+                    'publisher'        => 'Publisher',
+                    'sponsor_id'       => 1,
+                    'sponsor_approved' => true,
+                ),
+            ),
+            'evidence'       => array(
+                'confidence' => 0.9,
+            ),
+        );
+
+        $result = $engine->calculate_score( $settings, array() );
+        $this->assertArrayHasKey( 'citation_contributions', $result );
+        $this->assertSame( 0.05, $result['citation_contributions'][0]['sponsor_boost'] );
+    }
+
+    public function test_sponsor_boost_is_blocked_when_not_approved() {
+        $engine = new \KHM_SEO\GEO\Scoring\ScoringEngine();
+
+        $settings = array(
+            'question'       => 'What is GEO?',
+            'answer'         => 'Answer text.',
+            'sponsor_toggle' => true,
+            'sponsor_boost'  => 0.05,
+            'citations'      => array(
+                array(
+                    'tier'             => 'tier1',
+                    'author'           => 'Author',
+                    'year'             => '2024',
+                    'publisher'        => 'Publisher',
+                    'sponsor_id'       => 1,
+                    'sponsor_approved' => false,
+                ),
+            ),
+            'evidence'       => array(
+                'confidence' => 0.9,
+            ),
+        );
+
+        $result = $engine->calculate_score( $settings, array() );
+        $this->assertArrayHasKey( 'citation_contributions', $result );
+        $this->assertSame( 0.0, $result['citation_contributions'][0]['sponsor_boost'] );
+    }
 }

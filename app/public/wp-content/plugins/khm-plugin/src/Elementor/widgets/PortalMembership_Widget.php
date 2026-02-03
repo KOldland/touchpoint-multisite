@@ -273,6 +273,8 @@ class PortalMembership_Widget extends Widget_Base {
             wp_localize_script('khm-portal-widgets', 'khmPortalWidgets', [
                 'restUrl' => esc_url_raw(rest_url('khm/v1/portal/')),
                 'restNonce' => wp_create_nonce('wp_rest'),
+                'ajaxUrl' => admin_url('admin-ajax.php'),
+                'shareNonce' => wp_create_nonce('khm_library_nonce'),
                 'strings' => [
                     'confirm_pause' => __('Are you sure you want to pause your membership?', 'khm-membership'),
                     'confirm_cancel' => __('Are you sure you want to cancel? You will retain access until the end of your billing period.', 'khm-membership'),

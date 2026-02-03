@@ -6,6 +6,7 @@ module.exports = {
     entry: {
         index: path.resolve( __dirname, 'src/index.js' ),
         'suggest-plugin': path.resolve( __dirname, 'src/suggest-plugin.js' ),
+        view: path.resolve( __dirname, 'src/view.js' ),
     },
     output: {
         ...defaultConfig.output,

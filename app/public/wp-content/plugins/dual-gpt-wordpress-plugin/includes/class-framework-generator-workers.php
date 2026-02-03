@@ -217,13 +217,21 @@ class Framework_Generator_Workers {
      * Validate citation with external APIs
      */
     private function validate_citation($article) {
+        $verifier = new Framework_Generator_Citation_Verifier();
+
         // Fetch URL to get metadata
-        $metadata = $this->fetch_url_metadata($article['url']);
+        $metadata = $verifier->fetch_url_metadata($article['url']);
+        $verifier->log_verification_attempt($article['url'], 'url_metadata', !empty($metadata));
 
         // Try CrossRef/OpenAlex for academic sources
         if ($this->is_academic_source($article['source_type'])) {
-            $api_metadata = $this->fetch_academic_metadata($article['title'], $article['url']);
-            $metadata = array_merge($metadata, $api_metadata);
+            $api_metadata = $verifier->fetch_academic_metadata($article['title'], $article['url']);
+            if ($api_metadata) {
+                $metadata = array_merge($metadata, $api_metadata);
+                $verifier->log_verification_attempt($article['url'], 'academic_api', true, 'Found via ' . (isset($api_metadata['doi']) ? 'DOI' : 'title search'));
+            } else {
+                $verifier->log_verification_attempt($article['url'], 'academic_api', false);
+            }
         }
 
         // Parse year from date with error handling
@@ -237,12 +245,36 @@ class Framework_Generator_Workers {
             $year = (int) date('Y');
         }
 
+        $publication_date = $metadata['publication_date'] ?? $article['date'] ?? '';
+        if ($publication_date === '' && $year) {
+            $publication_date = (string) $year;
+        }
+
+        $authors_raw = $metadata['authors'] ?? '';
+        $additional_authors = '';
+        if ($authors_raw) {
+            $authors_list = array_map('trim', explode(',', $authors_raw));
+            if (!empty($authors_list)) {
+                $lead = $metadata['lead_author'] ?? $article['author'] ?? '';
+                if ($lead !== '') {
+                    $authors_list = array_values(array_filter($authors_list, function ($name) use ($lead) {
+                        return $name !== '' && $name !== $lead;
+                    }));
+                }
+                if (!empty($authors_list)) {
+                    $additional_authors = implode(', ', $authors_list);
+                }
+            }
+        }
+
         return array(
             'title' => $metadata['title'] ?? $article['title'],
-            'lead_author' => $metadata['lead_author'] ?? $article['author'],
+            'lead_author' => $metadata['lead_author'] ?? $article['author'] ?? $article['domain'],
+            'additional_authors' => $additional_authors,
             'publication' => $metadata['publication'] ?? '',
             'organisation' => $metadata['organisation'] ?? $article['domain'],
             'year' => $year,
+            'publication_date' => $publication_date,
             'url' => $article['url'],
             'apa_string' => $metadata['apa_string'] ?? 'details_unavailable',
             'apa_details_available' => !empty($metadata['apa_string']),
@@ -268,6 +300,8 @@ class Framework_Generator_Workers {
      *  - apa_string
      */
     private function fetch_url_metadata($url) {
+        // This method is now handled by Framework_Generator_Citation_Verifier
+        return array();
         if (empty($url)) {
             return array();
         }
@@ -360,6 +394,7 @@ class Framework_Generator_Workers {
      * CrossRef or OpenAlex APIs for academic citation metadata.
      */
     private function fetch_academic_metadata($title, $url) {
+        // This method is now handled by Framework_Generator_Citation_Verifier
         // Placeholder: In production, this would query CrossRef or OpenAlex APIs
         // Example: https://api.crossref.org/works?query.title=...
         // Example: https://api.openalex.org/works?filter=title.search:...
@@ -465,9 +500,11 @@ class Framework_Generator_Workers {
             'job_id' => $job_id,
             'title' => $citation['title'],
             'lead_author' => $citation['lead_author'],
+            'additional_authors' => $citation['additional_authors'] ?? '',
             'publication' => $citation['publication'],
             'organisation' => $citation['organisation'],
             'year' => $citation['year'],
+            'publication_date' => $citation['publication_date'] ?? '',
             'url' => $citation['url'],
             'apa_string' => $citation['apa_string'],
             'apa_details_available' => $citation['apa_details_available'],
@@ -613,9 +650,26 @@ class Framework_Generator_Workers {
             // Sanitize citation data to prevent prompt injection
             $title = isset($citation['title']) ? sanitize_text_field($citation['title']) : '';
             $type = isset($citation['type']) ? sanitize_text_field($citation['type']) : '';
+            $lead_author = isset($citation['lead_author']) ? sanitize_text_field($citation['lead_author']) : '';
+            $additional_authors = isset($citation['additional_authors']) ? sanitize_text_field($citation['additional_authors']) : '';
+            $publication_date = isset($citation['publication_date']) ? sanitize_text_field($citation['publication_date']) : '';
+            $organisation = isset($citation['organisation']) ? sanitize_text_field($citation['organisation']) : '';
             // Use sanitize_textarea_field for snippets to preserve formatting
             $snippet = isset($citation['passage_snippet']) ? sanitize_textarea_field($citation['passage_snippet']) : '';
-            $prompt .= "- {$title} ({$type}) - {$snippet}\n";
+            $prompt .= "- {$title} ({$type})\n";
+            if ($lead_author) {
+                $prompt .= "  Lead Author: {$lead_author}\n";
+            }
+            if ($additional_authors) {
+                $prompt .= "  Additional Authors: {$additional_authors}\n";
+            }
+            if ($organisation) {
+                $prompt .= "  Organisation: {$organisation}\n";
+            }
+            if ($publication_date) {
+                $prompt .= "  Publication Date: {$publication_date}\n";
+            }
+            $prompt .= "  Snippet: {$snippet}\n";
         }
 
         $article_title = isset($input['article_idea']['title']) ? sanitize_text_field($input['article_idea']['title']) : '';

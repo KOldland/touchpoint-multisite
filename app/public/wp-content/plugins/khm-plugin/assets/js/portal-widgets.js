@@ -14,6 +14,8 @@
         initDownloadButtons();
         initRedownloadButtons();
         initRemoveButtons();
+        initAnswerCardRemoveButtons();
+        initAnswerCardShareButtons();
         initMembershipActions();
         initAccountForms();
         initVoucherForms();
@@ -573,6 +575,28 @@
     }
 
     /**
+     * Remove saved AnswerCard buttons
+     */
+    function initAnswerCardRemoveButtons() {
+        $(document).on('click', '.khm-answercard-remove-btn', function(e) {
+            e.preventDefault();
+
+            var $btn = $(this);
+            var postId = $btn.data('post-id');
+            var answerCardId = $btn.data('answer-card-id');
+            var title = $btn.data('title');
+
+            if (!postId || !answerCardId) return;
+
+            showAnswerCardRemoveModal({
+                post_id: postId,
+                answer_card_id: answerCardId,
+                title: title
+            }, $btn);
+        });
+    }
+
+    /**
      * Show remove from library confirmation modal
      */
     function showRemoveConfirmationModal(data, $button) {
@@ -691,6 +715,220 @@
                 showPortalNotification('Failed to remove. Please try again.', 'error');
                 $btn.prop('disabled', false).html('<span class="khm-btn-icon dashicons dashicons-trash"></span> Remove');
             }
+        });
+    }
+
+    /**
+     * Section summary remove modal
+     */
+    function showAnswerCardRemoveModal(data, $button) {
+        $('#khm-portal-answercard-remove-modal').remove();
+
+        var modalHtml = `
+            <div id="khm-portal-answercard-remove-modal" class="khm-modal-backdrop">
+                <div class="khm-modal" style="min-width: 400px; max-width: 480px;">
+                    <div class="khm-modal-header">
+                        <h3 class="khm-modal-title">Remove section summary</h3>
+                        <button class="khm-modal-close">&times;</button>
+                    </div>
+                    <div class="khm-modal-content">
+                        <div class="tp-modal-title-strip">
+                            <h4>${data.title || 'Section Summary'}</h4>
+                        </div>
+                        <div class="tp-modal-warning">
+                            <p>Are you sure you want to remove this section summary from your saved list?</p>
+                            <p class="tp-warning-note">You can always save it again later.</p>
+                        </div>
+                        <div class="tp-modal-actions">
+                            <button class="btn-confirm-remove tp-btn tp-btn-danger">Remove</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        $('body').append(modalHtml);
+        var $modal = $('#khm-portal-answercard-remove-modal');
+
+        $modal.on('click', '.khm-modal-close', function() {
+            $modal.removeClass('show');
+            setTimeout(function() { $modal.remove(); }, 300);
+        });
+
+        $modal.on('click', function(e) {
+            if (e.target === this) {
+                $modal.removeClass('show');
+                setTimeout(function() { $modal.remove(); }, 300);
+            }
+        });
+
+        $modal.on('click', '.btn-confirm-remove', function() {
+            $modal.removeClass('show');
+            setTimeout(function() { $modal.remove(); }, 300);
+            processRemoveAnswerCard(data.answer_card_id, $button);
+        });
+
+        $(document).on('keydown.portalAnswerCardRemoveModal', function(e) {
+            if (e.key === 'Escape') {
+                $modal.removeClass('show');
+                setTimeout(function() { $modal.remove(); }, 300);
+                $(document).off('keydown.portalAnswerCardRemoveModal');
+            }
+        });
+
+        requestAnimationFrame(function() {
+            $modal.addClass('show');
+        });
+    }
+
+    function processRemoveAnswerCard(answerCardId, $btn) {
+        var $item = $btn.closest('.khm-download-item');
+
+        $btn.prop('disabled', true);
+
+        $.ajax({
+            url: khmPortalWidgets.restUrl + 'answercards/remove',
+            method: 'POST',
+            headers: {
+                'X-WP-Nonce': khmPortalWidgets.restNonce
+            },
+            data: {
+                answer_card_id: answerCardId
+            },
+            success: function(response) {
+                if (response.success) {
+                    showPortalNotification('Section summary removed', 'success');
+                    $item.fadeOut(300, function() { $(this).remove(); });
+                } else {
+                    showPortalNotification(response.error || 'Failed to remove', 'error');
+                    $btn.prop('disabled', false);
+                }
+            },
+            error: function() {
+                showPortalNotification('Failed to remove. Please try again.', 'error');
+                $btn.prop('disabled', false);
+            }
+        });
+    }
+
+    /**
+     * Share section summary buttons
+     */
+    function initAnswerCardShareButtons() {
+        $(document).on('click', '.khm-answercard-share-btn', function(e) {
+            e.preventDefault();
+
+            var $btn = $(this);
+            var postId = $btn.data('post-id');
+            var title = $btn.data('title') || 'Section Summary';
+
+            if (!postId) return;
+
+            showAnswerCardShareModal({
+                post_id: postId,
+                title: title
+            });
+        });
+    }
+
+    function showAnswerCardShareModal(data) {
+        $('#khm-portal-answercard-share-modal').remove();
+
+        var modalHtml = `
+            <div id="khm-portal-answercard-share-modal" class="khm-modal-backdrop">
+                <div class="khm-modal khm-portal-share-modal">
+                    <div class="khm-modal-header">
+                        <h3 class="khm-modal-title">Share section summary</h3>
+                        <button class="khm-modal-close">&times;</button>
+                    </div>
+                    <div class="modal-content">
+                        <div class="tp-modal-title-strip">
+                            <h4>${data.title}</h4>
+                        </div>
+                        <form class="khm-answercard-share-form">
+                            <label>
+                                Recipient Email:
+                                <span class="khm-input-row">
+                                    <input type="email" name="recipient_email" required placeholder="friend@example.com" />
+                                    <button type="button" class="khm-contact-btn" aria-label="Open address book" title="Open address book">
+                                        <span class="dashicons dashicons-admin-users"></span>
+                                    </button>
+                                </span>
+                            </label>
+                            <label>
+                                Personal Message (Optional):
+                                <textarea name="personal_message" placeholder="I thought you'd find this section summary useful..."></textarea>
+                            </label>
+                            <div class="modal-actions">
+                                <button type="button" class="btn-cancel">Cancel</button>
+                                <button type="submit" class="btn-send">Send Email</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        $('body').append(modalHtml);
+        var $modal = $('#khm-portal-answercard-share-modal');
+
+        $modal.on('click', '.khm-modal-close', function() {
+            $modal.removeClass('show');
+            setTimeout(function() { $modal.remove(); }, 300);
+        });
+
+        $modal.on('click', '.btn-cancel', function() {
+            $modal.removeClass('show');
+            setTimeout(function() { $modal.remove(); }, 300);
+        });
+
+        $modal.on('click', function(e) {
+            if (e.target === this) {
+                $modal.removeClass('show');
+                setTimeout(function() { $modal.remove(); }, 300);
+            }
+        });
+
+        $modal.on('submit', '.khm-answercard-share-form', function(e) {
+            e.preventDefault();
+            var $form = $(this);
+            var recipient = $form.find('input[name="recipient_email"]').val();
+            var message = $form.find('textarea[name="personal_message"]').val();
+            var $submit = $form.find('button[type="submit"]');
+
+            $submit.prop('disabled', true).text('Sending...');
+
+            $.ajax({
+                url: khmPortalWidgets.ajaxUrl,
+                method: 'POST',
+                data: {
+                    action: 'khm_share_library_article',
+                    nonce: khmPortalWidgets.shareNonce,
+                    post_id: data.post_id,
+                    recipient_email: recipient,
+                    personal_message: message,
+                    include_notes: 'false',
+                    include_membership_info: 'false'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        showPortalNotification('Section summary shared', 'success');
+                        $modal.removeClass('show');
+                        setTimeout(function() { $modal.remove(); }, 300);
+                    } else {
+                        showPortalNotification(response.data || 'Share failed', 'error');
+                        $submit.prop('disabled', false).text('Send Email');
+                    }
+                },
+                error: function() {
+                    showPortalNotification('Share failed. Please try again.', 'error');
+                    $submit.prop('disabled', false).text('Send Email');
+                }
+            });
+        });
+
+        requestAnimationFrame(function() {
+            $modal.addClass('show');
         });
     }
 

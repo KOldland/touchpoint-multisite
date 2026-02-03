@@ -5,6 +5,7 @@ use KH_SMMA\Services\TokenRepository;
 use KH_SMMA\Services\AuditLogger;
 use KH_SMMA\Services\AnalyticsFeedbackService;
 use KH_SMMA\Services\LifecycleSimulator;
+use KH_SMMA\Services\PhaseEngine;
 use KH_SMMA\Security\CapabilityManager;
 use WP_Query;
 
@@ -16,6 +17,7 @@ use function add_query_arg;
 use function admin_url;
 use function apply_filters;
 use function check_admin_referer;
+use function current_user_can;
 use function esc_attr;
 use function esc_html;
 use function esc_html__;
@@ -27,6 +29,7 @@ use function get_userdata;
 use function get_post_meta;
 use function get_posts;
 use function is_wp_error;
+use function wp_handle_upload;
 use function sanitize_text_field;
 use function sanitize_textarea_field;
 use function in_array;
@@ -53,12 +56,14 @@ class AdminInterface {
     private AuditLogger $logger;
     private AnalyticsFeedbackService $analytics;
     private LifecycleSimulator $simulator;
+    private PhaseEngine $phase_engine;
 
-    public function __construct( TokenRepository $tokens, AuditLogger $logger, AnalyticsFeedbackService $analytics, LifecycleSimulator $simulator ) {
+    public function __construct( TokenRepository $tokens, AuditLogger $logger, AnalyticsFeedbackService $analytics, LifecycleSimulator $simulator, PhaseEngine $phase_engine ) {
         $this->tokens     = $tokens;
         $this->logger     = $logger;
         $this->analytics  = $analytics;
         $this->simulator  = $simulator;
+        $this->phase_engine = $phase_engine;
     }
 
     public function register(): void {
@@ -70,6 +75,7 @@ class AdminInterface {
         add_action( 'admin_post_kh_smma_approve_schedule', array( $this, 'handle_schedule_approve' ) );
         add_action( 'admin_post_kh_smma_deny_schedule', array( $this, 'handle_schedule_deny' ) );
         add_action( 'admin_post_kh_smma_simulate_lifecycle', array( $this, 'handle_simulate_lifecycle' ) );
+        add_action( 'admin_post_kh_smma_import_event_catalog', array( $this, 'handle_import_event_catalog' ) );
     }
 
     public function register_menu(): void {
@@ -171,6 +177,33 @@ class AdminInterface {
             <?php endif; ?>
 
             <hr />
+
+            <h2><?php esc_html_e( 'Phase Engine Event Catalog', 'kh-smma' ); ?></h2>
+            <p><?php esc_html_e( 'Upload the canonical event_catalog CSV to drive phase scoring and explainable AI prompts.', 'kh-smma' ); ?></p>
+            <p class="description">
+                <?php
+                $catalog_count = $this->phase_engine->get_catalog_count();
+                printf( esc_html__( 'Current catalog rows: %s', 'kh-smma' ), esc_html( number_format_i18n( $catalog_count ) ) );
+                ?>
+            </p>
+            <?php if ( current_user_can( 'manage_options' ) ) : ?>
+                <form method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                    <?php wp_nonce_field( 'kh_smma_import_event_catalog' ); ?>
+                    <input type="hidden" name="action" value="kh_smma_import_event_catalog" />
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row"><label for="kh-smma-event-catalog"><?php esc_html_e( 'Event Catalog CSV', 'kh-smma' ); ?></label></th>
+                            <td>
+                                <input type="file" id="kh-smma-event-catalog" name="event_catalog" accept=".csv" required />
+                                <p class="description"><?php esc_html_e( 'Columns: event_id,label,points,phase_tag,biases,default_decay_days', 'kh-smma' ); ?></p>
+                            </td>
+                        </tr>
+                    </table>
+                    <?php submit_button( __( 'Import Catalog', 'kh-smma' ) ); ?>
+                </form>
+            <?php else : ?>
+                <p><?php esc_html_e( 'Catalog import requires administrator access.', 'kh-smma' ); ?></p>
+            <?php endif; ?>
 
             <h2><?php esc_html_e( '2. Quick Schedule', 'kh-smma' ); ?></h2>
             <?php if ( CapabilityManager::can_schedule() ) : ?>
@@ -874,6 +907,36 @@ class AdminInterface {
         }
 
         wp_safe_redirect( add_query_arg( array( 'page' => 'kh-smma-dashboard', 'message' => 'lifecycle-complete' ), admin_url( 'admin.php' ) ) );
+        exit;
+    }
+
+    public function handle_import_event_catalog(): void {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( esc_html__( 'Insufficient permissions.', 'kh-smma' ) );
+        }
+
+        check_admin_referer( 'kh_smma_import_event_catalog' );
+
+        if ( empty( $_FILES['event_catalog']['tmp_name'] ) ) {
+            wp_safe_redirect( add_query_arg( array( 'page' => 'kh-smma-dashboard', 'message' => 'catalog-missing' ), admin_url( 'admin.php' ) ) );
+            exit;
+        }
+
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+
+        $upload = wp_handle_upload( $_FILES['event_catalog'], array(
+            'test_form' => false,
+            'mimes'     => array( 'csv' => 'text/csv' ),
+        ) );
+
+        if ( ! empty( $upload['error'] ) ) {
+            wp_safe_redirect( add_query_arg( array( 'page' => 'kh-smma-dashboard', 'message' => 'catalog-error', 'error' => rawurlencode( $upload['error'] ) ), admin_url( 'admin.php' ) ) );
+            exit;
+        }
+
+        $count = $this->phase_engine->import_event_catalog( $upload['file'] );
+
+        wp_safe_redirect( add_query_arg( array( 'page' => 'kh-smma-dashboard', 'message' => 'catalog-imported', 'count' => $count ), admin_url( 'admin.php' ) ) );
         exit;
     }
 

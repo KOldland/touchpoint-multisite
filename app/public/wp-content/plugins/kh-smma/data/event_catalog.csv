@@ -1,0 +1,80 @@
+event_id,label,points,phase_tag,biases,default_decay_days
+banner_ad_impression,"Banner ad impression",3,Attention,"{\"relevance\"}",30
+banner_ad_click,"Banner ad click-through",8,Attention,"{\"relevance\",\"consistency\"}",30
+social_post_seen,"Social media post seen/scroll-by",4,Attention,"{\"relevance\"}",30
+social_like,"Social media like",6,Attention,"{\"consistency\",\"relevance\"}",30
+social_comment,"Social media comment",8,Attention,"{\"relevance\"}",30
+social_click,"Social media click-through",10,Attention,"{\"relevance\"}",30
+article_open_bounce_lt10,"Article opened (bounce <10s)",3,Attention,"{\"authority\"}",30
+article_skimm_lt25,"Article skimmed (<25%)",5,Attention,"{\"authority\"}",30
+article_partial_25_75,"Article partially read (25-75%)",7,Attention,"{\"authority\",\"relationship\"}",30
+article_read_75_plus_marketing,"Article read to completion (>75%) — organic",10,Antagonistic,"{\"authority\",\"relationship\"}",30
+article_read_75_plus_rep_sent,"Article read to completion (>75%) — sent by rep",15,Anxiety,"{\"authority\",\"relationship\"}",60
+bylined_article_skimm_lt25,"By-lined article skimmed (<25%)",5,Attention,"{\"authority\"}",30
+bylined_article_partial_25_75,"By-lined article partially read (25-75%)",7,Attention,"{\"authority\"}",30
+bylined_article_read_75,"By-lined article read to completion (>75%)",10,Antagonistic,"{\"authority\"}",30
+bylined_article_read_75_shared,"By-lined article shared/reshared",12,Anxiety,"{\"authority\",\"relationship\"}",60
+commentary_placement_skimm,"Commentary placement skimmed (<25%)",6,Attention,"{\"authority\"}",30
+commentary_placement_partial,"Commentary placement partially read (25-75%)",9,Antagonistic,"{\"authority\"}",30
+commentary_placement_read_75,"Commentary placement read to completion (>75%)",12,Anxiety,"{\"authority\"}",60
+commentary_placement_shared,"Commentary placement shared/reshared",15,Anxiety,"{\"authority\",\"relationship\"}",60
+press_release_headline_skim,"Press release headline skimmed",4,Attention,"{\"authority\"}",30
+press_release_fully_read,"Press release fully read",7,Attention,"{\"authority\"}",30
+press_release_shared,"Press release reshared or cited",12,Anxiety,"{\"authority\"}",60
+newsletter_delivered_unopened,"Newsletter delivered (unopened)",0,Attention,"{}",30
+newsletter_open_skimming,"Newsletter opened & partially read",7,Attention,"{\"relevance\"}",30
+newsletter_click,"Newsletter click-through",10,Attention,"{\"relevance\"}",30
+newsletter_forward_shared,"Newsletter forwarded/shared",12,Anxiety,"{\"authority\",\"relationship\"}",60
+landing_page_view,"Landing page viewed (white paper/video, no download/play)",3,Attention,"{\"relevance\"}",30
+whitepaper_download_started,"White paper/video started (<25% watched)",7,Attention,"{\"relevance\"}",30
+whitepaper_partial_25_75_marketing,"White paper partially read / video 25-75% — organic",10,Anxiety,"{\"relevance\",\"relationship\"}",60
+whitepaper_partial_25_75_rep_sent,"White paper partially read 25-75% — sent by rep",15,Anxiety,"{\"relevance\",\"relationship\"}",60
+whitepaper_read_75_marketing,"White paper fully read / video >75% — organic",15,Anxiety,"{\"authority\",\"consistency\",\"relationship\"}",60
+whitepaper_read_75_rep_sent,"White paper fully read (>75%) — sent by rep",20,Anxiety,"{\"authority\",\"consistency\",\"relationship\"}",60
+whitepaper_shared,"White paper shared",25,Anxiety,"{\"authority\",\"relationship\"}",90
+case_study_sent_by_rep_skimm,"Case study sent by rep, skimmed",10,Antagonistic,"{\"relationship\"}",60
+case_study_sent_by_rep_full,"Case study sent by rep, fully read",15,Anxiety,"{\"authority\",\"relevance\"}",60
+case_study_discussed_with_rep,"Case study discussed with rep",25,Anxiety,"{\"authority\",\"relationship\"}",90
+article_sent_by_rep_partially_read,"Article sent by rep, partially read",12,Antagonistic,"{\"relationship\"}",60
+article_sent_by_rep_read_to_completion,"Article sent by rep, read to completion",15,Anxiety,"{\"relationship\",\"authority\"}",60
+press_release_sent_by_rep_opened,"Press release/executive summary sent by rep, opened",7,Attention,"{\"relationship\"}",30
+press_release_sent_by_rep_read,"Press release/executive summary sent by rep, completed",10,Anxiety,"{\"authority\"}",60
+webinar_passive,"Webinar attendance passive (logged in, no participation)",10,Anxiety,"{\"consistency\"}",60
+webinar_partial_lt50,"Webinar partial stay (<50%)",12,Anxiety,"{\"consistency\",\"relevance\"}",60
+webinar_partial_25_75_marketing,"Webinar partial (25-75%) — organic",18,Anxiety,"{\"relevance\",\"relationship\"}",90
+webinar_partial_25_75_rep_sent,"Webinar partial (25-75%) — link sent by rep",18,Anxiety,"{\"relevance\",\"relationship\"}",90
+webinar_full_marketing_15,"Webinar attendance full (>75%) — organic (15 pts)",15,Anxiety,"{\"consistency\",\"relevance\"}",90
+webinar_full_sales_22,"Webinar attendance full (>75%) — high-touch / sales context (22 pts)",22,Anxiety,"{\"authority\",\"consistency\"}",90
+webinar_qna_poll_answered,"Webinar Q&A/poll answered",18,Anxiety,"{\"consistency\",\"relationship\"}",90
+webinar_direct_chat,"Webinar direct chat engagement",20,Anxiety,"{\"relationship\"}",90
+webinar_followup_action,"Webinar follow-up action (deck download, consult)",22,Anxiety,"{\"consistency\",\"scarcity\"}",90
+webinar_shared_forwarded,"Webinar shared/forwarded",25,Anxiety,"{\"authority\",\"relationship\"}",90
+webinar_link_sent_by_rep_unopened,"Webinar link sent by rep, unopened",7,Antagonistic,"{\"relationship\"}",60
+webinar_link_sent_by_rep_opened,"Webinar link sent by rep, opened / skimmed",12,Anxiety,"{\"relevance\",\"relationship\"}",60
+webinar_link_sent_by_rep_watched_partial,"Webinar link sent by rep, watched partially (25-75%)",18,Anxiety,"{\"relevance\",\"relationship\"}",90
+webinar_link_sent_by_rep_watched_full,"Webinar link sent by rep, watched full (>75%)",22,Anxiety,"{\"authority\",\"relevance\"}",90
+online_roundtable_passive,"Online roundtable passive",15,Anxiety,"{\"scarcity\",\"relevance\"}",60
+online_roundtable_active,"Online roundtable active contribution",20,Anxiety,"{\"authority\",\"relationship\"}",90
+online_roundtable_peer_networking,"Online roundtable peer networking",22,Anxiety,"{\"social_proof\",\"relevance\"}",90
+online_roundtable_followup_booked,"Online roundtable follow-up booked",25,Acceptance,"{\"scarcity\",\"relationship\"}",90
+inperson_roundtable_passive,"In-person roundtable/workshop passive",18,Acceptance,"{\"scarcity\",\"relevance\"}",90
+inperson_roundtable_contribution,"In-person roundtable/workshop contribution",22,Acceptance,"{\"authority\",\"relationship\"}",180
+inperson_roundtable_networking,"In-person roundtable/workshop peer networking",25,Acceptance,"{\"relationship\",\"relevance\"}",180
+inperson_roundtable_followup_booked,"In-person roundtable follow-up booked",28,Acceptance,"{\"scarcity\",\"relationship\"}",180
+one2one_meeting_online,"1:1 meeting online",22,Acceptance,"{\"relationship\"}",180
+one2one_meeting_inperson,"1:1 meeting in-person",28,Acceptance,"{\"relationship\",\"authority\"}",365
+one2one_meeting_proposal_pilot_trial,"1:1 meeting - proposal/pilot/trial",32,Acceptance,"{\"scarcity\",\"relationship\"}",365
+exclusivity_presented,"Exclusivity offer presented",25,Acceptance,"{\"scarcity\"}",90
+exclusivity_accepted,"Exclusivity accepted (contract)",35,Acceptance,"{\"scarcity\",\"relationship\"}",365
+demo_request,"Sales demo requested",80,Acceptance,"{\"point_of_sale\",\"high_touch\"}",365
+paid_conversion,"Paid subscription conversion",300,Acceptance,"{\"point_of_sale\",\"conversion\"}",365
+whitepaper_sent_by_rep_unopened,"White paper sent by rep, unopened",7,Antagonistic,"{\"relationship\"}",60
+whitepaper_sent_by_rep_opened,"White paper sent by rep, opened/downloaded",12,Antagonistic,"{\"relationship\",\"relevance\"}",60
+article_shared_reshared,"Article shared/reshared",12,Anxiety,"{\"authority\",\"relationship\"}",60
+commentary_shared_reshared,"Commentary placement shared/reshared",15,Anxiety,"{\"authority\",\"relationship\"}",60
+article_cited_third_party,"Article cited/quoted in third-party",15,Anxiety,"{\"authority\"}",365
+bylined_article_cited_third_party,"By-lined article cited/quoted in third-party",15,Anxiety,"{\"authority\"}",365
+whitepaper_sent_by_rep_shared,"White paper sent by rep, shared",25,Anxiety,"{\"authority\",\"relationship\"}",365
+webinar_followup_deck_download,"Webinar follow-up deck download",22,Anxiety,"{\"consistency\",\"relevance\"}",90
+case_study_sent_by_rep_forwarded,"Case study sent by rep, forwarded/shared",20,Anxiety,"{\"authority\",\"relationship\"}",90
+case_study_sent_by_rep_booked_followup,"Case study sent by rep, follow-up booked",25,Acceptance,"{\"authority\",\"relationship\"}",90

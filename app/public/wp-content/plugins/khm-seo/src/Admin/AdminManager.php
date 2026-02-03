@@ -242,6 +242,269 @@ class AdminManager {
                 <?php submit_button( __( 'Load Actions', 'khm-seo' ), 'primary', false ); ?>
             </form>
 
+                <hr />
+                <h2><?php esc_html_e( 'Promotion Planner', 'khm-seo' ); ?></h2>
+                <p class="description">
+                    <?php esc_html_e( 'Create promotion variants & optionally boost visibility on LinkedIn or Google.', 'khm-seo' ); ?>
+                </p>
+
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <th><?php esc_html_e( 'Title', 'khm-seo' ); ?></th>
+                            <th><?php esc_html_e( 'Published', 'khm-seo' ); ?></th>
+                            <th><?php esc_html_e( 'Phase', 'khm-seo' ); ?></th>
+                            <th><?php esc_html_e( 'SEO Score', 'khm-seo' ); ?></th>
+                            <th><?php esc_html_e( 'GEO Score / Policy', 'khm-seo' ); ?></th>
+                            <th><?php esc_html_e( 'Sponsor', 'khm-seo' ); ?></th>
+                            <th><?php esc_html_e( 'Actions', 'khm-seo' ); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ( $posts as $post_item ) : ?>
+                            <?php
+                            $seo_score = (int) get_post_meta( $post_item->ID, '_khm_seo_score', true );
+                            $geo_score = (int) get_post_meta( $post_item->ID, '_khm_geo_score', true );
+                            $geo_policy = '';
+                            $sponsor_name = '';
+
+                            // Get phase information for current user
+                            $phase_data = array(
+                                'phase' => 'Attention',
+                                'signals' => array(),
+                                'color' => '#0073aa',
+                            );
+
+                            if ( class_exists( 'KH_SMMA\\Services\\PhaseEngine' ) ) {
+                                $phase_engine = new \KH_SMMA\Services\PhaseEngine();
+                                $user_phase = $phase_engine->get_user_phase( get_current_user_id() );
+                                if ( is_array( $user_phase ) && ! empty( $user_phase['assigned_phase'] ) ) {
+                                    $phase_data['phase'] = $user_phase['assigned_phase'];
+                                    $phase_data['signals'] = array_slice( $user_phase['top_signals'] ?? array(), 0, 3 );
+                                }
+                            }
+
+                            // Set phase colors
+                            $phase_colors = array(
+                                'Attention' => '#0073aa',
+                                'Antagonistic' => '#f0a000',
+                                'Anxiety' => '#dc3232',
+                                'Acceptance' => '#46b450',
+                            );
+                            $phase_data['color'] = $phase_colors[ $phase_data['phase'] ] ?? '#0073aa';
+
+                            if ( function_exists( 'khm_seo' ) && khm_seo()->get_geo_manager() ) {
+                                $geo_manager = khm_seo()->get_geo_manager();
+                                if ( method_exists( $geo_manager, 'getSponsorPolicyForPost' ) ) {
+                                    $policy = $geo_manager->getSponsorPolicyForPost( $post_item->ID, 'global' );
+                                    if ( is_array( $policy ) ) {
+                                        $geo_policy = $policy['policy'] ?? '';
+                                        if ( ! empty( $policy['sponsor_id'] ) && function_exists( 'kh_ad_manager_get_sponsor_meta' ) ) {
+                                            $sponsor_meta = kh_ad_manager_get_sponsor_meta( (int) $policy['sponsor_id'] );
+                                            $sponsor_name = $sponsor_meta['name'] ?? '';
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Check for pending schedules
+                            $pending_count = 0;
+                            $pending_query = new \WP_Query( array(
+                                'post_type' => 'kh_smma_schedule',
+                                'post_status' => 'publish',
+                                'posts_per_page' => -1,
+                                'fields' => 'ids',
+                                'meta_query' => array(
+                                    'relation' => 'AND',
+                                    array(
+                                        'key' => '_kh_smma_payload',
+                                        'value' => sprintf( '"post_id":%d', $post_item->ID ),
+                                        'compare' => 'LIKE',
+                                    ),
+                                    array(
+                                        'key' => '_kh_smma_approval_status',
+                                        'value' => 'pending',
+                                        'compare' => '=',
+                                    ),
+                                ),
+                            ) );
+                            $pending_count = $pending_query->found_posts;
+                            ?>
+                            <tr>
+                                <td>
+                                    <strong><?php echo esc_html( $post_item->post_title ?: sprintf( __( '(Untitled #%d)', 'khm-seo' ), $post_item->ID ) ); ?></strong>
+                                </td>
+                                <td><?php echo esc_html( get_the_date( '', $post_item ) ); ?></td>
+                                <td>
+                                    <span
+                                        class="khm-phase-badge"
+                                        style="display: inline-block; padding: 4px 10px; border-radius: 3px; background-color: <?php echo esc_attr( $phase_data['color'] ); ?>; color: #fff; font-size: 12px; font-weight: 600;"
+                                        title="<?php echo esc_attr( implode( ', ', $phase_data['signals'] ) ?: __( 'No signals available', 'khm-seo' ) ); ?>"
+                                    >
+                                        <?php echo esc_html( $phase_data['phase'] ); ?>
+                                    </span>
+                                </td>
+                                <td><?php echo esc_html( $seo_score ?: '—' ); ?></td>
+                                <td>
+                                    <?php echo esc_html( $geo_score ?: '—' ); ?>
+                                    <?php if ( $geo_policy ) : ?>
+                                        <br /><small><?php echo esc_html( strtoupper( $geo_policy ) ); ?></small>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?php echo esc_html( $sponsor_name ?: '—' ); ?></td>
+                                <td>
+                                    <button
+                                        class="button khm-smma-promote-btn"
+                                        data-post-id="<?php echo esc_attr( $post_item->ID ); ?>"
+                                        data-post-title="<?php echo esc_attr( $post_item->post_title ); ?>"
+                                        data-phase="<?php echo esc_attr( $phase_data['phase'] ); ?>"
+                                    >
+                                        <?php esc_html_e( 'Promote', 'khm-seo' ); ?>
+                                    </button>
+                                    <button
+                                        class="button khm-smma-boost-btn"
+                                        data-post-id="<?php echo esc_attr( $post_item->ID ); ?>"
+                                    >
+                                        <?php esc_html_e( 'Boost', 'khm-seo' ); ?>
+                                    </button>
+                                    <?php if ( $pending_count > 0 ) : ?>
+                                        <a
+                                            class="button button-primary"
+                                            href="#pending-approvals"
+                                            title="<?php echo esc_attr( sprintf( __( '%d pending approval(s)', 'khm-seo' ), $pending_count ) ); ?>"
+                                        >
+                                            <?php echo esc_html( sprintf( __( 'Pending (%d)', 'khm-seo' ), $pending_count ) ); ?>
+                                        </a>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+
+                <hr id="pending-approvals" />
+                <h2><?php esc_html_e( 'Pending Sponsor Approvals', 'khm-seo' ); ?></h2>
+                <?php
+                $pending = new \WP_Query( array(
+                    'post_type'      => 'kh_smma_schedule',
+                    'post_status'    => 'publish',
+                    'posts_per_page' => 20,
+                    'fields'         => 'ids',
+                    'meta_query'     => array(
+                        array(
+                            'key'     => '_kh_smma_approval_status',
+                            'value'   => 'pending',
+                            'compare' => '=',
+                        ),
+                    ),
+                ) );
+                ?>
+                <?php if ( $pending->have_posts() ) : ?>
+                    <table class="wp-list-table widefat fixed striped">
+                        <thead>
+                            <tr>
+                                <th><?php esc_html_e( 'Schedule', 'khm-seo' ); ?></th>
+                                <th><?php esc_html_e( 'Post', 'khm-seo' ); ?></th>
+                                <th><?php esc_html_e( 'Variant Preview', 'khm-seo' ); ?></th>
+                                <th><?php esc_html_e( 'Phase', 'khm-seo' ); ?></th>
+                                <th><?php esc_html_e( 'Sponsor', 'khm-seo' ); ?></th>
+                                <th><?php esc_html_e( 'Compliance', 'khm-seo' ); ?></th>
+                                <th><?php esc_html_e( 'Actions', 'khm-seo' ); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ( $pending->posts as $schedule_id ) : ?>
+                                <?php
+                                $payload = get_post_meta( $schedule_id, '_kh_smma_payload', true );
+                                $source_post_id = isset( $payload['post_id'] ) ? (int) $payload['post_id'] : 0;
+                                $source_post = $source_post_id ? get_post( $source_post_id ) : null;
+                                $sponsor_id = (int) get_post_meta( $schedule_id, '_kh_smma_sponsor_id', true );
+                                $sponsor_name = '';
+                                if ( $sponsor_id && function_exists( 'kh_ad_manager_get_sponsor_meta' ) ) {
+                                    $sponsor = kh_ad_manager_get_sponsor_meta( $sponsor_id );
+                                    $sponsor_name = $sponsor['name'] ?? '';
+                                }
+                                $variant_text = $payload['text'] ?? '';
+                                $phase_tag = $payload['phase_tag'] ?? 'Attention';
+                                $compliance_notes = get_post_meta( $schedule_id, '_kh_smma_compliance_notes', true );
+                                $scheduled_at = get_post_meta( $schedule_id, '_kh_smma_scheduled_at', true );
+
+                                // Set phase colors
+                                $phase_colors = array(
+                                    'Attention' => '#0073aa',
+                                    'Antagonistic' => '#f0a000',
+                                    'Anxiety' => '#dc3232',
+                                    'Acceptance' => '#46b450',
+                                );
+                                $phase_color = $phase_colors[ $phase_tag ] ?? '#0073aa';
+                                ?>
+                                <tr>
+                                    <td>
+                                        <strong>#<?php echo esc_html( $schedule_id ); ?></strong>
+                                        <?php if ( $scheduled_at ) : ?>
+                                            <br /><small><?php echo esc_html( date_i18n( 'M j, Y g:i a', $scheduled_at ) ); ?></small>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?php echo esc_html( $source_post ? $source_post->post_title : __( 'Unknown', 'khm-seo' ) ); ?></td>
+                                    <td>
+                                        <div style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                            <?php echo esc_html( $variant_text ); ?>
+                                        </div>
+                                        <a href="#" class="khm-smma-preview-btn" data-schedule-id="<?php echo esc_attr( $schedule_id ); ?>">
+                                            <?php esc_html_e( 'View Full', 'khm-seo' ); ?>
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span
+                                            class="khm-phase-badge"
+                                            style="display: inline-block; padding: 4px 10px; border-radius: 3px; background-color: <?php echo esc_attr( $phase_color ); ?>; color: #fff; font-size: 12px; font-weight: 600;"
+                                        >
+                                            <?php echo esc_html( $phase_tag ); ?>
+                                        </span>
+                                    </td>
+                                    <td><?php echo esc_html( $sponsor_name ?: '—' ); ?></td>
+                                    <td>
+                                        <?php if ( $compliance_notes ) : ?>
+                                            <span
+                                                class="khm-compliance-badge"
+                                                style="display: inline-block; padding: 4px 8px; border-radius: 3px; background-color: <?php echo ( strpos( $compliance_notes, 'FAIL' ) !== false ? '#dc3232' : ( strpos( $compliance_notes, 'WARN' ) !== false ? '#f0a000' : '#46b450' ) ); ?>; color: #fff; font-size: 11px;"
+                                                title="<?php echo esc_attr( $compliance_notes ); ?>"
+                                            >
+                                                <?php echo esc_html( strpos( $compliance_notes, 'FAIL' ) !== false ? 'FAIL' : ( strpos( $compliance_notes, 'WARN' ) !== false ? 'WARN' : 'OK' ) ); ?>
+                                            </span>
+                                        <?php else : ?>
+                                            —
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <button
+                                            class="button button-primary khm-smma-approve-btn"
+                                            data-schedule-id="<?php echo esc_attr( $schedule_id ); ?>"
+                                        >
+                                            <?php esc_html_e( 'Approve', 'khm-seo' ); ?>
+                                        </button>
+                                        <button
+                                            class="button khm-smma-edit-variant-btn"
+                                            data-schedule-id="<?php echo esc_attr( $schedule_id ); ?>"
+                                            data-variant-text="<?php echo esc_attr( $variant_text ); ?>"
+                                        >
+                                            <?php esc_html_e( 'Edit', 'khm-seo' ); ?>
+                                        </button>
+                                        <button
+                                            class="button khm-smma-reject-btn"
+                                            data-schedule-id="<?php echo esc_attr( $schedule_id ); ?>"
+                                        >
+                                            <?php esc_html_e( 'Reject', 'khm-seo' ); ?>
+                                        </button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php else : ?>
+                    <p><?php esc_html_e( 'No pending approvals.', 'khm-seo' ); ?></p>
+                <?php endif; ?>
+
             <?php if ( $selected_post ) : ?>
                 <hr />
                 <h2><?php echo esc_html( get_the_title( $selected_post ) ); ?></h2>
@@ -558,6 +821,8 @@ class AdminManager {
         }
 
         $actions['boost_visibility'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-boost-visibility&post_type=' . $post->post_type . '&post_id=' . $post->ID ) ) . '">' . esc_html__( 'Boost Visibility', 'khm-seo' ) . '</a>';
+        $actions['smma_promote'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-boost-visibility&post_type=' . $post->post_type . '&post_id=' . $post->ID . '&smma_action=promote' ) ) . '">' . esc_html__( 'Promote', 'khm-seo' ) . '</a>';
+        $actions['smma_boost'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-boost-visibility&post_type=' . $post->post_type . '&post_id=' . $post->ID . '&smma_action=boost' ) ) . '">' . esc_html__( 'Boost', 'khm-seo' ) . '</a>';
         $actions['boost_social'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-social-preview&post_type=' . $post->post_type . '&post_id=' . $post->ID ) ) . '">' . esc_html__( 'Social', 'khm-seo' ) . '</a>';
         $actions['boost_geo'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-geo-post&post_type=' . $post->post_type . '&post_id=' . $post->ID ) ) . '">' . esc_html__( 'GEO', 'khm-seo' ) . '</a>';
         $actions['boost_health'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-post-health&post_type=' . $post->post_type . '&post_id=' . $post->ID ) ) . '">' . esc_html__( 'Post Health', 'khm-seo' ) . '</a>';

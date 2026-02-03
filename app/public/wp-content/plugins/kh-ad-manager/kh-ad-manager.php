@@ -50,6 +50,11 @@ add_action('init', function() {
 require_once AM_PATH . 'includes/cpt-ad-unit.php';
 require_once AM_PATH . 'includes/ad-helper.php';
 require_once AM_PATH . 'includes/campaigns.php';
+require_once AM_PATH . 'includes/cpt-sponsor.php';
+require_once AM_PATH . 'includes/sponsor-api.php';
+require_once AM_PATH . 'includes/sponsor-admin.php';
+require_once AM_PATH . 'includes/sponsor-approval-api.php';
+require_once AM_PATH . 'includes/sponsor-approvals-panel.php';
 require_once AM_PATH . 'includes/tracking.php';
 require_once AM_PATH . 'includes/admin-columns.php';
 require_once AM_PATH . 'includes/render-ad.php';
@@ -166,6 +171,9 @@ add_action('wp_enqueue_scripts', function() {
 
 // Enqueue admin assets on ad_unit screen only
 add_action('admin_enqueue_scripts', function() {
+    // ensure sponsorOptions exists (avoid ReferenceError)
+    wp_add_inline_script('jquery', 'window.sponsorOptions = window.sponsorOptions || {};', 'before');
+
     $screen = get_current_screen();
     if ($screen && $screen->post_type === 'ad_unit') {
         wp_enqueue_style('ad-manager-admin', AM_URL . 'assets/ad-manager-admin.css', [], '0.1');

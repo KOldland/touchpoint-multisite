@@ -446,11 +446,16 @@ const SuggestAnswerCardsModal = ( { isOpen, onClose, postId, postTitle, postCont
             const card = suggestions[ index ];
             const evidence = card.evidence || {};
             
+            const normalizedCitations = ( card.citations || [] ).map( ( citation ) => ( {
+                ...citation,
+                enableTracking: citation?.enableTracking ?? citation?.enable_tracking ?? true,
+            } ) );
+
             return createBlock( 'khm/answer-card', {
                 question: card.question || '',
                 conciseAnswer: card.concise_answer || '',
                 keyPoints: card.key_points || [],
-                citations: card.citations || [],
+                citations: normalizedCitations,
                 entities: card.entities || [],
                 evidence: {
                     tier: evidence.tier || '',
@@ -479,11 +484,16 @@ const SuggestAnswerCardsModal = ( { isOpen, onClose, postId, postTitle, postCont
             return;
         }
         const evidence = card.evidence || {};
+        const normalizedCitations = ( card.citations || [] ).map( ( citation ) => ( {
+            ...citation,
+            enableTracking: citation?.enableTracking ?? citation?.enable_tracking ?? true,
+        } ) );
+
         const block = createBlock( 'khm/answer-card', {
             question: card.question || '',
             conciseAnswer: card.concise_answer || '',
             keyPoints: card.key_points || [],
-            citations: card.citations || [],
+            citations: normalizedCitations,
             entities: card.entities || [],
             evidence: {
                 tier: evidence.tier || '',

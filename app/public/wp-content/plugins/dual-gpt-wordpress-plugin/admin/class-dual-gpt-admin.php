@@ -67,6 +67,15 @@ class Dual_GPT_Admin {
             'dual-gpt-audit',
             array($this, 'audit_page')
         );
+
+        add_submenu_page(
+            'dual-gpt-settings',
+            'Integrations',
+            'Integrations',
+            'manage_options',
+            'dual-gpt-integrations',
+            array($this, 'integrations_page')
+        );
     }
 
     /**
@@ -77,6 +86,32 @@ class Dual_GPT_Admin {
         register_setting('dual_gpt_settings', 'dual_gpt_default_model');
         register_setting('dual_gpt_settings', 'dual_gpt_max_tokens');
         register_setting('dual_gpt_settings', 'dual_gpt_default_budget');
+        register_setting('dual_gpt_settings', 'dual_gpt_core_industry_focus');
+        register_setting('dual_gpt_settings', 'dual_gpt_core_audience_tier');
+        register_setting('dual_gpt_settings', 'dual_gpt_core_risk_tolerance');
+        register_setting('dual_gpt_settings', 'dual_gpt_core_brand_profile');
+        register_setting('dual_gpt_settings', 'dual_gpt_task_models', array(
+            'type' => 'array',
+            'sanitize_callback' => array($this, 'sanitize_task_models'),
+        ));
+        register_setting('dual_gpt_settings', 'dual_gpt_model_override_ack');
+        register_setting('dual_gpt_settings', 'dual_gpt_model_override_audit');
+        register_setting('dual_gpt_integrations', 'dual_gpt_search_provider');
+        register_setting('dual_gpt_integrations', 'dual_gpt_search_provider_fallbacks', array(
+            'sanitize_callback' => array($this, 'sanitize_fallback_providers'),
+        ));
+        register_setting('dual_gpt_integrations', 'dual_gpt_search_results_limit');
+        register_setting('dual_gpt_integrations', 'dual_gpt_search_cache_ttl');
+        register_setting('dual_gpt_integrations', 'dual_gpt_serpapi_key');
+        register_setting('dual_gpt_integrations', 'dual_gpt_tavily_key');
+        register_setting('dual_gpt_integrations', 'dual_gpt_bing_key');
+        register_setting('dual_gpt_integrations', 'dual_gpt_bing_endpoint');
+        register_setting('dual_gpt_integrations', 'dual_gpt_google_cse_key');
+        register_setting('dual_gpt_integrations', 'dual_gpt_google_cse_cx');
+        register_setting('dual_gpt_integrations', 'dual_gpt_brave_key');
+        register_setting('dual_gpt_integrations', 'dual_gpt_dataforseo_login');
+        register_setting('dual_gpt_integrations', 'dual_gpt_dataforseo_password');
+        register_setting('dual_gpt_integrations', 'dual_gpt_serper_key');
     }
 
     /**
@@ -106,6 +141,7 @@ class Dual_GPT_Admin {
             'nonce' => wp_create_nonce('dual_gpt_admin_nonce'),
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'restUrl' => rest_url('dual-gpt/v1/'),
+            'modelDefaults' => class_exists('Dual_GPT_Model_Config') ? (new Dual_GPT_Model_Config())->get_default_map() : array(),
         ));
     }
 
@@ -113,9 +149,14 @@ class Dual_GPT_Admin {
      * Settings page
      */
     public function settings_page() {
+        $model_config = class_exists('Dual_GPT_Model_Config') ? new Dual_GPT_Model_Config() : null;
+        $task_models = $model_config ? $model_config->get_task_models() : array();
+        $default_models = $model_config ? $model_config->get_default_map() : array();
+        $allowed_models = $model_config ? $model_config->get_allowed_models() : array();
         ?>
         <div class="wrap">
             <h1>Dual-GPT Settings</h1>
+            <?php settings_errors('dual_gpt_settings'); ?>
 
             <form method="post" action="options.php">
                 <?php settings_fields('dual_gpt_settings'); ?>
@@ -133,10 +174,88 @@ class Dual_GPT_Admin {
                         <th scope="row">Default Model</th>
                         <td>
                             <select name="dual_gpt_default_model">
-                                <option value="gpt-4" <?php selected(get_option('dual_gpt_default_model', 'gpt-4'), 'gpt-4'); ?>>GPT-4</option>
+                                <option value="gpt-4o" <?php selected(get_option('dual_gpt_default_model', 'gpt-4o'), 'gpt-4o'); ?>>GPT-4o</option>
+                                <option value="gpt-4o-mini" <?php selected(get_option('dual_gpt_default_model'), 'gpt-4o-mini'); ?>>GPT-4o mini</option>
+                                <option value="gpt-4.1" <?php selected(get_option('dual_gpt_default_model'), 'gpt-4.1'); ?>>GPT-4.1</option>
+                                <option value="gpt-5.2" <?php selected(get_option('dual_gpt_default_model'), 'gpt-5.2'); ?>>GPT-5.2</option>
+                                <option value="gpt-4" <?php selected(get_option('dual_gpt_default_model'), 'gpt-4'); ?>>GPT-4</option>
                                 <option value="gpt-4-turbo" <?php selected(get_option('dual_gpt_default_model'), 'gpt-4-turbo'); ?>>GPT-4 Turbo</option>
                                 <option value="gpt-3.5-turbo" <?php selected(get_option('dual_gpt_default_model'), 'gpt-3.5-turbo'); ?>>GPT-3.5 Turbo</option>
                             </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Model Defaults (per task)</th>
+                        <td>
+                            <div id="dual-gpt-model-warning" style="display:none; margin-bottom: 12px; padding: 10px; background: #fff4e5; border: 1px solid #ffb74d;">
+                                Warning: You have selected a non-optimal model for one or more tasks. This may increase cost or reduce quality.
+                            </div>
+                            <table>
+                                <tr>
+                                    <td style="padding-right: 12px;">Discovery</td>
+                                    <td>
+                                        <select name="dual_gpt_task_models[discovery]" data-default="<?php echo esc_attr($default_models['discovery'] ?? ''); ?>">
+                                            <?php foreach ($allowed_models as $model) : ?>
+                                                <option value="<?php echo esc_attr($model); ?>" <?php selected($task_models['discovery'] ?? '', $model); ?>>
+                                                    <?php echo esc_html($model); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding-right: 12px;">Validation</td>
+                                    <td>
+                                        <select name="dual_gpt_task_models[validation]" data-default="<?php echo esc_attr($default_models['validation'] ?? ''); ?>">
+                                            <?php foreach ($allowed_models as $model) : ?>
+                                                <option value="<?php echo esc_attr($model); ?>" <?php selected($task_models['validation'] ?? '', $model); ?>>
+                                                    <?php echo esc_html($model); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding-right: 12px;">Author Agent</td>
+                                    <td>
+                                        <select name="dual_gpt_task_models[author]" data-default="<?php echo esc_attr($default_models['author'] ?? ''); ?>">
+                                            <?php foreach ($allowed_models as $model) : ?>
+                                                <option value="<?php echo esc_attr($model); ?>" <?php selected($task_models['author'] ?? '', $model); ?>>
+                                                    <?php echo esc_html($model); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding-right: 12px;">Framework Agent</td>
+                                    <td>
+                                        <select name="dual_gpt_task_models[framework]" data-default="<?php echo esc_attr($default_models['framework'] ?? ''); ?>">
+                                            <?php foreach ($allowed_models as $model) : ?>
+                                                <option value="<?php echo esc_attr($model); ?>" <?php selected($task_models['framework'] ?? '', $model); ?>>
+                                                    <?php echo esc_html($model); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding-right: 12px;">Verification</td>
+                                    <td>
+                                        <select name="dual_gpt_task_models[verify]" data-default="<?php echo esc_attr($default_models['verify'] ?? ''); ?>">
+                                            <?php foreach ($allowed_models as $model) : ?>
+                                                <option value="<?php echo esc_attr($model); ?>" <?php selected($task_models['verify'] ?? '', $model); ?>>
+                                                    <?php echo esc_html($model); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </td>
+                                </tr>
+                            </table>
+                            <label style="display:block; margin-top:10px;">
+                                <input type="checkbox" name="dual_gpt_model_override_ack" value="1" />
+                                I understand non-optimal models may increase cost or reduce quality.
+                            </label>
                         </td>
                     </tr>
                     <tr>
@@ -152,6 +271,37 @@ class Dual_GPT_Admin {
                             <p class="description">Default monthly token budget per user.</p>
                         </td>
                     </tr>
+                    <tr>
+                        <th scope="row">Industry Focus</th>
+                        <td>
+                            <input type="text" name="dual_gpt_core_industry_focus" value="<?php echo esc_attr(get_option('dual_gpt_core_industry_focus', 'General')); ?>" class="regular-text" />
+                            <p class="description">Core industry focus used by the Author Agent.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Audience Tier</th>
+                        <td>
+                            <input type="text" name="dual_gpt_core_audience_tier" value="<?php echo esc_attr(get_option('dual_gpt_core_audience_tier', 'General')); ?>" class="regular-text" />
+                            <p class="description">Audience tier (e.g., executive, practitioner, general).</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Risk Tolerance</th>
+                        <td>
+                            <input type="text" name="dual_gpt_core_risk_tolerance" value="<?php echo esc_attr(get_option('dual_gpt_core_risk_tolerance', 'Moderate')); ?>" class="regular-text" />
+                            <p class="description">Risk tolerance guiding the Author Agent tone.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Brand Profile</th>
+                        <td>
+                            <select name="dual_gpt_core_brand_profile">
+                                <option value="Brand A (FSI)" <?php selected(get_option('dual_gpt_core_brand_profile', 'Brand A (FSI)'), 'Brand A (FSI)'); ?>>Brand A (FSI)</option>
+                                <option value="Brand B" <?php selected(get_option('dual_gpt_core_brand_profile'), 'Brand B'); ?>>Brand B</option>
+                            </select>
+                            <p class="description">Controls expression only, not reasoning.</p>
+                        </td>
+                    </tr>
                 </table>
 
                 <?php submit_button(); ?>
@@ -162,6 +312,222 @@ class Dual_GPT_Admin {
                 <button id="test-api-connection" class="button button-secondary">Test OpenAI API Connection</button>
                 <div id="api-test-result" style="margin-top: 10px;"></div>
             </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Sanitize model defaults and enforce override acknowledgement.
+     */
+    public function sanitize_task_models($value) {
+        $config = class_exists('Dual_GPT_Model_Config') ? new Dual_GPT_Model_Config() : null;
+        if (!$config) {
+            return array();
+        }
+
+        $defaults = $config->get_default_map();
+        $allowed = $config->get_allowed_models();
+        $sanitized = array();
+        $non_optimal = array();
+
+        foreach ($defaults as $task => $default_model) {
+            $candidate = sanitize_text_field($value[$task] ?? $default_model);
+            if (!in_array($candidate, $allowed, true)) {
+                $candidate = $default_model;
+            }
+            $sanitized[$task] = $candidate;
+            if ($candidate !== $default_model) {
+                $non_optimal[] = $task;
+            }
+        }
+
+        $ack = isset($_POST['dual_gpt_model_override_ack']) ? sanitize_text_field($_POST['dual_gpt_model_override_ack']) : '';
+        if (!empty($non_optimal) && $ack !== '1') {
+            add_settings_error(
+                'dual_gpt_task_models',
+                'dual_gpt_model_override_ack_required',
+                'Non-optimal model selections require confirmation.',
+                'error'
+            );
+            return get_option('dual_gpt_task_models', $defaults);
+        }
+
+        if (!empty($non_optimal)) {
+            update_option('dual_gpt_model_override_audit', array(
+                'tasks' => $non_optimal,
+                'updated_at' => current_time('mysql'),
+                'updated_by' => get_current_user_id(),
+            ));
+        }
+
+        return $sanitized;
+    }
+
+    /**
+     * Sanitize fallback providers from multiselect.
+     */
+    public function sanitize_fallback_providers($value) {
+        if (is_array($value)) {
+            $value = array_map('sanitize_text_field', $value);
+            $value = array_filter($value);
+            return implode(',', $value);
+        }
+
+        return sanitize_text_field($value);
+    }
+
+    /**
+     * Integrations page
+     */
+    public function integrations_page() {
+        ?>
+        <div class="wrap">
+            <h1>Dual-GPT Integrations</h1>
+            <?php settings_errors('dual_gpt_integrations'); ?>
+
+            <form method="post" action="options.php">
+                <?php settings_fields('dual_gpt_integrations'); ?>
+                <?php do_settings_sections('dual_gpt_integrations'); ?>
+
+                <h2>Search Providers</h2>
+                <p class="description">Configure external web search providers for research workflows. Environment variables or constants override stored values.</p>
+
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">Primary Provider</th>
+                        <td>
+                            <select name="dual_gpt_search_provider">
+                                <option value="none" <?php selected(get_option('dual_gpt_search_provider', 'none'), 'none'); ?>>None</option>
+                                <option value="serpapi" <?php selected(get_option('dual_gpt_search_provider'), 'serpapi'); ?>>SerpAPI</option>
+                                <option value="tavily" <?php selected(get_option('dual_gpt_search_provider'), 'tavily'); ?>>Tavily</option>
+                                <option value="bing" <?php selected(get_option('dual_gpt_search_provider'), 'bing'); ?>>Bing Web Search</option>
+                                <option value="google_cse" <?php selected(get_option('dual_gpt_search_provider'), 'google_cse'); ?>>Google CSE</option>
+                                <option value="brave" <?php selected(get_option('dual_gpt_search_provider'), 'brave'); ?>>Brave Search</option>
+                                <option value="dataforseo" <?php selected(get_option('dual_gpt_search_provider'), 'dataforseo'); ?>>DataForSEO</option>
+                                <option value="serper" <?php selected(get_option('dual_gpt_search_provider'), 'serper'); ?>>Serper.dev</option>
+                            </select>
+                            <p class="description">Primary provider used by planner research. Set to None to disable live search.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Fallback Providers</th>
+                        <td>
+                            <?php
+                            $fallbacks = get_option('dual_gpt_search_provider_fallbacks', '');
+                            $fallback_values = array_filter(array_map('trim', explode(',', (string) $fallbacks)));
+                            ?>
+                            <select name="dual_gpt_search_provider_fallbacks[]" multiple style="min-width: 260px; height: 120px;">
+                                <option value="serpapi" <?php selected(in_array('serpapi', $fallback_values, true)); ?>>SerpAPI</option>
+                                <option value="tavily" <?php selected(in_array('tavily', $fallback_values, true)); ?>>Tavily</option>
+                                <option value="bing" <?php selected(in_array('bing', $fallback_values, true)); ?>>Bing Web Search</option>
+                                <option value="google_cse" <?php selected(in_array('google_cse', $fallback_values, true)); ?>>Google CSE</option>
+                                <option value="brave" <?php selected(in_array('brave', $fallback_values, true)); ?>>Brave Search</option>
+                                <option value="dataforseo" <?php selected(in_array('dataforseo', $fallback_values, true)); ?>>DataForSEO</option>
+                                <option value="serper" <?php selected(in_array('serper', $fallback_values, true)); ?>>Serper.dev</option>
+                            </select>
+                            <p class="description">Select fallback providers. They will be used in the order shown here.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Results Limit</th>
+                        <td>
+                            <input type="number" name="dual_gpt_search_results_limit" value="<?php echo esc_attr(get_option('dual_gpt_search_results_limit', 16)); ?>" min="5" max="50" />
+                            <p class="description">Target number of results returned per phase.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Cache TTL (minutes)</th>
+                        <td>
+                            <input type="number" name="dual_gpt_search_cache_ttl" value="<?php echo esc_attr(get_option('dual_gpt_search_cache_ttl', 120)); ?>" min="5" />
+                            <p class="description">Cache external search responses to reduce costs.</p>
+                        </td>
+                    </tr>
+                </table>
+
+                <h2>Provider Credentials</h2>
+                <p class="description">Prefer environment variables or constants in production. Stored values are for development only.</p>
+
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">SerpAPI Key</th>
+                        <td>
+                            <input type="password" name="dual_gpt_serpapi_key" value="<?php echo esc_attr(get_option('dual_gpt_serpapi_key')); ?>" class="regular-text" />
+                            <p class="description">Env/const: DUAL_GPT_SERPAPI_KEY</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Tavily Key</th>
+                        <td>
+                            <input type="password" name="dual_gpt_tavily_key" value="<?php echo esc_attr(get_option('dual_gpt_tavily_key')); ?>" class="regular-text" />
+                            <p class="description">Env/const: DUAL_GPT_TAVILY_KEY</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Bing Key</th>
+                        <td>
+                            <input type="password" name="dual_gpt_bing_key" value="<?php echo esc_attr(get_option('dual_gpt_bing_key')); ?>" class="regular-text" />
+                            <p class="description">Env/const: DUAL_GPT_BING_KEY</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Bing Endpoint</th>
+                        <td>
+                            <input type="text" name="dual_gpt_bing_endpoint" value="<?php echo esc_attr(get_option('dual_gpt_bing_endpoint', 'https://api.bing.microsoft.com/v7.0/search')); ?>" class="regular-text" />
+                            <p class="description">Override endpoint if using a regional host.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Google CSE API Key</th>
+                        <td>
+                            <input type="password" name="dual_gpt_google_cse_key" value="<?php echo esc_attr(get_option('dual_gpt_google_cse_key')); ?>" class="regular-text" />
+                            <p class="description">Env/const: DUAL_GPT_GOOGLE_CSE_KEY</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Google CSE CX</th>
+                        <td>
+                            <input type="text" name="dual_gpt_google_cse_cx" value="<?php echo esc_attr(get_option('dual_gpt_google_cse_cx')); ?>" class="regular-text" />
+                            <p class="description">Custom Search Engine ID. Env/const: DUAL_GPT_GOOGLE_CSE_CX</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Brave Search Key</th>
+                        <td>
+                            <input type="password" name="dual_gpt_brave_key" value="<?php echo esc_attr(get_option('dual_gpt_brave_key')); ?>" class="regular-text" />
+                            <p class="description">Env/const: DUAL_GPT_BRAVE_KEY</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">DataForSEO Login</th>
+                        <td>
+                            <input type="text" name="dual_gpt_dataforseo_login" value="<?php echo esc_attr(get_option('dual_gpt_dataforseo_login')); ?>" class="regular-text" />
+                            <p class="description">Env/const: DUAL_GPT_DATAFORSEO_LOGIN</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">DataForSEO Password</th>
+                        <td>
+                            <input type="password" name="dual_gpt_dataforseo_password" value="<?php echo esc_attr(get_option('dual_gpt_dataforseo_password')); ?>" class="regular-text" />
+                            <p class="description">Env/const: DUAL_GPT_DATAFORSEO_PASSWORD</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Serper.dev Key</th>
+                        <td>
+                            <input type="password" name="dual_gpt_serper_key" value="<?php echo esc_attr(get_option('dual_gpt_serper_key')); ?>" class="regular-text" />
+                            <p class="description">Env/const: DUAL_GPT_SERPER_KEY</p>
+                        </td>
+                    </tr>
+                </table>
+
+                <div class="dual-gpt-test-section" style="margin-top: 20px; padding: 14px; background: #f9f9f9; border: 1px solid #ddd;">
+                    <h3>Test Integrations</h3>
+                    <button id="test-integrations" class="button button-secondary">Test Search & Keyword Providers</button>
+                    <div id="integrations-test-result" style="margin-top: 10px;"></div>
+                </div>
+
+                <?php submit_button('Save Integrations'); ?>
+            </form>
         </div>
         <?php
     }
@@ -227,6 +593,7 @@ class Dual_GPT_Admin {
                                 <select id="preset-role" name="role" required>
                                     <option value="research">Research</option>
                                     <option value="author">Author</option>
+                                    <option value="seo">SEO</option>
                                     <option value="both">Both</option>
                                 </select>
                             </td>
@@ -234,11 +601,15 @@ class Dual_GPT_Admin {
                         <tr>
                             <th><label for="preset-model">Default Model</label></th>
                             <td>
-                                <select id="preset-model" name="default_model">
-                                    <option value="gpt-4">GPT-4</option>
-                                    <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                                </select>
+                            <select id="preset-model" name="default_model">
+                                <option value="gpt-4o">GPT-4o</option>
+                                <option value="gpt-4o-mini">GPT-4o mini</option>
+                                <option value="gpt-4.1">GPT-4.1</option>
+                                <option value="gpt-5.2">GPT-5.2</option>
+                                <option value="gpt-4">GPT-4</option>
+                                <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                            </select>
                             </td>
                         </tr>
                         <tr>

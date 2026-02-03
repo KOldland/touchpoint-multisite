@@ -18,6 +18,10 @@
  *
  * @package WordPress
  */
+
+// Session path will be configured by 000-session-config.php mu-plugin
+// This ensures it loads before any plugins try to start sessions
+
 // Ensure WP_CONTENT_DIR is defined for Local / custom setups
 if ( ! defined( 'WP_CONTENT_DIR' ) ) {
 	define( 'WP_CONTENT_DIR', __DIR__ . '/wp-content' );
@@ -96,7 +100,7 @@ if ( ! defined( 'WP_DEBUG' ) ) {
 }
 
 if ( ! defined( 'WP_DEBUG_LOG' ) ) {
-	define( 'WP_DEBUG_LOG', __DIR__ . '/wp-content/debug-wsod.log' );
+	define( 'WP_DEBUG_LOG', true );
 }
 
 if ( ! defined( 'WP_DEBUG_DISPLAY' ) ) {

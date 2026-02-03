@@ -65,6 +65,12 @@ class MetaRegistrar {
             '_kh_smma_approved_by'       => array( 'type' => 'integer', 'single' => true ),
             '_kh_smma_approved_at'       => array( 'type' => 'integer', 'single' => true ),
             '_kh_smma_approval_note'     => array( 'type' => 'string', 'single' => true ),
+            '_kh_smma_sponsor_id'         => array( 'type' => 'integer', 'single' => true ),
+            '_kh_smma_sponsor_mode'       => array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => 'co-brand' ),
+            '_kh_smma_sponsor_assets'     => array( 'type' => 'array', 'single' => true ),
+            '_kh_smma_boost_mode'         => array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => 'none' ),
+            '_kh_smma_boost_settings'     => array( 'type' => 'array', 'single' => true ),
+            '_kh_smma_export_bundle'      => array( 'type' => 'array', 'single' => true ),
         );
 
         $this->register_meta_group( 'kh_smma_schedule', $fields );

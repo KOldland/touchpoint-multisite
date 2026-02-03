@@ -1,0 +1,19 @@
+{
+  "name": "dual-gpt-wordpress-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Build scripts for Dual-GPT Gutenberg sidebar",
+  "scripts": {
+    "build": "babel assets/js/sidebar.js --out-file assets/js/sidebar.build.js --source-maps inline",
+    "build:prod": "babel assets/js/sidebar.js --out-file assets/js/sidebar.build.js --no-comments && terser assets/js/sidebar.build.js -c -m -o assets/js/sidebar.min.js",
+    "watch": "babel assets/js/sidebar.js --out-file assets/js/sidebar.build.js --source-maps inline --watch"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@babel/cli": "^7.22.0",
+    "@babel/core": "^7.22.0",
+    "@babel/plugin-transform-react-jsx": "^7.20.0",
+    "@babel/preset-env": "^7.22.0",
+    "terser": "^5.17.0"
+  }
+}

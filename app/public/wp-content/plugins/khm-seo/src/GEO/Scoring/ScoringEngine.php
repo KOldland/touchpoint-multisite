@@ -90,6 +90,7 @@ class ScoringEngine {
             'citation_contributions' => $citation_data['contributions'],
             'recommendations' => $recommendations,
             'reasons' => $reasons,
+            'generated_at' => current_time( 'mysql' ),
             'is_publishable' => $total_score >= self::SCORE_THRESHOLDS['fair'],
         );
     }
@@ -192,13 +193,15 @@ class ScoringEngine {
             if ( ! empty( $c['doi'] ) ) $quality += 0.1;
             $quality = min( 1.0, $quality + $conf * 0.3 );
 
-            $raw = $w * $quality;
+            $boost = $this->get_sponsor_boost_multiplier( $settings, $c );
+            $raw = $w * $quality * $boost;
             $score += $raw;
             $total_weight += $w;
             $contributions[] = array(
                 'idx' => $idx,
                 'tier' => $tier ?: 'unknown',
                 'contribution_raw' => $raw,
+                'sponsor_boost' => $boost > 1 ? round( $boost - 1, 3 ) : 0,
             );
         }
 
@@ -214,6 +217,7 @@ class ScoringEngine {
                     'idx' => $item['idx'],
                     'tier' => $item['tier'],
                     'contribution' => round( $item['contribution_raw'] / $total_weight, 3 ),
+                    'sponsor_boost' => $item['sponsor_boost'] ?? 0,
                 );
             }
         }
@@ -223,6 +227,41 @@ class ScoringEngine {
             'score' => max( 0.2, min( 1.0, $score ) ),
             'contributions' => $normalized_contributions,
         );
+    }
+
+    /**
+     * Apply sponsor boost multiplier when allowed.
+     *
+     * @param array $settings Card data.
+     * @param array $citation Citation data.
+     * @return float
+     */
+    protected function get_sponsor_boost_multiplier( $settings, $citation ) {
+        $boost = isset( $settings['sponsor_boost'] ) ? floatval( $settings['sponsor_boost'] ) : 0.0;
+        if ( $boost <= 0 ) {
+            return 1.0;
+        }
+
+        if ( empty( $settings['sponsor_toggle'] ) ) {
+            return 1.0;
+        }
+
+        $tier = strtolower( $citation['tier'] ?? '' );
+        if ( ! in_array( $tier, array( 'tier1', 'tier2' ), true ) ) {
+            return 1.0;
+        }
+
+        $confidence = isset( $settings['evidence']['confidence'] ) ? floatval( $settings['evidence']['confidence'] ) : 0.0;
+        if ( $confidence < 0.85 ) {
+            return 1.0;
+        }
+
+        if ( empty( $citation['sponsor_id'] ) || $citation['sponsor_approved'] !== true ) {
+            return 1.0;
+        }
+
+        $boost = max( 0, min( 0.1, $boost ) );
+        return 1.0 + $boost;
     }
 
     /**
@@ -263,16 +302,26 @@ class ScoringEngine {
      */
     public function get_confidence_reasons( $card, $context = array() ) {
         $reasons   = array();
+        $producer  = 'scoring-engine-v1.2';
         $evidence  = $card['evidence'] ?? array();
         $citations = $card['citations'] ?? array();
         $entities  = $card['entities'] ?? array();
+        $first_citation_index = null;
+        $missing_author_index = null;
+        $missing_year_index   = null;
 
         $tier = strtolower( $evidence['tier'] ?? '' );
         if ( empty( $tier ) || 'tier3' === $tier ) {
             $reasons[] = array(
                 'code'     => 'only_tier3',
                 'label'    => 'Only Tier-3 or unclassified evidence',
+                'polarity' => 'issue',
                 'severity' => 'high',
+                'component'=> 'evidence_confidence',
+                'detail'   => 'Evidence tier is Tier-3 or missing.',
+                'suggestion' => 'Add a Tier-1 or Tier-2 citation.',
+                'action'   => null,
+                'producer' => $producer,
             );
         }
 
@@ -281,39 +330,84 @@ class ScoringEngine {
             $reasons[] = array(
                 'code'     => 'no_source_passage',
                 'label'    => 'No source passage provided',
+                'polarity' => 'issue',
                 'severity' => 'high',
+                'component'=> 'evidence_confidence',
+                'detail'   => 'Source passage is missing from evidence.',
+                'suggestion' => 'Add a supporting passage from the article.',
+                'action'   => 'openCitationEditor',
+                'producer' => $producer,
             );
         }
 
         $has_author = false;
         $has_year   = false;
+        $missing_author = false;
+        $missing_year   = false;
         if ( is_array( $citations ) ) {
             foreach ( $citations as $citation ) {
                 if ( ! is_array( $citation ) ) {
                     continue;
                 }
+                if ( $first_citation_index === null ) {
+                    $first_citation_index = 0;
+                }
                 if ( ! empty( $citation['author'] ) ) {
                     $has_author = true;
+                } else {
+                    $missing_author = true;
                 }
                 if ( ! empty( $citation['year'] ) ) {
                     $has_year = true;
+                } else {
+                    $missing_year = true;
                 }
             }
         }
 
-        if ( ! $has_author ) {
+        if ( $missing_author || ! $has_author ) {
+            if ( is_array( $citations ) ) {
+                foreach ( $citations as $idx => $citation ) {
+                    if ( is_array( $citation ) && empty( $citation['author'] ) ) {
+                        $missing_author_index = $idx;
+                        break;
+                    }
+                }
+            }
             $reasons[] = array(
                 'code'     => 'missing_author',
                 'label'    => 'Missing: author attribution',
+                'polarity' => 'issue',
                 'severity' => 'medium',
+                'component'=> 'citation_quality',
+                'detail'   => 'At least one citation lacks an author.',
+                'suggestion' => 'Add author details to the citation.',
+                'citation_index' => $missing_author_index,
+                'action'   => 'openCitationEditor',
+                'producer' => $producer,
             );
         }
 
-        if ( ! $has_year ) {
+        if ( $missing_year || ! $has_year ) {
+            if ( is_array( $citations ) ) {
+                foreach ( $citations as $idx => $citation ) {
+                    if ( is_array( $citation ) && empty( $citation['year'] ) ) {
+                        $missing_year_index = $idx;
+                        break;
+                    }
+                }
+            }
             $reasons[] = array(
                 'code'     => 'missing_year',
                 'label'    => 'Missing: publication year',
+                'polarity' => 'issue',
                 'severity' => 'medium',
+                'component'=> 'citation_quality',
+                'detail'   => 'At least one citation lacks a year.',
+                'suggestion' => 'Add the publication year.',
+                'citation_index' => $missing_year_index,
+                'action'   => 'openCitationEditor',
+                'producer' => $producer,
             );
         }
 
@@ -328,15 +422,93 @@ class ScoringEngine {
             $reasons[] = array(
                 'code'     => 'few_anchor_entities',
                 'label'    => 'Few anchor entities (fewer than 2)',
+                'polarity' => 'issue',
                 'severity' => 'low',
+                'component'=> 'entity_anchor_score',
+                'detail'   => 'Only a small number of anchor entities are present.',
+                'suggestion' => 'Resolve and anchor more entities.',
+                'action'   => 'openEntityResolver',
+                'producer' => $producer,
             );
         }
 
-        if ( $anchor_count === 0 && ! empty( $entities ) && $resolution['resolved_count'] === 0 ) {
+        if ( $resolution['unresolved_count'] > 3 ) {
+            $first_entity_name = null;
+            foreach ( (array) $entities as $entity ) {
+                if ( is_array( $entity ) && ! empty( $entity['name'] ) ) {
+                    $first_entity_name = $entity['name'];
+                    break;
+                }
+                if ( is_string( $entity ) ) {
+                    $first_entity_name = $entity;
+                    break;
+                }
+            }
             $reasons[] = array(
                 'code'     => 'entities_unresolved',
                 'label'    => 'Entities are unresolved; resolve or anchor to use in scoring',
+                'polarity' => 'issue',
                 'severity' => 'medium',
+                'component'=> 'entity_anchor_score',
+                'detail'   => 'Entities are present but not resolved or anchored.',
+                'suggestion' => 'Resolve entities and add anchors.',
+                'entity_name' => $first_entity_name,
+                'action'   => 'openEntityResolver',
+                'producer' => $producer,
+            );
+        }
+
+        if ( $has_source_passage && ! empty( $tier ) && in_array( $tier, array( 'tier1', 'tier2' ), true ) ) {
+            $reasons[] = array(
+                'code'     => sprintf( '%s_with_source', $tier ),
+                'label'    => strtoupper( $tier ) . ' evidence with source passage',
+                'polarity' => 'support',
+                'severity' => null,
+                'component'=> 'evidence_confidence',
+                'detail'   => sprintf( 'Evidence tier is %s with a matching source passage.', strtoupper( $tier ) ),
+                'suggestion' => null,
+                'action'   => null,
+                'producer' => $producer,
+            );
+        }
+
+        if ( $has_author && $has_year ) {
+            $support_citation_index = null;
+            if ( is_array( $citations ) ) {
+                foreach ( $citations as $idx => $citation ) {
+                    if ( is_array( $citation ) && ! empty( $citation['author'] ) && ! empty( $citation['year'] ) ) {
+                        $support_citation_index = $idx;
+                        break;
+                    }
+                }
+            }
+            $reasons[] = array(
+                'code'     => 'citation_has_author_year',
+                'label'    => 'Citation includes author and year',
+                'polarity' => 'support',
+                'severity' => null,
+                'component'=> 'citation_quality',
+                'detail'   => $support_citation_index !== null
+                    ? sprintf( 'Citation %d includes author attribution and a publication year.', $support_citation_index + 1 )
+                    : 'Citations include author attribution and publication years.',
+                'suggestion' => null,
+                'citation_index' => $support_citation_index,
+                'action'   => null,
+                'producer' => $producer,
+            );
+        }
+
+        if ( $anchor_count >= 2 ) {
+            $reasons[] = array(
+                'code'     => 'anchor_entities_present',
+                'label'    => 'Anchored entities strengthen confidence',
+                'polarity' => 'support',
+                'severity' => null,
+                'component'=> 'entity_anchor_score',
+                'detail'   => sprintf( '%d anchored entities linked to the answer card.', $anchor_count ),
+                'suggestion' => null,
+                'action'   => null,
+                'producer' => $producer,
             );
         }
 
@@ -353,33 +525,41 @@ class ScoringEngine {
     protected function get_resolved_entity_counts( $settings, $context = array() ) {
         $entities = $settings['entities'] ?? array();
         $entity_names = array();
+        $resolved_names = array();
+
         foreach ( (array) $entities as $entity ) {
             if ( is_array( $entity ) ) {
                 $name = $entity['name'] ?? '';
+                $same_as = $entity['same_as'] ?? ( $entity['sameAs'] ?? '' );
             } else {
                 $name = $entity;
+                $same_as = '';
             }
             if ( $name ) {
                 $entity_names[] = $name;
+                if ( $same_as ) {
+                    $resolved_names[ $name ] = true;
+                }
             }
         }
-
-        $resolved_ids = array();
-        $resolved_count = 0;
 
         if ( class_exists( '\\KHM_SEO\\GEO\\Entity\\EntityManager' ) && function_exists( 'get_post' ) ) {
             $manager = new \KHM_SEO\GEO\Entity\EntityManager();
 
             foreach ( $entity_names as $name ) {
+                if ( isset( $resolved_names[ $name ] ) ) {
+                    continue;
+                }
                 $entity = $manager->find_entity_by_canonical( $name, 'site' );
                 if ( $entity && ! empty( $entity->same_as ) ) {
-                    $resolved_ids[ $entity->id ] = true;
+                    $resolved_names[ $name ] = true;
                 }
             }
 
             $post_id = isset( $context['post_id'] ) ? absint( $context['post_id'] ) : 0;
             if ( $post_id ) {
                 $page_entities = $manager->get_post_entities( $post_id );
+                $page_entity_names = array();
                 foreach ( $page_entities as $page_entity ) {
                     if ( ! in_array( $page_entity->role, array( 'about', 'primary' ), true ) ) {
                         continue;
@@ -387,12 +567,24 @@ class ScoringEngine {
                     if ( floatval( $page_entity->confidence ) < 0.6 ) {
                         continue;
                     }
-                    $resolved_ids[ $page_entity->entity_id ] = true;
+                    $page_entity = $manager->get_entity( $page_entity->entity_id );
+                    if ( $page_entity && ! empty( $page_entity->canonical ) ) {
+                        $page_entity_names[] = $page_entity->canonical;
+                    }
+                }
+
+                foreach ( $entity_names as $name ) {
+                    if ( isset( $resolved_names[ $name ] ) ) {
+                        continue;
+                    }
+                    if ( in_array( $name, $page_entity_names, true ) ) {
+                        $resolved_names[ $name ] = true;
+                    }
                 }
             }
         }
 
-        $resolved_count = count( $resolved_ids );
+        $resolved_count = count( $resolved_names );
         $unresolved_count = max( 0, count( $entity_names ) - $resolved_count );
 
         return array(

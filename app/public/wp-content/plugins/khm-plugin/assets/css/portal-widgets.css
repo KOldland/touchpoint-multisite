@@ -48,6 +48,7 @@
 .khm-portal-dashboard,
 .khm-portal-credits,
 .khm-portal-downloads,
+.khm-portal-answercards,
 .khm-portal-membership,
 .khm-portal-account {
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -333,6 +334,14 @@
     box-shadow: var(--khm-shadow);
 }
 
+.khm-answercards-list .khm-download-item {
+    border-left: 3px solid rgba(109, 11, 11, 0.15);
+}
+
+.khm-answercards-list .khm-download-title {
+    font-weight: 600;
+}
+
 .khm-download-item {
     display: flex;
     align-items: center;
@@ -389,6 +398,29 @@
     transition: all 0.2s ease;
 }
 
+.khm-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    background: var(--khm-bg-alt);
+    color: var(--khm-text);
+    border: 1px solid var(--khm-border);
+    border-radius: var(--khm-radius);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.khm-icon-btn:hover {
+    background: var(--khm-accent);
+    color: #fff;
+    border-color: var(--khm-accent);
+}
+
 .khm-download-btn:hover,
 .khm-redownload-btn:hover {
     background: var(--khm-accent);
@@ -403,6 +435,10 @@
 }
 
 .khm-download-actions .khm-btn-icon {
+    margin: 0;
+}
+
+.khm-icon-btn .khm-btn-icon {
     margin: 0;
 }
 
@@ -982,6 +1018,117 @@
 .tp-modal-actions .btn-cancel,
 .tp-modal-actions .tp-btn-cancel {
     display: none;
+}
+
+.khm-modal,
+.khm-modal-header,
+.khm-modal-content {
+    background: #ffffff;
+}
+
+.khm-portal-share-modal {
+    background: #ffffff !important;
+}
+
+.khm-portal-share-modal .modal-content {
+    background: #ffffff !important;
+    padding: 30px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 520px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.khm-portal-share-modal .modal-content h3 {
+    margin: 0 0 20px 0;
+    font-size: 1.3rem;
+    font-weight: 600;
+}
+
+.khm-portal-share-modal .modal-content label {
+    display: block;
+    margin-bottom: 15px;
+    font-weight: 500;
+}
+
+.khm-portal-share-modal .modal-content input,
+.khm-portal-share-modal .modal-content textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #e1e5e9;
+    border-radius: 4px;
+    margin-top: 5px;
+}
+
+.khm-portal-share-modal .modal-content textarea {
+    height: 80px;
+    resize: vertical;
+}
+
+.khm-portal-share-modal .khm-input-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.khm-portal-share-modal .khm-input-row input {
+    flex: 1;
+}
+
+.khm-portal-share-modal .khm-contact-btn {
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    background: #f8f9fa;
+    color: #2b6cb0;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.khm-portal-share-modal .khm-contact-btn:hover {
+    background: #eef2f7;
+    border-color: #cfd6df;
+}
+
+.khm-portal-share-modal .khm-contact-btn .dashicons {
+    width: 20px;
+    height: 20px;
+    font-size: 20px;
+}
+
+.khm-portal-share-modal .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.khm-portal-share-modal .modal-actions button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.khm-portal-share-modal .btn-cancel {
+    background: #f8f9fa;
+    color: #646970;
+}
+
+.khm-portal-share-modal .btn-send {
+    background: #6d0b0b;
+    color: #fff;
+}
+
+.khm-portal-share-modal .btn-send:hover {
+    background: #5a0909;
 }
 
 /* ==========================================================================

@@ -26,6 +26,20 @@ function kh_ad_manager_campaign_fields($term) {
     $status = $term_id ? get_term_meta($term_id, 'kh_campaign_status', true) : 'draft';
     $cpc    = $term_id ? get_term_meta($term_id, 'kh_campaign_cpc', true) : '';
     $spend  = $term_id ? get_term_meta($term_id, 'kh_campaign_spend', true) : 0;
+    $sponsor_id = $term_id ? get_term_meta($term_id, 'kh_sponsor_id', true) : '';
+    $sponsor_post_id = $term_id ? get_term_meta($term_id, 'kh_sponsor_post_id', true) : '';
+    $linkedin_page_url = $term_id ? get_term_meta($term_id, 'kh_sponsor_linkedin_page_url', true) : '';
+    $linkedin_handles = $term_id ? get_term_meta($term_id, 'kh_sponsor_linkedin_handles', true) : array();
+    $quotable_reps = $term_id ? get_term_meta($term_id, 'kh_sponsor_quotable_representatives', true) : array();
+    $content_library_url = $term_id ? get_term_meta($term_id, 'kh_sponsor_content_library_url', true) : '';
+    $sponsor_assets = $term_id ? get_term_meta($term_id, 'kh_sponsor_assets', true) : array();
+    $allowed_claims = $term_id ? get_term_meta($term_id, 'kh_sponsor_allowed_claims', true) : array();
+    $co_brand_policy = $term_id ? get_term_meta($term_id, 'kh_sponsor_co_brand_policy', true) : 'co-brand';
+    $geo_rules = $term_id ? get_term_meta($term_id, 'kh_sponsor_geo_rules', true) : array();
+    $ppc_budget_total = $term_id ? get_term_meta($term_id, 'kh_sponsor_ppc_budget_total', true) : '';
+    $ppc_daily_cap = $term_id ? get_term_meta($term_id, 'kh_sponsor_ppc_daily_cap', true) : '';
+    $ppc_account_id = $term_id ? get_term_meta($term_id, 'kh_sponsor_ppc_account_id', true) : '';
+    $approval_contact = $term_id ? get_term_meta($term_id, 'kh_sponsor_approval_contact', true) : '';
     ?>
     <tr class="form-field">
         <th scope="row"><label for="kh_campaign_budget"><?php esc_html_e('Budget (£)', 'kh-ad-manager'); ?></label></th>
@@ -60,6 +74,68 @@ function kh_ad_manager_campaign_fields($term) {
             </select>
         </td>
     </tr>
+    <tr class="form-field">
+        <th scope="row"><label for="kh_sponsor_id"><?php esc_html_e('Sponsor ID', 'kh-ad-manager'); ?></label></th>
+        <td><input type="number" name="kh_sponsor_id" id="kh_sponsor_id" value="<?php echo esc_attr($sponsor_id ?: $term_id); ?>" /></td>
+    </tr>
+    <tr class="form-field">
+        <th scope="row"><label for="kh_sponsor_post_id"><?php esc_html_e('Sponsor Record ID', 'kh-ad-manager'); ?></label></th>
+        <td><input type="number" name="kh_sponsor_post_id" id="kh_sponsor_post_id" value="<?php echo esc_attr($sponsor_post_id); ?>" /></td>
+    </tr>
+    <tr class="form-field">
+        <th scope="row"><label for="kh_sponsor_linkedin_page_url"><?php esc_html_e('LinkedIn Page URL', 'kh-ad-manager'); ?></label></th>
+        <td><input type="url" name="kh_sponsor_linkedin_page_url" id="kh_sponsor_linkedin_page_url" value="<?php echo esc_url($linkedin_page_url); ?>" /></td>
+    </tr>
+    <tr class="form-field">
+        <th scope="row"><label for="kh_sponsor_linkedin_handles"><?php esc_html_e('LinkedIn Handles', 'kh-ad-manager'); ?></label></th>
+        <td><input type="text" name="kh_sponsor_linkedin_handles" id="kh_sponsor_linkedin_handles" value="<?php echo esc_attr(is_array($linkedin_handles) ? implode(', ', $linkedin_handles) : $linkedin_handles); ?>" placeholder="handle1, handle2" /></td>
+    </tr>
+    <tr class="form-field">
+        <th scope="row"><label for="kh_sponsor_quotable_representatives"><?php esc_html_e('Quotable Representatives (JSON)', 'kh-ad-manager'); ?></label></th>
+        <td><textarea name="kh_sponsor_quotable_representatives" id="kh_sponsor_quotable_representatives" rows="4"><?php echo esc_textarea(wp_json_encode($quotable_reps)); ?></textarea></td>
+    </tr>
+    <tr class="form-field">
+        <th scope="row"><label for="kh_sponsor_content_library_url"><?php esc_html_e('Content Library URL', 'kh-ad-manager'); ?></label></th>
+        <td><input type="url" name="kh_sponsor_content_library_url" id="kh_sponsor_content_library_url" value="<?php echo esc_url($content_library_url); ?>" /></td>
+    </tr>
+    <tr class="form-field">
+        <th scope="row"><label for="kh_sponsor_assets"><?php esc_html_e('Sponsor Assets (JSON)', 'kh-ad-manager'); ?></label></th>
+        <td><textarea name="kh_sponsor_assets" id="kh_sponsor_assets" rows="4"><?php echo esc_textarea(wp_json_encode($sponsor_assets)); ?></textarea></td>
+    </tr>
+    <tr class="form-field">
+        <th scope="row"><label for="kh_sponsor_allowed_claims"><?php esc_html_e('Allowed Claims', 'kh-ad-manager'); ?></label></th>
+        <td><textarea name="kh_sponsor_allowed_claims" id="kh_sponsor_allowed_claims" rows="4" placeholder="One claim per line"><?php echo esc_textarea(is_array($allowed_claims) ? implode("\n", $allowed_claims) : $allowed_claims); ?></textarea></td>
+    </tr>
+    <tr class="form-field">
+        <th scope="row"><label for="kh_sponsor_co_brand_policy"><?php esc_html_e('Co-brand Policy', 'kh-ad-manager'); ?></label></th>
+        <td>
+            <select name="kh_sponsor_co_brand_policy" id="kh_sponsor_co_brand_policy">
+                <option value="co-brand" <?php selected($co_brand_policy, 'co-brand'); ?>><?php esc_html_e('Co-brand', 'kh-ad-manager'); ?></option>
+                <option value="sponsor-author" <?php selected($co_brand_policy, 'sponsor-author'); ?>><?php esc_html_e('Sponsor-author', 'kh-ad-manager'); ?></option>
+                <option value="replace-creative" <?php selected($co_brand_policy, 'replace-creative'); ?>><?php esc_html_e('Replace creative', 'kh-ad-manager'); ?></option>
+            </select>
+        </td>
+    </tr>
+    <tr class="form-field">
+        <th scope="row"><label for="kh_sponsor_geo_rules"><?php esc_html_e('GEO Rules (JSON)', 'kh-ad-manager'); ?></label></th>
+        <td><textarea name="kh_sponsor_geo_rules" id="kh_sponsor_geo_rules" rows="4"><?php echo esc_textarea(wp_json_encode($geo_rules)); ?></textarea></td>
+    </tr>
+    <tr class="form-field">
+        <th scope="row"><label for="kh_sponsor_ppc_budget_total"><?php esc_html_e('PPC Budget Total', 'kh-ad-manager'); ?></label></th>
+        <td><input type="number" step="0.01" name="kh_sponsor_ppc_budget_total" id="kh_sponsor_ppc_budget_total" value="<?php echo esc_attr($ppc_budget_total); ?>" /></td>
+    </tr>
+    <tr class="form-field">
+        <th scope="row"><label for="kh_sponsor_ppc_daily_cap"><?php esc_html_e('PPC Daily Cap', 'kh-ad-manager'); ?></label></th>
+        <td><input type="number" step="0.01" name="kh_sponsor_ppc_daily_cap" id="kh_sponsor_ppc_daily_cap" value="<?php echo esc_attr($ppc_daily_cap); ?>" /></td>
+    </tr>
+    <tr class="form-field">
+        <th scope="row"><label for="kh_sponsor_ppc_account_id"><?php esc_html_e('PPC Account ID', 'kh-ad-manager'); ?></label></th>
+        <td><input type="text" name="kh_sponsor_ppc_account_id" id="kh_sponsor_ppc_account_id" value="<?php echo esc_attr($ppc_account_id); ?>" /></td>
+    </tr>
+    <tr class="form-field">
+        <th scope="row"><label for="kh_sponsor_approval_contact"><?php esc_html_e('Approval Contact', 'kh-ad-manager'); ?></label></th>
+        <td><input type="email" name="kh_sponsor_approval_contact" id="kh_sponsor_approval_contact" value="<?php echo esc_attr($approval_contact); ?>" /></td>
+    </tr>
     <?php
 }
 
@@ -88,6 +164,61 @@ function kh_ad_manager_save_campaign_meta($term_id) {
             }
             update_term_meta($term_id, 'kh_campaign_' . $meta_key, $value);
         }
+    }
+
+    $sponsor_fields = [
+        'kh_sponsor_id' => 'int',
+        'kh_sponsor_post_id' => 'int',
+        'kh_sponsor_linkedin_page_url' => 'url',
+        'kh_sponsor_linkedin_handles' => 'list',
+        'kh_sponsor_quotable_representatives' => 'json',
+        'kh_sponsor_content_library_url' => 'url',
+        'kh_sponsor_assets' => 'json',
+        'kh_sponsor_allowed_claims' => 'lines',
+        'kh_sponsor_co_brand_policy' => 'text',
+        'kh_sponsor_geo_rules' => 'json',
+        'kh_sponsor_ppc_budget_total' => 'float',
+        'kh_sponsor_ppc_daily_cap' => 'float',
+        'kh_sponsor_ppc_account_id' => 'text',
+        'kh_sponsor_approval_contact' => 'email',
+    ];
+
+    foreach ( $sponsor_fields as $field => $type ) {
+        if ( ! isset( $_POST[ $field ] ) ) {
+            continue;
+        }
+
+        $raw = wp_unslash( $_POST[ $field ] );
+        switch ( $type ) {
+            case 'int':
+                $value = (int) $raw;
+                break;
+            case 'float':
+                $value = (float) $raw;
+                break;
+            case 'url':
+                $value = esc_url_raw( $raw );
+                break;
+            case 'email':
+                $value = sanitize_email( $raw );
+                break;
+            case 'list':
+                $value = array_filter( array_map( 'sanitize_text_field', array_map( 'trim', explode( ',', $raw ) ) ) );
+                break;
+            case 'lines':
+                $lines = preg_split( '/\r\n|\r|\n/', $raw );
+                $value = array_filter( array_map( 'sanitize_text_field', array_map( 'trim', $lines ) ) );
+                break;
+            case 'json':
+                $decoded = json_decode( $raw, true );
+                $value = is_array( $decoded ) ? $decoded : array();
+                break;
+            default:
+                $value = sanitize_text_field( $raw );
+                break;
+        }
+
+        update_term_meta( $term_id, $field, $value );
     }
 }
 
@@ -120,6 +251,116 @@ function kh_ad_manager_get_campaign_meta($campaign_id) {
 
     return $meta;
 }
+
+function kh_ad_manager_get_sponsor_meta( $campaign_id ) {
+    if ( ! $campaign_id ) {
+        return array();
+    }
+
+    $post = get_post( $campaign_id );
+    if ( $post && 'kh_sponsor' === $post->post_type ) {
+        return array(
+            'sponsor_id' => $post->ID,
+            'name' => $post->post_title,
+            'linkedin_page_url' => get_post_meta( $post->ID, 'linkedin_page_url', true ),
+            'linkedin_handles' => get_post_meta( $post->ID, 'linkedin_handles', true ),
+            'quotable_representatives' => get_post_meta( $post->ID, 'quotable_representatives', true ),
+            'content_library_url' => get_post_meta( $post->ID, 'content_library_url', true ),
+            'sponsor_assets' => get_post_meta( $post->ID, 'sponsor_assets', true ),
+            'allowed_claims' => get_post_meta( $post->ID, 'allowed_claims', true ),
+            'co_brand_policy' => get_post_meta( $post->ID, 'co_brand_policy', true ),
+            'geo_rules' => get_post_meta( $post->ID, 'geo_rules', true ),
+            'ppc_budget_total' => (float) get_post_meta( $post->ID, 'ppc_budget_total', true ),
+            'ppc_daily_cap' => (float) get_post_meta( $post->ID, 'ppc_daily_cap', true ),
+            'ppc_account_id' => get_post_meta( $post->ID, 'ppc_account_id', true ),
+            'approval_contact' => get_post_meta( $post->ID, 'approval_contact', true ),
+        );
+    }
+
+    $term = get_term( $campaign_id, 'ad-campaign' );
+    if ( ! $term || is_wp_error( $term ) ) {
+        return array();
+    }
+
+    $sponsor_post_id = (int) get_term_meta( $campaign_id, 'kh_sponsor_post_id', true );
+    if ( $sponsor_post_id ) {
+        $sponsor = get_post( $sponsor_post_id );
+        if ( $sponsor && 'kh_sponsor' === $sponsor->post_type ) {
+            return kh_ad_manager_get_sponsor_meta( $sponsor_post_id );
+        }
+    }
+
+    return array(
+        'sponsor_id' => (int) get_term_meta( $campaign_id, 'kh_sponsor_id', true ),
+        'name' => $term->name,
+        'linkedin_page_url' => get_term_meta( $campaign_id, 'kh_sponsor_linkedin_page_url', true ),
+        'linkedin_handles' => get_term_meta( $campaign_id, 'kh_sponsor_linkedin_handles', true ),
+        'quotable_representatives' => get_term_meta( $campaign_id, 'kh_sponsor_quotable_representatives', true ),
+        'content_library_url' => get_term_meta( $campaign_id, 'kh_sponsor_content_library_url', true ),
+        'sponsor_assets' => get_term_meta( $campaign_id, 'kh_sponsor_assets', true ),
+        'allowed_claims' => get_term_meta( $campaign_id, 'kh_sponsor_allowed_claims', true ),
+        'co_brand_policy' => get_term_meta( $campaign_id, 'kh_sponsor_co_brand_policy', true ),
+        'geo_rules' => get_term_meta( $campaign_id, 'kh_sponsor_geo_rules', true ),
+        'ppc_budget_total' => (float) get_term_meta( $campaign_id, 'kh_sponsor_ppc_budget_total', true ),
+        'ppc_daily_cap' => (float) get_term_meta( $campaign_id, 'kh_sponsor_ppc_daily_cap', true ),
+        'ppc_account_id' => get_term_meta( $campaign_id, 'kh_sponsor_ppc_account_id', true ),
+        'approval_contact' => get_term_meta( $campaign_id, 'kh_sponsor_approval_contact', true ),
+    );
+}
+
+add_action( 'admin_init', function() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        return;
+    }
+
+    if ( get_option( 'kh_sponsor_migration_done' ) ) {
+        return;
+    }
+
+    $terms = get_terms( array(
+        'taxonomy' => 'ad-campaign',
+        'hide_empty' => false,
+    ) );
+
+    if ( is_wp_error( $terms ) ) {
+        return;
+    }
+
+    foreach ( $terms as $term ) {
+        $existing = (int) get_term_meta( $term->term_id, 'kh_sponsor_post_id', true );
+        if ( $existing ) {
+            continue;
+        }
+
+        $sponsor_post_id = wp_insert_post( array(
+            'post_type' => 'kh_sponsor',
+            'post_title' => $term->name,
+            'post_status' => 'publish',
+        ), true );
+
+        if ( is_wp_error( $sponsor_post_id ) ) {
+            continue;
+        }
+
+        update_post_meta( $sponsor_post_id, 'linkedin_page_url', get_term_meta( $term->term_id, 'kh_sponsor_linkedin_page_url', true ) );
+        update_post_meta( $sponsor_post_id, 'linkedin_handles', get_term_meta( $term->term_id, 'kh_sponsor_linkedin_handles', true ) );
+        update_post_meta( $sponsor_post_id, 'quotable_representatives', get_term_meta( $term->term_id, 'kh_sponsor_quotable_representatives', true ) );
+        update_post_meta( $sponsor_post_id, 'content_library_url', get_term_meta( $term->term_id, 'kh_sponsor_content_library_url', true ) );
+        update_post_meta( $sponsor_post_id, 'allowed_claims', get_term_meta( $term->term_id, 'kh_sponsor_allowed_claims', true ) );
+        update_post_meta( $sponsor_post_id, 'co_brand_policy', get_term_meta( $term->term_id, 'kh_sponsor_co_brand_policy', true ) );
+        update_post_meta( $sponsor_post_id, 'geo_rules', get_term_meta( $term->term_id, 'kh_sponsor_geo_rules', true ) );
+        update_post_meta( $sponsor_post_id, 'ppc_budget_total', get_term_meta( $term->term_id, 'kh_sponsor_ppc_budget_total', true ) );
+        update_post_meta( $sponsor_post_id, 'ppc_daily_cap', get_term_meta( $term->term_id, 'kh_sponsor_ppc_daily_cap', true ) );
+        update_post_meta( $sponsor_post_id, 'ppc_account_id', get_term_meta( $term->term_id, 'kh_sponsor_ppc_account_id', true ) );
+        update_post_meta( $sponsor_post_id, 'approval_contact', get_term_meta( $term->term_id, 'kh_sponsor_approval_contact', true ) );
+        update_post_meta( $sponsor_post_id, 'sponsor_assets', get_term_meta( $term->term_id, 'kh_sponsor_assets', true ) );
+
+        update_term_meta( $term->term_id, 'kh_sponsor_post_id', $sponsor_post_id );
+        update_term_meta( $term->term_id, 'kh_sponsor_id', $sponsor_post_id );
+    }
+
+    update_option( 'kh_sponsor_migration_done', 1 );
+} );
 
 
 function kh_ad_manager_is_campaign_active($campaign_id) {
