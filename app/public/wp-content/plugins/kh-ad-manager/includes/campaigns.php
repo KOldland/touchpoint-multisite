@@ -76,7 +76,7 @@ function kh_ad_manager_campaign_fields($term) {
     </tr>
     <tr class="form-field">
         <th scope="row"><label for="kh_sponsor_id"><?php esc_html_e('Sponsor ID', 'kh-ad-manager'); ?></label></th>
-        <td><input type="number" name="kh_sponsor_id" id="kh_sponsor_id" value="<?php echo esc_attr($sponsor_id ?: $term_id); ?>" /></td>
+        <td><input type="number" name="kh_sponsor_id" id="kh_sponsor_id" value="<?php echo esc_attr($sponsor_id); ?>" /></td>
     </tr>
     <tr class="form-field">
         <th scope="row"><label for="kh_sponsor_post_id"><?php esc_html_e('Sponsor Record ID', 'kh-ad-manager'); ?></label></th>
