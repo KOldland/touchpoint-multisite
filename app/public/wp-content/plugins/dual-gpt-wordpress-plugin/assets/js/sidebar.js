@@ -37,7 +37,7 @@ const DualGPTSidebar = () => {
     const { insertBlocks } = useDispatch('core/block-editor');
     const { createNotice } = useDispatch('core/notices');
 
-    const draftContent = useSelect((select) => select('core/editor').getEditedPostContent(), []);
+    const draftContent = useSelect((select) => select('core/editor').getEditedPostContent());
 
     const handleResearchSubmit = async () => {
         if (!researchPrompt.trim()) {
@@ -234,7 +234,7 @@ const DualGPTSidebar = () => {
                         content: block.content || '',
                     });
                 case 'list':
-                    const listItems = (block.items || []).map((item) => `<li>${item}</li>`).join('');
+                    const listItems = (block.items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
                     const listTag = block.ordered ? 'ol' : 'ul';
                     return wp.blocks.createBlock('core/list', {
                         ordered: !!block.ordered,
@@ -243,13 +243,13 @@ const DualGPTSidebar = () => {
                 case 'pullquote':
                     const pullquoteMeta = buildPullquoteMetaSpan(block.meta || block.metadata);
                     return wp.blocks.createBlock('core/pullquote', {
-                        value: `<p>${block.content || ''}</p>${pullquoteMeta}`,
-                        citation: block.cite || '',
+                        value: `<p>${escapeHtml(block.content || '')}</p>${pullquoteMeta}`,
+                        citation: escapeHtml(block.cite || ''),
                     });
                 case 'quote':
                     return wp.blocks.createBlock('core/quote', {
-                        value: `<p>${block.content || ''}</p>`,
-                        citation: block.cite || '',
+                        value: `<p>${escapeHtml(block.content || '')}</p>`,
+                        citation: escapeHtml(block.cite || ''),
                     });
                 case 'separator':
                     return wp.blocks.createBlock('core/separator', {});

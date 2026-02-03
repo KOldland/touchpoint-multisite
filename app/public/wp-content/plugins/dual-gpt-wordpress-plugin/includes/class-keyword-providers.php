@@ -135,6 +135,15 @@ class Dual_GPT_Keyword_Providers {
             return $cached;
         }
 
+        // Keep SSL verification enabled by default. Allow disabling only in explicit local dev setups.
+        $sslverify = true;
+        if (
+            defined('DUAL_GPT_ALLOW_INSECURE_SSL') && DUAL_GPT_ALLOW_INSECURE_SSL &&
+            defined('WP_ENV') && WP_ENV === 'development'
+        ) {
+            $sslverify = false;
+        }
+
         $url = $this->base_url . ltrim($endpoint, '/');
         $request_args = array(
             'timeout' => 20,
@@ -142,7 +151,7 @@ class Dual_GPT_Keyword_Providers {
                 'Authorization' => 'Basic ' . base64_encode($credentials['login'] . ':' . $credentials['password']),
                 'Content-Type' => 'application/json',
             ),
-            'sslverify' => false,
+            'sslverify' => $sslverify,
             'body' => wp_json_encode($payload),
         );
         if (defined('CURL_SSLVERSION_TLSv1_2')) {
