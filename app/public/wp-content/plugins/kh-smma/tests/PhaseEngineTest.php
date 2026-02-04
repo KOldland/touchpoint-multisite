@@ -67,7 +67,7 @@ class PhaseEngineTest extends TestCase {
     }
 }
 
-class PhaseEngineTestWpdb {
+class PhaseEngineTestWpdb extends wpdb {
     public $prefix = 'wp_';
     public $replaced = array();
     public $rows = array();

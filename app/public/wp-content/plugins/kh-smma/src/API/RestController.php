@@ -40,6 +40,12 @@ class RestController {
             'permission_callback' => array( $this, 'check_permissions' ),
         ) );
 
+        register_rest_route( 'kh-smma/v1', '/record-event', array(
+            'methods' => 'POST',
+            'callback' => array( $this, 'handle_record_event' ),
+            'permission_callback' => array( $this, 'check_record_permissions' ),
+        ) );
+
         register_rest_route( 'kh-smma/v1', '/schedule', array(
             'methods' => 'POST',
             'callback' => array( $this, 'handle_schedule' ),
@@ -98,6 +104,28 @@ class RestController {
         }
 
         return true;
+    }
+
+    public function check_record_permissions( WP_REST_Request $request ) {
+        if ( is_user_logged_in() ) {
+            $nonce = $request->get_header( 'X-WP-Nonce' );
+            if ( ! empty( $nonce ) && wp_verify_nonce( $nonce, 'wp_rest' ) ) {
+                return true;
+            }
+        }
+
+        $service_token = get_option( 'kh_smma_service_token' );
+        if ( $service_token ) {
+            $header_token = $request->get_header( 'x-kh-service-token' );
+            if ( ! $header_token ) {
+                $header_token = $request->get_header( 'x-service-token' );
+            }
+            if ( $header_token && hash_equals( $service_token, $header_token ) ) {
+                return true;
+            }
+        }
+
+        return new WP_Error( 'kh_smma_forbidden', __( 'Invalid permissions.', 'kh-smma' ), array( 'status' => 403 ) );
     }
 
     public function handle_generate( WP_REST_Request $request ) {
@@ -159,6 +187,40 @@ class RestController {
 
         return rest_ensure_response( array(
             'variants' => $result['variants'],
+        ) );
+    }
+
+    public function handle_record_event( WP_REST_Request $request ) {
+        if ( ! $this->phase_engine ) {
+            return new WP_Error( 'kh_smma_phase_engine_missing', __( 'Phase Engine unavailable.', 'kh-smma' ), array( 'status' => 500 ) );
+        }
+
+        $payload  = $request->get_json_params();
+        $event_id = sanitize_text_field( $payload['event_id'] ?? '' );
+        $metadata = is_array( $payload['metadata'] ?? null ) ? $payload['metadata'] : array();
+
+        if ( empty( $event_id ) ) {
+            return new WP_Error( 'kh_smma_missing_event', __( 'event_id is required.', 'kh-smma' ), array( 'status' => 400 ) );
+        }
+
+        $user_id = get_current_user_id();
+        if ( ! $user_id ) {
+            $user_id = absint( $payload['user_id'] ?? 0 );
+        }
+
+        if ( ! $user_id ) {
+            return new WP_Error( 'kh_smma_missing_user', __( 'user_id is required.', 'kh-smma' ), array( 'status' => 400 ) );
+        }
+
+        $result = $this->phase_engine->record_event( (int) $user_id, $event_id, 'smma_rest', (array) $metadata );
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        return rest_ensure_response( array(
+            'success' => true,
+            'event_id' => $event_id,
+            'user_id' => (int) $user_id,
         ) );
     }
 

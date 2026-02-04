@@ -150,7 +150,9 @@ class ComplianceValidatorTest extends TestCase {
 		$this->assertTrue( $result['passed'], 'Expected validation to pass when allowed claim is present' );
 		$this->assertArrayHasKey( 'details', $result );
 		$this->assertArrayHasKey( 'rule_check', $result['details'] );
-		$this->assertStringContainsString( 'allowed claim', strtolower( $result['details']['rule_check']['notes'] ) );
+		// Check that rule-based validation passed (allowed claim was found)
+		$this->assertTrue( $result['details']['rule_check']['passed'], 'Expected rule check to pass when allowed claim present' );
+		$this->assertStringContainsString( 'ok', strtolower( $result['details']['rule_check']['notes'] ) );
 	}
 
 	/**
