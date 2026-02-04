@@ -34,13 +34,13 @@ add_action( 'rest_api_init', function() {
 } );
 
 /**
- * Permission callback: Require edit_posts capability
+ * Permission callback: Require manage_options capability for sponsor approvals
  */
 function kh_ad_manager_rest_approve_permission() {
-    if ( ! current_user_can( 'edit_posts' ) ) {
+    if ( ! current_user_can( 'manage_options' ) ) {
         return new \WP_Error(
             'kh_ad_manager_forbidden',
-            __( 'Insufficient permissions.', 'kh-ad-manager' ),
+            __( 'Insufficient permissions. Sponsor approvals require administrator privileges.', 'kh-ad-manager' ),
             array( 'status' => 403 )
         );
     }
@@ -69,7 +69,7 @@ function kh_ad_manager_rest_sponsor_approve( \WP_REST_Request $request ) {
     $payload      = $request->get_json_params();
     $schedule_id  = absint( $payload['schedule_id'] ?? 0 );
     $sponsor_id   = absint( $payload['sponsor_id'] ?? 0 );
-    $approver_id  = absint( $payload['approver_id'] ?? get_current_user_id() );
+    $approver_id  = absint( get_current_user_id() );
     $notes        = sanitize_textarea_field( $payload['notes'] ?? '' );
     $decision     = sanitize_key( $payload['decision'] ?? 'approved' );
 
@@ -125,7 +125,7 @@ function kh_ad_manager_rest_sponsor_approve( \WP_REST_Request $request ) {
     }
 
     // Log telemetry
-    if ( function_exists( '\\KH_SMMA\\Services\\ScheduleQueueProcessor::log_telemetry' ) ) {
+    if ( is_callable( array( 'KH_SMMA\\Services\\ScheduleQueueProcessor', 'log_telemetry' ) ) ) {
         \KH_SMMA\Services\ScheduleQueueProcessor::log_telemetry( $schedule_id, array(
             'event'                 => 'sponsor_approval',
             'decision'              => $decision,

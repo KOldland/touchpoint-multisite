@@ -17,27 +17,39 @@ add_action( 'rest_api_init', function() {
     register_rest_route( 'kh-ad-manager/v1', '/sponsor/(?P<id>\d+)', array(
         'methods'             => 'GET',
         'callback'            => 'kh_ad_manager_rest_get_sponsor',
-        'permission_callback' => '__return_true', // Sponsors are semi-public
+        'permission_callback' => 'kh_ad_manager_rest_sponsor_permissions_check', // Restrict access to authenticated users with edit_posts
     ) );
 
     register_rest_route( 'kh-ad-manager/v1', '/sponsor/(?P<id>\d+)/geo-rules', array(
         'methods'             => 'GET',
         'callback'            => 'kh_ad_manager_rest_get_sponsor_geo_rules',
-        'permission_callback' => '__return_true',
+        'permission_callback' => 'kh_ad_manager_rest_sponsor_permissions_check',
     ) );
 
     register_rest_route( 'kh-ad-manager/v1', '/sponsor/(?P<id>\d+)/assets', array(
         'methods'             => 'GET',
         'callback'            => 'kh_ad_manager_rest_get_sponsor_assets',
-        'permission_callback' => '__return_true',
+        'permission_callback' => 'kh_ad_manager_rest_sponsor_permissions_check',
     ) );
 
     register_rest_route( 'kh-ad-manager/v1', '/sponsor/(?P<id>\d+)/budget', array(
         'methods'             => 'GET',
         'callback'            => 'kh_ad_manager_rest_get_sponsor_budget',
-        'permission_callback' => '__return_true',
+        'permission_callback' => 'kh_ad_manager_rest_sponsor_permissions_check',
     ) );
 } );
+
+/**
+ * Permission callback for Sponsor API routes.
+ * 
+ * Restricts access to authenticated users who can edit posts.
+ * 
+ * @param WP_REST_Request $request The current REST request.
+ * @return bool True if the user has permission, false otherwise.
+ */
+function kh_ad_manager_rest_sponsor_permissions_check( WP_REST_Request $request ) {
+    return current_user_can( 'edit_posts' );
+}
 
 /**
  * GET /wp-json/kh-ad-manager/v1/sponsor/{id}

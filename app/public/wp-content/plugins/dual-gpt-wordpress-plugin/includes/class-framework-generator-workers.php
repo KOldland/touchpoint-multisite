@@ -253,7 +253,12 @@ class Framework_Generator_Workers {
         $authors_raw = $metadata['authors'] ?? '';
         $additional_authors = '';
         if ($authors_raw) {
-            $authors_list = array_map('trim', explode(',', $authors_raw));
+            // Normalize authors - handle both array and string forms
+            if (is_array($authors_raw)) {
+                $authors_list = array_map('trim', $authors_raw);
+            } else {
+                $authors_list = array_map('trim', explode(',', (string) $authors_raw));
+            }
             if (!empty($authors_list)) {
                 $lead = $metadata['lead_author'] ?? $article['author'] ?? '';
                 if ($lead !== '') {

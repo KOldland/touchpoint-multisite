@@ -160,7 +160,8 @@ class Dual_GPT_SEO_Tools {
             return array('error' => 'Tool not found');
         }
 
-        return call_user_func_array(array($this, $tool_name), $arguments);
+        // Always pass a single associative array argument to tool methods.
+        return call_user_func(array($this, $tool_name), $arguments);
     }
 
     public function tool_get_page_content($args) {

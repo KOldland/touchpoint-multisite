@@ -247,7 +247,10 @@
 }
 
 /* Loading States */
-button[disabled] {
+[id^="khm-"] button[disabled],
+button[id^="khm-"][disabled],
+[class*="khm-"] button[disabled],
+button[class*="khm-"][disabled] {
     opacity: 0.6;
     cursor: not-allowed;
 }

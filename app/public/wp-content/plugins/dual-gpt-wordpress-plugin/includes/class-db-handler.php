@@ -555,13 +555,6 @@ Phase 3: Synthesis — produce the final Research Brief JSON with required secti
                     'response_format' => array('type' => 'json_object'),
                 )),
                 'tool_whitelist' => wp_json_encode(array('web_search', 'fetch_url', 'summarize_pdf', 'citation_check', 'crossref_api', 'openalex_api')),
-                'system_prompt' => 'You are a Framework Generator specialized in creating evidence-based research briefs. You excel at discovering relevant articles, validating citations, and synthesizing comprehensive research frameworks with proper attribution.',
-                'default_model' => 'gpt-4o-mini',
-                'params_json' => wp_json_encode(array(
-                    'temperature' => 0.4,
-                    'max_tokens' => 3000,
-                )),
-                'tool_whitelist' => wp_json_encode(array()),
                 'is_locked' => true,
             ),
         );
