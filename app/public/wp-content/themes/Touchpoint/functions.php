@@ -620,6 +620,124 @@ add_action( 'wp_enqueue_scripts', 'redirect_hello_elementor_assets', 11 );
 		
 add_action('wp_enqueue_scripts', 'touchpointcrm_enqueue_styles', 10); // Priority 10, load first
 
+function touchpointcrm_enqueue_read_progress() {
+    if ( ! is_singular( 'post' ) ) {
+        return;
+    }
+
+    $script_path = get_stylesheet_directory() . '/js/reading-progress.js';
+    if ( ! file_exists( $script_path ) ) {
+        return;
+    }
+
+    wp_enqueue_script(
+        'touchpointcrm-reading-progress',
+        get_stylesheet_directory_uri() . '/js/reading-progress.js',
+        array(),
+        filemtime( $script_path ),
+        true
+    );
+
+    $rep_sent = false;
+    if ( ! empty( $_GET['rep_sent'] ) || ! empty( $_GET['rep'] ) ) {
+        $rep_sent = true;
+    } elseif ( ! empty( $_GET['utm_source'] ) ) {
+        $source = strtolower( (string) $_GET['utm_source'] );
+        $rep_sent = in_array( $source, array( 'rep', 'sales', 'bd' ), true );
+    }
+
+    if ( ! $rep_sent ) {
+        $referrer = wp_get_referer();
+        if ( $referrer ) {
+            $parts = wp_parse_url( $referrer );
+            if ( ! empty( $parts['query'] ) ) {
+                parse_str( $parts['query'], $ref_query );
+                if ( ! empty( $ref_query['utm_source'] ) ) {
+                    $ref_source = strtolower( (string) $ref_query['utm_source'] );
+                    $rep_sent = in_array( $ref_source, array( 'rep', 'sales', 'bd' ), true );
+                }
+            }
+        }
+    }
+
+    if ( ! $rep_sent ) {
+        $rep_sent = (bool) get_post_meta( get_the_ID(), '_kh_rep_sent', true );
+    }
+
+    if ( ! $rep_sent ) {
+        $rep_source = get_post_meta( get_the_ID(), '_kh_rep_source', true );
+        if ( $rep_source ) {
+            $rep_sent = in_array( strtolower( (string) $rep_source ), array( 'rep', 'sales', 'bd' ), true );
+        }
+    }
+
+    $rep_sent = apply_filters( 'kh_smma_rep_sent_context', $rep_sent, get_the_ID() );
+
+    wp_localize_script( 'touchpointcrm-reading-progress', 'kh_reading_progress', array(
+        'endpoint' => rest_url( 'kh-smma/v1/record-event' ),
+        'nonce' => wp_create_nonce( 'wp_rest' ),
+        'post_id' => get_the_ID(),
+        'rep_sent' => $rep_sent,
+    ) );
+}
+add_action( 'wp_enqueue_scripts', 'touchpointcrm_enqueue_read_progress', 12 );
+
+function touchpointcrm_record_pricing_page_view() {
+    if ( ! is_page() ) {
+        return;
+    }
+
+    $slugs = apply_filters( 'kh_smma_pricing_page_slugs', array( 'pricing', 'plans', 'subscribe' ) );
+    if ( ! is_page( $slugs ) ) {
+        return;
+    }
+
+    if ( ! class_exists( '\\KH_SMMA\\Services\\PhaseEngine' ) ) {
+        return;
+    }
+
+    $user_id = get_current_user_id();
+    if ( ! $user_id ) {
+        return;
+    }
+
+    $event_id = apply_filters( 'kh_smma_pricing_page_event_id', 'pricing_page_view' );
+
+    global $wpdb;
+    $engine = new \KH_SMMA\Services\PhaseEngine( $wpdb );
+    $engine->record_event( $user_id, $event_id, 'theme_pricing', array(
+        'url' => get_permalink(),
+    ) );
+}
+add_action( 'template_redirect', 'touchpointcrm_record_pricing_page_view' );
+
+function touchpointcrm_enqueue_pricing_tracking() {
+    $slugs = apply_filters( 'kh_smma_pricing_page_slugs', array( 'pricing', 'plans', 'subscribe' ) );
+    if ( ! is_page( $slugs ) ) {
+        return;
+    }
+
+    $script_path = get_stylesheet_directory() . '/js/pricing-tracking.js';
+    if ( ! file_exists( $script_path ) ) {
+        return;
+    }
+
+    wp_enqueue_script(
+        'touchpointcrm-pricing-tracking',
+        get_stylesheet_directory_uri() . '/js/pricing-tracking.js',
+        array(),
+        filemtime( $script_path ),
+        true
+    );
+
+    wp_localize_script( 'touchpointcrm-pricing-tracking', 'kh_pricing_tracking', array(
+        'endpoint' => rest_url( 'kh-smma/v1/record-event' ),
+        'nonce' => wp_create_nonce( 'wp_rest' ),
+        'event_id' => apply_filters( 'kh_smma_pricing_cta_event_id', 'pricing_cta_click' ),
+    ) );
+}
+add_action( 'wp_enqueue_scripts', 'touchpointcrm_enqueue_pricing_tracking', 13 );
+
 /* Enqueue Admin Styles */
 add_action('admin_enqueue_scripts', function() {
     wp_enqueue_style('touchpoint-admin', get_template_directory_uri() . '/assets/css/admin-style.css', [], '1.0');

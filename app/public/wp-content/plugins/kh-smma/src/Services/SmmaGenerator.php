@@ -19,6 +19,32 @@ class SmmaGenerator {
     public function generate( array $input ) {
         $input = $this->hydrate_input( $input );
         $input = $this->hydrate_phase_context( $input );
+        
+        // Generate LinkedIn variants
+        $linkedin_result = $this->generate_linkedin_variants( $input );
+        
+        // Generate Google Ads draft if enabled
+        $google_ad_draft = array();
+        $generate_google_ads = $input['generate_google_ads'] ?? true;
+        
+        if ( $generate_google_ads ) {
+            $google_ad_draft = $this->generate_google_ad_draft( $input );
+        }
+
+        return array(
+            'linkedin_variants' => $linkedin_result['variants'],
+            'google_ad_draft'   => $google_ad_draft,
+            'model'             => $linkedin_result['model'],
+        );
+    }
+
+    /**
+     * Generate LinkedIn promotional variants
+     *
+     * @param array $input Input data.
+     * @return array
+     */
+    private function generate_linkedin_variants( array $input ): array {
         $model = 'fallback';
         $variants = array();
         $llm_available = class_exists( '\\Dual_GPT\\Dual_GPT_LLM_Client' );
@@ -51,6 +77,23 @@ class SmmaGenerator {
             'variants' => $variants,
             'model'    => $model,
         );
+    }
+
+    /**
+     * Generate Google Ads draft
+     *
+     * @param array $input Input data.
+     * @return array
+     */
+    private function generate_google_ad_draft( array $input ): array {
+        $google_service = new GoogleAdDraftService();
+        $draft = $google_service->generate( $input );
+
+        if ( is_wp_error( $draft ) ) {
+            return array();
+        }
+
+        return $draft;
     }
 
     private function hydrate_input( array $input ): array {

@@ -132,7 +132,7 @@ add_action( 'init', function() {
     ) );
 
     register_post_meta( 'kh_sponsor', 'geo_rules', array(
-        'type'              => 'array',
+        'type'              => 'object',
         'sanitize_callback' => 'kh_ad_manager_sanitize_array',
         'show_in_rest'      => array(
             'schema' => array(
@@ -168,7 +168,7 @@ add_action( 'init', function() {
     ) );
 
     register_post_meta( 'kh_sponsor', 'approval_contact', array(
-        'type'              => 'array',
+        'type'              => 'object',
         'sanitize_callback' => 'kh_ad_manager_sanitize_array',
         'show_in_rest'      => array(
             'schema' => array(
@@ -183,7 +183,7 @@ add_action( 'init', function() {
     ) );
 
     register_post_meta( 'kh_sponsor', 'spend_tracking', array(
-        'type'              => 'array',
+        'type'              => 'object',
         'sanitize_callback' => 'kh_ad_manager_sanitize_array',
         'show_in_rest'      => array(
             'schema' => array(

@@ -955,6 +955,9 @@ class KH_Event_REST_API {
             'attendee_phone' => '_kh_booking_attendee_phone',
             'quantity' => '_kh_booking_quantity',
             'notes' => '_kh_booking_notes',
+            'source' => '_kh_booking_source',
+            'rep_user_id' => '_kh_booking_rep_user_id',
+            'rep_sent' => '_kh_booking_rep_sent',
         );
 
         foreach ($meta_fields as $param => $meta_key) {

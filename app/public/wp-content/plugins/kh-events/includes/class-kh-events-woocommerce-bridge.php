@@ -385,6 +385,7 @@ class KH_Events_WooCommerce_Bridge {
             update_post_meta($booking_id, '_kh_booking_payment_status', $booking_data['payment_status']);
             update_post_meta($booking_id, '_kh_booking_status', $booking_data['status']);
             update_post_meta($booking_id, '_kh_booking_order_id', $booking_data['order_id']);
+            update_post_meta($booking_id, '_kh_booking_source', 'woocommerce');
 
             return $booking_id;
         }
