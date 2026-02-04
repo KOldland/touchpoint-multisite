@@ -32,6 +32,7 @@ class SmmaGenerator {
         }
 
         return array(
+            'variants'          => $linkedin_result['variants'],
             'linkedin_variants' => $linkedin_result['variants'],
             'google_ad_draft'   => $google_ad_draft,
             'model'             => $linkedin_result['model'],

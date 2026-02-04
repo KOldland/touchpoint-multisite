@@ -248,6 +248,7 @@ class RestController {
         );
 
         return rest_ensure_response( array(
+            'variants'                => $result['linkedin_variants'] ?? array(),
             'linkedin_variants'       => $result['linkedin_variants'] ?? array(),
             'google_ad_draft'         => $result['google_ad_draft'] ?? array(),
             'google_ad_compliance'    => $google_ad_compliance,

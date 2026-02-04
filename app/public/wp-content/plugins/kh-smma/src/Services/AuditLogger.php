@@ -55,4 +55,24 @@ class AuditLogger {
 
         $this->db->insert( $this->table, $data );
     }
+
+    public function log_generate_request( int $post_id, int $user_id, string $prompt_hash, array $details = array() ) {
+        $this->log( 'smma_generate_request', array(
+            'user_id'     => $user_id,
+            'object_type' => 'post',
+            'object_id'   => $post_id,
+            'details'     => array_merge( $details, array(
+                'prompt_hash' => $prompt_hash,
+            ) ),
+        ) );
+    }
+
+    public function log_generate_response( string $response_hash, array $variant_ids = array(), array $details = array() ) {
+        $this->log( 'smma_generate_response', array(
+            'details' => array_merge( $details, array(
+                'response_hash' => $response_hash,
+                'variant_ids'   => array_values( $variant_ids ),
+            ) ),
+        ) );
+    }
 }
