@@ -33,6 +33,8 @@ class SmmaRestSmokeTest extends TestCase {
         $response = $controller->handle_generate( $request );
         $this->assertArrayHasKey( 'variants', $response );
         $this->assertCount( 1, $response['variants'] );
+        $this->assertArrayHasKey( 'google_ad_draft', $response );
+        $this->assertIsArray( $response['google_ad_draft'] );
 
         $schedule_request = new \WP_REST_Request(
             array(
