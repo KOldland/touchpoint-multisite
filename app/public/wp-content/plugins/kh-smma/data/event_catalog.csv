@@ -26,6 +26,8 @@ newsletter_open_skimming,"Newsletter opened & partially read",7,Attention,"{\"re
 newsletter_click,"Newsletter click-through",10,Attention,"{\"relevance\"}",30
 newsletter_forward_shared,"Newsletter forwarded/shared",12,Anxiety,"{\"authority\",\"relationship\"}",60
 landing_page_view,"Landing page viewed (white paper/video, no download/play)",3,Attention,"{\"relevance\"}",30
+pricing_page_view,"Pricing page view",14,Anxiety,"{\"relevance\",\"scarcity\"}",21
+pricing_cta_click,"Pricing CTA click",18,Anxiety,"{\"relevance\",\"scarcity\"}",21
 whitepaper_download_started,"White paper/video started (<25% watched)",7,Attention,"{\"relevance\"}",30
 whitepaper_partial_25_75_marketing,"White paper partially read / video 25-75% — organic",10,Anxiety,"{\"relevance\",\"relationship\"}",60
 whitepaper_partial_25_75_rep_sent,"White paper partially read 25-75% — sent by rep",15,Anxiety,"{\"relevance\",\"relationship\"}",60

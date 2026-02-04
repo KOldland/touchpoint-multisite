@@ -87,6 +87,34 @@ class KH_Events_Email_Marketing {
 
         // Trigger welcome sequence
         $this->trigger_welcome_sequence($provider, $subscriber_data);
+
+        $source = strtolower((string) ($booking_data['source'] ?? ''));
+        $rep_sent = !empty($booking_data['rep_sent']) || $source === 'rep' || $source === 'sales';
+        if ($rep_sent) {
+            $this->record_phase_event(
+                get_current_user_id(),
+                'webinar_link_sent_by_rep_opened',
+                array(
+                    'booking_id' => $booking_id,
+                    'event_id' => $event_id,
+                    'attendee_email' => $attendee_email
+                )
+            );
+        }
+    }
+
+    private function record_phase_event($user_id, $event_id, $metadata = array()) {
+        if (!$user_id || empty($event_id)) {
+            return;
+        }
+
+        if (!class_exists('\\KH_SMMA\\Services\\PhaseEngine')) {
+            return;
+        }
+
+        global $wpdb;
+        $engine = new \KH_SMMA\Services\PhaseEngine($wpdb);
+        $engine->record_event((int) $user_id, $event_id, 'kh_events_email', (array) $metadata);
     }
 
     public function setup_event_sequences($event_id) {

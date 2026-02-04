@@ -40,6 +40,12 @@ class RestController {
             'permission_callback' => array( $this, 'check_permissions' ),
         ) );
 
+        register_rest_route( 'kh-smma/v1', '/export', array(
+            'methods' => 'POST',
+            'callback' => array( $this, 'handle_export' ),
+            'permission_callback' => array( $this, 'check_permissions' ),
+        ) );
+
         register_rest_route( 'kh-smma/v1', '/record-event', array(
             'methods' => 'POST',
             'callback' => array( $this, 'handle_record_event' ),
@@ -147,21 +153,45 @@ class RestController {
             $phase_tag = 'Attention';
         }
 
-        $result = $this->generator->generate( array(
-            'post_id' => (int) $payload['post_id'],
-            'blocks_json' => $payload['blocks_json'] ?? array(),
+        // Log generation request
+        $prompt_hash = hash( 'sha256', wp_json_encode( array(
+            'post_id'   => (int) $payload['post_id'],
             'phase_tag' => $phase_tag,
-            'num_variants' => $payload['num_variants'] ?? 1,
-            'series' => (bool) ( $payload['series'] ?? false ),
-            'tone' => $payload['tone'] ?? 'Authority',
-            'geo_targets' => $payload['geo_targets'] ?? array(),
-            'sponsor_context' => $payload['sponsor_context'] ?? array(),
-            'user_controls' => $payload['user_controls'] ?? array(),
-            'keywords' => $payload['keywords'] ?? array(),
-            'intent_scores' => $payload['intent_scores'] ?? array(),
-            'audience_presets' => $payload['audience_presets'] ?? array(),
-            'phase_context' => $phase_context,
-            'user_id' => (int) ( $payload['user_id'] ?? get_current_user_id() ),
+            'tone'      => $payload['tone'] ?? 'Authority',
+        ) ) );
+
+        $this->logger->log_generate_request(
+            (int) $payload['post_id'],
+            get_current_user_id(),
+            $prompt_hash,
+            array(
+                'num_variants'        => $payload['num_variants'] ?? 1,
+                'tone'                => $payload['tone'] ?? 'Authority',
+                'geo_targets'         => $payload['geo_targets'] ?? array(),
+                'generate_google_ads' => $payload['generate_google_ads'] ?? true,
+            )
+        );
+
+        $result = $this->generator->generate( array(
+            'post_id'             => (int) $payload['post_id'],
+            'blocks_json'         => $payload['blocks_json'] ?? array(),
+            'phase_tag'           => $phase_tag,
+            'num_variants'        => $payload['num_variants'] ?? 1,
+            'series'              => (bool) ( $payload['series'] ?? false ),
+            'tone'                => $payload['tone'] ?? 'Authority',
+            'geo_targets'         => $payload['geo_targets'] ?? array(),
+            'sponsor_context'     => $payload['sponsor_context'] ?? array(),
+            'user_controls'       => $payload['user_controls'] ?? array(),
+            'keywords'            => $payload['keywords'] ?? array(),
+            'intent_scores'       => $payload['intent_scores'] ?? array(),
+            'audience_presets'    => $payload['audience_presets'] ?? array(),
+            'phase_context'       => $phase_context,
+            'user_id'             => (int) ( $payload['user_id'] ?? get_current_user_id() ),
+            'generate_google_ads' => $payload['generate_google_ads'] ?? true,
+            'num_ad_groups'       => $payload['num_ad_groups'] ?? 2,
+            'title'               => $payload['title'] ?? '',
+            'canonical_url'       => $payload['canonical_url'] ?? '',
+            'blocks_summary'      => $payload['blocks_summary'] ?? '',
         ) );
 
         $this->logger->log( 'smma_generate', array(
@@ -185,8 +215,44 @@ class RestController {
             ),
         ) );
 
+        // Validate Google Ads draft if present
+        $google_ad_compliance = array();
+        if ( ! empty( $result['google_ad_draft'] ) && ! empty( $result['google_ad_draft']['ad_groups'] ) ) {
+            $google_ad_compliance = $this->compliance_validator->validate_google_ad_draft(
+                $result['google_ad_draft'],
+                array(
+                    'sponsor_id'      => $payload['sponsor_context']['sponsor_id'] ?? null,
+                    'allowed_claims'  => $payload['sponsor_context']['allowed_claims'] ?? array(),
+                )
+            );
+        }
+
+        // Log generation response
+        $variant_ids = array();
+        if ( ! empty( $result['linkedin_variants'] ) ) {
+            foreach ( $result['linkedin_variants'] as $variant ) {
+                if ( ! empty( $variant['variant_id'] ) ) {
+                    $variant_ids[] = $variant['variant_id'];
+                }
+            }
+        }
+
+        $response_hash = hash( 'sha256', wp_json_encode( $result ) );
+        $this->logger->log_generate_response(
+            $response_hash,
+            $variant_ids,
+            array(
+                'model'            => $result['model'] ?? 'unknown',
+                'google_ad_draft'  => ! empty( $result['google_ad_draft'] ),
+            )
+        );
+
         return rest_ensure_response( array(
-            'variants' => $result['variants'],
+            'variants'                => $result['linkedin_variants'] ?? array(),
+            'linkedin_variants'       => $result['linkedin_variants'] ?? array(),
+            'google_ad_draft'         => $result['google_ad_draft'] ?? array(),
+            'google_ad_compliance'    => $google_ad_compliance,
+            'model'                   => $result['model'] ?? 'unknown',
         ) );
     }
 
@@ -705,6 +771,109 @@ class RestController {
         }
 
         return implode( "\n", $diff );
+    }
+
+    /**
+     * Handle export request for manual paid campaign export
+     *
+     * @param WP_REST_Request $request Request object.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function handle_export( WP_REST_Request $request ) {
+        $payload = $request->get_json_params();
+
+        if ( empty( $payload['post_id'] ) ) {
+            return new WP_Error( 'kh_smma_missing_post', __( 'post_id is required.', 'kh-smma' ), array( 'status' => 400 ) );
+        }
+
+        $post_id              = (int) $payload['post_id'];
+        $variant_ids          = $payload['variant_ids'] ?? array();
+        $include_google_ads   = $payload['include_google_ads'] ?? true;
+        $include_assets       = $payload['include_assets'] ?? true;
+
+        // Create export directory
+        $upload_dir = wp_upload_dir();
+        $export_dir = trailingslashit( $upload_dir['basedir'] ) . 'smma-exports';
+        if ( ! file_exists( $export_dir ) ) {
+            wp_mkdir_p( $export_dir );
+        }
+
+        $export_id = 'exp_' . $post_id . '_' . time();
+        $export_path = trailingslashit( $export_dir ) . $export_id;
+        wp_mkdir_p( $export_path );
+
+        // Gather variant data
+        $variants = array();
+        foreach ( $variant_ids as $variant_id ) {
+            $variant = get_transient( 'kh_smma_variant_' . $variant_id );
+            if ( $variant ) {
+                $variants[] = $variant;
+            }
+        }
+
+        // Gather Google Ads draft if requested
+        $google_ad_draft = array();
+        if ( $include_google_ads ) {
+            $google_ad_draft = get_transient( 'kh_smma_google_ads_' . $post_id );
+        }
+
+        // Build manifest
+        $manifest = array(
+            'export_id'         => $export_id,
+            'post_id'           => $post_id,
+            'created_at'        => current_time( 'mysql' ),
+            'expires_at'        => gmdate( 'Y-m-d\\TH:i:s\\Z', strtotime( '+7 days' ) ),
+            'linkedin_variants' => $variants,
+            'google_ad_draft'   => $google_ad_draft,
+            'assets'            => array(),
+        );
+
+        // Save manifest JSON
+        $manifest_file = $export_path . '/manifest.json';
+        file_put_contents( $manifest_file, wp_json_encode( $manifest, JSON_PRETTY_PRINT ) );
+
+        // Create ZIP archive
+        $zip_file = $export_dir . '/' . $export_id . '.zip';
+        if ( class_exists( 'ZipArchive' ) ) {
+            $zip = new \ZipArchive();
+            if ( $zip->open( $zip_file, \ZipArchive::CREATE ) === true ) {
+                $files = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator( $export_path ),
+                    \RecursiveIteratorIterator::LEAVES_ONLY
+                );
+
+                foreach ( $files as $file ) {
+                    if ( ! $file->isDir() ) {
+                        $file_path = $file->getRealPath();
+                        $relative_path = substr( $file_path, strlen( $export_path ) + 1 );
+                        $zip->addFile( $file_path, $relative_path );
+                    }
+                }
+                $zip->close();
+            }
+        }
+
+        // Generate download URL
+        $download_url = trailingslashit( $upload_dir['baseurl'] ) . 'smma-exports/' . $export_id . '.zip';
+
+        // Log export
+        $this->logger->log( 'export.create', array(
+            'object_type' => 'export',
+            'object_id'   => $post_id,
+            'details'     => array(
+                'export_id'           => $export_id,
+                'variant_count'       => count( $variants ),
+                'include_google_ads'  => $include_google_ads,
+                'include_assets'      => $include_assets,
+            ),
+        ) );
+
+        return rest_ensure_response( array(
+            'export_id'    => $export_id,
+            'download_url' => $download_url,
+            'manifest'     => $manifest,
+            'expires_at'   => gmdate( 'Y-m-d\\TH:i:s\\Z', strtotime( '+7 days' ) ),
+        ) );
     }
 
 }

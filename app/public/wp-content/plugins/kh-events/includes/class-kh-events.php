@@ -69,6 +69,8 @@ class KH_Events {
 
         // Register widget
         add_action('widgets_init', array($this, 'register_widgets'));
+
+        $this->register_phase_engine_hooks();
     }
 
     public function register_widgets() {
@@ -111,6 +113,98 @@ class KH_Events {
         KH_Events_Email_Marketing::instance();
         KH_Events_Analytics::instance();
         KH_Events_Enhanced_API::instance();
+    }
+
+    private function register_phase_engine_hooks() {
+        add_action('kh_event_booking_created', array($this, 'phase_booking_created'), 10, 2);
+        add_action('kh_event_attendance_marked', array($this, 'phase_attendance_marked'), 10, 3);
+        add_action('kh_event_viewed', array($this, 'phase_event_viewed'), 10, 2);
+    }
+
+    public function phase_booking_created($booking_id, $event_id) {
+        $user_id = get_current_user_id();
+        $event_key = $this->map_phase_event('booking_created', array(
+            'booking_id' => $booking_id,
+            'event_id' => $event_id
+        ));
+
+        $this->record_phase_event(
+            $user_id,
+            $event_key,
+            'kh_events_booking',
+            array(
+                'booking_id' => $booking_id,
+                'event_id' => $event_id
+            )
+        );
+    }
+
+    public function phase_attendance_marked($event_id, $user_id, $status) {
+        $status_key = $this->is_attendance_complete($status) ? 'attendance_present' : 'attendance_other';
+        $event_key = $this->map_phase_event($status_key, array(
+            'event_id' => $event_id,
+            'status' => $status
+        ));
+
+        $this->record_phase_event(
+            (int) $user_id,
+            $event_key,
+            'kh_events_attendance',
+            array(
+                'event_id' => $event_id,
+                'status' => $status
+            )
+        );
+    }
+
+    public function phase_event_viewed($event_id, $user_id = null) {
+        $event_key = $this->map_phase_event('event_view', array(
+            'event_id' => $event_id
+        ));
+
+        $this->record_phase_event(
+            (int) ($user_id ?: 0),
+            $event_key,
+            'kh_events_view',
+            array(
+                'event_id' => $event_id,
+                'referrer' => $_SERVER['HTTP_REFERER'] ?? ''
+            )
+        );
+    }
+
+    private function is_attendance_complete($status) {
+        $status = strtolower((string) $status);
+        return $status === 'present' || $status === 'attended' || $status === 'complete';
+    }
+
+    private function map_phase_event($key, array $context = array()) {
+        $map = array(
+            'booking_created' => 'webinar_passive',
+            'attendance_present' => 'webinar_full_marketing_15',
+            'attendance_other' => 'webinar_partial_25_75_marketing',
+            'event_view' => 'webinar_passive',
+        );
+
+        if (function_exists('apply_filters')) {
+            $map = apply_filters('kh_events_phase_engine_event_map', $map, $context);
+        }
+
+        return $map[$key] ?? '';
+    }
+
+    private function record_phase_event($user_id, $event_id, $source, $metadata = array()) {
+        if (!$user_id || empty($event_id)) {
+            return;
+        }
+
+        if (!class_exists('\\KH_SMMA\\Services\\PhaseEngine')) {
+            return;
+        }
+
+        global $wpdb;
+        $engine = new \KH_SMMA\Services\PhaseEngine($wpdb);
+        $engine->record_event((int) $user_id, $event_id, $source, (array) $metadata);
     }
 
     private function register_post_types() {
