@@ -200,10 +200,46 @@ if ( ! function_exists( 'current_time' ) ) {
     }
 }
 
-// TODO: Replace this test stub once PaidAdapterContract is available in the plugin load path.
-if ( ! class_exists( '\\KH_SMMA\\Adapters\\PaidAdapterContract' ) ) {
-    eval( 'namespace KH_SMMA\\Adapters { abstract class PaidAdapterContract { public function register() {} public function is_enabled(): bool { return false; } public function create_boost( array $payload ): array { return array(); } public function cancel_boost( array $payload ): array { return array(); } public function get_boost_status( array $payload ): array { return array(); } } }' );
+if ( ! class_exists( 'wpdb' ) ) {
+    class wpdb {
+        public $prefix = 'wp_';
+        public $last_error = '';
+
+        public function insert( $table, $data, $format = array() ) {
+            return true;
+        }
+
+        public function update( $table, $data, $where ) {
+            return true;
+        }
+
+        public function get_var( $query ) {
+            return null;
+        }
+
+        public function get_row( $query, $output = ARRAY_A ) {
+            return null;
+        }
+
+        public function get_results( $query, $output = ARRAY_A ) {
+            return array();
+        }
+
+        public function prepare( $query, ...$args ) {
+            return $query;
+        }
+    }
 }
+
+if ( ! defined( 'ARRAY_A' ) ) {
+    define( 'ARRAY_A', 'ARRAY_A' );
+}
+
+if ( ! defined( 'HOUR_IN_SECONDS' ) ) {
+    define( 'HOUR_IN_SECONDS', 3600 );
+}
+
+// TODO: Replace this test stub once PaidAdapterContract is available in the plugin load path.
 
 if ( ! function_exists( 'get_current_user_id' ) ) {
     function get_current_user_id() {
