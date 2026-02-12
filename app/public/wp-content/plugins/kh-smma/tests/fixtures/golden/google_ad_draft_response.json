@@ -1,0 +1,15 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "{\"ad_groups\":[{\"keyword_cluster\":\"business strategy, growth\",\"headlines\":[\"Transform Your Business\",\"Expert Growth Strategies\",\"Proven Results\"],\"descriptions\":[\"Discover actionable strategies from industry experts. Get the insights you need.\",\"Professional guidance for sustainable business growth and measurable outcomes.\"],\"final_url\":\"https://example.com/business-growth\",\"final_url_with_utm\":\"https://example.com/business-growth?utm_source=google_ads&utm_medium=cpc&utm_campaign=business-strategy\",\"cpc_suggestion\":2.50},{\"keyword_cluster\":\"leadership, management\",\"headlines\":[\"Leadership Excellence\",\"Management Best Practices\",\"Build Strong Teams\"],\"descriptions\":[\"Elevate your leadership skills with proven frameworks and practical techniques.\",\"Learn from successful leaders. Apply strategies that drive team performance.\"],\"final_url\":\"https://example.com/leadership\",\"final_url_with_utm\":\"https://example.com/leadership?utm_source=google_ads&utm_medium=cpc&utm_campaign=leadership\",\"cpc_suggestion\":3.25}]}"
+      }
+    }
+  ],
+  "model": "gpt-4-turbo",
+  "usage": {
+    "prompt_tokens": 280,
+    "completion_tokens": 220,
+    "total_tokens": 500
+  }
+}

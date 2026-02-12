@@ -92,6 +92,19 @@ if (!function_exists('rest_ensure_response')) {
     }
 }
 
+if (!class_exists('WP_REST_Request')) {
+    class WP_REST_Request {
+        private $params = [];
+        public function __construct($method = 'GET', $route = '') {}
+        public function set_param($key, $value) { $this->params[$key] = $value; }
+        public function get_param($key) { return $this->params[$key] ?? null; }
+        public function get_params() { return $this->params; }
+        public function set_body($body) {}
+        public function get_body() { return ''; }
+        public function get_headers() { return []; }
+    }
+}
+
 if (!function_exists('sanitize_email')) {
     function sanitize_email($email) {
         return filter_var($email, FILTER_SANITIZE_EMAIL);
@@ -101,6 +114,13 @@ if (!function_exists('sanitize_email')) {
 if (!function_exists('sanitize_text_field')) {
     function sanitize_text_field($str) {
         return strip_tags($str);
+    }
+}
+
+if (!function_exists('sanitize_key')) {
+    function sanitize_key($key) {
+        $key = strtolower($key);
+        return preg_replace('/[^a-z0-9_\\-]/', '', $key);
     }
 }
 
@@ -142,7 +162,22 @@ if (!function_exists('current_user_can')) {
 
 if (!function_exists('get_option')) {
     function get_option($option, $default = false) {
-        return $default;
+        global $khm_test_options;
+        if (!isset($khm_test_options) || !is_array($khm_test_options)) {
+            $khm_test_options = [];
+        }
+        return array_key_exists($option, $khm_test_options) ? $khm_test_options[$option] : $default;
+    }
+}
+
+if (!function_exists('update_option')) {
+    function update_option($option, $value, $autoload = null) {
+        global $khm_test_options;
+        if (!isset($khm_test_options) || !is_array($khm_test_options)) {
+            $khm_test_options = [];
+        }
+        $khm_test_options[$option] = $value;
+        return true;
     }
 }
 
@@ -154,7 +189,28 @@ if (!function_exists('home_url')) {
 
 if (!function_exists('apply_filters')) {
     function apply_filters($tag, $value, ...$args) {
+        global $khm_test_filters;
+        if (empty($khm_test_filters[$tag]) || !is_array($khm_test_filters[$tag])) {
+            return $value;
+        }
+
+        foreach ($khm_test_filters[$tag] as $callback) {
+            if (is_callable($callback)) {
+                $value = $callback($value, ...$args);
+            }
+        }
         return $value;
+    }
+}
+
+if (!function_exists('add_filter')) {
+    function add_filter($tag, $callback) {
+        global $khm_test_filters;
+        if (!isset($khm_test_filters[$tag])) {
+            $khm_test_filters[$tag] = [];
+        }
+        $khm_test_filters[$tag][] = $callback;
+        return true;
     }
 }
 
@@ -192,6 +248,12 @@ if (!function_exists('error_log')) {
 if (!function_exists('add_action')) {
     function add_action($hook, $callback, $priority = 10, $accepted_args = 1) {
         // Mock implementation - do nothing
+        return true;
+    }
+}
+
+if (!function_exists('update_user_meta')) {
+    function update_user_meta($user_id, $meta_key, $meta_value) {
         return true;
     }
 }

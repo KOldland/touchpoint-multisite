@@ -1,0 +1,15 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "{\"variants\":[{\"variant_id\":\"v-fail-001\",\"channel\":\"linkedin\",\"text\":\"Get guaranteed results with our risk-free solution! 100% guaranteed to transform your business overnight.\",\"phase_tag\":\"Attention\",\"tone\":\"Authority\",\"recommended_post_time_gmt\":1675209600,\"geo_recommendations\":[{\"geo\":\"US-East\",\"time_window\":\"08:30-10:00 GMT\"}],\"sponsor_flag\":true,\"compliance_notes\":\"FAIL: multiple blacklisted phrases detected\",\"approval_required\":true,\"explainability\":\"CRITICAL: Contains prohibited claims that violate compliance policy.\"}]}"
+      }
+    }
+  ],
+  "model": "gpt-4-turbo",
+  "usage": {
+    "prompt_tokens": 250,
+    "completion_tokens": 110,
+    "total_tokens": 360
+  }
+}

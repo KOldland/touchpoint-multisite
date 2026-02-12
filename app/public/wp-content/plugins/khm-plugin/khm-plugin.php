@@ -60,6 +60,33 @@ function khm_elementor_feature_enabled( $feature ) {
     return ! empty( $flags[ $feature ] );
 }
 
+function khm_register_cron_schedules( $schedules ) {
+    if ( ! isset( $schedules['khm_five_minutes'] ) ) {
+        $schedules['khm_five_minutes'] = array(
+            'interval' => 300,
+            'display'  => 'Every 5 Minutes',
+        );
+    }
+
+    if ( ! isset( $schedules['khm_thirty_seconds'] ) ) {
+        $schedules['khm_thirty_seconds'] = array(
+            'interval' => 30,
+            'display'  => 'Every 30 Seconds',
+        );
+    }
+
+    if ( ! isset( $schedules['every_five_minutes'] ) ) {
+        $schedules['every_five_minutes'] = array(
+            'interval' => 300,
+            'display'  => 'Every 5 Minutes',
+        );
+    }
+
+    return $schedules;
+}
+
+add_filter( 'cron_schedules', 'khm_register_cron_schedules' );
+
 // Load marketing suite integration functions
 require_once __DIR__ . '/includes/marketing-suite-functions.php';
 
@@ -82,6 +109,7 @@ require_once __DIR__ . '/src/Sponsors/SponsorMigration.php';
 require_once __DIR__ . '/src/Sponsors/SponsorAudit.php';
 require_once __DIR__ . '/src/Sponsors/SponsorController.php';
 require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
+require_once __DIR__ . '/src/Admin/PriceValidationAjax.php';
 require_once __DIR__ . '/src/Membership/MembershipMigration.php';
 require_once __DIR__ . '/src/Membership/AttributionEndpoint.php';
 require_once __DIR__ . '/src/Membership/SignupEndpoint.php';
@@ -90,6 +118,7 @@ require_once __DIR__ . '/src/Membership/StripeWebhookHandler.php';
 require_once __DIR__ . '/src/Membership/LandingPageShortcode.php';
 require_once __DIR__ . '/src/Membership/DashboardShortcode.php';
 require_once __DIR__ . '/src/Membership/Admin/ReportsPage.php';
+require_once __DIR__ . '/src/Services/LevelPriceResolver.php';
 
 // Register GEO Suggestion Endpoint at rest_api_init
 add_action( 'rest_api_init', function() {
@@ -167,6 +196,9 @@ if (is_admin()) {
     if ( class_exists( 'KHM\\Sponsors\\SponsorAdminUI' ) ) {
         $sponsor_admin = new KHM\Sponsors\SponsorAdminUI();
         $sponsor_admin->register();
+    }
+    if ( class_exists( 'KHM\\Admin\\PriceValidationAjax' ) ) {
+        ( new KHM\Admin\PriceValidationAjax() )->register();
     }
 }
 
@@ -319,6 +351,7 @@ function khm_register_elementor_widgets( $widgets_manager ) {
         'PortalAccount_Widget.php',
         'PortalVoucher_Widget.php',
         'TestPortalDashboard_Widget.php',
+        'MembershipCheckoutButton_Widget.php',
     ];
 
     foreach ( $widget_files as $file ) {
@@ -442,6 +475,15 @@ function khm_register_elementor_widgets( $widgets_manager ) {
         }
     }
 
+    // Membership Checkout Button Widget
+    if ( class_exists( '\KHM\Elementor\Widgets\MembershipCheckoutButton_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\MembershipCheckoutButton_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\MembershipCheckoutButton_Widget() );
+        }
+    }
+
     if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
         $registered = method_exists( $widgets_manager, 'get_widget_types' )
             ? count( $widgets_manager->get_widget_types() )
@@ -454,6 +496,15 @@ function khm_register_elementor_widgets( $widgets_manager ) {
 if ( khm_elementor_feature_enabled( 'register_widgets' ) ) {
     add_action( 'elementor/widgets/register', 'khm_register_elementor_widgets', 50 );
 }
+
+add_action( 'elementor/init', function() {
+    if ( ! class_exists( '\\Elementor\\Modules\\DynamicTags\\Module' ) || ! class_exists( '\\Elementor\\Modules\\DynamicTags\\Tag' ) ) {
+        return;
+    }
+    if ( class_exists( '\\KHM\\Elementor\\Tags\\KhmDynamicTags' ) ) {
+        ( new \KHM\Elementor\Tags\KhmDynamicTags() )->register();
+    }
+} );
 
 // Ensure core Elementor Pro theme builder widgets are available on early widget init.
 if ( khm_elementor_feature_enabled( 'pro_theme_widgets' ) ) {
@@ -1217,6 +1268,10 @@ add_action('rest_api_init', function () {
     if ( class_exists('KHM\\Rest\\MemberPortalController') ) {
         ( new KHM\Rest\MemberPortalController() )->register();
     }
+    // Register checkout routes
+    if ( class_exists('KHM\\Rest\\CheckoutController') ) {
+        ( new KHM\Rest\CheckoutController() )->register();
+    }
     // Register 4A ingestion routes
     if ( class_exists('KHM\\Rest\\FourAIngestionController') ) {
         ( new KHM\Rest\FourAIngestionController() )->register();
@@ -1239,6 +1294,11 @@ add_action('khm_4a_hourly_recompute', function () {
 // CLI command.
 if ( defined('WP_CLI') && WP_CLI && class_exists('KHM\\Cli\\FourAScoreCommand') ) {
     WP_CLI::add_command('khm-4a', 'KHM\\Cli\\FourAScoreCommand');
+}
+
+// Register WP-CLI command for migrating Stripe prices
+if ( defined('WP_CLI') && WP_CLI ) {
+    require_once __DIR__ . '/src/CLI/MigratePricesCommand.php';
 }
 
 // Register webhook email notifications
@@ -1315,6 +1375,11 @@ add_action('init', function () {
         // Register commerce frontend (unified modal for cart/checkout)
         if ( class_exists('KHM\\Frontend\\CommerceFrontend') ) {
             $commerce_frontend = new KHM\Frontend\CommerceFrontend();
+        }
+
+        // Register membership checkout handler (modal for membership signup)
+        if ( class_exists('KHM\\Frontend\\MembershipCheckoutHandler') ) {
+            $membership_checkout_handler = new KHM\Frontend\MembershipCheckoutHandler();
         }
 
         // Register member portal shortcode

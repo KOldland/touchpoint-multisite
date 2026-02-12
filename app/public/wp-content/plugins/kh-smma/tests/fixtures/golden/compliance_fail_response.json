@@ -1,0 +1,15 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "{\"passed\":false,\"message\":\"Text contains multiple prohibited phrases that violate advertising standards.\",\"confidence_score\":1.0,\"flags\":[\"blacklist_violation\",\"guaranteed_claims\",\"medical_claims\"]}"
+      }
+    }
+  ],
+  "model": "gpt-4-turbo",
+  "usage": {
+    "prompt_tokens": 150,
+    "completion_tokens": 40,
+    "total_tokens": 190
+  }
+}
