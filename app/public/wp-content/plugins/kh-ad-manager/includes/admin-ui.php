@@ -50,34 +50,8 @@ add_action( 'init', function () {
         );
     }
 
-    $sponsor_meta = array(
-        'linkedin_page_url',
-        'linkedin_handles',
-        'quotable_representatives',
-        'content_library_url',
-        'allowed_claims',
-        'co_brand_policy',
-        'geo_rules',
-        'ppc_budget_total',
-        'ppc_daily_cap',
-        'ppc_account_id',
-        'approval_contact',
-        'sponsor_assets',
-    );
-
-    foreach ( $sponsor_meta as $key ) {
-        register_post_meta(
-            'kh_sponsor',
-            $key,
-            [
-                'type'         => 'string',
-                'single'       => true,
-                'show_in_rest' => false,
-                'sanitize_callback' => 'sanitize_text_field',
-                'auth_callback'     => function() { return current_user_can( 'edit_posts' ); },
-            ]
-        );
-    }
+    // Sponsor meta is already registered in cpt-sponsor.php with proper types
+    // Do not re-register here to avoid schema conflicts
 
     // Slot override meta for posts (mode and manual/auto code).
     $slots = [ 'exit_overlay', 'footer', 'header', 'popup', 'sidebar1', 'sidebar2', 'ticker', 'slide_in' ];

@@ -43,6 +43,14 @@ class CpEventIngestionService {
 
 		$this->events_table = $this->resolve_table_name( 'cp_events' );
 		$this->logs_table   = $this->resolve_table_name( 'cp_ingestion_logs' );
+
+		if ( ! $this->table_exists( $this->events_table ) ) {
+			$this->events_table = '';
+		}
+
+		if ( ! $this->table_exists( $this->logs_table ) ) {
+			$this->logs_table = '';
+		}
 	}
 
 	/**
@@ -52,6 +60,10 @@ class CpEventIngestionService {
 	 * @return int Inserted event ID.
 	 */
 	public function store_event( array $event ): int {
+		if ( empty( $this->events_table ) ) {
+			return 0;
+		}
+
 		$data = wp_parse_args(
 			$event,
 			array(
@@ -212,6 +224,21 @@ class CpEventIngestionService {
 
 		// Default to prefixed for future creates.
 		return $prefixed;
+	}
+
+	private function table_exists( string $table ): bool {
+		static $cache = array();
+
+		if ( isset( $cache[ $table ] ) ) {
+			return $cache[ $table ];
+		}
+
+		$found = $this->wpdb->get_var(
+			$this->wpdb->prepare( 'SHOW TABLES LIKE %s', $table )
+		);
+
+		$cache[ $table ] = ( $found === $table );
+		return $cache[ $table ];
 	}
 
 	/**

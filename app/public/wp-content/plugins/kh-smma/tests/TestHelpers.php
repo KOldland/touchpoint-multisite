@@ -200,6 +200,10 @@ if ( ! function_exists( 'current_time' ) ) {
     }
 }
 
+if ( ! defined( 'ARRAY_A' ) ) {
+    define( 'ARRAY_A', 'ARRAY_A' );
+}
+
 if ( ! class_exists( 'wpdb' ) ) {
     class wpdb {
         public $prefix = 'wp_';
@@ -229,10 +233,6 @@ if ( ! class_exists( 'wpdb' ) ) {
             return $query;
         }
     }
-}
-
-if ( ! defined( 'ARRAY_A' ) ) {
-    define( 'ARRAY_A', 'ARRAY_A' );
 }
 
 if ( ! defined( 'HOUR_IN_SECONDS' ) ) {

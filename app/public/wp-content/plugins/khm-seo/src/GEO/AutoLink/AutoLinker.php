@@ -144,9 +144,19 @@ class AutoLinker {
      * @return string Modified content
      */
     private function apply_auto_linking( $content, $patterns, $post_id ) {
+        if ( ! is_string( $content ) || trim( $content ) === '' ) {
+            return $content;
+        }
+
         // Parse HTML to avoid linking in skip zones
         $dom = new \DOMDocument();
-        @$dom->loadHTML( mb_convert_encoding( $content, 'HTML-ENTITIES', 'UTF-8' ), LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
+        $loaded = @$dom->loadHTML(
+            mb_convert_encoding( $content, 'HTML-ENTITIES', 'UTF-8' ),
+            LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD
+        );
+        if ( ! $loaded ) {
+            return $content;
+        }
 
         $this->process_dom_node( $dom->documentElement, $patterns, $post_id );
 
@@ -245,8 +255,9 @@ class AutoLinker {
         global $wpdb;
         $table = $this->entity_manager->get_table_name( 'page_entities' );
         return $wpdb->get_var( $wpdb->prepare(
-            "SELECT id FROM {$table} WHERE post_id = %d AND entity_id = %d AND role = 'link'",
-            $post_id, $entity_id
+            "SELECT id FROM {$table} WHERE post_id = %d AND entity_id = %d AND role = 'mentions'",
+            $post_id,
+            $entity_id
         ) ) !== null;
     }
 
@@ -260,13 +271,17 @@ class AutoLinker {
     private function log_entity_linking( $post_id, $entity_id, $term ) {
         global $wpdb;
         $table = $this->entity_manager->get_table_name( 'page_entities' );
-        $wpdb->insert( $table, array(
-            'post_id' => $post_id,
-            'entity_id' => $entity_id,
-            'role' => 'link',
-            'confidence' => 1.0,
-            'detected_by' => 'auto_link',
-            'created_at' => current_time( 'mysql' )
-        ) );
+        // Avoid duplicate-key errors by ignoring if the row already exists.
+        $sql = $wpdb->prepare(
+            "INSERT IGNORE INTO {$table} (post_id, entity_id, role, confidence, detected_by, created_at)
+             VALUES (%d, %d, %s, %f, %s, %s)",
+            $post_id,
+            $entity_id,
+            'mentions',
+            1.0,
+            'auto_link',
+            current_time( 'mysql' )
+        );
+        $wpdb->query( $sql );
     }
 }

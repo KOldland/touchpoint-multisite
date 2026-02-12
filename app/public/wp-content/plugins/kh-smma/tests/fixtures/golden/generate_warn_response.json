@@ -1,0 +1,15 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "{\"variants\":[{\"variant_id\":\"v-warn-001\",\"channel\":\"linkedin\",\"text\":\"Join thousands of satisfied customers who trust our proven solutions. See results that exceed expectations.\",\"phase_tag\":\"Attention\",\"tone\":\"Authority\",\"recommended_post_time_gmt\":1675209600,\"geo_recommendations\":[{\"geo\":\"US-East\",\"time_window\":\"08:30-10:00 GMT\"}],\"sponsor_flag\":true,\"compliance_notes\":\"WARN: contains vague success claims without sponsor verification\",\"approval_required\":true,\"explainability\":\"Optimized for Attention phase but requires sponsor claim verification.\"}]}"
+      }
+    }
+  ],
+  "model": "gpt-4-turbo",
+  "usage": {
+    "prompt_tokens": 250,
+    "completion_tokens": 120,
+    "total_tokens": 370
+  }
+}

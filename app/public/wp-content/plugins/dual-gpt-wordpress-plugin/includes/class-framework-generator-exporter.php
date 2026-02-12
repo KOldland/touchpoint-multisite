@@ -291,16 +291,27 @@ class Framework_Generator_Exporter {
     private function store_export_record($brief_id, $format, $file_url, $file_path) {
         global $wpdb;
 
-        $wpdb->insert(
+        $result = $wpdb->insert(
             $wpdb->prefix . 'fg_exports',
             array(
                 'brief_id' => $brief_id,
-                'format' => $format,
-                'file_url' => $file_url,
+                'format'    => $format,
+                'file_url'  => $file_url,
                 'file_path' => $file_path,
-                'created_at' => current_time('mysql'),
+                'created_at'=> current_time('mysql'),
             ),
-            array('%s', '%s', '%s', '%s', '%s')
+            array('%d', '%s', '%s', '%s', '%s')
         );
+
+        if ($result === false) {
+            error_log(
+                sprintf(
+                    'Failed to insert framework export record for brief_id %d (format: %s): %s',
+                    (int) $brief_id,
+                    $format,
+                    isset($wpdb->last_error) ? $wpdb->last_error : 'Unknown database error'
+                )
+            );
+        }
     }
 }
