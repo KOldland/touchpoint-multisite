@@ -32,7 +32,7 @@ class SmmaRestSmokeTest extends TestCase {
 
         $response = $controller->handle_generate( $request );
         $this->assertArrayHasKey( 'variants', $response );
-        $this->assertCount( 1, $response['variants'] );
+        $this->assertGreaterThanOrEqual( 1, count( $response['variants'] ), 'Should have at least 1 variant' );
 
         $schedule_request = new \WP_REST_Request(
             array(

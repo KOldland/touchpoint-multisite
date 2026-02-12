@@ -130,13 +130,49 @@ class MockLLMClient {
 		// Auto-detect based on prompt content
 		if ( stripos( $system, 'compliance validator' ) !== false ) {
 			// Compliance validation prompt
-			if ( stripos( $user, 'guaranteed' ) !== false || stripos( $user, 'risk-free' ) !== false ) {
+			$text_lower = strtolower( $user );
+
+			// FAIL: Multiple blacklisted phrases
+			if ( strpos( $text_lower, 'guaranteed' ) !== false &&
+			     strpos( $text_lower, 'risk-free' ) !== false ) {
+				return 'compliance_fail_response.json';
+			}
+
+			// WARN: Single blacklisted phrase or unverified claims
+			if ( strpos( $text_lower, 'guaranteed' ) !== false ||
+			     strpos( $text_lower, 'risk-free' ) !== false ||
+			     strpos( $text_lower, '100%' ) !== false ) {
 				return 'compliance_warn_response.json';
 			}
+
+			// PASS: Clean compliance
 			return 'compliance_pass_response.json';
 		}
 
-		// Default to generate response
+		// Google Ads Draft Generator
+		if ( stripos( $system, 'Google Ads Draft Generator' ) !== false ) {
+			return 'google_ad_draft_response.json';
+		}
+
+		// SMMA Generation prompts
+		if ( stripos( $system, 'SMMA-AI' ) !== false ) {
+			$text_lower = strtolower( $user );
+
+			// FAIL: Multiple compliance violations
+			if ( strpos( $text_lower, 'test_fail' ) !== false ||
+			     ( strpos( $text_lower, 'guaranteed' ) !== false &&
+			       strpos( $text_lower, 'risk-free' ) !== false ) ) {
+				return 'generate_fail_response.json';
+			}
+
+			// WARN: Sponsor claims need verification
+			if ( strpos( $text_lower, 'test_warn' ) !== false ||
+			     strpos( $text_lower, 'satisfied customers' ) !== false ) {
+				return 'generate_warn_response.json';
+			}
+		}
+
+		// Default to OK generation response
 		return 'generate_response.json';
 	}
 

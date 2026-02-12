@@ -222,6 +222,10 @@ class WebhooksController {
 				$this->handle_charge_failed( $obj );
 				break;
 
+			case 'checkout.session.completed':
+				$this->handle_checkout_session_completed( $obj );
+				break;
+
 			default:
 				// No-op; extension hooks above can handle other types.
 				break;
@@ -751,5 +755,194 @@ class WebhooksController {
 		}
 
 		return array( $userId ? $userId : null, $levelId ? $levelId : null );
+	}
+
+	/**
+	 * Handle Stripe Checkout Session completed events for subscriptions.
+	 *
+	 * @param object $session Stripe Checkout Session object.
+	 * @return void
+	 */
+	protected function handle_checkout_session_completed( object $session ): void {
+		if ( isset( $session->mode ) && strtolower( (string) $session->mode ) !== 'subscription' ) {
+			return;
+		}
+
+		$meta    = isset( $session->metadata ) ? (array) $session->metadata : array();
+		$levelId = (int) ( $meta['membership_level_id'] ?? $meta['membership_id'] ?? 0 );
+		$userId  = (int) ( $meta['user_id'] ?? 0 );
+
+		if ( ! $levelId ) {
+			do_action( 'khm_stripe_unresolved_context', 'checkout.session.completed', $session );
+			return;
+		}
+
+		if ( function_exists( 'khm_get_membership_level' ) ) {
+			$level = khm_get_membership_level( $levelId );
+			if ( ! $level ) {
+				do_action( 'khm_stripe_unresolved_context', 'checkout.session.completed', $session );
+				return;
+			}
+		}
+
+		$email = $this->extract_checkout_session_email( $session );
+
+		if ( ! $userId && $email ) {
+			$user = get_user_by( 'email', $email );
+			if ( $user && isset( $user->ID ) ) {
+				$userId = (int) $user->ID;
+			}
+		}
+
+		if ( ! $userId && $email ) {
+			$userId = $this->create_user_from_email( $email );
+		}
+
+		if ( ! $userId ) {
+			do_action( 'khm_stripe_unresolved_context', 'checkout.session.completed', $session );
+			return;
+		}
+
+		$status = $this->resolve_subscription_status_from_session( $session );
+
+		// Extract Stripe IDs for storage
+		$customerId     = $session->customer ?? null;
+		$subscriptionId = $session->subscription ?? null;
+
+		$assignOptions = array(
+			'status' => $status,
+		);
+
+		// Add Stripe IDs if available (will be stored via user meta in persist_stripe_ids)
+		if ( $customerId ) {
+			$assignOptions['stripe_customer_id'] = (string) $customerId;
+		}
+		if ( $subscriptionId ) {
+			$assignOptions['stripe_subscription_id'] = (string) $subscriptionId;
+		}
+
+		$this->memberships->assign(
+			(int) $userId,
+			(int) $levelId,
+			$assignOptions
+		);
+
+		$this->persist_stripe_ids( (int) $userId, $session );
+
+		do_action( 'khm_stripe_checkout_session_completed_handled', $session, (int) $userId, (int) $levelId, $status );
+	}
+
+	/**
+	 * Extract customer email from a checkout session.
+	 *
+	 * @param object $session Stripe Checkout Session object.
+	 * @return string
+	 */
+	private function extract_checkout_session_email( object $session ): string {
+		if ( isset( $session->customer_details ) && isset( $session->customer_details->email ) ) {
+			return (string) $session->customer_details->email;
+		}
+		if ( isset( $session->customer_email ) ) {
+			return (string) $session->customer_email;
+		}
+		return '';
+	}
+
+	/**
+	 * Create a WordPress user for a checkout session email.
+	 *
+	 * @param string $email
+	 * @return int|null
+	 */
+	private function create_user_from_email( string $email ): ?int {
+		$email = sanitize_email( $email );
+		if ( ! $email || ! is_email( $email ) ) {
+			return null;
+		}
+
+		$existing = email_exists( $email );
+		if ( $existing ) {
+			return (int) $existing;
+		}
+
+		$password = wp_generate_password();
+		$userId   = wp_create_user( $email, $password, $email );
+		if ( is_wp_error( $userId ) ) {
+			error_log( 'Stripe checkout user create error: ' . $userId->get_error_message() );
+			return null;
+		}
+
+		return (int) $userId;
+	}
+
+	/**
+	 * Determine subscription status for membership assignment.
+	 *
+	 * @param object $session Stripe Checkout Session object.
+	 * @return string
+	 */
+	private function resolve_subscription_status_from_session( object $session ): string {
+		$subscriptionId = $session->subscription ?? '';
+		if ( ! $subscriptionId ) {
+			return 'active';
+		}
+
+		$subscription = $this->retrieve_stripe_subscription( (string) $subscriptionId );
+		if ( $subscription && isset( $subscription->status ) ) {
+			$status = (string) $subscription->status;
+			if ( $status === 'trialing' ) {
+				return 'trialing';
+			}
+			if ( $status === 'active' ) {
+				return 'active';
+			}
+		}
+
+		return 'active';
+	}
+
+	/**
+	 * Retrieve subscription details from Stripe.
+	 *
+	 * @param string $subscriptionId
+	 * @return object|null
+	 */
+	private function retrieve_stripe_subscription( string $subscriptionId ): ?object {
+		$secret = get_option( 'khm_stripe_secret_key', '' );
+		if ( empty( $secret ) ) {
+			return null;
+		}
+
+		if ( ! class_exists( '\\Stripe\\Stripe' ) ) {
+			require_once dirname( __DIR__, 2 ) . '/vendor/stripe/stripe-php/init.php';
+		}
+
+		try {
+			\Stripe\Stripe::setApiKey( $secret );
+			\Stripe\Stripe::setApiVersion( '2023-10-16' );
+			return \Stripe\Subscription::retrieve( $subscriptionId );
+		} catch ( \Throwable $e ) {
+			error_log( 'Stripe subscription retrieve error: ' . $e->getMessage() );
+			return null;
+		}
+	}
+
+	/**
+	 * Persist Stripe customer and subscription ids for the user.
+	 *
+	 * @param int    $userId
+	 * @param object $session
+	 * @return void
+	 */
+	private function persist_stripe_ids( int $userId, object $session ): void {
+		$customerId     = $session->customer ?? null;
+		$subscriptionId = $session->subscription ?? null;
+
+		if ( $customerId ) {
+			update_user_meta( $userId, 'stripe_customer_id', (string) $customerId );
+		}
+		if ( $subscriptionId ) {
+			update_user_meta( $userId, 'stripe_subscription_id', (string) $subscriptionId );
+		}
 	}
 }

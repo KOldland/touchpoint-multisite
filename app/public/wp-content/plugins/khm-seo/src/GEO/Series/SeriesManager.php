@@ -107,23 +107,33 @@ class SeriesManager {
      * @return bool
      */
     private function series_tables_ready() {
-        if ( null !== $this->series_tables_ready ) {
-            return $this->series_tables_ready;
+        global $wpdb;
+        $series_table = $wpdb->prefix . 'khm_geo_series';
+        $items_table  = $wpdb->prefix . 'khm_geo_series_items';
+        $meta_table   = $wpdb->prefix . 'khm_geo_series_meta';
+
+        $series_exists = $this->table_exists( $series_table );
+        $items_exists  = $this->table_exists( $items_table );
+        $meta_exists   = $this->table_exists( $meta_table );
+
+        $this->series_tables_ready = ( $series_exists && $items_exists && $meta_exists );
+        return $this->series_tables_ready;
+    }
+
+    private function table_exists( $table ) {
+        static $cache = array();
+
+        if ( isset( $cache[ $table ] ) ) {
+            return $cache[ $table ];
         }
 
         global $wpdb;
-        $series_table = $wpdb->prefix . 'khm_geo_series';
-        $items_table = $wpdb->prefix . 'khm_geo_series_items';
-
-        $series_exists = $wpdb->get_var(
-            $wpdb->prepare( 'SHOW TABLES LIKE %s', $series_table )
-        );
-        $items_exists = $wpdb->get_var(
-            $wpdb->prepare( 'SHOW TABLES LIKE %s', $items_table )
+        $found = $wpdb->get_var(
+            $wpdb->prepare( 'SHOW TABLES LIKE %s', $table )
         );
 
-        $this->series_tables_ready = ( $series_exists === $series_table && $items_exists === $items_table );
-        return $this->series_tables_ready;
+        $cache[ $table ] = ( $found === $table );
+        return $cache[ $table ];
     }
 
     /**
@@ -302,6 +312,10 @@ class SeriesManager {
     public function create_series( $series_data ) {
         global $wpdb;
 
+        if ( ! $this->series_tables_ready() ) {
+            return false;
+        }
+
         $table_name = $wpdb->prefix . 'khm_geo_series';
 
         $result = $wpdb->insert(
@@ -380,6 +394,10 @@ class SeriesManager {
     public function update_series( $series_id, $update_data ) {
         global $wpdb;
 
+        if ( ! $this->series_tables_ready() ) {
+            return false;
+        }
+
         $table_name = $wpdb->prefix . 'khm_geo_series';
 
         $result = $wpdb->update(
@@ -434,6 +452,10 @@ class SeriesManager {
      */
     public function delete_series( $series_id ) {
         global $wpdb;
+
+        if ( ! $this->series_tables_ready() ) {
+            return false;
+        }
 
         // Remove all items from series first
         $this->clear_series_items( $series_id );
@@ -492,6 +514,10 @@ class SeriesManager {
      */
     public function add_to_series( $series_id, $post_id, $position = 0 ) {
         global $wpdb;
+
+        if ( ! $this->series_tables_ready() ) {
+            return false;
+        }
 
         // Check if post is already in series
         if ( $this->is_post_in_series( $post_id, $series_id ) ) {
@@ -567,6 +593,10 @@ class SeriesManager {
     public function remove_from_series( $series_id, $post_id ) {
         global $wpdb;
 
+        if ( ! $this->series_tables_ready() ) {
+            return false;
+        }
+
         $table_name = $wpdb->prefix . 'khm_geo_series_items';
 
         $result = $wpdb->delete(
@@ -623,6 +653,10 @@ class SeriesManager {
      */
     public function reorder_series_items( $series_id, $order ) {
         global $wpdb;
+
+        if ( ! $this->series_tables_ready() ) {
+            return false;
+        }
 
         $table_name = $wpdb->prefix . 'khm_geo_series_items';
 
@@ -1123,6 +1157,10 @@ class SeriesManager {
     private function update_series_item_position( $series_id, $post_id, $position ) {
         global $wpdb;
 
+        if ( ! $this->series_tables_ready() ) {
+            return;
+        }
+
         $table_name = $wpdb->prefix . 'khm_geo_series_items';
 
         $wpdb->update(
@@ -1152,6 +1190,10 @@ class SeriesManager {
     private function clear_series_items( $series_id ) {
         global $wpdb;
 
+        if ( ! $this->series_tables_ready() ) {
+            return;
+        }
+
         $table_name = $wpdb->prefix . 'khm_geo_series_items';
 
         $wpdb->delete( $table_name, array( 'series_id' => $series_id ), array( '%d' ) );
@@ -1166,6 +1208,10 @@ class SeriesManager {
      */
     private function update_series_meta( $series_id, $key, $value ) {
         global $wpdb;
+
+        if ( ! $this->series_tables_ready() ) {
+            return;
+        }
 
         $table_name = $wpdb->prefix . 'khm_geo_series_meta';
 
@@ -1187,6 +1233,10 @@ class SeriesManager {
      */
     private function delete_series_meta( $series_id ) {
         global $wpdb;
+
+        if ( ! $this->series_tables_ready() ) {
+            return;
+        }
 
         $table_name = $wpdb->prefix . 'khm_geo_series_meta';
 

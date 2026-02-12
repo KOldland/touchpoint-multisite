@@ -50,7 +50,7 @@ class EnhancedEmailService implements EmailServiceInterface {
         }
         
         // Register cron job for email queue processing
-        if ( ! \wp_next_scheduled( 'khm_process_email_queue' ) ) {
+        if ( $this->table_exists( $this->get_queue_table() ) && ! \wp_next_scheduled( 'khm_process_email_queue' ) ) {
             \wp_schedule_event( \time(), 'every_five_minutes', 'khm_process_email_queue' );
         }
         
@@ -299,7 +299,10 @@ class EnhancedEmailService implements EmailServiceInterface {
     private function queue_email( int $email_id, string $template, string $recipient, string $body, array $data ): bool {
         global $wpdb;
         
-        $table = $wpdb->prefix . 'khm_email_queue';
+        $table = $this->get_queue_table();
+        if ( ! $this->table_exists( $table ) ) {
+            return false;
+        }
         
         $result = $wpdb->insert( $table, [
             'email_log_id' => $email_id,
@@ -324,7 +327,10 @@ class EnhancedEmailService implements EmailServiceInterface {
     public function process_email_queue(): void {
         global $wpdb;
         
-        $table = $wpdb->prefix . 'khm_email_queue';
+        $table = $this->get_queue_table();
+        if ( ! $this->table_exists( $table ) ) {
+            return;
+        }
         $batch_size = \apply_filters( 'khm_email_queue_batch_size', 10 );
         
         // Get pending emails ordered by priority and schedule time
@@ -349,7 +355,10 @@ class EnhancedEmailService implements EmailServiceInterface {
     private function process_queued_email( $email ): void {
         global $wpdb;
         
-        $table = $wpdb->prefix . 'khm_email_queue';
+        $table = $this->get_queue_table();
+        if ( ! $this->table_exists( $table ) ) {
+            return;
+        }
         
         // Mark as processing
         $wpdb->update( $table, 
@@ -394,7 +403,8 @@ class EnhancedEmailService implements EmailServiceInterface {
      * Check if emails should be queued
      */
     private function should_queue_email(): bool {
-        return \get_option( 'khm_email_use_queue', false );
+        return \get_option( 'khm_email_use_queue', false )
+            && $this->table_exists( $this->get_queue_table() );
     }
 
     /**
@@ -429,7 +439,10 @@ class EnhancedEmailService implements EmailServiceInterface {
     private function log_email_attempt( string $template, string $recipient, array $data, string $method ): int {
         global $wpdb;
         
-        $table = $wpdb->prefix . 'khm_email_logs';
+        $table = $this->get_logs_table();
+        if ( ! $this->table_exists( $table ) ) {
+            return 0;
+        }
         
         $wpdb->insert( $table, [
             'template_key' => $template,
@@ -450,7 +463,10 @@ class EnhancedEmailService implements EmailServiceInterface {
     private function update_email_status( int $email_id, string $status, string $error = null ): void {
         global $wpdb;
         
-        $table = $wpdb->prefix . 'khm_email_logs';
+        $table = $this->get_logs_table();
+        if ( ! $this->table_exists( $table ) ) {
+            return;
+        }
         
         $data = [
             'status' => $status,
@@ -480,6 +496,34 @@ class EnhancedEmailService implements EmailServiceInterface {
         ];
         
         return $priorities[ $template ] ?? 5;
+    }
+
+    private function get_queue_table(): string {
+        global $wpdb;
+
+        return $wpdb->prefix . 'khm_email_queue';
+    }
+
+    private function get_logs_table(): string {
+        global $wpdb;
+
+        return $wpdb->prefix . 'khm_email_logs';
+    }
+
+    private function table_exists( string $table ): bool {
+        static $cache = array();
+
+        if ( isset( $cache[ $table ] ) ) {
+            return $cache[ $table ];
+        }
+
+        global $wpdb;
+        $found = $wpdb->get_var(
+            $wpdb->prepare( 'SHOW TABLES LIKE %s', $table )
+        );
+
+        $cache[ $table ] = ( $found === $table );
+        return $cache[ $table ];
     }
 
     // Fluent interface methods (matching EmailServiceInterface)

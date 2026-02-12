@@ -79,17 +79,17 @@ class Tasks {
 	}
 
 	/**
-	 * Expire memberships whose end_date has passed
+	 * Expire memberships whose enddate has passed
 	 */
 	public function process_expirations(): int {
 		global $wpdb;
 		$now = current_time( 'mysql' );
 
-		// Find active memberships with end_date <= now.
+		// Find active memberships with enddate <= now.
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT id, user_id, membership_id, end_date FROM {$wpdb->prefix}khm_memberships_users 
-             WHERE status = 'active' AND end_date IS NOT NULL AND end_date <= %s",
+				"SELECT id, user_id, membership_id, enddate FROM {$wpdb->prefix}khm_memberships_users 
+             WHERE status = 'active' AND enddate IS NOT NULL AND enddate <= %s",
 				$now
 			)
 		);
@@ -130,9 +130,9 @@ class Tasks {
 
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT id, user_id, membership_id, end_date FROM {$wpdb->prefix}khm_memberships_users 
-             WHERE status = 'active' AND end_date IS NOT NULL 
-             AND end_date BETWEEN %s AND %s",
+				"SELECT id, user_id, membership_id, enddate FROM {$wpdb->prefix}khm_memberships_users 
+             WHERE status = 'active' AND enddate IS NOT NULL 
+             AND enddate BETWEEN %s AND %s",
 				$start_str,
 				$end_str
 			)
@@ -149,7 +149,7 @@ class Tasks {
 				(int) $row->user_id,
 				(int) $row->membership_id,
 				array(
-					'end_date'  => $row->end_date,
+					'end_date'  => $row->enddate,
 					'days_left' => $days_before,
 				)
 			);

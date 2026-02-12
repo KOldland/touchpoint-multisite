@@ -93,6 +93,12 @@ class RestController {
             'callback' => array( $this, 'handle_reject' ),
             'permission_callback' => array( $this, 'check_permissions' ),
         ) );
+
+        register_rest_route( 'kh-smma/v1', '/compliance/check', array(
+            'methods' => 'POST',
+            'callback' => array( $this, 'handle_compliance_check' ),
+            'permission_callback' => array( $this, 'check_permissions' ),
+        ) );
     }
 
     public function check_permissions( WP_REST_Request $request ) {
@@ -681,6 +687,129 @@ class RestController {
             'schedule_id' => $schedule_id,
             'rejected_by' => get_current_user_id(),
             'rejected_at' => time(),
+        ) );
+    }
+
+    /**
+     * Handle compliance check request.
+     *
+     * POST /wp-json/kh-smma/v1/compliance/check
+     *
+     * Request body:
+     * {
+     *   "variant_id": "v-123",
+     *   "text": "variant text to check",
+     *   "channel": "linkedin",
+     *   "sponsor_context": {
+     *     "sponsor_id": 123,
+     *     "allowed_claims": ["claim1", "claim2"]
+     *   },
+     *   "metadata": {...}
+     * }
+     *
+     * Response:
+     * {
+     *   "pass": true|false,
+     *   "level": "OK"|"WARN"|"FAIL",
+     *   "flags": [...],
+     *   "suggested_edits": [...],
+     *   "confidence": 0.95
+     * }
+     *
+     * @param WP_REST_Request $request Request object.
+     * @return WP_REST_Response|WP_Error Response or error.
+     */
+    public function handle_compliance_check( WP_REST_Request $request ) {
+        $payload = $request->get_json_params();
+
+        // Required fields
+        if ( empty( $payload['text'] ) ) {
+            return new WP_Error( 'kh_smma_missing_text', __( 'text is required.', 'kh-smma' ), array( 'status' => 400 ) );
+        }
+
+        $text = sanitize_textarea_field( $payload['text'] );
+        $variant_id = sanitize_text_field( $payload['variant_id'] ?? '' );
+        $channel = sanitize_text_field( $payload['channel'] ?? 'linkedin' );
+        $sponsor_context = $payload['sponsor_context'] ?? array();
+        $metadata = $payload['metadata'] ?? array();
+
+        // Build validation context
+        $context = array(
+            'channel' => $channel,
+            'phase_tag' => sanitize_text_field( $metadata['phase_tag'] ?? 'Attention' ),
+        );
+
+        // Add sponsor context if present
+        if ( ! empty( $sponsor_context['sponsor_id'] ) ) {
+            $context['sponsor_id'] = (int) $sponsor_context['sponsor_id'];
+            $context['sponsor_policy'] = sanitize_text_field( $sponsor_context['sponsor_policy'] ?? '' );
+            $context['allowed_claims'] = (array) ( $sponsor_context['allowed_claims'] ?? array() );
+        }
+
+        // Perform compliance check
+        $result = $this->compliance_validator->validate( $text, $context );
+
+        // Map to API response format (OK|WARN|FAIL)
+        $level = 'OK';
+        if ( ! $result['passed'] ) {
+            // Determine severity from violation type or notes
+            $violation_type = $result['violation_type'] ?? '';
+            $notes = $result['notes'] ?? '';
+
+            if ( in_array( $violation_type, array( 'blacklist', 'length' ), true ) ||
+                 stripos( $notes, 'FAIL' ) !== false ) {
+                $level = 'FAIL';
+            } else {
+                $level = 'WARN';
+            }
+        }
+
+        // Build suggested edits
+        $suggested_edits = array();
+        if ( ! empty( $result['message'] ) ) {
+            $suggested_edits[] = $result['message'];
+        }
+
+        // Extract flags from result
+        $flags = $result['flags'] ?? array();
+        if ( ! empty( $result['violation_type'] ) && ! in_array( $result['violation_type'], $flags, true ) ) {
+            $flags[] = $result['violation_type'];
+        }
+
+        // Log compliance check
+        $this->logger->log( 'compliance.check', array(
+            'object_type' => 'variant',
+            'object_id' => $variant_id,
+            'details' => array(
+                'level' => $level,
+                'passed' => $result['passed'],
+                'channel' => $channel,
+                'sponsor_id' => $context['sponsor_id'] ?? null,
+            ),
+            'user_id' => get_current_user_id(),
+        ) );
+
+        // Telemetry
+        ScheduleQueueProcessor::log_telemetry( 0, array(
+            'mode' => 'compliance_check',
+            'provider' => 'smma',
+            'variant_id' => $variant_id,
+            'level' => $level,
+            'passed' => $result['passed'],
+            'latency_ms' => 0, // Could track actual latency if needed
+        ) );
+
+        // Return API response
+        return rest_ensure_response( array(
+            'pass' => $result['passed'],
+            'level' => $level,
+            'flags' => $flags,
+            'suggested_edits' => $suggested_edits,
+            'confidence' => (float) ( $result['confidence_score'] ?? 0.9 ),
+            'details' => array(
+                'message' => $result['message'] ?? '',
+                'notes' => $result['notes'] ?? '',
+            ),
         ) );
     }
 

@@ -19,6 +19,7 @@ class FourAScoringService {
 	private string $person_table;
 	private string $company_table;
 	private string $weights_table;
+	private bool $tables_ready = false;
 
 	/**
 	 * @var array<string,array{base:float,category:string,stage:string}>
@@ -41,6 +42,11 @@ class FourAScoringService {
 		$this->company_table = $this->resolve_table_name( 'cp_scores_company' );
 		$this->weights_table = $this->resolve_table_name( 'cp_weights' );
 
+		$this->tables_ready = $this->table_exists( $this->events_table )
+			&& $this->table_exists( $this->person_table )
+			&& $this->table_exists( $this->company_table )
+			&& $this->table_exists( $this->weights_table );
+
 		$this->weights = $this->load_weights();
 	}
 
@@ -51,6 +57,13 @@ class FourAScoringService {
 	 * @return array{actors:int,companies:int}
 	 */
 	public function run( int $window_seconds = 7200 ): array {
+		if ( ! $this->tables_ready ) {
+			return array(
+				'actors'    => 0,
+				'companies' => 0,
+			);
+		}
+
 		$now          = time();
 		$window_start = gmdate( 'Y-m-d H:i:s', $now - $window_seconds );
 
@@ -293,6 +306,10 @@ class FourAScoringService {
 	}
 
 	private function upsert_person_score( array $data ): void {
+		if ( ! $this->table_exists( $this->person_table ) ) {
+			return;
+		}
+
 		$sql = $this->wpdb->prepare(
 			"INSERT INTO {$this->person_table}
 			(actor_email, score_date, person_score, stage, last_touch, last_touch_at, mql_flag, sql_flag, nba_recommendation, created_at, updated_at)
@@ -321,6 +338,10 @@ class FourAScoringService {
 	}
 
 	private function upsert_company_score( array $data ): void {
+		if ( ! $this->table_exists( $this->company_table ) ) {
+			return;
+		}
+
 		$sql = $this->wpdb->prepare(
 			"INSERT INTO {$this->company_table}
 			(company_domain, score_date, company_score, stage_mode, engaged_contacts, hot_flag, hot_since, nba_recommendation, created_at, updated_at)
@@ -347,6 +368,10 @@ class FourAScoringService {
 	}
 
 	private function get_candidate_actors( string $window_start ): array {
+		if ( ! $this->table_exists( $this->events_table ) ) {
+			return array();
+		}
+
 		return $this->wpdb->get_col(
 			$this->wpdb->prepare(
 				"SELECT DISTINCT actor_email FROM {$this->events_table} WHERE actor_email IS NOT NULL AND ingested_at >= %s",
@@ -356,6 +381,10 @@ class FourAScoringService {
 	}
 
 	private function get_candidate_companies( string $window_start ): array {
+		if ( ! $this->table_exists( $this->events_table ) ) {
+			return array();
+		}
+
 		return $this->wpdb->get_col(
 			$this->wpdb->prepare(
 				"SELECT DISTINCT company_domain FROM {$this->events_table} WHERE company_domain IS NOT NULL AND ingested_at >= %s",
@@ -365,6 +394,10 @@ class FourAScoringService {
 	}
 
 	private function get_events_for_actor( string $email ): array {
+		if ( ! $this->table_exists( $this->events_table ) ) {
+			return array();
+		}
+
 		$cutoff = gmdate( 'Y-m-d H:i:s', time() - ( self::PERSON_LOOKBACK_DAYS * DAY_IN_SECONDS ) );
 
 		return $this->wpdb->get_results(
@@ -378,6 +411,10 @@ class FourAScoringService {
 	}
 
 	private function get_events_for_company( string $domain ): array {
+		if ( ! $this->table_exists( $this->events_table ) ) {
+			return array();
+		}
+
 		$cutoff = gmdate( 'Y-m-d H:i:s', time() - ( self::PERSON_LOOKBACK_DAYS * DAY_IN_SECONDS ) );
 
 		return $this->wpdb->get_results(
@@ -391,6 +428,10 @@ class FourAScoringService {
 	}
 
 	private function load_weights(): array {
+		if ( ! $this->table_exists( $this->weights_table ) ) {
+			return array();
+		}
+
 		$rows = $this->wpdb->get_results(
 			"SELECT touchpoint, base_weight, stage_default, category FROM {$this->weights_table} WHERE is_active = 1",
 			ARRAY_A
@@ -459,8 +500,23 @@ class FourAScoringService {
 		$prefixed = $this->wpdb->prefix . $base;
 		$found    = $this->wpdb->get_var( $this->wpdb->prepare( 'SHOW TABLES LIKE %s', $prefixed ) );
 		if ( $found === $prefixed ) {
-			return $prefixed;
+		return $prefixed;
+	}
+
+	private function table_exists( string $table ): bool {
+		static $cache = array();
+
+		if ( isset( $cache[ $table ] ) ) {
+			return $cache[ $table ];
 		}
+
+		$found = $this->wpdb->get_var(
+			$this->wpdb->prepare( 'SHOW TABLES LIKE %s', $table )
+		);
+
+		$cache[ $table ] = ( $found === $table );
+		return $cache[ $table ];
+	}
 
 		$bare = $this->wpdb->get_var( $this->wpdb->prepare( 'SHOW TABLES LIKE %s', $base ) );
 		return ( $bare === $base ) ? $base : $prefixed;

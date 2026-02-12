@@ -302,4 +302,146 @@ Return JSON with: passed (boolean), message (string explaining any issues), conf
 
         return $results;
     }
+
+    /**
+     * Validate Google Ads draft for compliance.
+     *
+     * Checks all headlines and descriptions in all ad groups for:
+     * - Blacklisted phrases
+     * - Sponsor allowed claims (if applicable)
+     * - Character limits
+     * - Policy violations
+     *
+     * @param array $draft Google Ads draft with ad_groups
+     * @param array $context Validation context (sponsor_id, allowed_claims)
+     * @return array Validation result with overall status and per-group details
+     */
+    public function validate_google_ad_draft( array $draft, array $context = array() ): array {
+        if ( empty( $draft['ad_groups'] ) || ! is_array( $draft['ad_groups'] ) ) {
+            return array(
+                'passed' => true,
+                'message' => '',
+                'notes' => 'OK: No ad groups to validate',
+                'ad_group_results' => array(),
+            );
+        }
+
+        $ad_group_results = array();
+        $overall_passed = true;
+        $failure_messages = array();
+
+        foreach ( $draft['ad_groups'] as $index => $ad_group ) {
+            $group_key = 'group_' . $index;
+            $keyword_cluster = $ad_group['keyword_cluster'] ?? '';
+            $headlines = (array) ( $ad_group['headlines'] ?? array() );
+            $descriptions = (array) ( $ad_group['descriptions'] ?? array() );
+
+            $group_result = array(
+                'keyword_cluster' => $keyword_cluster,
+                'passed' => true,
+                'headline_violations' => array(),
+                'description_violations' => array(),
+            );
+
+            // Validate each headline
+            foreach ( $headlines as $h_index => $headline ) {
+                $check = $this->validate_rules( $headline, array_merge( $context, array(
+                    'channel' => 'google_ads',
+                ) ) );
+
+                if ( ! $check['passed'] ) {
+                    $group_result['passed'] = false;
+                    $overall_passed = false;
+                    $group_result['headline_violations'][] = array(
+                        'index' => $h_index,
+                        'text' => $headline,
+                        'issue' => $check['message'],
+                        'violation_type' => $check['violation_type'] ?? 'unknown',
+                    );
+                    $failure_messages[] = sprintf(
+                        'Ad group %d, headline %d: %s',
+                        $index + 1,
+                        $h_index + 1,
+                        $check['message']
+                    );
+                }
+
+                // Check headline length (Google Ads: max 30 chars)
+                if ( mb_strlen( $headline ) > 30 ) {
+                    $group_result['passed'] = false;
+                    $overall_passed = false;
+                    $group_result['headline_violations'][] = array(
+                        'index' => $h_index,
+                        'text' => $headline,
+                        'issue' => sprintf( 'Headline exceeds 30 characters (%d chars)', mb_strlen( $headline ) ),
+                        'violation_type' => 'length',
+                    );
+                    $failure_messages[] = sprintf(
+                        'Ad group %d, headline %d: Exceeds 30 characters',
+                        $index + 1,
+                        $h_index + 1
+                    );
+                }
+            }
+
+            // Validate each description
+            foreach ( $descriptions as $d_index => $description ) {
+                $check = $this->validate_rules( $description, array_merge( $context, array(
+                    'channel' => 'google_ads',
+                ) ) );
+
+                if ( ! $check['passed'] ) {
+                    $group_result['passed'] = false;
+                    $overall_passed = false;
+                    $group_result['description_violations'][] = array(
+                        'index' => $d_index,
+                        'text' => $description,
+                        'issue' => $check['message'],
+                        'violation_type' => $check['violation_type'] ?? 'unknown',
+                    );
+                    $failure_messages[] = sprintf(
+                        'Ad group %d, description %d: %s',
+                        $index + 1,
+                        $d_index + 1,
+                        $check['message']
+                    );
+                }
+
+                // Check description length (Google Ads: max 90 chars)
+                if ( mb_strlen( $description ) > 90 ) {
+                    $group_result['passed'] = false;
+                    $overall_passed = false;
+                    $group_result['description_violations'][] = array(
+                        'index' => $d_index,
+                        'text' => $description,
+                        'issue' => sprintf( 'Description exceeds 90 characters (%d chars)', mb_strlen( $description ) ),
+                        'violation_type' => 'length',
+                    );
+                    $failure_messages[] = sprintf(
+                        'Ad group %d, description %d: Exceeds 90 characters',
+                        $index + 1,
+                        $d_index + 1
+                    );
+                }
+            }
+
+            $ad_group_results[ $group_key ] = $group_result;
+        }
+
+        $message = '';
+        if ( ! $overall_passed ) {
+            $message = implode( '; ', array_slice( $failure_messages, 0, 3 ) );
+            if ( count( $failure_messages ) > 3 ) {
+                $message .= sprintf( ' (and %d more)', count( $failure_messages ) - 3 );
+            }
+        }
+
+        return array(
+            'passed' => $overall_passed,
+            'message' => $message,
+            'notes' => $overall_passed ? 'OK: All ad groups passed compliance' : 'FAIL: Compliance violations detected',
+            'ad_group_results' => $ad_group_results,
+            'total_violations' => count( $failure_messages ),
+        );
+    }
 }

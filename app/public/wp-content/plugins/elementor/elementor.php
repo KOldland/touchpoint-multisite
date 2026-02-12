@@ -28,6 +28,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
+// Guard against duplicate plugin load (can happen if Elementor is loaded twice).
+if ( defined( 'ELEMENTOR_VERSION' ) || class_exists( '\Elementor\Plugin', false ) ) {
+	return;
+}
+
 define( 'ELEMENTOR_VERSION', '3.34.1' );
 
 define( 'ELEMENTOR__FILE__', __FILE__ );
