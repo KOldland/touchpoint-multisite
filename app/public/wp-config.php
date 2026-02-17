@@ -38,7 +38,31 @@ define( 'DB_USER', 'root' );
 define( 'DB_PASSWORD', 'root' );
 
 /** Database hostname */
-define( 'DB_HOST', 'localhost:/Users/krisoldland/Library/Application Support/Local/run/wIie9Yz4U/mysql/mysqld.sock' );
+$env_db_host = getenv( 'TEMP_DB_HOST' );
+if ( ! $env_db_host ) {
+	$env_db_host = getenv( 'DB_HOST' );
+}
+
+if ( $env_db_host ) {
+	define( 'DB_HOST', $env_db_host );
+} else {
+	$local_run_base   = getenv( 'LOCAL_RUN_BASE' );
+	$local_run_base   = $local_run_base ? $local_run_base : '/Users/krisoldland/Library/Application Support/Local/run';
+	$socket_candidates = glob( rtrim( $local_run_base, '/' ) . '/*/mysql/mysqld.sock' );
+
+	if ( ! empty( $socket_candidates ) ) {
+		usort(
+			$socket_candidates,
+			static function ( $a, $b ) {
+				return ( filemtime( $b ) ?: 0 ) <=> ( filemtime( $a ) ?: 0 );
+			}
+		);
+		define( 'DB_HOST', 'localhost:' . $socket_candidates[0] );
+	} else {
+		// Fallback for environments using TCP MySQL on localhost.
+		define( 'DB_HOST', '127.0.0.1' );
+	}
+}
 
 /** Database charset to use in creating database tables. */
 define( 'DB_CHARSET', 'utf8' );
