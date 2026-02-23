@@ -13,6 +13,7 @@ This guide provides step-by-step instructions for manually testing all Membershi
 - REST API client (Postman, Insomnia, or curl)
 - Admin WordPress user account
 - Stripe CLI (for webhook testing)
+- Composer dependencies installed (`./install-deps.sh` in `wp-content/plugins/khm-plugin`)
 
 ---
 
