@@ -31,10 +31,7 @@ class StripeWebhookVerifier implements WebhookVerifierInterface {
                 return false;
             }
 
-            // Verify signature
-            \Stripe\Webhook::constructEvent($payload, $signature, $secret);
-
-            // Return parsed event to avoid double-parsing downstream.
+            // Verify signature and return parsed event.
             return \Stripe\Webhook::constructEvent($payload, $signature, $secret);
 
         } catch ( \Stripe\Exception\SignatureVerificationException $e ) {
@@ -98,10 +95,31 @@ class StripeWebhookVerifier implements WebhookVerifierInterface {
 
         // Common keys.
         if (!empty($lower['stripe-signature'])) {
-            return $lower['stripe-signature'];
+            return $this->normalizeHeaderValue($lower['stripe-signature']);
         }
         if (!empty($lower['http_stripe_signature'])) {
-            return $lower['http_stripe_signature'];
+            return $this->normalizeHeaderValue($lower['http_stripe_signature']);
+        }
+
+        return '';
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function normalizeHeaderValue($value): string {
+        // WP_REST_Request headers may be arrays. Stripe expects a raw string.
+        if (is_array($value)) {
+            foreach ($value as $candidate) {
+                if (is_string($candidate) && $candidate !== '') {
+                    return $candidate;
+                }
+            }
+            return '';
+        }
+
+        if (is_string($value)) {
+            return $value;
         }
 
         return '';
