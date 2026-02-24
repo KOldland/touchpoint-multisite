@@ -10029,7 +10029,6 @@ module.exports = Marionette.ItemView.extend({
   template: '#tmpl-elementor-template-library-connect-states',
   id: 'elementor-template-library-connect-states',
   ui: {
-    connect: '#elementor-template-library-connect__button',
     selectSourceFilter: '.elementor-template-library-filter-select-source .source-option',
     title: '.elementor-template-library-blank-title',
     message: '.elementor-template-library-blank-message',
@@ -10049,7 +10048,7 @@ module.exports = Marionette.ItemView.extend({
         title: (_elementorAppConfig$c = (_elementorAppConfig = elementorAppConfig) === null || _elementorAppConfig === void 0 || (_elementorAppConfig = _elementorAppConfig['cloud-library']) === null || _elementorAppConfig === void 0 ? void 0 : _elementorAppConfig.library_connect_title_copy) !== null && _elementorAppConfig$c !== void 0 ? _elementorAppConfig$c : __('Connect to your Elementor account', 'elementor'),
         message: (_elementorAppConfig$c2 = (_elementorAppConfig2 = elementorAppConfig) === null || _elementorAppConfig2 === void 0 || (_elementorAppConfig2 = _elementorAppConfig2['cloud-library']) === null || _elementorAppConfig2 === void 0 ? void 0 : _elementorAppConfig2.library_connect_sub_title_copy) !== null && _elementorAppConfig$c2 !== void 0 ? _elementorAppConfig$c2 : __('Then you can find all your templates in one convenient library.', 'elementor'),
         icon: defaultIcon,
-        button: "<a class=\"elementor-button e-primary\" href=\"".concat((_elementorAppConfig3 = elementorAppConfig) === null || _elementorAppConfig3 === void 0 || (_elementorAppConfig3 = _elementorAppConfig3['cloud-library']) === null || _elementorAppConfig3 === void 0 ? void 0 : _elementorAppConfig3.library_connect_url, "\" target=\"_blank\">").concat((_elementorAppConfig$c3 = (_elementorAppConfig4 = elementorAppConfig) === null || _elementorAppConfig4 === void 0 || (_elementorAppConfig4 = _elementorAppConfig4['cloud-library']) === null || _elementorAppConfig4 === void 0 ? void 0 : _elementorAppConfig4.library_connect_button_copy) !== null && _elementorAppConfig$c3 !== void 0 ? _elementorAppConfig$c3 : __('Connect', 'elementor'), "</a>")
+        button: "<a class=\"elementor-button e-primary connect-button\" href=\"".concat((_elementorAppConfig3 = elementorAppConfig) === null || _elementorAppConfig3 === void 0 || (_elementorAppConfig3 = _elementorAppConfig3['cloud-library']) === null || _elementorAppConfig3 === void 0 ? void 0 : _elementorAppConfig3.library_connect_url, "\" target=\"_blank\">").concat((_elementorAppConfig$c3 = (_elementorAppConfig4 = elementorAppConfig) === null || _elementorAppConfig4 === void 0 || (_elementorAppConfig4 = _elementorAppConfig4['cloud-library']) === null || _elementorAppConfig4 === void 0 ? void 0 : _elementorAppConfig4.library_connect_button_copy) !== null && _elementorAppConfig$c3 !== void 0 ? _elementorAppConfig$c3 : __('Connect', 'elementor'), "</a>")
       },
       connectedNoQuota: {
         title: __('It’s time to level up', 'elementor'),
@@ -10121,13 +10120,21 @@ module.exports = Marionette.ItemView.extend({
     this.ui.icon.html(modeStrings.icon);
   },
   handleElementorConnect: function handleElementorConnect() {
-    this.ui.connect.elementorConnect({
+    var $connectButton = this.$el.find('.connect-button');
+    if (!$connectButton.length) {
+      return;
+    }
+    $connectButton.elementorConnect({
+      popup: {
+        width: 726,
+        height: 534
+      },
       success: function success() {
         elementor.config.library_connect.is_connected = true;
-        $e.run('library/close');
         elementor.notifications.showToast({
           message: __('Connected successfully.', 'elementor')
         });
+        $e.routes.refreshContainer('library');
       },
       error: function error() {
         elementor.config.library_connect.is_connected = false;
@@ -14497,7 +14504,7 @@ var _default = exports["default"] = /*#__PURE__*/function (_ControlBaseDataView)
         }).html(_.escape(globalData.title)),
         $colorHex = jQuery('<span>', {
           class: 'e-global__color-hex'
-        }).html(globalData.value);
+        }).text(globalData.value);
       $color.append($colorPreview, $colorTitle, $colorHex);
       return $color;
     }
@@ -15214,15 +15221,23 @@ ControlMediaItemView = ControlBaseDataView.extend({
     elementor.config.user.dismissed_editor_notices.push(eventName);
   },
   onPromotionAction: function onPromotionAction(event) {
-    var _JSON$parse = JSON.parse(event.target.closest('button').dataset.settings),
-      _JSON$parse$action_ur = _JSON$parse.action_url,
-      actionURL = _JSON$parse$action_ur === void 0 ? null : _JSON$parse$action_ur;
+    var settings = {};
+    try {
+      settings = JSON.parse(event.target.closest('button').dataset.settings);
+    } catch (e) {
+      // Do nothing.
+    }
+    var _settings = settings,
+      _settings$action_url = _settings.action_url,
+      actionURL = _settings$action_url === void 0 ? null : _settings$action_url,
+      _settings$source = _settings.source,
+      source = _settings$source === void 0 ? 'io-editor-gallery-install' : _settings$source;
     if (actionURL) {
       window.open(actionURL, '_blank');
     }
     elementorCommon.ajax.addRequest('elementor_image_optimization_campaign', {
       data: {
-        source: 'io-editor-gallery-install'
+        source: source
       }
     });
     this.hidePromotion();
@@ -16082,13 +16097,21 @@ ControlMediaItemView = ControlMultipleBaseItemView.extend({
     this.dismissPromotion(this.getDismissPromotionEventName());
   },
   onPromotionAction: function onPromotionAction(event) {
-    var _JSON$parse = JSON.parse(event.target.closest('button').dataset.settings),
-      _JSON$parse$action_ur = _JSON$parse.action_url,
-      actionURL = _JSON$parse$action_ur === void 0 ? null : _JSON$parse$action_ur;
+    var settings = {};
+    try {
+      settings = JSON.parse(event.target.closest('button').dataset.settings);
+    } catch (e) {
+      // Do nothing.
+    }
+    var _settings = settings,
+      _settings$action_url = _settings.action_url,
+      actionURL = _settings$action_url === void 0 ? null : _settings$action_url,
+      _settings$source = _settings.source,
+      source = _settings$source === void 0 ? 'io-editor-image-install' : _settings$source;
     if (actionURL) {
       window.open(actionURL, '_blank');
     }
-    this.hidePromotion();
+    this.hidePromotion(null, source);
   },
   dismissPromotion: function dismissPromotion(eventName) {
     this.hidePromotion(eventName);
@@ -16102,6 +16125,7 @@ ControlMediaItemView = ControlMultipleBaseItemView.extend({
   },
   hidePromotion: function hidePromotion() {
     var eventName = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : null;
+    var source = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'io-editor-image-install';
     var $promotions = this.ui.promotions;
     $promotions.hide();
     if (!eventName) {
@@ -16109,7 +16133,7 @@ ControlMediaItemView = ControlMultipleBaseItemView.extend({
     }
     elementorCommon.ajax.addRequest('elementor_image_optimization_campaign', {
       data: {
-        source: 'io-editor-image-install'
+        source: source
       }
     });
 
@@ -26753,7 +26777,7 @@ var Save = exports.Save = /*#__PURE__*/function (_$e$modules$CommandIn) {
       var _apply = (0, _asyncToGenerator2.default)(/*#__PURE__*/_regenerator.default.mark(function _callee(args) {
         var _elementorCommon$conf,
           _this = this;
-        var _args$status, status, _args$force, force, _args$onSuccess, onSuccess, _args$document, document, container, settings, oldStatus, _elementorCommon$__be, _elementorCommon, elements, successArgs, deferred;
+        var _args$status, status, _args$force, force, _args$onSuccess, onSuccess, _args$document, document, container, _elementorCommon$__be, _elementorCommon, settings, oldStatus, elements, successArgs, deferred;
         return _regenerator.default.wrap(function (_context) {
           while (1) switch (_context.prev = _context.next) {
             case 0:
@@ -26764,16 +26788,7 @@ var Save = exports.Save = /*#__PURE__*/function (_$e$modules$CommandIn) {
               }
               return _context.abrupt("return", jQuery.Deferred().reject('Document already in save progress'));
             case 1:
-              container = document.container, settings = container.settings.toJSON({
-                remove: ['default']
-              }), oldStatus = container.settings.get('post_status');
-              this.addPersistentSettingsToPayload(settings, container);
-
-              // TODO: Remove - Backwards compatibility.
-              elementor.saver.trigger('before:save', args).trigger('before:save:' + status, args);
-              document.editor.isSaving = true;
-              document.editor.isChangedDuringSave = false;
-              settings.post_status = status;
+              container = document.container;
               if (!((_elementorCommon$conf = elementorCommon.config.experimentalFeatures) !== null && _elementorCommon$conf !== void 0 && _elementorCommon$conf.e_components)) {
                 _context.next = 2;
                 break;
@@ -26784,6 +26799,17 @@ var Save = exports.Save = /*#__PURE__*/function (_$e$modules$CommandIn) {
                 status: status
               });
             case 2:
+              settings = container.settings.toJSON({
+                remove: ['default']
+              });
+              oldStatus = container.settings.get('post_status');
+              this.addPersistentSettingsToPayload(settings, container);
+
+              // TODO: Remove - Backwards compatibility.
+              elementor.saver.trigger('before:save', args).trigger('before:save:' + status, args);
+              document.editor.isSaving = true;
+              document.editor.isChangedDuringSave = false;
+              settings.post_status = status;
               elements = [];
               if (elementor.config.document.panel.has_elements) {
                 elements = container.model.get('elements').toJSON({
@@ -28697,7 +28723,8 @@ var EditorBase = exports["default"] = /*#__PURE__*/function (_Marionette$Applica
   }, {
     key: "getPreviewContainer",
     value: function getPreviewContainer() {
-      return this.getPreviewView().getContainer();
+      var _this$getPreviewView;
+      return (_this$getPreviewView = this.getPreviewView()) === null || _this$getPreviewView === void 0 ? void 0 : _this$getPreviewView.getContainer();
     }
   }, {
     key: "getContainer",
@@ -29421,7 +29448,7 @@ var EditorBase = exports["default"] = /*#__PURE__*/function (_Marionette$Applica
               return _context.abrupt("return");
             case 1:
               _context.next = 2;
-              return Promise.all(/*! import() */[__webpack_require__.e("app_modules_onboarding_assets_js_utils_modules_post-onboarding-tracker_js"), __webpack_require__.e("assets_dev_js_editor_utils_post-onboarding-tracking_js")]).then(__webpack_require__.bind(__webpack_require__, /*! ./utils/post-onboarding-tracking */ "../assets/dev/js/editor/utils/post-onboarding-tracking.js"));
+              return Promise.all(/*! import() */[__webpack_require__.e("vendors-node_modules_mixpanel-browser_dist_mixpanel_module_js"), __webpack_require__.e("app_modules_onboarding_assets_js_utils_modules_post-onboarding-tracker_js"), __webpack_require__.e("assets_dev_js_editor_utils_post-onboarding-tracking_js")]).then(__webpack_require__.bind(__webpack_require__, /*! ./utils/post-onboarding-tracking */ "../assets/dev/js/editor/utils/post-onboarding-tracking.js"));
             case 2:
               _yield$import = _context.sent;
               PostOnboardingTracking = _yield$import.default;
@@ -35513,6 +35540,60 @@ var _default = exports["default"] = Close;
 
 /***/ }),
 
+/***/ "../assets/dev/js/editor/regions/navigator/commands/expand-all.js":
+/*!************************************************************************!*\
+  !*** ../assets/dev/js/editor/regions/navigator/commands/expand-all.js ***!
+  \************************************************************************/
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+"use strict";
+
+
+var _interopRequireDefault = __webpack_require__(/*! @babel/runtime/helpers/interopRequireDefault */ "../node_modules/@babel/runtime/helpers/interopRequireDefault.js");
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+exports["default"] = exports.ExpandAll = void 0;
+var _classCallCheck2 = _interopRequireDefault(__webpack_require__(/*! @babel/runtime/helpers/classCallCheck */ "../node_modules/@babel/runtime/helpers/classCallCheck.js"));
+var _createClass2 = _interopRequireDefault(__webpack_require__(/*! @babel/runtime/helpers/createClass */ "../node_modules/@babel/runtime/helpers/createClass.js"));
+var _possibleConstructorReturn2 = _interopRequireDefault(__webpack_require__(/*! @babel/runtime/helpers/possibleConstructorReturn */ "../node_modules/@babel/runtime/helpers/possibleConstructorReturn.js"));
+var _getPrototypeOf2 = _interopRequireDefault(__webpack_require__(/*! @babel/runtime/helpers/getPrototypeOf */ "../node_modules/@babel/runtime/helpers/getPrototypeOf.js"));
+var _inherits2 = _interopRequireDefault(__webpack_require__(/*! @babel/runtime/helpers/inherits */ "../node_modules/@babel/runtime/helpers/inherits.js"));
+function _callSuper(t, o, e) { return o = (0, _getPrototypeOf2.default)(o), (0, _possibleConstructorReturn2.default)(t, _isNativeReflectConstruct() ? Reflect.construct(o, e || [], (0, _getPrototypeOf2.default)(t).constructor) : o.apply(t, e)); }
+function _isNativeReflectConstruct() { try { var t = !Boolean.prototype.valueOf.call(Reflect.construct(Boolean, [], function () {})); } catch (t) {} return (_isNativeReflectConstruct = function _isNativeReflectConstruct() { return !!t; })(); }
+var ExpandAll = exports.ExpandAll = /*#__PURE__*/function (_$e$modules$CommandBa) {
+  function ExpandAll() {
+    (0, _classCallCheck2.default)(this, ExpandAll);
+    return _callSuper(this, ExpandAll, arguments);
+  }
+  (0, _inherits2.default)(ExpandAll, _$e$modules$CommandBa);
+  return (0, _createClass2.default)(ExpandAll, [{
+    key: "apply",
+    value: function apply() {
+      if (this.component.isOpen) {
+        this.expandAllElements();
+      } else {
+        this.openNavigator();
+      }
+    }
+  }, {
+    key: "openNavigator",
+    value: function openNavigator() {
+      $e.run('navigator/open', {
+        expandAllElements: true
+      });
+    }
+  }, {
+    key: "expandAllElements",
+    value: function expandAllElements() {
+      this.component.manager.currentView.elements.currentView.recursiveChildInvoke('toggleList', true);
+    }
+  }]);
+}($e.modules.CommandBase);
+var _default = exports["default"] = ExpandAll;
+
+/***/ }),
+
 /***/ "../assets/dev/js/editor/regions/navigator/commands/index.js":
 /*!*******************************************************************!*\
   !*** ../assets/dev/js/editor/regions/navigator/commands/index.js ***!
@@ -35531,6 +35612,12 @@ Object.defineProperty(exports, "Close", ({
     return _close.Close;
   }
 }));
+Object.defineProperty(exports, "ExpandAll", ({
+  enumerable: true,
+  get: function get() {
+    return _expandAll.ExpandAll;
+  }
+}));
 Object.defineProperty(exports, "Open", ({
   enumerable: true,
   get: function get() {
@@ -35544,6 +35631,7 @@ Object.defineProperty(exports, "Toggle", ({
   }
 }));
 var _close = __webpack_require__(/*! ./close */ "../assets/dev/js/editor/regions/navigator/commands/close.js");
+var _expandAll = __webpack_require__(/*! ./expand-all */ "../assets/dev/js/editor/regions/navigator/commands/expand-all.js");
 var _open = __webpack_require__(/*! ./open */ "../assets/dev/js/editor/regions/navigator/commands/open.js");
 var _toggle = __webpack_require__(/*! ./toggle */ "../assets/dev/js/editor/regions/navigator/commands/toggle.js");
 
@@ -35578,8 +35666,8 @@ var Open = exports.Open = /*#__PURE__*/function (_$e$modules$CommandBa) {
   (0, _inherits2.default)(Open, _$e$modules$CommandBa);
   return (0, _createClass2.default)(Open, [{
     key: "apply",
-    value: function apply() {
-      $e.route(this.component.getNamespace());
+    value: function apply(args) {
+      $e.route(this.component.getNamespace(), args);
     }
   }]);
 }($e.modules.CommandBase);
@@ -35695,8 +35783,12 @@ var Component = exports["default"] = /*#__PURE__*/function (_ComponentBase) {
     key: "open",
     value: function open(args) {
       var _args$model = args.model,
-        model = _args$model === void 0 ? false : _args$model;
-      this.manager.open(model);
+        model = _args$model === void 0 ? false : _args$model,
+        _args$expandAllElemen = args.expandAllElements,
+        expandAllElements = _args$expandAllElemen === void 0 ? false : _args$expandAllElemen;
+      this.manager.open(model, {
+        expandAllElements: expandAllElements
+      });
       return true;
     }
   }, {
@@ -35903,6 +35995,12 @@ var _default = exports["default"] = /*#__PURE__*/function (_Marionette$Composite
       this.childViewContainer = '.elementor-navigator__elements';
       this.listenTo(this.model, 'change', this.onModelChange).listenTo(this.model.get('settings'), 'change', this.onModelSettingsChange);
       this.listenTo(this.model, 'change:editor_settings', this.onModelEditorSettingsChange);
+      this.listenTo(this.model, 'title_external_change', this.onTitleExternalChange);
+    }
+  }, {
+    key: "onTitleExternalChange",
+    value: function onTitleExternalChange() {
+      this.ui.title.text(this.model.getTitle());
     }
   }, {
     key: "onModelEditorSettingsChange",
@@ -36597,7 +36695,7 @@ var _default = exports["default"] = /*#__PURE__*/function (_BaseRegion) {
     }
   }, {
     key: "open",
-    value: function open(model) {
+    value: function open(model, options) {
       this.$el.show();
       this.setSize();
       if (this.storage.docked) {
@@ -36605,6 +36703,9 @@ var _default = exports["default"] = /*#__PURE__*/function (_BaseRegion) {
       }
       if (model) {
         model.trigger('request:edit');
+      }
+      if (options !== null && options !== void 0 && options.expandAllElements) {
+        this.currentView.elements.currentView.recursiveChildInvoke('toggleList', true);
       }
       this.saveStorage('visible', true);
       this.ensurePosition();
@@ -43758,11 +43859,14 @@ module.exports = Marionette.CompositeView.extend({
     if (options.edit && elementor.documents.getCurrent().history.getActive()) {
       // Ensure container is created. TODO: Open editor via UI hook after `document/elements/create`.
       newView.getContainer();
-      newModel.trigger('request:edit', {
-        scrollIntoView: options.scrollIntoView
-      });
+      newView._openEditingPanel(options);
     }
     return newView;
+  },
+  _openEditingPanel: function _openEditingPanel(options) {
+    this.model.trigger('request:edit', {
+      scrollIntoView: options.scrollIntoView
+    });
   },
   createElementFromContainer: function createElementFromContainer(container) {
     var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
@@ -49283,8 +49387,10 @@ var TemplatesModule = exports["default"] = /*#__PURE__*/function (_elementorModu
       elementor.templates.getDefaultTemplateTypeData().then(function (templateTypesData) {
         var _elementor;
         jQuery.each((_elementor = elementor) === null || _elementor === void 0 || (_elementor = _elementor.config) === null || _elementor === void 0 || (_elementor = _elementor.library) === null || _elementor === void 0 ? void 0 : _elementor.doc_types, function (type, title) {
-          var safeData = jQuery.extend(true, {}, templateTypesData, elementor.templates.getDefaultTemplateTypeSafeData(title));
-          elementor.templates.registerTemplateType(type, safeData);
+          elementor.templates.getDefaultTemplateTypeSafeData(title).then(function (defaultData) {
+            var safeData = jQuery.extend(true, {}, templateTypesData, defaultData);
+            elementor.templates.registerTemplateType(type, safeData);
+          });
         });
       });
     }
@@ -63478,7 +63584,8 @@ module.exports = ReactDOM;
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames not based on template
-/******/ 			if (chunkId === "app_modules_onboarding_assets_js_utils_modules_post-onboarding-tracker_js") return "b2e8e6071c9bc14c04e4.bundle.js";
+/******/ 			if (chunkId === "vendors-node_modules_mixpanel-browser_dist_mixpanel_module_js") return "e4d209bf3a704ff88e1a.bundle.js";
+/******/ 			if (chunkId === "app_modules_onboarding_assets_js_utils_modules_post-onboarding-tracker_js") return "29f5723514661bfdffd8.bundle.js";
 /******/ 			if (chunkId === "assets_dev_js_editor_utils_post-onboarding-tracking_js") return "e883e6638ef93bfd3204.bundle.js";
 /******/ 			// return url for filenames based on template
 /******/ 			return undefined;

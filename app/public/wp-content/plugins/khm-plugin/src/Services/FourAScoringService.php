@@ -500,7 +500,11 @@ class FourAScoringService {
 		$prefixed = $this->wpdb->prefix . $base;
 		$found    = $this->wpdb->get_var( $this->wpdb->prepare( 'SHOW TABLES LIKE %s', $prefixed ) );
 		if ( $found === $prefixed ) {
-		return $prefixed;
+			return $prefixed;
+		}
+
+		$bare = $this->wpdb->get_var( $this->wpdb->prepare( 'SHOW TABLES LIKE %s', $base ) );
+		return ( $bare === $base ) ? $base : $prefixed;
 	}
 
 	private function table_exists( string $table ): bool {
@@ -516,10 +520,6 @@ class FourAScoringService {
 
 		$cache[ $table ] = ( $found === $table );
 		return $cache[ $table ];
-	}
-
-		$bare = $this->wpdb->get_var( $this->wpdb->prepare( 'SHOW TABLES LIKE %s', $base ) );
-		return ( $bare === $base ) ? $base : $prefixed;
 	}
 
 	private function ratio( float $value, float $median ): float {

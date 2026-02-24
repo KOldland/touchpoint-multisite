@@ -79,8 +79,26 @@ final class Pojo_Accessibility {
 	}
 
 	private function __construct() {
-		// Load Composer autoloader
-		require_once EA11Y_PATH . 'vendor/autoload.php';
+		// Load Composer autoloader when present. Some local restores can miss vendor subpackages.
+		$vendor_autoload = EA11Y_PATH . 'vendor/autoload.php';
+		$vendor_runner   = EA11Y_PATH . 'vendor/elementor/wp-one-package/runner.php';
+
+		if ( file_exists( $vendor_autoload ) && file_exists( $vendor_runner ) ) {
+			require_once EA11Y_PATH . 'vendor/autoload.php';
+		} else {
+			add_action(
+				'admin_notices',
+				static function () {
+					if ( ! current_user_can( 'manage_options' ) ) {
+						return;
+					}
+
+					echo '<div class="notice notice-warning"><p>';
+					echo esc_html__( 'Ally (Pojo Accessibility): Composer dependencies are incomplete. Running in limited mode.', 'pojo-accessibility' );
+					echo '</p></div>';
+				}
+			);
+		}
 
 		// Init Plugin
 		add_action( 'plugins_loaded', [ $this, 'init' ] );

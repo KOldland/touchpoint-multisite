@@ -75,7 +75,33 @@ class WebhooksController {
 			'/webhooks/stripe',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'handle_stripe' ),
+				'callback'            => function( $request ) {
+					return $this->handle_stripe( $request, 'all' );
+				},
+				'permission_callback' => '__return_true',
+			)
+		);
+
+		register_rest_route(
+			'khm/v1',
+			'/webhooks/stripe/marketing',
+			array(
+				'methods'             => 'POST',
+				'callback'            => function( $request ) {
+					return $this->handle_stripe( $request, 'marketing' );
+				},
+				'permission_callback' => '__return_true',
+			)
+		);
+
+		register_rest_route(
+			'khm/v1',
+			'/webhooks/stripe/billing',
+			array(
+				'methods'             => 'POST',
+				'callback'            => function( $request ) {
+					return $this->handle_stripe( $request, 'billing' );
+				},
 				'permission_callback' => '__return_true',
 			)
 		);
@@ -87,9 +113,9 @@ class WebhooksController {
 	 * @param \WP_REST_Request $request Full request instance.
 	 * @return \WP_REST_Response|\WP_Error REST response or error if validation fails.
 	 */
-	public function handle_stripe( $request ) {
+	public function handle_stripe( $request, string $scope = 'all' ) {
 		// Get webhook secret from options.
-		$secret = get_option( 'khm_stripe_webhook_secret', '' );
+		$secret = $this->resolveWebhookSecret( $scope );
 		if ( empty( $secret ) ) {
 			return new \WP_Error( 'khm_missing_secret', 'Stripe webhook is not configured (missing secret).', array( 'status' => 500 ) );
 		}
@@ -116,6 +142,19 @@ class WebhooksController {
 
 		if ( empty( $eventId ) ) {
 			return new \WP_Error( 'khm_missing_event_id', 'Missing event id in payload.', array( 'status' => 400 ) );
+		}
+
+		if ( ! $this->isEventAllowedForScope( $eventType, $scope ) ) {
+			return new \WP_REST_Response(
+				array(
+					'ok'     => true,
+					'status' => 'ignored',
+					'id'     => $eventId,
+					'type'   => $eventType,
+					'scope'  => $scope,
+				),
+				200
+			);
 		}
 
 		// Idempotency check.
@@ -175,6 +214,37 @@ class WebhooksController {
 		);
 	}
 
+	private function resolveWebhookSecret( string $scope ): string {
+		if ( $scope === 'marketing' ) {
+			$secret = (string) get_option( 'khm_stripe_webhook_secret_marketing', '' );
+			if ( $secret !== '' ) {
+				return $secret;
+			}
+		}
+
+		if ( $scope === 'billing' ) {
+			$secret = (string) get_option( 'khm_stripe_webhook_secret_billing', '' );
+			if ( $secret !== '' ) {
+				return $secret;
+			}
+		}
+
+		return (string) get_option( 'khm_stripe_webhook_secret', '' );
+	}
+
+	private function isEventAllowedForScope( string $eventType, string $scope ): bool {
+		$eventType = strtolower( $eventType );
+		if ( $scope === 'marketing' ) {
+			return in_array( $eventType, [ 'product.updated', 'product.created' ], true );
+		}
+
+		if ( $scope === 'billing' ) {
+			return ! in_array( $eventType, [ 'product.updated', 'product.created' ], true );
+		}
+
+		return true;
+	}
+
 	/**
 	 * Built-in handling for common Stripe events: create/update orders and memberships.
 	 *
@@ -224,6 +294,10 @@ class WebhooksController {
 
 			case 'checkout.session.completed':
 				$this->handle_checkout_session_completed( $obj );
+				break;
+
+			case 'product.updated':
+				$this->handle_product_updated( $obj );
 				break;
 
 			default:
@@ -830,6 +904,51 @@ class WebhooksController {
 		$this->persist_stripe_ids( (int) $userId, $session );
 
 		do_action( 'khm_stripe_checkout_session_completed_handled', $session, (int) $userId, (int) $levelId, $status );
+	}
+
+	/**
+	 * Handle Stripe product.updated events by syncing marketing copy into level metadata.
+	 *
+	 * @param object $product Stripe Product object.
+	 * @return void
+	 */
+	protected function handle_product_updated( object $product ): void {
+		$productId = isset( $product->id ) ? trim( (string) $product->id ) : '';
+		if ( $productId === '' ) {
+			return;
+		}
+		if ( ! \KHM\Services\StripeMarketingImporter::isValidProductId( $productId ) ) {
+			error_log( 'Stripe product.updated ignored due to invalid product id format: ' . $productId );
+			return;
+		}
+
+		$meta = isset( $product->metadata ) ? $product->metadata : null;
+		$levelId = null;
+		if ( is_object( $meta ) && isset( $meta->wp_level_id ) ) {
+			$levelId = (int) $meta->wp_level_id;
+		} elseif ( is_array( $meta ) && isset( $meta['wp_level_id'] ) ) {
+			$levelId = (int) $meta['wp_level_id'];
+		}
+
+		$args = [ $productId, (int) ( $levelId ?? 0 ) ];
+		$hook = 'khm_import_stripe_marketing_product_updated';
+		$queueKey = 'khm_stripe_marketing_queue_lock_' . md5( $productId );
+		$recentlyQueued = function_exists( 'get_transient' ) ? (int) get_transient( $queueKey ) : 0;
+		if ( $recentlyQueued > 0 && ( time() - $recentlyQueued ) < 10 ) {
+			return;
+		}
+
+		if ( ! function_exists( 'wp_next_scheduled' ) || ! function_exists( 'wp_schedule_single_event' ) ) {
+			return;
+		}
+
+		if ( ! wp_next_scheduled( $hook, $args ) ) {
+			wp_schedule_single_event( time() + 5, $hook, $args );
+		}
+		if ( function_exists( 'set_transient' ) ) {
+			set_transient( $queueKey, time(), 15 );
+		}
+		do_action( 'khm_stripe_product_updated_import_queued', $productId, $levelId );
 	}
 
 	/**
