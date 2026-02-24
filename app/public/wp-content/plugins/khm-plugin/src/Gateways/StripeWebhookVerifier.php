@@ -17,6 +17,12 @@ class StripeWebhookVerifier implements WebhookVerifierInterface {
      * Verify the webhook signature.
      */
     public function verify( string $payload, array $headers, string $secret ) {
+        $secret = trim( $secret );
+        if ( $secret === '' ) {
+            error_log( 'Stripe webhook: Empty signing secret' );
+            return false;
+        }
+
         try {
             // Load Stripe library
             if ( ! class_exists('\Stripe\Stripe') ) {
@@ -36,10 +42,10 @@ class StripeWebhookVerifier implements WebhookVerifierInterface {
 
         } catch ( \Stripe\Exception\SignatureVerificationException $e ) {
             error_log('Stripe webhook signature verification failed: ' . $e->getMessage());
-            return false;
+            return $this->verifySignatureManually( $payload, $headers, $secret );
         } catch ( \Exception $e ) {
             error_log('Stripe webhook verification error: ' . $e->getMessage());
-            return false;
+            return $this->verifySignatureManually( $payload, $headers, $secret );
         }
     }
 
@@ -97,8 +103,14 @@ class StripeWebhookVerifier implements WebhookVerifierInterface {
         if (!empty($lower['stripe-signature'])) {
             return $this->normalizeHeaderValue($lower['stripe-signature']);
         }
+        if (!empty($lower['stripe_signature'])) {
+            return $this->normalizeHeaderValue($lower['stripe_signature']);
+        }
         if (!empty($lower['http_stripe_signature'])) {
             return $this->normalizeHeaderValue($lower['http_stripe_signature']);
+        }
+        if (!empty($lower['http-stripe-signature'])) {
+            return $this->normalizeHeaderValue($lower['http-stripe-signature']);
         }
 
         return '';
@@ -112,16 +124,57 @@ class StripeWebhookVerifier implements WebhookVerifierInterface {
         if (is_array($value)) {
             foreach ($value as $candidate) {
                 if (is_string($candidate) && $candidate !== '') {
-                    return $candidate;
+                    return trim($candidate);
                 }
             }
             return '';
         }
 
         if (is_string($value)) {
-            return $value;
+            return trim($value);
         }
 
         return '';
+    }
+
+    /**
+     * Manual Stripe signature verification fallback.
+     *
+     * @return object|false
+     */
+    private function verifySignatureManually( string $payload, array $headers, string $secret ) {
+        $signature = $this->extractSignature( $headers );
+        if ( $signature === '' ) {
+            return false;
+        }
+
+        $parts = array();
+        foreach ( explode( ',', $signature ) as $segment ) {
+            $pair = explode( '=', trim( $segment ), 2 );
+            if ( count( $pair ) === 2 ) {
+                $parts[ $pair[0] ][] = $pair[1];
+            }
+        }
+
+        $timestamp = isset( $parts['t'][0] ) ? trim( (string) $parts['t'][0] ) : '';
+        $v1Sigs    = isset( $parts['v1'] ) && is_array( $parts['v1'] ) ? $parts['v1'] : array();
+        if ( $timestamp === '' || empty( $v1Sigs ) ) {
+            return false;
+        }
+
+        // Keep Stripe's default 5-minute tolerance.
+        if ( abs( time() - (int) $timestamp ) > 300 ) {
+            return false;
+        }
+
+        $signedPayload = $timestamp . '.' . $payload;
+        $expected      = hash_hmac( 'sha256', $signedPayload, $secret );
+        foreach ( $v1Sigs as $candidate ) {
+            if ( is_string( $candidate ) && hash_equals( $expected, trim( $candidate ) ) ) {
+                return $this->parseEvent( $payload );
+            }
+        }
+
+        return false;
     }
 }
