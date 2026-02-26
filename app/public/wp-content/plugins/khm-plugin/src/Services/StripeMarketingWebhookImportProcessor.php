@@ -4,11 +4,15 @@ namespace KHM\Services;
 
 class StripeMarketingWebhookImportProcessor {
 
-	private StripeMarketingImporter $importer;
+	/** @var object */
+	private $importer;
 	private ?StripeMarketingImportDeadLetterStore $deadLetterStore;
 
-	public function __construct( ?StripeMarketingImporter $importer = null, ?StripeMarketingImportDeadLetterStore $deadLetterStore = null ) {
-		$this->importer = $importer ?: new StripeMarketingImporter( new LevelRepository() );
+	/**
+	 * @param object|null $importer Importer implementing importProductToLevel().
+	 */
+	public function __construct( $importer = null, ?StripeMarketingImportDeadLetterStore $deadLetterStore = null ) {
+		$this->importer = $importer ?: $this->resolveImporter();
 		$this->deadLetterStore = $deadLetterStore ?: ( class_exists( StripeMarketingImportDeadLetterStore::class ) ? new StripeMarketingImportDeadLetterStore() : null );
 	}
 
@@ -118,5 +122,17 @@ class StripeMarketingWebhookImportProcessor {
 				wp_schedule_single_event( time() + max( 1, $delay ), $hook, $args );
 			}
 		}
+	}
+
+	/**
+	 * @return object
+	 */
+	private function resolveImporter() {
+		$useMirror = function_exists( 'khm_use_stripe_level_mirror_importer' ) && khm_use_stripe_level_mirror_importer();
+		if ( $useMirror && class_exists( StripeLevelMirrorImporter::class ) ) {
+			return new StripeLevelMirrorImporter( new LevelRepository() );
+		}
+
+		return new StripeMarketingImporter( new LevelRepository() );
 	}
 }

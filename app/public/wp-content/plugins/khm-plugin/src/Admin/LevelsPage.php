@@ -797,7 +797,7 @@ class LevelsPage {
 		}
 
 		try {
-			$importer = new \KHM\Services\StripeMarketingImporter( new \KHM\Services\LevelRepository() );
+			$importer = $this->resolveStripeImporter();
 			$result = $importer->importProductToLevel( $product_id, null, false, 'admin_post' );
 			$message = ! empty( $result['created'] )
 				? __( 'Level created and mirrored from Stripe successfully.', 'khm-membership' )
@@ -1169,12 +1169,30 @@ class LevelsPage {
 		}
 
 		try {
-			$importer = new \KHM\Services\StripeMarketingImporter( new \KHM\Services\LevelRepository() );
+			$importer = $this->resolveStripeImporter();
 			$result = $importer->importProductToLevel( $productId, $levelId, false, 'ajax' );
-			wp_send_json_success( [ 'lines' => $result['lines'] ] );
+			$lines = [];
+			if ( isset( $result['lines'] ) && is_array( $result['lines'] ) ) {
+				$lines = $result['lines'];
+			} elseif ( isset( $result['meta_payload']['presentation']['marketing_features'] ) && is_array( $result['meta_payload']['presentation']['marketing_features'] ) ) {
+				$lines = array_values( array_map( 'strval', $result['meta_payload']['presentation']['marketing_features'] ) );
+			}
+			wp_send_json_success( [ 'lines' => $lines ] );
 		} catch ( \Throwable $e ) {
 			wp_send_json_error( $e->getMessage(), 500 );
 		}
+	}
+
+	/**
+	 * @return object Importer implementing importProductToLevel().
+	 */
+	private function resolveStripeImporter() {
+		$useMirror = function_exists( 'khm_use_stripe_level_mirror_importer' ) && khm_use_stripe_level_mirror_importer();
+		if ( $useMirror && class_exists( \KHM\Services\StripeLevelMirrorImporter::class ) ) {
+			return new \KHM\Services\StripeLevelMirrorImporter( new \KHM\Services\LevelRepository() );
+		}
+
+		return new \KHM\Services\StripeMarketingImporter( new \KHM\Services\LevelRepository() );
 	}
 }
 

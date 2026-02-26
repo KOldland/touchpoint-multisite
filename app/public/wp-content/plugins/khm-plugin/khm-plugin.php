@@ -84,6 +84,31 @@ function khm_elementor_feature_enabled( $feature ) {
     return ! empty( $flags[ $feature ] );
 }
 
+/**
+ * Feature flag for full Stripe -> level mirror importer.
+ *
+ * Enable via:
+ * - option: khm_stripe_level_mirror_enabled = 1
+ * - constant: KHM_STRIPE_LEVEL_MIRROR_ENABLED
+ * - filter: khm_use_stripe_level_mirror_importer
+ */
+function khm_use_stripe_level_mirror_importer(): bool {
+    $enabled = false;
+
+    if ( defined( 'KHM_STRIPE_LEVEL_MIRROR_ENABLED' ) ) {
+        $enabled = (bool) KHM_STRIPE_LEVEL_MIRROR_ENABLED;
+    } else {
+        $enabled = (bool) get_option( 'khm_stripe_level_mirror_enabled', false );
+    }
+
+    /**
+     * Filter whether to use StripeLevelMirrorImporter instead of StripeMarketingImporter.
+     *
+     * @param bool $enabled
+     */
+    return (bool) apply_filters( 'khm_use_stripe_level_mirror_importer', $enabled );
+}
+
 function khm_register_cron_schedules( $schedules ) {
     if ( ! isset( $schedules['khm_five_minutes'] ) ) {
         $schedules['khm_five_minutes'] = array(
@@ -1400,6 +1425,7 @@ if ( defined('WP_CLI') && WP_CLI ) {
     $cli_dir = is_dir( __DIR__ . '/src/CLI' ) ? '/src/CLI/' : '/src/Cli/';
     require_once __DIR__ . $cli_dir . 'MigratePricesCommand.php';
     require_once __DIR__ . $cli_dir . 'ImportStripeMarketingCommand.php';
+    require_once __DIR__ . $cli_dir . 'ImportStripeLevelMirrorCommand.php';
     require_once __DIR__ . $cli_dir . 'StripeMarketingAuditCommand.php';
     require_once __DIR__ . $cli_dir . 'StripeMarketingDeadLettersCommand.php';
     require_once __DIR__ . $cli_dir . 'StripeMarketingDeadLettersReplayCommand.php';
