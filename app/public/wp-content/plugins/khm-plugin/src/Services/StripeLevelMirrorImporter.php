@@ -164,20 +164,33 @@ class StripeLevelMirrorImporter {
 			return $byProductId;
 		}
 
-		$metaLevel = $this->extractMetadataValue( $product->metadata ?? null, 'wp_level_id' );
-		if ( is_string( $metaLevel ) && $metaLevel !== '' ) {
-			return (int) $metaLevel;
+		// Optional legacy mapping path: disabled by default to avoid manual setup.
+		if ( $this->allowLegacyWpLevelIdMapping() ) {
+			$metaLevel = $this->extractMetadataValue( $product->metadata ?? null, 'wp_level_id' );
+			if ( is_string( $metaLevel ) && $metaLevel !== '' ) {
+				return (int) $metaLevel;
+			}
 		}
 
+		$priceMatchedLevelIds = [];
 		foreach ( $prices as $price ) {
 			$priceId = isset( $price->id ) ? (string) $price->id : '';
 			if ( $priceId === '' ) {
 				continue;
 			}
-			$byPrice = $this->findLevelIdByPriceId( $priceId );
-			if ( $byPrice ) {
-				return $byPrice;
+			foreach ( $this->findLevelIdsByPriceId( $priceId ) as $candidateLevelId ) {
+				$priceMatchedLevelIds[ (int) $candidateLevelId ] = true;
 			}
+		}
+		$uniquePriceMatches = array_keys( $priceMatchedLevelIds );
+		if ( count( $uniquePriceMatches ) === 1 ) {
+			return (int) $uniquePriceMatches[0];
+		}
+		if ( count( $uniquePriceMatches ) > 1 ) {
+			throw new \RuntimeException(
+				'Ambiguous Stripe price mapping for product ' . $productId .
+				'. Multiple levels matched by price IDs: ' . implode( ', ', array_map( 'strval', $uniquePriceMatches ) )
+			);
 		}
 
 		return null;
@@ -200,11 +213,15 @@ class StripeLevelMirrorImporter {
 		return null;
 	}
 
-	private function findLevelIdByPriceId( string $priceId ): ?int {
+	/**
+	 * @return array<int,int>
+	 */
+	private function findLevelIdsByPriceId( string $priceId ): array {
+		$matches = [];
 		foreach ( $this->levelRepo->all( true ) as $level ) {
 			$levelMeta = is_array( $level->meta ?? null ) ? $level->meta : [];
 			if ( isset( $levelMeta['stripe_price_id'] ) && (string) $levelMeta['stripe_price_id'] === $priceId ) {
-				return (int) $level->id;
+				$matches[] = (int) $level->id;
 			}
 
 			$khmMeta = $levelMeta['khm_level_meta'] ?? [];
@@ -223,12 +240,12 @@ class StripeLevelMirrorImporter {
 				}
 				foreach ( $intervalMap as $candidatePriceId ) {
 					if ( is_string( $candidatePriceId ) && $candidatePriceId === $priceId ) {
-						return (int) $level->id;
+						$matches[] = (int) $level->id;
 					}
 				}
 			}
 		}
-		return null;
+		return array_values( array_unique( array_map( 'intval', $matches ) ) );
 	}
 
 	/**
@@ -243,5 +260,15 @@ class StripeLevelMirrorImporter {
 		}
 		return null;
 	}
-}
 
+	private function allowLegacyWpLevelIdMapping(): bool {
+		$enabled = false;
+		if ( defined( 'KHM_STRIPE_LEGACY_WP_LEVEL_ID_MAPPING' ) ) {
+			$enabled = (bool) KHM_STRIPE_LEGACY_WP_LEVEL_ID_MAPPING;
+		} else {
+			$enabled = (bool) get_option( 'khm_stripe_legacy_wp_level_id_mapping', false );
+		}
+
+		return (bool) apply_filters( 'khm_allow_legacy_wp_level_id_mapping', $enabled );
+	}
+}
