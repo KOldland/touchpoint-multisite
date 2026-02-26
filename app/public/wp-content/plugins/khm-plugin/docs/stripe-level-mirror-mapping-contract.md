@@ -12,7 +12,7 @@ This document defines the current Stripe -> WordPress level mapping used by `KHM
 | `primary_price.unit_amount` (recurring only) | `khm_membership_levels.billing_amount` |
 | `primary_price.recurring.interval_count` | `khm_membership_levels.cycle_number` |
 | `primary_price.recurring.interval` | `khm_membership_levels.cycle_period` (`Day/Week/Month/Year`) |
-| `product.metadata.trial_days` | `khm_membership_levels.trial_limit` |
+| `primary_price.recurring.trial_period_days` (only source) | `khm_membership_levels.trial_limit` |
 
 ## khm_level_meta Mapping
 
@@ -24,7 +24,7 @@ This document defines the current Stripe -> WordPress level mapping used by `KHM
 | `product.metadata.presentation_template` | `khm_level_meta.presentation.template` |
 | `product.metadata.presentation_cta_text` | `khm_level_meta.presentation.cta_text` |
 | `product.metadata.price_inclusive` | `khm_level_meta.presentation.price_inclusive` |
-| `product.metadata.trial_days` | `khm_level_meta.commerce.trial_days` |
+| `primary_price.recurring.trial_period_days` (only source) | `khm_level_meta.commerce.trial_days` |
 | primary recurring interval | `khm_level_meta.commerce.default_billing_interval` |
 | `product.metadata.allow_promotion_codes` | `khm_level_meta.commerce.allow_promotion_codes` |
 | `product.metadata.allow_guest_checkout` | `khm_level_meta.commerce.allow_guest_checkout` |

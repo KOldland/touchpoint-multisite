@@ -73,6 +73,10 @@ class StripeLevelMirrorMapping {
 		$recurring = self::isRecurring( $primary );
 		$interval = self::priceInterval( $primary );
 		$intervalCount = self::priceIntervalCount( $primary );
+		$trialDays = self::priceTrialDays( $primary );
+		if ( $trialDays === null ) {
+			$trialDays = 0;
+		}
 
 		$meta['stripe_product_id'] = isset( $product->id ) ? (string) $product->id : '';
 		$meta['stripe_price_ids'] = self::buildPriceMap( $prices );
@@ -82,7 +86,7 @@ class StripeLevelMirrorMapping {
 		$meta['presentation']['cta_text'] = self::metadataString( $product, 'presentation_cta_text', (string) ( $meta['presentation']['cta_text'] ?? '' ) );
 		$meta['presentation']['price_inclusive'] = self::metadataBool( $product, 'price_inclusive', (bool) ( $meta['presentation']['price_inclusive'] ?? true ) );
 
-		$meta['commerce']['trial_days'] = self::metadataInt( $product, 'trial_days', (int) ( $meta['commerce']['trial_days'] ?? 0 ) );
+		$meta['commerce']['trial_days'] = max( 0, (int) $trialDays );
 		$meta['commerce']['default_billing_interval'] = $interval !== '' ? self::normalizeIntervalKey( $interval ) : (string) ( $meta['commerce']['default_billing_interval'] ?? 'monthly' );
 		$meta['commerce']['allow_promotion_codes'] = self::metadataBool( $product, 'allow_promotion_codes', (bool) ( $meta['commerce']['allow_promotion_codes'] ?? true ) );
 		$meta['commerce']['allow_guest_checkout'] = self::metadataBool( $product, 'allow_guest_checkout', (bool) ( $meta['commerce']['allow_guest_checkout'] ?? false ) );
@@ -110,7 +114,7 @@ class StripeLevelMirrorMapping {
 			'name' => sanitize_text_field( trim( (string) ( $product->name ?? '' ) ) ),
 			'description' => wp_kses_post( (string) ( $product->description ?? '' ) ),
 			'allow_signups' => 1,
-			'trial_limit' => (int) $meta['commerce']['trial_days'],
+			'trial_limit' => max( 0, (int) $trialDays ),
 		];
 
 		if ( $primaryAmount !== null ) {
@@ -261,6 +265,22 @@ class StripeLevelMirrorMapping {
 			return null;
 		}
 		return round( ( (float) $price->unit_amount ) / 100, 2 );
+	}
+
+	private static function priceTrialDays( ?object $price ): ?int {
+		if ( ! self::isRecurring( $price ) ) {
+			return null;
+		}
+		if ( ! isset( $price->recurring->trial_period_days ) ) {
+			return null;
+		}
+
+		$value = $price->recurring->trial_period_days;
+		if ( is_numeric( $value ) ) {
+			return max( 0, (int) $value );
+		}
+
+		return null;
 	}
 
 	private static function metadataString( object $product, string $key, string $default = '' ): string {
