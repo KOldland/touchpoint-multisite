@@ -28,12 +28,12 @@ This document defines the current Stripe -> WordPress level mapping used by `KHM
 | primary recurring interval | `khm_level_meta.commerce.default_billing_interval` |
 | `product.metadata.allow_promotion_codes` | `khm_level_meta.commerce.allow_promotion_codes` |
 | `product.metadata.allow_guest_checkout` | `khm_level_meta.commerce.allow_guest_checkout` |
-| `product.metadata.feature_credits` | `khm_level_meta.features.credits` |
-| `product.metadata.feature_gifting` | `khm_level_meta.features.gifting` |
-| `product.metadata.feature_portal` | `khm_level_meta.features.portal` |
-| `product.metadata.feature_sponsor` | `khm_level_meta.features.sponsor` |
-| `product.metadata.feature_forum` | `khm_level_meta.features.forum` |
-| `product.metadata.feature_founder_badge` | `khm_level_meta.features.founder_badge` |
+| `product.metadata.feature_credits` (primary), fallback JSON `features.credits` | `khm_level_meta.features.credits` |
+| `product.metadata.feature_gifting` (primary), fallback JSON `features.gifting` | `khm_level_meta.features.gifting` |
+| `product.metadata.feature_portal` (primary), fallback JSON `features.portal` | `khm_level_meta.features.portal` |
+| `product.metadata.feature_sponsor` (primary), fallback JSON `features.sponsor` | `khm_level_meta.features.sponsor` |
+| `product.metadata.feature_forum` (primary), fallback JSON `features.forum` | `khm_level_meta.features.forum` |
+| `product.metadata.feature_founder_badge` (primary), fallback JSON `features.founder_badge` | `khm_level_meta.features.founder_badge` |
 | `product.metadata.credits_monthly` | `khm_level_meta.credits.monthly` |
 | `product.metadata.credits_rollover` | `khm_level_meta.credits.rollover` |
 
@@ -50,4 +50,3 @@ This document defines the current Stripe -> WordPress level mapping used by `KHM
 - Mapping contract class and scaffold importer are implemented.
 - Existing `StripeMarketingImporter` remains the active production importer.
 - Next phase is wiring `StripeLevelMirrorImporter` into CLI/admin/webhook behind a feature flag and adding tests.
-

@@ -53,6 +53,7 @@ class StripeLevelMirrorMapping {
 	 */
 	public static function mapToLevelPayload( object $product, array $prices, array $existingMeta = [] ): array {
 		$meta = is_array( $existingMeta ) ? $existingMeta : [];
+		$jsonPayload = self::metadataPayload( $product );
 
 		if ( ! isset( $meta['features'] ) || ! is_array( $meta['features'] ) ) {
 			$meta['features'] = [];
@@ -88,7 +89,18 @@ class StripeLevelMirrorMapping {
 
 		$featureKeys = [ 'credits', 'gifting', 'portal', 'sponsor', 'forum', 'founder_badge' ];
 		foreach ( $featureKeys as $key ) {
-			$meta['features'][ $key ] = self::metadataBool( $product, 'feature_' . $key, (bool) ( $meta['features'][ $key ] ?? false ) );
+			$fromMetaKey = self::metadataBoolOptional( $product, 'feature_' . $key );
+			if ( $fromMetaKey !== null ) {
+				$meta['features'][ $key ] = $fromMetaKey;
+				continue;
+			}
+
+			$fromJson = self::jsonBool( $jsonPayload, [ 'features', $key ], null );
+			if ( $fromJson !== null ) {
+				$meta['features'][ $key ] = $fromJson;
+				continue;
+			}
+			$meta['features'][ $key ] = (bool) ( $meta['features'][ $key ] ?? false );
 		}
 
 		$meta['credits']['monthly'] = self::metadataInt( $product, 'credits_monthly', (int) ( $meta['credits']['monthly'] ?? 0 ) );
@@ -277,6 +289,86 @@ class StripeLevelMirrorMapping {
 		return $default;
 	}
 
+	/**
+	 * Returns null when metadata key is missing or unparsable.
+	 */
+	private static function metadataBoolOptional( object $product, string $key ): ?bool {
+		$value = self::metadataValue( $product, $key );
+		if ( $value === null ) {
+			return null;
+		}
+		if ( is_bool( $value ) ) {
+			return $value;
+		}
+		if ( is_scalar( $value ) ) {
+			$normalized = strtolower( trim( (string) $value ) );
+			if ( in_array( $normalized, [ '1', 'true', 'yes', 'y', 'on' ], true ) ) {
+				return true;
+			}
+			if ( in_array( $normalized, [ '0', 'false', 'no', 'n', 'off' ], true ) ) {
+				return false;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Extract structured payload JSON from Stripe metadata.
+	 *
+	 * Supports either key:
+	 * - khm_level_payload_json (preferred)
+	 * - level_payload_json (legacy convenience)
+	 *
+	 * @return array<string,mixed>
+	 */
+	private static function metadataPayload( object $product ): array {
+		$raw = self::metadataValue( $product, 'khm_level_payload_json' );
+		if ( ! is_string( $raw ) || trim( $raw ) === '' ) {
+			$raw = self::metadataValue( $product, 'level_payload_json' );
+		}
+		if ( ! is_string( $raw ) || trim( $raw ) === '' ) {
+			return [];
+		}
+
+		$decoded = json_decode( $raw, true );
+		if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $decoded ) ) {
+			return [];
+		}
+
+		return $decoded;
+	}
+
+	/**
+	 * @param array<string,mixed> $json
+	 * @param array<int,string>   $path
+	 * @return ?bool
+	 */
+	private static function jsonBool( array $json, array $path, ?bool $default = null ): ?bool {
+		$current = $json;
+		foreach ( $path as $segment ) {
+			if ( ! is_array( $current ) || ! array_key_exists( $segment, $current ) ) {
+				return $default;
+			}
+			$current = $current[ $segment ];
+		}
+
+		if ( is_bool( $current ) ) {
+			return $current;
+		}
+		if ( is_scalar( $current ) ) {
+			$normalized = strtolower( trim( (string) $current ) );
+			if ( in_array( $normalized, [ '1', 'true', 'yes', 'y', 'on' ], true ) ) {
+				return true;
+			}
+			if ( in_array( $normalized, [ '0', 'false', 'no', 'n', 'off' ], true ) ) {
+				return false;
+			}
+		}
+
+		return $default;
+	}
+
 	private static function metadataInt( object $product, string $key, int $default = 0 ): int {
 		$value = self::metadataValue( $product, $key );
 		if ( is_numeric( $value ) ) {
@@ -330,4 +422,3 @@ class StripeLevelMirrorMapping {
 		return 'Month';
 	}
 }
-
