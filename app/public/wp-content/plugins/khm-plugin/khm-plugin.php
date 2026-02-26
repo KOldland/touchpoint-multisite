@@ -1457,6 +1457,9 @@ add_action('init', function () {
         );
         $checkout->register();
     }
+    if ( class_exists('KHM\\Public\\MembershipCheckoutButtonShortcode') ) {
+        ( new KHM\Public\MembershipCheckoutButtonShortcode() )->register();
+    }
     if ( class_exists('KHM\\Membership\\LandingPageShortcode') ) {
         new KHM\Membership\LandingPageShortcode();
     }
@@ -1585,6 +1588,11 @@ add_action('init', function () {
     if ( is_admin() && class_exists('KHM\\Admin\\DiscountCodesPage') ) {
         $discount_codes_page = new KHM\Admin\DiscountCodesPage();
         $discount_codes_page->register();
+    }
+
+    // Warn if legacy shortcode checkout is still published.
+    if ( is_admin() && class_exists('KHM\\Admin\\LegacyCheckoutNotice') ) {
+        ( new KHM\Admin\LegacyCheckoutNotice() )->register();
     }
 
     // Register discount code hooks for checkout integration
