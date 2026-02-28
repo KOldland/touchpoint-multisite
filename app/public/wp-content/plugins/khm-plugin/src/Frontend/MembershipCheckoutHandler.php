@@ -8,9 +8,12 @@
 
 namespace KHM\Frontend;
 
+use KHM\Services\LevelRepository;
+
 class MembershipCheckoutHandler {
 
     private static bool $booted = false;
+    private ?LevelRepository $levels = null;
 
     public function __construct() {
         if (self::$booted) {
@@ -152,7 +155,7 @@ class MembershipCheckoutHandler {
                 'success_url' => $success_url,
                 'cancel_url' => $cancel_url,
                 'metadata' => $metadata,
-                'allow_promotion_codes' => true,
+                'allow_promotion_codes' => $this->resolve_allow_promotion_codes( $level_id ),
             ];
 
             // If user is logged in, pre-fill email
@@ -164,6 +167,14 @@ class MembershipCheckoutHandler {
             $session_params['subscription_data'] = [
                 'metadata' => $metadata
             ];
+
+            $session_params = apply_filters(
+                'khm_membership_checkout_session_params',
+                $session_params,
+                $level_id,
+                $user_id ?: null,
+                $user_email
+            );
 
             $session = \Stripe\Checkout\Session::create($session_params);
 
@@ -240,5 +251,32 @@ class MembershipCheckoutHandler {
         }
 
         return null;
+    }
+
+    private function resolve_allow_promotion_codes( int $level_id ): bool {
+        if ( ! $this->levels ) {
+            $this->levels = class_exists( LevelRepository::class ) ? new LevelRepository() : null;
+        }
+
+        if ( ! $this->levels ) {
+            return true;
+        }
+
+        $meta = $this->levels->getMeta( $level_id, 'khm_level_meta', [] );
+        if ( is_string( $meta ) ) {
+            $decoded = json_decode( $meta, true );
+            if ( json_last_error() === JSON_ERROR_NONE ) {
+                $meta = $decoded;
+            }
+        }
+
+        if ( is_array( $meta ) ) {
+            $commerce = $meta['commerce'] ?? null;
+            if ( is_array( $commerce ) && array_key_exists( 'allow_promotion_codes', $commerce ) ) {
+                return (bool) $commerce['allow_promotion_codes'];
+            }
+        }
+
+        return true;
     }
 }
