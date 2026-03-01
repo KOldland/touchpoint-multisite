@@ -52,6 +52,13 @@ if (!isset($wpdb)) {
                     }
                 }
             }
+            if ($table === $this->prefix . 'khm_membership_webhook_operations' && isset($data['operation_key'])) {
+                foreach ($this->data[$table] as $row) {
+                    if (($row['operation_key'] ?? null) === $data['operation_key']) {
+                        return false;
+                    }
+                }
+            }
 
             $this->last_insert_id++;
             if (!isset($data['id'])) {
@@ -138,6 +145,21 @@ if (!isset($wpdb)) {
                 foreach ($this->data[$table] ?? [] as $row) {
                     if (($row['event_id'] ?? null) === $event_id) {
                         $result = ['status' => $row['status'] ?? null];
+                        return $output === ARRAY_A ? $result : (object) $result;
+                    }
+                }
+                return null;
+            }
+
+            if (preg_match('/SELECT\s+status,\s*attempts\s+FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+operation_key\s*=\s*[\'"]?([^\'"\s]+)[\'"]?/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $operation_key = $m[2];
+                foreach ($this->data[$table] ?? [] as $row) {
+                    if (($row['operation_key'] ?? null) === $operation_key) {
+                        $result = [
+                            'status' => $row['status'] ?? null,
+                            'attempts' => $row['attempts'] ?? null,
+                        ];
                         return $output === ARRAY_A ? $result : (object) $result;
                     }
                 }

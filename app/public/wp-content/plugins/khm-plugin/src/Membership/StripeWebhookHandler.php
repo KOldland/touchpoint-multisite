@@ -10,8 +10,11 @@ class StripeWebhookHandler {
         add_action('rest_api_init', [ $this, 'register_routes' ]);
         add_action( 'khm_process_membership_stripe_webhook_event', [ $this, 'process_queued_event' ], 10, 1 );
         add_action( 'khm_membership_webhook_cleanup', [ ProcessedWebhook::class, 'cleanup_old_events' ] );
+        add_action( 'khm_membership_webhook_audit_cleanup', [ MembershipWebhookAuditLogger::class, 'cleanup_old_rows' ] );
         ProcessedWebhook::maybe_schedule_cleanup();
         MembershipWebhookAuditLogger::maybe_create_table();
+        MembershipWebhookAuditLogger::maybe_schedule_cleanup();
+        MembershipWebhookOperationStore::maybe_create_table();
     }
 
     public function register_routes() {
@@ -60,6 +63,7 @@ class StripeWebhookHandler {
             'event_id' => $event_id,
             'event_type' => $event_type,
             'data_object' => isset($event->data->object) ? json_decode( wp_json_encode( $event->data->object ), true ) : [],
+            'event_created' => isset( $event->created ) ? (int) $event->created : 0,
             'trace_id' => wp_generate_uuid4(),
         ];
 
@@ -99,9 +103,10 @@ class StripeWebhookHandler {
         $started_at = microtime( true );
         MembershipWebhookAuditLogger::log( $event_id, $event_type, 'processing', null, null, 'Worker started.' );
 
+        $object = null;
         try {
             $object = $this->to_object( $job['data_object'] ?? [] );
-            $this->route_event( $event_type, $object, $event_id );
+            $this->route_event( $event_type, $object, $event_id, isset( $job['event_created'] ) ? (int) $job['event_created'] : 0 );
 
             ProcessedWebhook::mark_processed( $event_id, 'Processed successfully.' );
             MembershipWebhookAuditLogger::log( $event_id, $event_type, 'success', null, null, 'Event processed successfully.' );
@@ -111,6 +116,10 @@ class StripeWebhookHandler {
                 'latency_ms' => (int) round( ( microtime( true ) - $started_at ) * 1000 ),
             ] );
         } catch ( \Throwable $e ) {
+            $operation_key = $this->get_operation_key_for_event( $event_type, $object );
+            if ( $operation_key !== '' ) {
+                $this->mark_operation_failed( $operation_key, $e );
+            }
             ProcessedWebhook::mark_failed( $event_id, $e->getMessage() );
             MembershipWebhookAuditLogger::log( $event_id, $event_type, 'failed', null, null, $e->getMessage() );
             error_log( 'Stripe webhook processing failed for ' . $event_id . ': ' . $e->getMessage() );
@@ -122,19 +131,42 @@ class StripeWebhookHandler {
         }
     }
 
-    private function route_event( string $event_type, $object, string $event_id ) : void {
+    private function get_operation_key_for_event( string $event_type, $object ): string {
+        if ( ! is_object( $object ) ) {
+            return '';
+        }
         switch ( $event_type ) {
             case 'checkout.session.completed':
-                $this->handle_checkout_session_completed( $object );
+                return ! empty( $object->id ) ? 'checkout_session:' . (string) $object->id : '';
+            case 'invoice.paid':
+                return ! empty( $object->id ) ? 'invoice_paid:' . (string) $object->id : '';
+            case 'invoice.payment_failed':
+                return ! empty( $object->id ) ? 'invoice_failed:' . (string) $object->id : '';
+            case 'customer.subscription.updated':
+                if ( empty( $object->id ) ) {
+                    return '';
+                }
+                return 'subscription_updated:' . (string) $object->id . ':' . md5( wp_json_encode( $object ) ?: '' );
+            case 'charge.refunded':
+                return ! empty( $object->id ) ? 'charge_refunded:' . (string) $object->id : '';
+            default:
+                return '';
+        }
+    }
+
+    private function route_event( string $event_type, $object, string $event_id, int $event_created = 0 ) : void {
+        switch ( $event_type ) {
+            case 'checkout.session.completed':
+                $this->handle_checkout_session_completed( $object, $event_id );
                 break;
             case 'invoice.paid':
-                $this->handle_invoice_paid( $object );
+                $this->handle_invoice_paid( $object, $event_id, $event_created );
                 break;
             case 'invoice.payment_failed':
-                $this->handle_payment_failed( $object );
+                $this->handle_payment_failed( $object, $event_id, $event_created );
                 break;
             case 'customer.subscription.updated':
-                $this->handle_subscription_updated( $object );
+                $this->handle_subscription_updated( $object, $event_id, $event_created );
                 break;
             case 'customer.subscription.deleted':
                 $this->handle_subscription_deleted( $object );
@@ -148,20 +180,20 @@ class StripeWebhookHandler {
         }
     }
 
-    private function handle_checkout_session_completed($session) {
+    private function handle_checkout_session_completed($session, string $event_id) {
         $session_id = isset( $session->id ) ? (string) $session->id : '';
         if ( '' === $session_id ) {
             throw new \RuntimeException( 'checkout.session.completed missing session id' );
         }
         $operation_key = 'checkout_session:' . $session_id;
-        if ( $this->is_operation_already_done( $operation_key ) ) {
-            $this->audit_handler( 'checkout.session.completed', $operation_key, $session_id, null, 'duplicate', 'Checkout session already processed.' );
+        if ( ! $this->claim_operation( $operation_key, $event_id, 'checkout.session.completed', $session_id ) ) {
             return;
         }
 
         $mode = strtolower( (string) ( $session->mode ?? '' ) );
         if ( ! in_array( $mode, [ 'subscription', 'payment' ], true ) ) {
             $this->audit_handler( 'checkout.session.completed', $operation_key, $session_id, null, 'ignored', 'Unsupported checkout mode: ' . $mode );
+            $this->mark_operation_succeeded( $operation_key );
             return;
         }
 
@@ -220,6 +252,7 @@ class StripeWebhookHandler {
                 'Subscription membership activated.',
                 [ 'tier' => $plan_id, 'mode' => $mode, 'subscription_id' => $stripe_subscription_id ]
             );
+            $this->mark_operation_succeeded( $operation_key );
             return;
         }
 
@@ -244,20 +277,26 @@ class StripeWebhookHandler {
             'Credit checkout processed.',
             [ 'credits_amount' => $credits_amount, 'mode' => $mode ]
         );
+        $this->mark_operation_succeeded( $operation_key );
     }
 
-    private function handle_invoice_paid($invoice) {
+    private function handle_invoice_paid($invoice, string $event_id, int $event_created = 0) {
         $invoice_id = isset( $invoice->id ) ? (string) $invoice->id : '';
         if ( '' === $invoice_id ) {
             throw new \RuntimeException( 'invoice.paid missing invoice id' );
         }
         $operation_key = 'invoice_paid:' . $invoice_id;
-        if ( $this->is_operation_already_done( $operation_key ) ) {
-            $this->audit_handler( 'invoice.paid', $operation_key, $invoice_id, null, 'duplicate', 'Invoice already processed.' );
+        if ( ! $this->claim_operation( $operation_key, $event_id, 'invoice.paid', $invoice_id ) ) {
+            return;
+        }
+        $subscription_id = isset( $invoice->subscription ) ? (string) $invoice->subscription : '';
+        if ( '' !== $subscription_id && $this->is_stale_subscription_event( $subscription_id, $event_created ) ) {
+            $this->audit_handler( 'invoice.paid', $operation_key, $invoice_id, null, 'ignored', 'Stale invoice.paid ignored by event ordering guard.', [ 'subscription_id' => $subscription_id ] );
+            $this->mark_operation_succeeded( $operation_key );
             return;
         }
         $user_id = $this->get_user_id_by_stripe_subscription_or_customer(
-            isset( $invoice->subscription ) ? (string) $invoice->subscription : '',
+            $subscription_id,
             isset( $invoice->customer ) ? (string) $invoice->customer : ''
         );
         if ( !$user_id ) {
@@ -266,7 +305,6 @@ class StripeWebhookHandler {
 
         global $wpdb;
         $user_membership_table = $wpdb->prefix . 'user_membership';
-        $subscription_id = isset( $invoice->subscription ) ? (string) $invoice->subscription : '';
         $period_end = isset( $invoice->period_end ) ? (int) $invoice->period_end : 0;
         $next_renewal = $period_end > 0 ? gmdate( 'Y-m-d H:i:s', $period_end ) : null;
 
@@ -284,23 +322,32 @@ class StripeWebhookHandler {
             update_user_meta( $user_id, 'khm_last_payment_intent_id', sanitize_text_field( (string) $invoice->payment_intent ) );
         }
         update_user_meta( $user_id, 'khm_last_payment_status', 'paid' );
+        if ( '' !== $subscription_id ) {
+            $this->update_subscription_event_cursor( $subscription_id, $event_created );
+        }
         $this->emit_telemetry( 'membership.renewal', [ 'user_id' => $user_id, 'invoice_id' => $invoice_id, 'subscription_id' => $subscription_id ] );
         $this->audit_handler( 'invoice.paid', $operation_key, $invoice_id, $user_id, 'success', 'Invoice paid applied.', [ 'subscription_id' => $subscription_id ] );
+        $this->mark_operation_succeeded( $operation_key );
     }
 
-    private function handle_payment_failed($invoice) {
+    private function handle_payment_failed($invoice, string $event_id, int $event_created = 0) {
         $invoice_id = isset( $invoice->id ) ? (string) $invoice->id : '';
         if ( '' === $invoice_id ) {
             throw new \RuntimeException( 'invoice.payment_failed missing invoice id' );
         }
         $operation_key = 'invoice_failed:' . $invoice_id;
-        if ( $this->is_operation_already_done( $operation_key ) ) {
-            $this->audit_handler( 'invoice.payment_failed', $operation_key, $invoice_id, null, 'duplicate', 'Invoice failure already processed.' );
+        if ( ! $this->claim_operation( $operation_key, $event_id, 'invoice.payment_failed', $invoice_id ) ) {
+            return;
+        }
+        $subscription_id = isset( $invoice->subscription ) ? (string) $invoice->subscription : '';
+        if ( '' !== $subscription_id && $this->is_stale_subscription_event( $subscription_id, $event_created ) ) {
+            $this->audit_handler( 'invoice.payment_failed', $operation_key, $invoice_id, null, 'ignored', 'Stale invoice.payment_failed ignored by event ordering guard.', [ 'subscription_id' => $subscription_id ] );
+            $this->mark_operation_succeeded( $operation_key );
             return;
         }
 
         $user_id = $this->get_user_id_by_stripe_subscription_or_customer(
-            isset( $invoice->subscription ) ? (string) $invoice->subscription : '',
+            $subscription_id,
             isset( $invoice->customer ) ? (string) $invoice->customer : ''
         );
         if ( !$user_id ) {
@@ -325,19 +372,27 @@ class StripeWebhookHandler {
         if ( $failure_reason !== '' ) {
             update_user_meta( $user_id, 'khm_membership_last_failure_reason', sanitize_text_field( $failure_reason ) );
         }
+        if ( '' !== $subscription_id ) {
+            $this->update_subscription_event_cursor( $subscription_id, $event_created );
+        }
         do_action( 'khm_membership_invoice_payment_failed', $user_id, $invoice );
         $this->emit_telemetry( 'membership.payment_failed', [ 'user_id' => $user_id, 'invoice_id' => $invoice_id, 'reason' => $failure_reason ] );
         $this->audit_handler( 'invoice.payment_failed', $operation_key, $invoice_id, $user_id, 'success', 'Invoice payment failure applied.', [ 'reason' => $failure_reason ] );
+        $this->mark_operation_succeeded( $operation_key );
     }
 
-    private function handle_subscription_updated($subscription) {
+    private function handle_subscription_updated($subscription, string $event_id, int $event_created = 0) {
         $subscription_id = isset( $subscription->id ) ? (string) $subscription->id : '';
         if ( '' === $subscription_id ) {
             throw new \RuntimeException( 'customer.subscription.updated missing subscription id' );
         }
         $operation_key = 'subscription_updated:' . $subscription_id . ':' . md5( wp_json_encode( $subscription ) ?: '' );
-        if ( $this->is_operation_already_done( $operation_key ) ) {
-            $this->audit_handler( 'customer.subscription.updated', $operation_key, $subscription_id, null, 'duplicate', 'Subscription update already processed.' );
+        if ( ! $this->claim_operation( $operation_key, $event_id, 'customer.subscription.updated', $subscription_id ) ) {
+            return;
+        }
+        if ( $this->is_stale_subscription_event( $subscription_id, $event_created ) ) {
+            $this->audit_handler( 'customer.subscription.updated', $operation_key, $subscription_id, null, 'ignored', 'Stale subscription update ignored by event ordering guard.' );
+            $this->mark_operation_succeeded( $operation_key );
             return;
         }
 
@@ -393,6 +448,8 @@ class StripeWebhookHandler {
             'Subscription update applied.',
             [ 'status' => $status ]
         );
+        $this->update_subscription_event_cursor( $subscription_id, $event_created );
+        $this->mark_operation_succeeded( $operation_key );
     }
 
     private function handle_subscription_deleted($subscription) {
@@ -420,8 +477,7 @@ class StripeWebhookHandler {
             throw new \RuntimeException( 'charge.refunded missing charge id' );
         }
         $operation_key = 'charge_refunded:' . $charge_id;
-        if ( $this->is_operation_already_done( $operation_key ) ) {
-            $this->audit_handler( 'charge.refunded', $operation_key, $charge_id, null, 'duplicate', 'Refund already processed.' );
+        if ( ! $this->claim_operation( $operation_key, $event_id, 'charge.refunded', $charge_id ) ) {
             return;
         }
 
@@ -443,6 +499,7 @@ class StripeWebhookHandler {
             khm_handle_stripe_charge_refunded( $charge, $event_id );
         }
         $this->emit_telemetry( 'membership.refund', [ 'charge_id' => $charge_id, 'event_id' => $event_id ] );
+        $this->mark_operation_succeeded( $operation_key );
     }
 
     private function get_user_id_by_stripe_customer($stripe_customer_id) {
@@ -860,8 +917,56 @@ class StripeWebhookHandler {
         return $this->get_user_id_by_stripe_customer( $customer_id );
     }
 
-    private function is_operation_already_done( string $operation_key ): bool {
-        return MembershipWebhookAuditLogger::operation_succeeded( $operation_key );
+    private function claim_operation( string $operation_key, string $event_id, string $event_type, string $object_id = '', ?int $user_id = null ): bool {
+        $claim = MembershipWebhookOperationStore::claim( $operation_key, $event_id, $event_type, $object_id !== '' ? $object_id : null, $user_id );
+        if ( 'claimed' === $claim ) {
+            return true;
+        }
+        if ( 'duplicate' === $claim ) {
+            $this->audit_handler( $event_type, $operation_key, $object_id, $user_id, 'duplicate', 'Operation already completed.' );
+            return false;
+        }
+
+        $this->audit_handler( $event_type, $operation_key, $object_id, $user_id, 'busy', 'Operation already processing in another worker.' );
+        return false;
+    }
+
+    private function mark_operation_succeeded( string $operation_key ): void {
+        MembershipWebhookOperationStore::mark_succeeded( $operation_key );
+    }
+
+    private function mark_operation_failed( string $operation_key, \Throwable $e ): void {
+        MembershipWebhookOperationStore::mark_failed( $operation_key, $e->getMessage() );
+    }
+
+    private function is_stale_subscription_event( string $subscription_id, int $event_created ): bool {
+        if ( '' === $subscription_id || $event_created <= 0 ) {
+            return false;
+        }
+        $cursor = $this->get_subscription_event_cursor( $subscription_id );
+        return $cursor > 0 && $event_created < $cursor;
+    }
+
+    private function update_subscription_event_cursor( string $subscription_id, int $event_created ): void {
+        if ( '' === $subscription_id || $event_created <= 0 ) {
+            return;
+        }
+        $cursor_key = $this->get_subscription_event_cursor_key( $subscription_id );
+        $cursor = (int) get_option( $cursor_key, 0 );
+        if ( $event_created > $cursor ) {
+            update_option( $cursor_key, $event_created );
+        }
+    }
+
+    private function get_subscription_event_cursor( string $subscription_id ): int {
+        if ( '' === $subscription_id ) {
+            return 0;
+        }
+        return (int) get_option( $this->get_subscription_event_cursor_key( $subscription_id ), 0 );
+    }
+
+    private function get_subscription_event_cursor_key( string $subscription_id ): string {
+        return 'khm_membership_sub_event_cursor_' . md5( $subscription_id );
     }
 
     private function audit_handler(

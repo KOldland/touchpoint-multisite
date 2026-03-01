@@ -19,6 +19,7 @@ class StripeWebhookHandlerTest extends TestCase {
         // Clean up test data
         global $wpdb;
         $wpdb->query("DELETE FROM {$wpdb->prefix}khm_processed_webhooks");
+        $wpdb->query("DELETE FROM {$wpdb->prefix}khm_membership_webhook_operations");
         $wpdb->query("DELETE FROM {$wpdb->prefix}user_membership");
         if ( isset( $GLOBALS['khm_test_transients'] ) && is_array( $GLOBALS['khm_test_transients'] ) ) {
             $GLOBALS['khm_test_transients'] = [];
@@ -28,6 +29,7 @@ class StripeWebhookHandlerTest extends TestCase {
     protected function tearDown(): void {
         global $wpdb;
         $wpdb->query("DELETE FROM {$wpdb->prefix}khm_processed_webhooks");
+        $wpdb->query("DELETE FROM {$wpdb->prefix}khm_membership_webhook_operations");
         $wpdb->query("DELETE FROM {$wpdb->prefix}user_membership");
         if ( isset( $GLOBALS['khm_test_transients'] ) && is_array( $GLOBALS['khm_test_transients'] ) ) {
             $GLOBALS['khm_test_transients'] = [];

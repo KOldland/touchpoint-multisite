@@ -3,6 +3,31 @@
 namespace KHM\Membership;
 
 class MembershipWebhookAuditLogger {
+    public static function maybe_schedule_cleanup(): void {
+        if ( ! function_exists( 'wp_next_scheduled' ) || ! function_exists( 'wp_schedule_event' ) ) {
+            return;
+        }
+        if ( ! wp_next_scheduled( 'khm_membership_webhook_audit_cleanup' ) ) {
+            wp_schedule_event( time() + 3600, 'daily', 'khm_membership_webhook_audit_cleanup' );
+        }
+    }
+
+    public static function cleanup_old_rows(): void {
+        self::maybe_create_table();
+        global $wpdb;
+        $table = self::table_name();
+        $retention_days = (int) apply_filters( 'khm_membership_webhook_audit_retention_days', 90 );
+        if ( $retention_days < 1 ) {
+            $retention_days = 1;
+        }
+        $wpdb->query(
+            $wpdb->prepare(
+                "DELETE FROM {$table} WHERE created_at < (UTC_TIMESTAMP() - INTERVAL %d DAY)",
+                $retention_days
+            )
+        );
+    }
+
     public static function maybe_create_table(): void {
         global $wpdb;
         $table = self::table_name();
@@ -95,4 +120,3 @@ class MembershipWebhookAuditLogger {
         return substr( $value, 0, $max );
     }
 }
-
