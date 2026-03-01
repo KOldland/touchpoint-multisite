@@ -102,5 +102,30 @@ class MembershipMigration {
             dbDelta( $sql );
         }
 
+        // -- membership webhook audit log
+        $table_name = $wpdb->prefix . 'khm_membership_webhook_audit';
+        if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) != $table_name ) {
+            $sql = "CREATE TABLE $table_name (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+              event_id VARCHAR(255) NOT NULL,
+              event_type VARCHAR(128) NOT NULL,
+              operation_key VARCHAR(255) NULL,
+              object_id VARCHAR(255) NULL,
+              user_id BIGINT UNSIGNED NULL,
+              outcome VARCHAR(32) NOT NULL,
+              message TEXT NULL,
+              context LONGTEXT NULL,
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (id),
+              KEY idx_khm_webhook_audit_event (event_id),
+              KEY idx_khm_webhook_audit_type (event_type),
+              KEY idx_khm_webhook_audit_user (user_id),
+              KEY idx_khm_webhook_audit_outcome (outcome),
+              KEY idx_khm_webhook_audit_op (operation_key)
+            ) $charset_collate;";
+            require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+            dbDelta( $sql );
+        }
+
     }
 }

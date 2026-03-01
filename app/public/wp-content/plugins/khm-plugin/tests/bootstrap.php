@@ -81,12 +81,36 @@ if (!isset($wpdb)) {
                 return $count;
             }
 
+            if (preg_match('/SELECT COUNT\(\*\) FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+operation_key\s*=\s*[\'"]?([^\'"\s]+)[\'"]?/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $operation_key = $m[2];
+                $count = 0;
+                foreach ($this->data[$table] ?? [] as $row) {
+                    if (($row['operation_key'] ?? null) === $operation_key) {
+                        $count++;
+                    }
+                }
+                return $count;
+            }
+
             if (preg_match('/SELECT\s+(?:id|event_id)\s+FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+event_id\s*=\s*[\'"]?([^\'"\s]+)[\'"]?/i', $query, $m)) {
                 $table = $this->normalize_table($m[1]);
                 $event_id = $m[2];
                 foreach ($this->data[$table] ?? [] as $row) {
                     if (($row['event_id'] ?? null) === $event_id) {
                         return $row['id'] ?? $row['event_id'];
+                    }
+                }
+                return null;
+            }
+
+            if (preg_match('/SELECT\s+id\s+FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+operation_key\s*=\s*[\'"]?([^\'"\s]+)[\'"]?\s+AND\s+outcome\s*=\s*[\'"]?([^\'"\s]+)[\'"]?/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $operation_key = $m[2];
+                $outcome = $m[3];
+                foreach ($this->data[$table] ?? [] as $row) {
+                    if (($row['operation_key'] ?? null) === $operation_key && ($row['outcome'] ?? null) === $outcome) {
+                        return $row['id'] ?? 1;
                     }
                 }
                 return null;
@@ -290,6 +314,13 @@ if (!function_exists('sanitize_text_field')) {
     }
 }
 
+if (!function_exists('sanitize_user')) {
+    function sanitize_user($username, $strict = false) {
+        $username = strtolower((string) $username);
+        return preg_replace('/[^a-z0-9_\-]/', '', $username);
+    }
+}
+
 if (!function_exists('sanitize_key')) {
     function sanitize_key($key) {
         $key = strtolower($key);
@@ -324,6 +355,24 @@ if (!function_exists('wp_generate_password')) {
 if (!function_exists('wp_create_user')) {
     function wp_create_user($username, $password, $email = '') {
         return rand(1, 99999);
+    }
+}
+
+if (!function_exists('username_exists')) {
+    function username_exists($username) {
+        return false;
+    }
+}
+
+if (!function_exists('wp_rand')) {
+    function wp_rand($min = 0, $max = 0) {
+        return mt_rand((int) $min, (int) $max);
+    }
+}
+
+if (!function_exists('get_user_by')) {
+    function get_user_by($field, $value) {
+        return false;
     }
 }
 
@@ -501,6 +550,12 @@ if (!function_exists('do_action')) {
 if (!function_exists('update_user_meta')) {
     function update_user_meta($user_id, $meta_key, $meta_value) {
         return true;
+    }
+}
+
+if (!function_exists('get_user_meta')) {
+    function get_user_meta($user_id, $key = '', $single = false) {
+        return $single ? null : [];
     }
 }
 

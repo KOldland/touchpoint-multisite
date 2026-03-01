@@ -20,12 +20,18 @@ class StripeWebhookHandlerTest extends TestCase {
         global $wpdb;
         $wpdb->query("DELETE FROM {$wpdb->prefix}khm_processed_webhooks");
         $wpdb->query("DELETE FROM {$wpdb->prefix}user_membership");
+        if ( isset( $GLOBALS['khm_test_transients'] ) && is_array( $GLOBALS['khm_test_transients'] ) ) {
+            $GLOBALS['khm_test_transients'] = [];
+        }
     }
 
     protected function tearDown(): void {
         global $wpdb;
         $wpdb->query("DELETE FROM {$wpdb->prefix}khm_processed_webhooks");
         $wpdb->query("DELETE FROM {$wpdb->prefix}user_membership");
+        if ( isset( $GLOBALS['khm_test_transients'] ) && is_array( $GLOBALS['khm_test_transients'] ) ) {
+            $GLOBALS['khm_test_transients'] = [];
+        }
         remove_filter( 'khm_membership_webhook_skip_signature_verification', '__return_true' );
         parent::tearDown();
     }
@@ -42,11 +48,20 @@ class StripeWebhookHandlerTest extends TestCase {
     }
 
     public function test_idempotency_prevents_duplicate_processing() {
+        global $wpdb;
+        $wpdb->insert($wpdb->prefix . 'user_membership', [
+            'user_id' => 999,
+            'tier_id' => 1,
+            'stripe_customer_id' => 'cus_12345',
+            'status' => 'active'
+        ]);
+
         $event_payload = [
             'id' => 'evt_test_12345',
             'type' => 'invoice.paid',
             'data' => [
                 'object' => [
+                    'id' => 'in_test_12345',
                     'customer' => 'cus_12345'
                 ]
             ]
@@ -61,7 +76,7 @@ class StripeWebhookHandlerTest extends TestCase {
         $this->handler->process_queued_event([
             'event_id' => 'evt_test_12345',
             'event_type' => 'invoice.paid',
-            'data_object' => [ 'customer' => 'cus_12345' ],
+            'data_object' => [ 'id' => 'in_test_12345', 'customer' => 'cus_12345' ],
             'trace_id' => 'test-trace',
         ]);
 
@@ -75,7 +90,6 @@ class StripeWebhookHandlerTest extends TestCase {
         $this->assertEquals('already processed', $data['note']);
 
         // Verify only one event record exists
-        global $wpdb;
         $count = $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM {$wpdb->prefix}khm_processed_webhooks WHERE event_id = %s",
             'evt_test_12345'
@@ -100,6 +114,7 @@ class StripeWebhookHandlerTest extends TestCase {
             'type' => 'checkout.session.completed',
             'data' => [
                 'object' => [
+                    'id' => 'cs_test123',
                     'mode' => 'subscription',
                     'customer' => 'cus_test123',
                     'subscription' => 'sub_test123',
@@ -155,6 +170,7 @@ class StripeWebhookHandlerTest extends TestCase {
             'type' => 'invoice.paid',
             'data' => [
                 'object' => [
+                    'id' => 'in_paid_123',
                     'customer' => 'cus_test456'
                 ]
             ]
@@ -197,6 +213,7 @@ class StripeWebhookHandlerTest extends TestCase {
             'type' => 'invoice.payment_failed',
             'data' => [
                 'object' => [
+                    'id' => 'in_failed_456',
                     'customer' => 'cus_test789'
                 ]
             ]
@@ -310,6 +327,7 @@ class StripeWebhookHandlerTest extends TestCase {
             'type' => 'invoice.paid',
             'data' => [
                 'object' => [
+                    'id' => 'in_rate_1',
                     'customer' => 'cus_rate'
                 ]
             ]
@@ -324,11 +342,110 @@ class StripeWebhookHandlerTest extends TestCase {
         $request2->set_body(json_encode([
             'id' => 'evt_rate_2',
             'type' => 'invoice.paid',
-            'data' => [ 'object' => [ 'customer' => 'cus_rate' ] ],
+            'data' => [ 'object' => [ 'id' => 'in_rate_2', 'customer' => 'cus_rate' ] ],
         ]));
         $response2 = $this->handler->handle_request($request2);
         $this->assertEquals(429, $response2->get_status());
 
         unset($_SERVER['REMOTE_ADDR']);
+    }
+
+    public function test_checkout_subscription_missing_tier_metadata_marks_failed(): void {
+        $event_payload = [
+            'id' => 'evt_checkout_missing_tier',
+            'type' => 'checkout.session.completed',
+            'data' => [
+                'object' => [
+                    'id' => 'cs_missing_tier',
+                    'mode' => 'subscription',
+                    'metadata' => [
+                        'user_id' => '123'
+                    ],
+                ],
+            ],
+        ];
+
+        $request = new WP_REST_Request('POST');
+        $request->set_body(json_encode($event_payload));
+        $response = $this->handler->handle_request($request);
+        $this->assertEquals(200, $response->get_status());
+
+        $this->handler->process_queued_event([
+            'event_id' => 'evt_checkout_missing_tier',
+            'event_type' => 'checkout.session.completed',
+            'data_object' => $event_payload['data']['object'],
+            'trace_id' => 'test-trace',
+        ]);
+
+        $failed = \KHM\Membership\ProcessedWebhook::get_event('evt_checkout_missing_tier');
+        $this->assertNotNull($failed);
+        $this->assertEquals('failed', $failed['status'] ?? '');
+    }
+
+    public function test_invoice_paid_missing_user_marks_failed(): void {
+        $event_payload = [
+            'id' => 'evt_invoice_missing_user',
+            'type' => 'invoice.paid',
+            'data' => [
+                'object' => [
+                    'id' => 'in_missing_user',
+                    'customer' => 'cus_missing_user',
+                    'subscription' => 'sub_missing_user',
+                ],
+            ],
+        ];
+
+        $request = new WP_REST_Request('POST');
+        $request->set_body(json_encode($event_payload));
+        $response = $this->handler->handle_request($request);
+        $this->assertEquals(200, $response->get_status());
+
+        $this->handler->process_queued_event([
+            'event_id' => 'evt_invoice_missing_user',
+            'event_type' => 'invoice.paid',
+            'data_object' => $event_payload['data']['object'],
+            'trace_id' => 'test-trace',
+        ]);
+
+        $failed = \KHM\Membership\ProcessedWebhook::get_event('evt_invoice_missing_user');
+        $this->assertNotNull($failed);
+        $this->assertEquals('failed', $failed['status'] ?? '');
+    }
+
+    public function test_invoice_paid_replay_with_new_event_id_is_operation_idempotent(): void {
+        global $wpdb;
+        $audit_table = $wpdb->prefix . 'khm_membership_webhook_audit';
+
+        $wpdb->insert($wpdb->prefix . 'user_membership', [
+            'user_id' => 321,
+            'tier_id' => 1,
+            'stripe_customer_id' => 'cus_replay',
+            'status' => 'past_due'
+        ]);
+
+        $data_object = [
+            'id' => 'in_replay',
+            'customer' => 'cus_replay',
+            'subscription' => 'sub_replay'
+        ];
+
+        $this->handler->process_queued_event([
+            'event_id' => 'evt_replay_1',
+            'event_type' => 'invoice.paid',
+            'data_object' => $data_object,
+            'trace_id' => 'trace-1',
+        ]);
+
+        $this->handler->process_queued_event([
+            'event_id' => 'evt_replay_2',
+            'event_type' => 'invoice.paid',
+            'data_object' => $data_object,
+            'trace_id' => 'trace-2',
+        ]);
+
+        $op_count = $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$audit_table} WHERE operation_key = 'invoice_paid:in_replay'"
+        );
+        $this->assertEquals(2, (int) $op_count); // one success + one duplicate audit marker
     }
 }
