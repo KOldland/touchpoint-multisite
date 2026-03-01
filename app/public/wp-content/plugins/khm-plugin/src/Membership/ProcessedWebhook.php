@@ -40,6 +40,34 @@ class ProcessedWebhook {
         $wpdb->query( $sql );
     }
 
+    public static function maybe_schedule_cleanup(): void {
+        if ( ! function_exists( 'wp_next_scheduled' ) || ! function_exists( 'wp_schedule_event' ) ) {
+            return;
+        }
+
+        if ( ! wp_next_scheduled( 'khm_membership_webhook_cleanup' ) ) {
+            wp_schedule_event( time() + 3600, 'daily', 'khm_membership_webhook_cleanup' );
+        }
+    }
+
+    public static function cleanup_old_events(): void {
+        self::maybe_create_table();
+        global $wpdb;
+
+        $days = (int) apply_filters( 'khm_membership_webhook_retention_days', 30 );
+        $days = max( 1, $days );
+        $day_seconds = defined( 'DAY_IN_SECONDS' ) ? DAY_IN_SECONDS : 86400;
+        $cutoff = gmdate( 'Y-m-d H:i:s', time() - ( $days * $day_seconds ) );
+        $table = self::table_name();
+
+        $wpdb->query(
+            $wpdb->prepare(
+                "DELETE FROM {$table} WHERE created_at < %s",
+                $cutoff
+            )
+        );
+    }
+
     /**
      * Claim a Stripe event for processing.
      *
@@ -174,12 +202,36 @@ class ProcessedWebhook {
     }
 
     private static function build_payload( string $payload ): string {
+        $mode = (string) apply_filters( 'khm_membership_webhook_payload_mode', 'excerpt' );
+        $hash = hash( 'sha256', $payload );
+
+        if ( 'hash' === $mode ) {
+            return '';
+        }
+
+        $payload = self::redact_payload( $payload );
         $payload = trim( $payload );
-        if ( strlen( $payload ) <= 200000 ) {
+
+        $max_len = ( 'full' === $mode ) ? 200000 : 4000;
+        if ( strlen( $payload ) <= $max_len ) {
             return $payload;
         }
 
-        return substr( $payload, 0, 200000 );
+        return substr( $payload, 0, $max_len ) . "\n/* truncated payload sha256: {$hash} */";
+    }
+
+    private static function redact_payload( string $payload ): string {
+        // Basic PII redaction for storage in audit logs.
+        $patterns = [
+            '/"email"\s*:\s*"[^"]*"/i' => '"email":"[REDACTED]"',
+            '/"phone"\s*:\s*"[^"]*"/i' => '"phone":"[REDACTED]"',
+            '/"mobile"\s*:\s*"[^"]*"/i' => '"mobile":"[REDACTED]"',
+            '/"line1"\s*:\s*"[^"]*"/i' => '"line1":"[REDACTED]"',
+            '/"line2"\s*:\s*"[^"]*"/i' => '"line2":"[REDACTED]"',
+            '/"postal_code"\s*:\s*"[^"]*"/i' => '"postal_code":"[REDACTED]"',
+        ];
+
+        return (string) preg_replace( array_keys( $patterns ), array_values( $patterns ), $payload );
     }
 
     private static function truncate_notes( string $notes ): string {

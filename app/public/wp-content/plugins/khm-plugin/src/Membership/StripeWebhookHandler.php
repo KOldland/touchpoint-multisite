@@ -6,6 +6,8 @@ class StripeWebhookHandler {
     public function __construct() {
         add_action('rest_api_init', [ $this, 'register_routes' ]);
         add_action( 'khm_process_membership_stripe_webhook_event', [ $this, 'process_queued_event' ], 10, 1 );
+        add_action( 'khm_membership_webhook_cleanup', [ ProcessedWebhook::class, 'cleanup_old_events' ] );
+        ProcessedWebhook::maybe_schedule_cleanup();
     }
 
     public function register_routes() {
@@ -18,6 +20,11 @@ class StripeWebhookHandler {
 
     public function handle_request( \WP_REST_Request $req ) {
         $started_at = microtime( true );
+        if ( $this->is_rate_limited() ) {
+            $this->emit_telemetry( 'webhook.rate_limited', [ 'ip' => $this->get_client_ip() ] );
+            return new \WP_REST_Response( [ 'error' => 'Rate limit exceeded' ], 429 );
+        }
+
         $payload = $req->get_body();
         $sig_header = $this->get_signature_header( $req );
         $event = $this->verify_event_signature( $payload, $sig_header );
@@ -358,6 +365,40 @@ class StripeWebhookHandler {
 
         $this->process_queued_event( $job );
         return true;
+    }
+
+    private function is_rate_limited(): bool {
+        if ( ! function_exists( 'get_transient' ) || ! function_exists( 'set_transient' ) ) {
+            return false;
+        }
+
+        $window_seconds = (int) apply_filters( 'khm_membership_webhook_rate_limit_window', 60 );
+        $max_requests = (int) apply_filters( 'khm_membership_webhook_rate_limit_max_requests', 100 );
+        $window_seconds = max( 5, $window_seconds );
+        $max_requests = max( 1, $max_requests );
+
+        $ip = $this->get_client_ip();
+        $key = 'khm_wh_rl_' . md5( $ip . '|' . gmdate( 'YmdHi' ) );
+        $count = (int) get_transient( $key );
+        $count++;
+        set_transient( $key, $count, $window_seconds );
+
+        return $count > $max_requests;
+    }
+
+    private function get_client_ip(): string {
+        foreach ( [ 'HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR' ] as $key ) {
+            if ( ! empty( $_SERVER[ $key ] ) ) {
+                $value = (string) $_SERVER[ $key ];
+                if ( 'HTTP_X_FORWARDED_FOR' === $key && strpos( $value, ',' ) !== false ) {
+                    $parts = explode( ',', $value );
+                    $value = trim( (string) reset( $parts ) );
+                }
+                return sanitize_text_field( $value );
+            }
+        }
+
+        return 'unknown';
     }
 
     private function get_signature_header( \WP_REST_Request $req ): string {

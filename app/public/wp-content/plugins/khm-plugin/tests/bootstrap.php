@@ -25,48 +25,208 @@ if (!isset($wpdb)) {
         public $prefix = 'wp_';
         private $last_insert_id = 0;
         private $data = [];
+        private $tables = [];
 
         public function prepare($query, ...$args) {
-            // Simple vsprintf-based prepare (not SQL-safe, just for testing)
-            $query = str_replace('%d', '%s', $query);
-            $query = str_replace('%f', '%s', $query);
-            return vsprintf($query, $args);
+            $prepared = $query;
+            foreach ($args as $arg) {
+                if (is_numeric($arg)) {
+                    $replacement = (string) $arg;
+                } else {
+                    $replacement = "'" . str_replace("'", "\\'", (string) $arg) . "'";
+                }
+
+                $prepared = preg_replace('/%[dfs]/', $replacement, $prepared, 1);
+            }
+            return $prepared;
         }
 
         public function insert($table, $data, $format = null) {
-            $this->last_insert_id = rand(1, 99999);
-            $this->data[$table][$this->last_insert_id] = $data;
+            $table = $this->normalize_table($table);
+            $this->ensure_table($table);
+
+            if ($table === $this->prefix . 'khm_processed_webhooks' && isset($data['event_id'])) {
+                foreach ($this->data[$table] as $row) {
+                    if (($row['event_id'] ?? null) === $data['event_id']) {
+                        return false;
+                    }
+                }
+            }
+
+            $this->last_insert_id++;
+            if (!isset($data['id'])) {
+                $data['id'] = $this->last_insert_id;
+            }
+            $this->data[$table][] = $data;
             return 1;
         }
 
         public function get_var($query) {
-            // Mock implementation - returns null for "table exists" checks
-            if (strpos($query, 'SHOW TABLES') !== false) {
+            $query = trim((string) $query);
+
+            if (preg_match("/SHOW TABLES LIKE ['\"]?([^'\"]+)['\"]?/i", $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                return in_array($table, $this->tables, true) ? $table : null;
+            }
+
+            if (preg_match('/SELECT COUNT\(\*\) FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+event_id\s*=\s*[\'"]?([^\'"\s]+)[\'"]?/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $event_id = $m[2];
+                $count = 0;
+                foreach ($this->data[$table] ?? [] as $row) {
+                    if (($row['event_id'] ?? null) === $event_id) {
+                        $count++;
+                    }
+                }
+                return $count;
+            }
+
+            if (preg_match('/SELECT\s+(?:id|event_id)\s+FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+event_id\s*=\s*[\'"]?([^\'"\s]+)[\'"]?/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $event_id = $m[2];
+                foreach ($this->data[$table] ?? [] as $row) {
+                    if (($row['event_id'] ?? null) === $event_id) {
+                        return $row['id'] ?? $row['event_id'];
+                    }
+                }
                 return null;
             }
-            // For event ID checks, return null (not processed)
+
+            if (preg_match('/SELECT\s+user_id\s+FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+stripe_customer_id\s*=\s*[\'"]?([^\'"\s]+)[\'"]?/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $customer = $m[2];
+                foreach ($this->data[$table] ?? [] as $row) {
+                    if (($row['stripe_customer_id'] ?? null) === $customer) {
+                        return $row['user_id'] ?? null;
+                    }
+                }
+                return null;
+            }
+
             return null;
         }
 
         public function get_row($query, $output = OBJECT, $offset = 0) {
+            $query = trim((string) $query);
+            if (preg_match('/SELECT\s+status\s+FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+event_id\s*=\s*[\'"]?([^\'"\s]+)[\'"]?/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $event_id = $m[2];
+                foreach ($this->data[$table] ?? [] as $row) {
+                    if (($row['event_id'] ?? null) === $event_id) {
+                        $result = ['status' => $row['status'] ?? null];
+                        return $output === ARRAY_A ? $result : (object) $result;
+                    }
+                }
+                return null;
+            }
+
+            if (preg_match('/SELECT \* FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+user_id\s*=\s*([0-9]+)/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $user_id = (int) $m[2];
+                foreach ($this->data[$table] ?? [] as $row) {
+                    if ((int)($row['user_id'] ?? 0) === $user_id) {
+                        return $output === ARRAY_A ? $row : (object) $row;
+                    }
+                }
+                return null;
+            }
+
+            if (preg_match('/SELECT \* FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+event_id\s*=\s*[\'"]?([^\'"\s]+)[\'"]?/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $event_id = $m[2];
+                foreach ($this->data[$table] ?? [] as $row) {
+                    if (($row['event_id'] ?? null) === $event_id) {
+                        return $output === ARRAY_A ? $row : (object) $row;
+                    }
+                }
+                return null;
+            }
+
             return null;
         }
 
         public function update($table, $data, $where, $format = null, $where_format = null) {
+            $table = $this->normalize_table($table);
+            $this->ensure_table($table);
+            $updated = 0;
+            foreach ($this->data[$table] as $idx => $row) {
+                if ($this->matches_where($row, (array) $where)) {
+                    $this->data[$table][$idx] = array_merge($row, (array) $data);
+                    $updated++;
+                }
+            }
+            if ($updated > 0) {
+                return $updated;
+            }
             return 1;
         }
 
         public function replace($table, $data, $format = null) {
-            $this->last_insert_id = rand(1, 99999);
+            $table = $this->normalize_table($table);
+            $this->ensure_table($table);
+            $matched = false;
+            if ($table === $this->prefix . 'user_membership' && isset($data['user_id'])) {
+                foreach ($this->data[$table] as $idx => $row) {
+                    if ((int)($row['user_id'] ?? 0) === (int)$data['user_id']) {
+                        $this->data[$table][$idx] = array_merge($row, $data);
+                        $matched = true;
+                        break;
+                    }
+                }
+            }
+            if (!$matched) {
+                $this->insert($table, $data, $format);
+            }
             return 1;
         }
 
         public function delete($table, $where, $where_format = null) {
+            $table = $this->normalize_table($table);
+            $this->ensure_table($table);
+            if (empty($where)) {
+                $this->data[$table] = [];
+                return 1;
+            }
+            $remaining = [];
+            foreach ($this->data[$table] as $row) {
+                if (!$this->matches_where($row, (array) $where)) {
+                    $remaining[] = $row;
+                }
+            }
+            $this->data[$table] = $remaining;
             return 1;
         }
 
         public function query($query) {
+            $query = trim((string) $query);
+            if (preg_match('/CREATE TABLE\s+([a-zA-Z0-9_`]+)/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $this->ensure_table($table);
+                return true;
+            }
+
+            if (preg_match('/DELETE FROM\s+([a-zA-Z0-9_`]+)/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $this->ensure_table($table);
+                $this->data[$table] = [];
+                return true;
+            }
+
             return true;
+        }
+
+        public function get_results($query, $output = OBJECT) {
+            $query = trim((string) $query);
+            if (preg_match('/SELECT .* FROM\s+([a-zA-Z0-9_`]+).*LIMIT\s+([0-9]+)/is', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $limit = (int) $m[2];
+                $rows = array_slice(array_reverse($this->data[$table] ?? []), 0, $limit);
+                if ($output === ARRAY_A) {
+                    return $rows;
+                }
+                return array_map(fn($row) => (object) $row, $rows);
+            }
+            return [];
         }
 
         public function get_charset_collate() {
@@ -78,6 +238,31 @@ if (!isset($wpdb)) {
                 return $this->last_insert_id;
             }
             return null;
+        }
+
+        private function normalize_table($table) {
+            return str_replace('`', '', (string) $table);
+        }
+
+        private function ensure_table($table) {
+            if (!isset($this->data[$table])) {
+                $this->data[$table] = [];
+            }
+            if (!in_array($table, $this->tables, true)) {
+                $this->tables[] = $table;
+            }
+        }
+
+        private function matches_where(array $row, array $where): bool {
+            foreach ($where as $k => $v) {
+                if (!array_key_exists($k, $row)) {
+                    return false;
+                }
+                if ((string) $row[$k] !== (string) $v) {
+                    return false;
+                }
+            }
+            return true;
         }
     };
 }
@@ -92,19 +277,6 @@ if (!function_exists('rest_ensure_response')) {
     }
 }
 
-if (!class_exists('WP_REST_Request')) {
-    class WP_REST_Request {
-        private $params = [];
-        private $body = '';
-        public function __construct($method = 'GET', $route = '') {}
-        public function set_param($key, $value) { $this->params[$key] = $value; }
-        public function get_param($key) { return $this->params[$key] ?? null; }
-        public function get_params() { return $this->params; }
-        public function set_body($body) { $this->body = (string) $body; }
-        public function get_body() { return $this->body; }
-        public function get_headers() { return []; }
-    }
-}
 
 if (!function_exists('sanitize_email')) {
     function sanitize_email($email) {
@@ -122,6 +294,12 @@ if (!function_exists('sanitize_key')) {
     function sanitize_key($key) {
         $key = strtolower($key);
         return preg_replace('/[^a-z0-9_\\-]/', '', $key);
+    }
+}
+
+if (!function_exists('absint')) {
+    function absint($value) {
+        return abs((int) $value);
     }
 }
 
@@ -218,6 +396,55 @@ if (!function_exists('add_filter')) {
 if (!function_exists('current_time')) {
     function current_time($type, $gmt = 0) {
         return $gmt ? gmdate('Y-m-d H:i:s') : date('Y-m-d H:i:s');
+    }
+}
+
+if (!function_exists('get_transient')) {
+    function get_transient($transient) {
+        global $khm_test_transients;
+        $now = time();
+        if (empty($khm_test_transients[$transient])) {
+            return false;
+        }
+        if (($khm_test_transients[$transient]['expires'] ?? 0) < $now) {
+            unset($khm_test_transients[$transient]);
+            return false;
+        }
+        return $khm_test_transients[$transient]['value'];
+    }
+}
+
+if (!function_exists('set_transient')) {
+    function set_transient($transient, $value, $expiration = 0) {
+        global $khm_test_transients;
+        if (!is_array($khm_test_transients ?? null)) {
+            $khm_test_transients = [];
+        }
+        $khm_test_transients[$transient] = [
+            'value' => $value,
+            'expires' => time() + (int) $expiration,
+        ];
+        return true;
+    }
+}
+
+if (!function_exists('delete_transient')) {
+    function delete_transient($transient) {
+        global $khm_test_transients;
+        unset($khm_test_transients[$transient]);
+        return true;
+    }
+}
+
+if (!function_exists('wp_next_scheduled')) {
+    function wp_next_scheduled($hook, $args = []) {
+        return false;
+    }
+}
+
+if (!function_exists('wp_schedule_event')) {
+    function wp_schedule_event($timestamp, $recurrence, $hook, $args = []) {
+        return true;
     }
 }
 

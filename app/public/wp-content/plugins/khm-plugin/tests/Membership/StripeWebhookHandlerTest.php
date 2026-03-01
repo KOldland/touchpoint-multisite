@@ -294,4 +294,41 @@ class StripeWebhookHandlerTest extends TestCase {
         ));
         $this->assertNotNull($exists);
     }
+
+    public function test_rate_limit_returns_429_when_threshold_exceeded() {
+        $_SERVER['REMOTE_ADDR'] = '198.51.100.77';
+
+        add_filter(
+            'khm_membership_webhook_rate_limit_max_requests',
+            function () {
+                return 1;
+            }
+        );
+
+        $event_payload = [
+            'id' => 'evt_rate_1',
+            'type' => 'invoice.paid',
+            'data' => [
+                'object' => [
+                    'customer' => 'cus_rate'
+                ]
+            ]
+        ];
+
+        $request1 = new WP_REST_Request('POST');
+        $request1->set_body(json_encode($event_payload));
+        $response1 = $this->handler->handle_request($request1);
+        $this->assertEquals(200, $response1->get_status());
+
+        $request2 = new WP_REST_Request('POST');
+        $request2->set_body(json_encode([
+            'id' => 'evt_rate_2',
+            'type' => 'invoice.paid',
+            'data' => [ 'object' => [ 'customer' => 'cus_rate' ] ],
+        ]));
+        $response2 = $this->handler->handle_request($request2);
+        $this->assertEquals(429, $response2->get_status());
+
+        unset($_SERVER['REMOTE_ADDR']);
+    }
 }
