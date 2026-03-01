@@ -3,6 +3,9 @@
 namespace KHM\Membership;
 
 class StripeWebhookHandler {
+    private const DEFAULT_RATE_LIMIT_WINDOW_SECONDS = 60;
+    private const DEFAULT_RATE_LIMIT_MAX_REQUESTS = 100;
+
     public function __construct() {
         add_action('rest_api_init', [ $this, 'register_routes' ]);
         add_action( 'khm_process_membership_stripe_webhook_event', [ $this, 'process_queued_event' ], 10, 1 );
@@ -372,8 +375,18 @@ class StripeWebhookHandler {
             return false;
         }
 
-        $window_seconds = (int) apply_filters( 'khm_membership_webhook_rate_limit_window', 60 );
-        $max_requests = (int) apply_filters( 'khm_membership_webhook_rate_limit_max_requests', 100 );
+        $window_default = self::DEFAULT_RATE_LIMIT_WINDOW_SECONDS;
+        $max_default = self::DEFAULT_RATE_LIMIT_MAX_REQUESTS;
+
+        if ( defined( 'KHM_MEMBERSHIP_WEBHOOK_RATE_LIMIT_WINDOW' ) ) {
+            $window_default = (int) KHM_MEMBERSHIP_WEBHOOK_RATE_LIMIT_WINDOW;
+        }
+        if ( defined( 'KHM_MEMBERSHIP_WEBHOOK_RATE_LIMIT_MAX_REQUESTS' ) ) {
+            $max_default = (int) KHM_MEMBERSHIP_WEBHOOK_RATE_LIMIT_MAX_REQUESTS;
+        }
+
+        $window_seconds = (int) apply_filters( 'khm_membership_webhook_rate_limit_window', $window_default );
+        $max_requests = (int) apply_filters( 'khm_membership_webhook_rate_limit_max_requests', $max_default );
         $window_seconds = max( 5, $window_seconds );
         $max_requests = max( 1, $max_requests );
 

@@ -66,6 +66,12 @@ Payload mode filter: `khm_membership_webhook_payload_mode`
 
 Retention filter: `khm_membership_webhook_retention_days` (default `30` days)
 
+Policy constants (optional, override defaults):
+- `KHM_MEMBERSHIP_WEBHOOK_RATE_LIMIT_MAX_REQUESTS` (default `100`)
+- `KHM_MEMBERSHIP_WEBHOOK_RATE_LIMIT_WINDOW` (default `60` seconds)
+- `KHM_MEMBERSHIP_WEBHOOK_PAYLOAD_MODE` (default `excerpt`)
+- `KHM_MEMBERSHIP_WEBHOOK_RETENTION_DAYS` (default `30`)
+
 ## Monitoring and thresholds
 
 Telemetry hook: `khm_membership_webhook_telemetry`
@@ -117,3 +123,58 @@ Then inspect:
 - Stripe delivery status `200`
 - `wp_khm_processed_webhooks` row status transition `processing -> processed`
 
+## Staging UAT script (copy/paste)
+
+### 1) Confirm webhook endpoint is reachable
+
+```bash
+curl -i -X POST "https://<staging-domain>/wp-json/kh-membership/v1/webhook/stripe" \
+  -H "Content-Type: application/json" \
+  --data '{"id":"evt_probe","type":"invoice.paid","data":{"object":{"customer":"cus_probe"}}}'
+```
+
+Expected:
+- If unsigned request: `400 Invalid signature`
+- Route exists and does not return `404 rest_no_route`
+
+### 2) Forward Stripe events to staging and trigger an event
+
+```bash
+stripe listen --forward-to "https://<staging-domain>/wp-json/kh-membership/v1/webhook/stripe"
+stripe trigger checkout.session.completed
+```
+
+Expected:
+- Stripe dashboard delivery = `200`
+- New row appears in `wp_khm_processed_webhooks`
+
+### 3) Validate idempotency (duplicate replay)
+
+In Stripe dashboard, re-send the same event ID once.
+
+Expected:
+- Endpoint still returns `200`
+- No duplicate side effects in membership/credits records
+- `wp_khm_processed_webhooks` still contains one record for that `event_id`
+
+### 4) Validate failed-event operations
+
+1. Force one event to fail (staging-only controlled fault).
+2. Confirm row status = `failed`.
+3. In WP admin, open `Memberships -> Webhook Events`.
+4. Click `Requeue`.
+
+Expected:
+- Event status transitions `failed -> processing -> processed`
+
+### 5) Validate cleanup retention
+
+Set a low retention via filter/constant in staging (e.g. `1` day) and run:
+
+```bash
+wp cron event run khm_membership_webhook_cleanup
+```
+
+Expected:
+- Old rows before cutoff are deleted
+- Recent rows remain

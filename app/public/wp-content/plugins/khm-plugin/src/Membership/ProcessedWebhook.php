@@ -9,6 +9,8 @@ class ProcessedWebhook {
     public const STATUS_PROCESSING = 'processing';
     public const STATUS_PROCESSED  = 'processed';
     public const STATUS_FAILED     = 'failed';
+    private const DEFAULT_RETENTION_DAYS = 30;
+    private const DEFAULT_PAYLOAD_MODE = 'excerpt';
 
     /**
      * Ensure processed-webhooks table exists.
@@ -54,7 +56,12 @@ class ProcessedWebhook {
         self::maybe_create_table();
         global $wpdb;
 
-        $days = (int) apply_filters( 'khm_membership_webhook_retention_days', 30 );
+        $retention_default = self::DEFAULT_RETENTION_DAYS;
+        if ( defined( 'KHM_MEMBERSHIP_WEBHOOK_RETENTION_DAYS' ) ) {
+            $retention_default = (int) KHM_MEMBERSHIP_WEBHOOK_RETENTION_DAYS;
+        }
+
+        $days = (int) apply_filters( 'khm_membership_webhook_retention_days', $retention_default );
         $days = max( 1, $days );
         $day_seconds = defined( 'DAY_IN_SECONDS' ) ? DAY_IN_SECONDS : 86400;
         $cutoff = gmdate( 'Y-m-d H:i:s', time() - ( $days * $day_seconds ) );
@@ -202,7 +209,12 @@ class ProcessedWebhook {
     }
 
     private static function build_payload( string $payload ): string {
-        $mode = (string) apply_filters( 'khm_membership_webhook_payload_mode', 'excerpt' );
+        $payload_mode_default = self::DEFAULT_PAYLOAD_MODE;
+        if ( defined( 'KHM_MEMBERSHIP_WEBHOOK_PAYLOAD_MODE' ) ) {
+            $payload_mode_default = (string) KHM_MEMBERSHIP_WEBHOOK_PAYLOAD_MODE;
+        }
+
+        $mode = (string) apply_filters( 'khm_membership_webhook_payload_mode', $payload_mode_default );
         $hash = hash( 'sha256', $payload );
 
         if ( 'hash' === $mode ) {
