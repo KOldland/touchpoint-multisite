@@ -401,6 +401,7 @@ function khm_register_elementor_widgets( $widgets_manager ) {
         'PortalVoucher_Widget.php',
         'TestPortalDashboard_Widget.php',
         'MembershipCheckoutButton_Widget.php',
+        'CommerceCheckoutButton_Widget.php',
     ];
 
     foreach ( $widget_files as $file ) {
@@ -530,6 +531,15 @@ function khm_register_elementor_widgets( $widgets_manager ) {
             $widgets_manager->register( new \KHM\Elementor\Widgets\MembershipCheckoutButton_Widget() );
         } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
             $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\MembershipCheckoutButton_Widget() );
+        }
+    }
+
+    // Commerce Checkout Button Widget
+    if ( class_exists( '\KHM\Elementor\Widgets\CommerceCheckoutButton_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\CommerceCheckoutButton_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\CommerceCheckoutButton_Widget() );
         }
     }
 
@@ -1460,11 +1470,17 @@ add_action('init', function () {
     if ( class_exists('KHM\\Public\\MembershipCheckoutButtonShortcode') ) {
         ( new KHM\Public\MembershipCheckoutButtonShortcode() )->register();
     }
+    if ( class_exists('KHM\\Public\\CommerceCheckoutButtonShortcode') ) {
+        ( new KHM\Public\CommerceCheckoutButtonShortcode() )->register();
+    }
     if ( class_exists('KHM\\Membership\\LandingPageShortcode') ) {
         new KHM\Membership\LandingPageShortcode();
     }
     if ( class_exists('KHM\\Membership\\DashboardShortcode') ) {
         new KHM\Membership\DashboardShortcode();
+    }
+    if ( class_exists('KHM\\Blocks\\CommerceCheckoutButtonBlock') ) {
+        ( new KHM\Blocks\CommerceCheckoutButtonBlock() )->register();
     }
 });
 
