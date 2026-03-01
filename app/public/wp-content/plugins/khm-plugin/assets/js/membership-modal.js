@@ -34,6 +34,46 @@
          * Create and inject modal HTML into the page.
          */
         createModal: function() {
+            const config = window.khmMembershipModal || {};
+            const showGuestCreateAccount = !config.isLoggedIn;
+            const createAccountHTML = showGuestCreateAccount ? `
+                            <div class="khm-create-account-section">
+                                <label class="khm-create-account-toggle-wrap">
+                                    <input type="checkbox" id="khm-create-account-toggle" />
+                                    <strong>Create an account for free?</strong>
+                                </label>
+                                <div id="khm-create-account-details" class="khm-create-account-details" style="display:none;">
+                                    <p class="khm-create-account-description">Create an account now so you can manage your membership and billing. We'll email you a secure link to set your password.</p>
+                                    <div class="khm-field-group">
+                                        <label for="khm-first-name">First name</label>
+                                        <input id="khm-first-name" name="khm_first_name" type="text" class="regular-text" />
+                                    </div>
+                                    <div class="khm-field-group">
+                                        <label for="khm-last-name">Last name</label>
+                                        <input id="khm-last-name" name="khm_last_name" type="text" class="regular-text" />
+                                    </div>
+                                    <div class="khm-field-group">
+                                        <label for="khm-mobile">Mobile (24A)</label>
+                                        <input id="khm-mobile" name="khm_mobile" type="tel" class="regular-text" placeholder="+44 7123 456789" />
+                                    </div>
+                                    <div class="khm-field-group">
+                                        <label for="khm-job-title">Job title</label>
+                                        <input id="khm-job-title" name="khm_job_title" type="text" class="regular-text" />
+                                    </div>
+                                    <div class="khm-field-group">
+                                        <label for="khm-company">Company</label>
+                                        <input id="khm-company" name="khm_company" type="text" class="regular-text" />
+                                    </div>
+                                    <div class="khm-field-group">
+                                        <label>
+                                            <input id="khm-marketing-optin" name="khm_marketing_optin" type="checkbox" />
+                                            I'd like to receive occasional updates and offers
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+            ` : '';
+
             const modalHTML = `
                 <div id="khm-membership-modal" class="khm-modal-overlay" style="display: none;">
                     <div class="khm-modal-container khm-membership-container">
@@ -57,6 +97,7 @@
 
                                 <div id="khm-tier-features" class="khm-tier-features"></div>
                             </div>
+                            ${createAccountHTML}
 
                             <!-- Action Buttons -->
                             <div class="khm-modal-actions">
@@ -109,6 +150,12 @@
             $(document).on('click', '#khm-proceed-checkout', (e) => {
                 e.preventDefault();
                 this.proceedToCheckout();
+            });
+
+            // Toggle create-account details.
+            $(document).on('change', '#khm-create-account-toggle', (e) => {
+                const isChecked = $(e.currentTarget).is(':checked');
+                $('#khm-create-account-details').toggle(isChecked);
             });
         },
 
@@ -184,6 +231,7 @@
 
             // Clear any previous messages
             this.clearMessages();
+            this.resetGuestCreateAccountFields();
         },
 
         /**
@@ -199,16 +247,52 @@
             this.clearMessages();
 
             const config = window.khmMembershipModal || {};
+            const payload = {
+                action: 'khm_create_membership_checkout',
+                membership_level_id: this.currentTierData.levelId,
+                nonce: config.nonce
+            };
+
+            if (!config.isLoggedIn) {
+                const createAccount = $('#khm-create-account-toggle').is(':checked');
+                payload.create_account = createAccount ? 1 : 0;
+
+                if (createAccount) {
+                    const firstName = ($('#khm-first-name').val() || '').toString().trim();
+                    const lastName = ($('#khm-last-name').val() || '').toString().trim();
+                    const mobile = ($('#khm-mobile').val() || '').toString().trim();
+                    const jobTitle = ($('#khm-job-title').val() || '').toString().trim();
+                    const company = ($('#khm-company').val() || '').toString().trim();
+                    const marketingOptIn = $('#khm-marketing-optin').is(':checked') ? 1 : 0;
+
+                    if (!firstName || !lastName) {
+                        this.showError('Please enter your first and last name to create an account.');
+                        $button.prop('disabled', false).text(originalText);
+                        return;
+                    }
+
+                    if (mobile && mobile.length < 7) {
+                        this.showError('Please enter a valid mobile number.');
+                        $button.prop('disabled', false).text(originalText);
+                        return;
+                    }
+
+                    payload.profile = {
+                        first_name: firstName,
+                        last_name: lastName,
+                        mobile: mobile,
+                        job_title: jobTitle,
+                        company: company,
+                        marketing_opt_in: marketingOptIn
+                    };
+                }
+            }
 
             // AJAX call to create Stripe Checkout Session
             $.ajax({
                 url: config.ajaxUrl,
                 type: 'POST',
-                data: {
-                    action: 'khm_create_membership_checkout',
-                    membership_level_id: this.currentTierData.levelId,
-                    nonce: config.nonce
-                },
+                data: payload,
                 success: (response) => {
                     if (response.success && response.data && response.data.checkout_url) {
                         // Redirect to Stripe Checkout
@@ -253,7 +337,18 @@
             this.modal.fadeOut(300);
             $('body').removeClass('khm-modal-open');
             this.clearMessages();
+            this.resetGuestCreateAccountFields();
             this.currentTierData = null;
+        },
+
+        /**
+         * Reset the create-account collapsible state and values.
+         */
+        resetGuestCreateAccountFields: function() {
+            $('#khm-create-account-toggle').prop('checked', false);
+            $('#khm-create-account-details').hide();
+            $('#khm-first-name, #khm-last-name, #khm-mobile, #khm-job-title, #khm-company').val('');
+            $('#khm-marketing-optin').prop('checked', false);
         },
 
         /**

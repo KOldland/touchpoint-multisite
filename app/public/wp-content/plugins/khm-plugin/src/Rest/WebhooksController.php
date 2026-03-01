@@ -845,6 +845,8 @@ class WebhooksController {
 		$meta    = isset( $session->metadata ) ? (array) $session->metadata : array();
 		$levelId = (int) ( $meta['membership_level_id'] ?? $meta['membership_id'] ?? 0 );
 		$userId  = (int) ( $meta['user_id'] ?? 0 );
+		$guestEmail = $this->extract_checkout_session_email( $session, $meta );
+		$createAccount = ! empty( $meta['create_account'] ) && in_array( (string) $meta['create_account'], array( '1', 'true', 'yes' ), true );
 
 		if ( ! $levelId ) {
 			do_action( 'khm_stripe_unresolved_context', 'checkout.session.completed', $session );
@@ -859,23 +861,23 @@ class WebhooksController {
 			}
 		}
 
-		$email = $this->extract_checkout_session_email( $session );
-
-		if ( ! $userId && $email ) {
-			$user = get_user_by( 'email', $email );
+		if ( ! $userId && $guestEmail ) {
+			$user = get_user_by( 'email', $guestEmail );
 			if ( $user && isset( $user->ID ) ) {
 				$userId = (int) $user->ID;
 			}
 		}
 
-		if ( ! $userId && $email ) {
-			$userId = $this->create_user_from_email( $email );
+		if ( ! $userId && $guestEmail ) {
+			$userId = $this->create_user_from_email( $guestEmail, $meta, $createAccount );
 		}
 
 		if ( ! $userId ) {
 			do_action( 'khm_stripe_unresolved_context', 'checkout.session.completed', $session );
 			return;
 		}
+
+		$this->apply_checkout_profile_meta( (int) $userId, $meta );
 
 		$status = $this->resolve_subscription_status_from_session( $session );
 
@@ -955,9 +957,16 @@ class WebhooksController {
 	 * Extract customer email from a checkout session.
 	 *
 	 * @param object $session Stripe Checkout Session object.
+	 * @param array<string,mixed> $metadata Session metadata.
 	 * @return string
 	 */
-	private function extract_checkout_session_email( object $session ): string {
+	private function extract_checkout_session_email( object $session, array $metadata = array() ): string {
+		if ( isset( $metadata['guest_email'] ) ) {
+			$email = sanitize_email( (string) $metadata['guest_email'] );
+			if ( $email && is_email( $email ) ) {
+				return $email;
+			}
+		}
 		if ( isset( $session->customer_details ) && isset( $session->customer_details->email ) ) {
 			return (string) $session->customer_details->email;
 		}
@@ -971,9 +980,11 @@ class WebhooksController {
 	 * Create a WordPress user for a checkout session email.
 	 *
 	 * @param string $email
+	 * @param array<string,mixed> $metadata
+	 * @param bool $createAccount
 	 * @return int|null
 	 */
-	private function create_user_from_email( string $email ): ?int {
+	private function create_user_from_email( string $email, array $metadata = array(), bool $createAccount = false ): ?int {
 		$email = sanitize_email( $email );
 		if ( ! $email || ! is_email( $email ) ) {
 			return null;
@@ -990,8 +1001,90 @@ class WebhooksController {
 			error_log( 'Stripe checkout user create error: ' . $userId->get_error_message() );
 			return null;
 		}
+		$wpUser = new \WP_User( (int) $userId );
+		if ( $wpUser->exists() && empty( $wpUser->roles ) ) {
+			$wpUser->set_role( get_option( 'default_role', 'subscriber' ) );
+		}
+
+		$this->apply_checkout_profile_meta( (int) $userId, $metadata );
+		if ( $createAccount ) {
+			update_user_meta( (int) $userId, 'khm_guest_account', 1 );
+			update_user_meta( (int) $userId, 'khm_guest_created_at', time() );
+			update_user_meta( (int) $userId, 'khm_guest_origin', 'stripe_checkout' );
+			$this->send_password_set_email( (int) $userId, $email );
+		}
 
 		return (int) $userId;
+	}
+
+	/**
+	 * Apply profile fields from checkout metadata into user meta.
+	 *
+	 * @param int $userId
+	 * @param array<string,mixed> $metadata
+	 * @return void
+	 */
+	private function apply_checkout_profile_meta( int $userId, array $metadata ): void {
+		$firstName = sanitize_text_field( (string) ( $metadata['profile_first_name'] ?? '' ) );
+		$lastName = sanitize_text_field( (string) ( $metadata['profile_last_name'] ?? '' ) );
+		$mobile = sanitize_text_field( (string) ( $metadata['profile_mobile'] ?? '' ) );
+		$jobTitle = sanitize_text_field( (string) ( $metadata['profile_job_title'] ?? '' ) );
+		$company = sanitize_text_field( (string) ( $metadata['profile_company'] ?? '' ) );
+		$marketingOptInProvided = array_key_exists( 'profile_marketing_optin', $metadata );
+		$marketingOptIn = ! empty( $metadata['profile_marketing_optin'] );
+
+		if ( $firstName !== '' ) {
+			update_user_meta( $userId, 'first_name', $firstName );
+		}
+		if ( $lastName !== '' ) {
+			update_user_meta( $userId, 'last_name', $lastName );
+		}
+		if ( $mobile !== '' ) {
+			update_user_meta( $userId, 'mobile', $mobile );
+		}
+		if ( $jobTitle !== '' ) {
+			update_user_meta( $userId, 'job_title', $jobTitle );
+		}
+		if ( $company !== '' ) {
+			update_user_meta( $userId, 'company', $company );
+		}
+		if ( $marketingOptInProvided ) {
+			update_user_meta( $userId, 'marketing_opt_in', $marketingOptIn ? 1 : 0 );
+		}
+	}
+
+	/**
+	 * Send secure password set email for account claim.
+	 *
+	 * @param int $userId
+	 * @param string $email
+	 * @return void
+	 */
+	private function send_password_set_email( int $userId, string $email ): void {
+		$user = get_user_by( 'id', $userId );
+		if ( ! $user || ! isset( $user->user_login ) ) {
+			return;
+		}
+
+		$key = get_password_reset_key( $user );
+		if ( is_wp_error( $key ) ) {
+			wp_new_user_notification( $userId, null, 'user' );
+			return;
+		}
+
+		$resetLink = network_site_url(
+			'wp-login.php?action=rp&key=' . rawurlencode( (string) $key ) . '&login=' . rawurlencode( (string) $user->user_login ),
+			'login'
+		);
+
+		$subject = __( 'Set your password', 'khm-membership' );
+		$message = sprintf(
+			/* translators: %s password setup URL */
+			__( "Thanks for your purchase. We've created an account for you.\nSet your password here: %s", 'khm-membership' ),
+			$resetLink
+		);
+
+		wp_mail( $email, $subject, $message );
 	}
 
 	/**

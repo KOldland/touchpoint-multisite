@@ -140,6 +140,46 @@ class MembershipCheckoutHandler {
             $metadata['user_id'] = (string) $user_id;
         }
 
+        $create_account = !empty($_POST['create_account']) ? '1' : '0';
+        $profile = $this->sanitize_profile_payload($_POST['profile'] ?? null);
+        $guest_email = sanitize_email((string) ($_POST['guest_email'] ?? ''));
+
+        if ($create_account === '1') {
+            if ($profile['first_name'] === '' || $profile['last_name'] === '') {
+                wp_send_json_error([
+                    'message' => __('First name and last name are required to create an account.', 'khm-membership')
+                ], 400);
+            }
+            if ($profile['mobile'] !== '' && strlen($profile['mobile']) < 7) {
+                wp_send_json_error([
+                    'message' => __('Please provide a valid mobile number.', 'khm-membership')
+                ], 400);
+            }
+        }
+
+        $metadata['create_account'] = $create_account;
+        if (!empty($profile['first_name'])) {
+            $metadata['profile_first_name'] = $profile['first_name'];
+        }
+        if (!empty($profile['last_name'])) {
+            $metadata['profile_last_name'] = $profile['last_name'];
+        }
+        if (!empty($profile['mobile'])) {
+            $metadata['profile_mobile'] = $profile['mobile'];
+        }
+        if (!empty($profile['job_title'])) {
+            $metadata['profile_job_title'] = $profile['job_title'];
+        }
+        if (!empty($profile['company'])) {
+            $metadata['profile_company'] = $profile['company'];
+        }
+        if (!empty($profile['marketing_opt_in'])) {
+            $metadata['profile_marketing_optin'] = '1';
+        }
+        if ($guest_email && is_email($guest_email)) {
+            $metadata['guest_email'] = $guest_email;
+        }
+
         // Create Stripe Checkout Session
         try {
             \Stripe\Stripe::setApiKey($stripe_secret);
@@ -161,6 +201,8 @@ class MembershipCheckoutHandler {
             // If user is logged in, pre-fill email
             if ($user_email) {
                 $session_params['customer_email'] = $user_email;
+            } elseif ($guest_email && is_email($guest_email)) {
+                $session_params['customer_email'] = $guest_email;
             }
 
             // Optional: Set subscription data
@@ -278,5 +320,33 @@ class MembershipCheckoutHandler {
         }
 
         return true;
+    }
+
+    /**
+     * Sanitize optional guest profile payload passed from checkout modal.
+     *
+     * @param mixed $profile
+     * @return array{first_name:string,last_name:string,mobile:string,job_title:string,company:string,marketing_opt_in:int}
+     */
+    private function sanitize_profile_payload($profile): array {
+        if (!is_array($profile)) {
+            return [
+                'first_name' => '',
+                'last_name' => '',
+                'mobile' => '',
+                'job_title' => '',
+                'company' => '',
+                'marketing_opt_in' => 0,
+            ];
+        }
+
+        return [
+            'first_name' => sanitize_text_field((string) ($profile['first_name'] ?? '')),
+            'last_name' => sanitize_text_field((string) ($profile['last_name'] ?? '')),
+            'mobile' => sanitize_text_field((string) ($profile['mobile'] ?? '')),
+            'job_title' => sanitize_text_field((string) ($profile['job_title'] ?? '')),
+            'company' => sanitize_text_field((string) ($profile['company'] ?? '')),
+            'marketing_opt_in' => !empty($profile['marketing_opt_in']) ? 1 : 0,
+        ];
     }
 }
