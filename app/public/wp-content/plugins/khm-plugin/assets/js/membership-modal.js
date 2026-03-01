@@ -21,6 +21,7 @@
     const MembershipModal = {
         modal: null,
         currentTierData: null,
+        appliedPromo: null,
 
         /**
          * Initialize the modal system.
@@ -73,6 +74,17 @@
                                 </div>
                             </div>
             ` : '';
+            const promoHTML = `
+                            <div class="khm-membership-promo-section">
+                                <label for="khm-membership-promo-code">Promo code</label>
+                                <div class="khm-membership-promo-row">
+                                    <input id="khm-membership-promo-code" type="text" class="regular-text" placeholder="Enter promo code" />
+                                    <button type="button" id="khm-membership-apply-promo" class="khm-btn-secondary">Apply</button>
+                                    <button type="button" id="khm-membership-remove-promo" class="khm-btn-link" style="display:none;">Remove</button>
+                                </div>
+                                <div id="khm-membership-promo-message" class="khm-messages"></div>
+                            </div>
+            `;
 
             const modalHTML = `
                 <div id="khm-membership-modal" class="khm-modal-overlay" style="display: none;">
@@ -97,6 +109,7 @@
 
                                 <div id="khm-tier-features" class="khm-tier-features"></div>
                             </div>
+                            ${promoHTML}
                             ${createAccountHTML}
 
                             <!-- Action Buttons -->
@@ -156,6 +169,16 @@
             $(document).on('change', '#khm-create-account-toggle', (e) => {
                 const isChecked = $(e.currentTarget).is(':checked');
                 $('#khm-create-account-details').toggle(isChecked);
+            });
+
+            $(document).on('click', '#khm-membership-apply-promo', (e) => {
+                e.preventDefault();
+                this.applyPromo();
+            });
+
+            $(document).on('click', '#khm-membership-remove-promo', (e) => {
+                e.preventDefault();
+                this.clearPromo();
             });
         },
 
@@ -232,6 +255,7 @@
             // Clear any previous messages
             this.clearMessages();
             this.resetGuestCreateAccountFields();
+            this.clearPromo();
         },
 
         /**
@@ -288,6 +312,15 @@
                 }
             }
 
+            if (this.appliedPromo && this.appliedPromo.promo_code) {
+                payload.promo_code = this.appliedPromo.promo_code;
+                payload.applied_promo_code = this.appliedPromo.promo_code;
+                payload.applied_promo = this.appliedPromo.promo_id || '';
+                if (this.appliedPromo.stripe_promotion_code) {
+                    payload.stripe_promotion_code = this.appliedPromo.stripe_promotion_code;
+                }
+            }
+
             // AJAX call to create Stripe Checkout Session
             $.ajax({
                 url: config.ajaxUrl,
@@ -338,6 +371,7 @@
             $('body').removeClass('khm-modal-open');
             this.clearMessages();
             this.resetGuestCreateAccountFields();
+            this.clearPromo();
             this.currentTierData = null;
         },
 
@@ -349,6 +383,83 @@
             $('#khm-create-account-details').hide();
             $('#khm-first-name, #khm-last-name, #khm-mobile, #khm-job-title, #khm-company').val('');
             $('#khm-marketing-optin').prop('checked', false);
+        },
+
+        applyPromo: function() {
+            const promoCode = ($('#khm-membership-promo-code').val() || '').toString().trim();
+            if (!promoCode) {
+                this.showPromoMessage('Please enter a promo code.', 'error');
+                return;
+            }
+
+            if (!this.currentTierData || !this.currentTierData.levelId) {
+                this.showPromoMessage('Membership tier is missing.', 'error');
+                return;
+            }
+
+            const config = window.khmMembershipModal || {};
+            $('#khm-membership-apply-promo').prop('disabled', true).text('Applying...');
+            this.showPromoMessage('', 'clear');
+
+            $.ajax({
+                url: config.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'khm_validate_membership_promo',
+                    membership_level_id: this.currentTierData.levelId,
+                    promo_code: promoCode,
+                    nonce: config.nonce
+                },
+                success: (response) => {
+                    if (response.success && response.data) {
+                        this.appliedPromo = {
+                            promo_code: response.data.promo_code || promoCode,
+                            promo_id: response.data.promo_id || '',
+                            promo_type: response.data.promo_type || '',
+                            promo_amount: response.data.promo_amount || 0,
+                            stripe_promotion_code: response.data.stripe_promotion_code || ''
+                        };
+                        $('#khm-membership-promo-code').val(this.appliedPromo.promo_code).prop('readonly', true);
+                        $('#khm-membership-apply-promo').text('Applied');
+                        $('#khm-membership-remove-promo').show();
+                        this.showPromoMessage(response.data.message || 'Promo code applied.', 'success');
+                    } else {
+                        this.clearPromo(false);
+                        const message = response.data && response.data.message ? response.data.message : 'Invalid promo code.';
+                        this.showPromoMessage(message, 'error');
+                    }
+                    $('#khm-membership-apply-promo').prop('disabled', false);
+                },
+                error: (xhr) => {
+                    this.clearPromo(false);
+                    let message = 'Unable to validate promo code.';
+                    if (xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
+                        message = xhr.responseJSON.data.message;
+                    }
+                    this.showPromoMessage(message, 'error');
+                    $('#khm-membership-apply-promo').prop('disabled', false).text('Apply');
+                }
+            });
+        },
+
+        clearPromo: function(clearMessage = true) {
+            this.appliedPromo = null;
+            $('#khm-membership-promo-code').val('').prop('readonly', false);
+            $('#khm-membership-apply-promo').prop('disabled', false).text('Apply');
+            $('#khm-membership-remove-promo').hide();
+            if (clearMessage) {
+                this.showPromoMessage('', 'clear');
+            }
+        },
+
+        showPromoMessage: function(message, type) {
+            const $node = $('#khm-membership-promo-message');
+            if (type === 'clear' || !message) {
+                $node.empty();
+                return;
+            }
+            const css = type === 'success' ? 'khm-message khm-success' : 'khm-message khm-error';
+            $node.html('<div class="' + css + '">' + this.escapeHtml(message) + '</div>');
         },
 
         /**

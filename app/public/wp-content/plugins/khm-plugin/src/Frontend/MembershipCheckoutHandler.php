@@ -33,6 +33,8 @@ class MembershipCheckoutHandler {
         // Register AJAX handler (accessible to logged-in and logged-out users)
         add_action('wp_ajax_khm_create_membership_checkout', [$this, 'ajax_create_checkout_session']);
         add_action('wp_ajax_nopriv_khm_create_membership_checkout', [$this, 'ajax_create_checkout_session']);
+        add_action('wp_ajax_khm_validate_membership_promo', [$this, 'ajax_validate_membership_promo']);
+        add_action('wp_ajax_nopriv_khm_validate_membership_promo', [$this, 'ajax_validate_membership_promo']);
     }
 
     /**
@@ -263,6 +265,55 @@ class MembershipCheckoutHandler {
                 'message' => __('An unexpected error occurred. Please try again.', 'khm-membership')
             ], 500);
         }
+    }
+
+    /**
+     * Validate a membership promo code without mutating session state.
+     *
+     * Expected POST params:
+     * - membership_level_id: level ID
+     * - promo_code: code string
+     * - nonce: khm_membership_checkout_nonce
+     */
+    public function ajax_validate_membership_promo(): void {
+        check_ajax_referer('khm_membership_checkout_nonce', 'nonce');
+
+        $level_id = intval($_POST['membership_level_id'] ?? 0);
+        $promo_code = sanitize_text_field((string) ($_POST['promo_code'] ?? ''));
+        $user_id = get_current_user_id();
+
+        if ($level_id <= 0 || $promo_code === '') {
+            wp_send_json_error([
+                'message' => __('Membership level and promo code are required.', 'khm-membership')
+            ], 400);
+        }
+
+        if (!$this->discounts) {
+            $this->discounts = class_exists(DiscountCodeService::class) ? new DiscountCodeService() : null;
+        }
+
+        if (!$this->discounts) {
+            wp_send_json_error([
+                'message' => __('Promo service unavailable.', 'khm-membership')
+            ], 500);
+        }
+
+        $validation = $this->discounts->validate_code($promo_code, $level_id, $user_id);
+        if (empty($validation['valid']) || empty($validation['code'])) {
+            wp_send_json_error([
+                'message' => sanitize_text_field((string) ($validation['message'] ?? __('Invalid promo code.', 'khm-membership')))
+            ], 400);
+        }
+
+        $code = $validation['code'];
+        wp_send_json_success([
+            'message' => sanitize_text_field((string) ($validation['message'] ?? __('Promo code applied.', 'khm-membership'))),
+            'promo_code' => $promo_code,
+            'promo_id' => (int) ($code->id ?? 0),
+            'promo_type' => sanitize_text_field((string) ($code->type ?? '')),
+            'promo_amount' => (float) ($code->value ?? 0),
+            'stripe_promotion_code' => sanitize_text_field((string) ($code->stripe_promotion_code ?? '')),
+        ]);
     }
 
     /**

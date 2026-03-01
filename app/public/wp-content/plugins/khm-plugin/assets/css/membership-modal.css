@@ -224,6 +224,49 @@ body.khm-modal-open {
 }
 
 /* ========================================
+   Membership Promo Section
+   ======================================== */
+
+.khm-membership-promo-section {
+    margin: 0 0 18px;
+    padding: 12px;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    background: #fcfcfc;
+}
+
+.khm-membership-promo-section > label {
+    display: block;
+    margin: 0 0 7px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+}
+
+.khm-membership-promo-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.khm-membership-promo-row input[type="text"] {
+    flex: 1;
+    min-height: 36px;
+    padding: 8px 10px;
+    border: 1px solid #d6d6d6;
+    border-radius: 4px;
+}
+
+.khm-btn-link {
+    background: none;
+    border: 0;
+    color: #6b0b0b;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0 2px;
+}
+
+/* ========================================
    Optional Guest Account Section
    ======================================== */
 
