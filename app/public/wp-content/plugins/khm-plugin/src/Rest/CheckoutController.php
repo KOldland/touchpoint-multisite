@@ -7,9 +7,11 @@ use WP_REST_Response;
 use KHM\Services\LevelRepository;
 use KHM\Gateways\StripeGateway;
 use KHM\Services\LevelPriceResolver;
+use KHM\Services\DiscountCodeService;
 
 class CheckoutController {
     private LevelRepository $levels;
+    private ?DiscountCodeService $discounts = null;
 
     public function __construct( ?LevelRepository $levels = null ) {
         $this->levels = $levels ?: new LevelRepository();
@@ -84,6 +86,11 @@ class CheckoutController {
             'user_id' => $userId ? (string) $userId : '',
         ];
 
+        $promo = $this->resolve_membership_promo($levelId, $userId, $request);
+        if (!empty($promo['metadata']) && is_array($promo['metadata'])) {
+            $metadata = array_merge($metadata, $promo['metadata']);
+        }
+
         try {
             $gateway = new StripeGateway([
                 'secret_key' => $secret,
@@ -100,6 +107,13 @@ class CheckoutController {
             'allow_promotion_codes' => $this->resolve_allow_promotion_codes( $levelId ),
             'metadata' => $metadata,
         ];
+            if (!empty($promo['stripe_promotion_code'])) {
+                $params['discounts'] = [
+                    [
+                        'promotion_code' => $promo['stripe_promotion_code'],
+                    ]
+                ];
+            }
 
             $params = apply_filters('khm_stripe_checkout_session_params', $params, $levelId, $userId ?: null, $email);
 
@@ -170,5 +184,62 @@ class CheckoutController {
         }
 
         return true;
+    }
+
+    /**
+     * Resolve membership promo payload from REST request.
+     *
+     * @param int $levelId
+     * @param int $userId
+     * @param WP_REST_Request $request
+     * @return array{metadata:array<string,string>,stripe_promotion_code:string}
+     */
+    private function resolve_membership_promo(int $levelId, int $userId, WP_REST_Request $request): array {
+        $metadata = [];
+        $stripePromotionCode = '';
+
+        $incomingCode = sanitize_text_field((string) ($request->get_param('applied_promo_code') ?? $request->get_param('promo_code') ?? ''));
+        $incomingPromoId = sanitize_text_field((string) ($request->get_param('applied_promo') ?? $request->get_param('promo_id') ?? ''));
+        $incomingStripePromotionCode = sanitize_text_field((string) ($request->get_param('stripe_promotion_code') ?? ''));
+
+        if ($incomingStripePromotionCode !== '') {
+            $stripePromotionCode = $incomingStripePromotionCode;
+        }
+
+        if ($incomingCode !== '') {
+            if (!$this->discounts) {
+                $this->discounts = class_exists(DiscountCodeService::class) ? new DiscountCodeService() : null;
+            }
+
+            if ($this->discounts) {
+                $validated = $this->discounts->validate_code($incomingCode, $levelId, $userId);
+                if (!empty($validated['valid']) && !empty($validated['code'])) {
+                    $codeObject = $validated['code'];
+                    $metadata['khm_applied_promo_code'] = $incomingCode;
+                    $metadata['khm_applied_promo'] = (string) ($codeObject->id ?? $incomingPromoId);
+                    $metadata['khm_applied_promo_type'] = sanitize_text_field((string) ($codeObject->type ?? ''));
+                    $metadata['khm_applied_promo_amount'] = (string) (float) ($codeObject->value ?? 0);
+
+                    if (isset($codeObject->stripe_promotion_code) && !empty($codeObject->stripe_promotion_code)) {
+                        $stripePromotionCode = sanitize_text_field((string) $codeObject->stripe_promotion_code);
+                    }
+                }
+            }
+        }
+
+        if ($incomingPromoId !== '' && !isset($metadata['khm_applied_promo'])) {
+            $metadata['khm_applied_promo'] = $incomingPromoId;
+        }
+        if ($incomingCode !== '' && !isset($metadata['khm_applied_promo_code'])) {
+            $metadata['khm_applied_promo_code'] = $incomingCode;
+        }
+        if ($stripePromotionCode !== '') {
+            $metadata['khm_stripe_promotion_code'] = $stripePromotionCode;
+        }
+
+        return [
+            'metadata' => $metadata,
+            'stripe_promotion_code' => $stripePromotionCode,
+        ];
     }
 }

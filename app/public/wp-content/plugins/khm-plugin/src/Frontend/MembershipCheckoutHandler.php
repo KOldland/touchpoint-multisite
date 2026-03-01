@@ -9,11 +9,13 @@
 namespace KHM\Frontend;
 
 use KHM\Services\LevelRepository;
+use KHM\Services\DiscountCodeService;
 
 class MembershipCheckoutHandler {
 
     private static bool $booted = false;
     private ?LevelRepository $levels = null;
+    private ?DiscountCodeService $discounts = null;
 
     public function __construct() {
         if (self::$booted) {
@@ -180,6 +182,11 @@ class MembershipCheckoutHandler {
             $metadata['guest_email'] = $guest_email;
         }
 
+        $promo = $this->resolve_membership_promo($level_id, $user_id, $_POST);
+        if (!empty($promo['metadata']) && is_array($promo['metadata'])) {
+            $metadata = array_merge($metadata, $promo['metadata']);
+        }
+
         // Create Stripe Checkout Session
         try {
             \Stripe\Stripe::setApiKey($stripe_secret);
@@ -197,6 +204,13 @@ class MembershipCheckoutHandler {
                 'metadata' => $metadata,
                 'allow_promotion_codes' => $this->resolve_allow_promotion_codes( $level_id ),
             ];
+            if (!empty($promo['stripe_promotion_code'])) {
+                $session_params['discounts'] = [
+                    [
+                        'promotion_code' => $promo['stripe_promotion_code'],
+                    ]
+                ];
+            }
 
             // If user is logged in, pre-fill email
             if ($user_email) {
@@ -347,6 +361,64 @@ class MembershipCheckoutHandler {
             'job_title' => sanitize_text_field((string) ($profile['job_title'] ?? '')),
             'company' => sanitize_text_field((string) ($profile['company'] ?? '')),
             'marketing_opt_in' => !empty($profile['marketing_opt_in']) ? 1 : 0,
+        ];
+    }
+
+    /**
+     * Resolve promo payload for membership checkout and normalize metadata.
+     *
+     * @param int $level_id
+     * @param int $user_id
+     * @param array<string,mixed> $payload
+     * @return array{metadata:array<string,string>,stripe_promotion_code:string}
+     */
+    private function resolve_membership_promo(int $level_id, int $user_id, array $payload): array {
+        $metadata = [];
+        $stripePromotionCode = '';
+
+        $incomingCode = sanitize_text_field((string) ($payload['applied_promo_code'] ?? $payload['promo_code'] ?? ''));
+        $incomingPromoId = sanitize_text_field((string) ($payload['applied_promo'] ?? $payload['promo_id'] ?? ''));
+        $incomingStripePromotionCode = sanitize_text_field((string) ($payload['stripe_promotion_code'] ?? ''));
+
+        if ($incomingStripePromotionCode !== '') {
+            $stripePromotionCode = $incomingStripePromotionCode;
+        }
+
+        if ($incomingCode !== '') {
+            if (!$this->discounts) {
+                $this->discounts = class_exists(DiscountCodeService::class) ? new DiscountCodeService() : null;
+            }
+
+            if ($this->discounts) {
+                $validated = $this->discounts->validate_code($incomingCode, $level_id, $user_id);
+                if (!empty($validated['valid']) && !empty($validated['code'])) {
+                    $codeObject = $validated['code'];
+                    $metadata['khm_applied_promo_code'] = $incomingCode;
+                    $metadata['khm_applied_promo'] = (string) ($codeObject->id ?? $incomingPromoId);
+                    $metadata['khm_applied_promo_type'] = sanitize_text_field((string) ($codeObject->type ?? ''));
+                    $metadata['khm_applied_promo_amount'] = (string) (float) ($codeObject->value ?? 0);
+
+                    // Optional mapping if a custom property exists on the model/row.
+                    if (isset($codeObject->stripe_promotion_code) && !empty($codeObject->stripe_promotion_code)) {
+                        $stripePromotionCode = sanitize_text_field((string) $codeObject->stripe_promotion_code);
+                    }
+                }
+            }
+        }
+
+        if ($incomingPromoId !== '' && !isset($metadata['khm_applied_promo'])) {
+            $metadata['khm_applied_promo'] = $incomingPromoId;
+        }
+        if ($incomingCode !== '' && !isset($metadata['khm_applied_promo_code'])) {
+            $metadata['khm_applied_promo_code'] = $incomingCode;
+        }
+        if ($stripePromotionCode !== '') {
+            $metadata['khm_stripe_promotion_code'] = $stripePromotionCode;
+        }
+
+        return [
+            'metadata' => $metadata,
+            'stripe_promotion_code' => $stripePromotionCode,
         ];
     }
 }

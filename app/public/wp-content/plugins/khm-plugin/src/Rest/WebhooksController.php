@@ -889,6 +889,27 @@ class WebhooksController {
 			'status' => $status,
 		);
 
+		$appliedPromo = isset( $meta['khm_applied_promo'] ) ? sanitize_text_field( (string) $meta['khm_applied_promo'] ) : '';
+		$appliedPromoCode = isset( $meta['khm_applied_promo_code'] ) ? sanitize_text_field( (string) $meta['khm_applied_promo_code'] ) : '';
+		$stripePromotionCode = isset( $meta['khm_stripe_promotion_code'] ) ? sanitize_text_field( (string) $meta['khm_stripe_promotion_code'] ) : '';
+		$appliedPromoType = isset( $meta['khm_applied_promo_type'] ) ? sanitize_text_field( (string) $meta['khm_applied_promo_type'] ) : '';
+		$appliedPromoAmount = isset( $meta['khm_applied_promo_amount'] ) ? (float) $meta['khm_applied_promo_amount'] : 0.0;
+		if ( $appliedPromo !== '' ) {
+			$assignOptions['applied_promo'] = $appliedPromo;
+		}
+		if ( $appliedPromoCode !== '' ) {
+			$assignOptions['applied_promo_code'] = $appliedPromoCode;
+		}
+		if ( $stripePromotionCode !== '' ) {
+			$assignOptions['stripe_promotion_code'] = $stripePromotionCode;
+		}
+		if ( $appliedPromoType !== '' ) {
+			$assignOptions['applied_promo_type'] = $appliedPromoType;
+		}
+		if ( $appliedPromoAmount > 0 ) {
+			$assignOptions['applied_promo_amount'] = $appliedPromoAmount;
+		}
+
 		// Add Stripe IDs if available (will be stored via user meta in persist_stripe_ids)
 		if ( $customerId ) {
 			$assignOptions['stripe_customer_id'] = (string) $customerId;
