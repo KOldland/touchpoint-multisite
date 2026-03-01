@@ -361,9 +361,24 @@ class StripeWebhookHandler {
     }
 
     private function get_signature_header( \WP_REST_Request $req ): string {
-        $header = (string) $req->get_header( 'stripe-signature' );
-        if ( '' !== $header ) {
-            return $header;
+        if ( method_exists( $req, 'get_header' ) ) {
+            $header = (string) $req->get_header( 'stripe-signature' );
+            if ( '' !== $header ) {
+                return $header;
+            }
+        }
+
+        if ( method_exists( $req, 'get_headers' ) ) {
+            $headers = (array) $req->get_headers();
+            foreach ( [ 'stripe-signature', 'Stripe-Signature', 'HTTP_STRIPE_SIGNATURE' ] as $key ) {
+                if ( isset( $headers[ $key ] ) ) {
+                    $value = $headers[ $key ];
+                    if ( is_array( $value ) ) {
+                        return (string) reset( $value );
+                    }
+                    return (string) $value;
+                }
+            }
         }
 
         if ( isset( $_SERVER['HTTP_STRIPE_SIGNATURE'] ) ) {

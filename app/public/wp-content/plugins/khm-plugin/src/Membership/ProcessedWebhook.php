@@ -21,7 +21,6 @@ class ProcessedWebhook {
             return;
         }
 
-        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         $charset_collate = $wpdb->get_charset_collate();
         $sql = "CREATE TABLE {$table} (
             event_id varchar(255) NOT NULL,
@@ -38,7 +37,7 @@ class ProcessedWebhook {
             KEY idx_khm_processed_status (status),
             KEY idx_khm_processed_type (event_type)
         ) {$charset_collate};";
-        dbDelta( $sql );
+        $wpdb->query( $sql );
     }
 
     /**

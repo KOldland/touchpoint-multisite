@@ -95,12 +95,13 @@ if (!function_exists('rest_ensure_response')) {
 if (!class_exists('WP_REST_Request')) {
     class WP_REST_Request {
         private $params = [];
+        private $body = '';
         public function __construct($method = 'GET', $route = '') {}
         public function set_param($key, $value) { $this->params[$key] = $value; }
         public function get_param($key) { return $this->params[$key] ?? null; }
         public function get_params() { return $this->params; }
-        public function set_body($body) {}
-        public function get_body() { return ''; }
+        public function set_body($body) { $this->body = (string) $body; }
+        public function get_body() { return $this->body; }
         public function get_headers() { return []; }
     }
 }
@@ -238,6 +239,18 @@ if (!function_exists('__')) {
     }
 }
 
+if (!function_exists('__return_true')) {
+    function __return_true() {
+        return true;
+    }
+}
+
+if (!function_exists('__return_false')) {
+    function __return_false() {
+        return false;
+    }
+}
+
 if (!function_exists('error_log')) {
     function error_log($message, $message_type = 0, $destination = null, $extra_headers = null) {
         // Suppress error logs during tests
@@ -252,9 +265,46 @@ if (!function_exists('add_action')) {
     }
 }
 
+if (!function_exists('do_action')) {
+    function do_action($hook, ...$args) {
+        return null;
+    }
+}
+
 if (!function_exists('update_user_meta')) {
     function update_user_meta($user_id, $meta_key, $meta_value) {
         return true;
+    }
+}
+
+if (!function_exists('remove_filter')) {
+    function remove_filter($tag, $callback) {
+        global $khm_test_filters;
+        if (empty($khm_test_filters[$tag]) || !is_array($khm_test_filters[$tag])) {
+            return false;
+        }
+
+        foreach ($khm_test_filters[$tag] as $idx => $registered) {
+            if ($registered === $callback) {
+                unset($khm_test_filters[$tag][$idx]);
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+if (!function_exists('wp_generate_uuid4')) {
+    function wp_generate_uuid4() {
+        return sprintf(
+            '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
+            mt_rand(0, 0xffff), mt_rand(0, 0xffff),
+            mt_rand(0, 0xffff),
+            mt_rand(0, 0x0fff) | 0x4000,
+            mt_rand(0, 0x3fff) | 0x8000,
+            mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
+        );
     }
 }
 
