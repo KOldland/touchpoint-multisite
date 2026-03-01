@@ -80,7 +80,8 @@ var AppsEventTracking = exports.AppsEventTracking = /*#__PURE__*/function () {
   return (0, _createClass2.default)(AppsEventTracking, null, [{
     key: "dispatchEvent",
     value: function dispatchEvent(eventName, payload) {
-      return elementorCommon.eventsManager.dispatchEvent(eventName, payload);
+      var _window$elementorComm, _window$elementorComm2;
+      return (_window$elementorComm = window.elementorCommon) === null || _window$elementorComm === void 0 || (_window$elementorComm = _window$elementorComm.eventsManager) === null || _window$elementorComm === void 0 || (_window$elementorComm2 = _window$elementorComm.dispatchEvent) === null || _window$elementorComm2 === void 0 ? void 0 : _window$elementorComm2.call(_window$elementorComm, eventName, payload);
     }
   }, {
     key: "sendPageViewsWebsiteTemplates",
@@ -406,7 +407,11 @@ var eventsConfig = {
       createCancelled: 'component_creation_cancelled',
       created: 'component_created',
       instanceAdded: 'component_instance_added',
-      edited: 'component_edited'
+      edited: 'component_edited',
+      propertiesPanelOpened: 'component_properties_panel_opened',
+      propertiesGroupCreated: 'component_properties_group_created',
+      propertyExposed: 'component_property_exposed',
+      propertyRemoved: 'component_property_removed'
     },
     global_classes: {
       classApplied: 'class_applied',

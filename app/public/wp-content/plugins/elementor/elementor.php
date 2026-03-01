@@ -3,7 +3,7 @@
  * Plugin Name: Elementor
  * Description: The Elementor Website Builder has it all: drag and drop page builder, pixel perfect design, mobile responsive editing, and more. Get started now!
  * Plugin URI: https://elementor.com/?utm_source=wp-plugins&utm_campaign=plugin-uri&utm_medium=wp-dash
- * Version: 3.34.1
+ * Version: 3.35.5
  * Author: Elementor.com
  * Author URI: https://elementor.com/?utm_source=wp-plugins&utm_campaign=author-uri&utm_medium=wp-dash
  * Requires PHP: 7.4
@@ -28,12 +28,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-// Guard against duplicate plugin load (can happen if Elementor is loaded twice).
-if ( defined( 'ELEMENTOR_VERSION' ) || class_exists( '\Elementor\Plugin', false ) ) {
-	return;
-}
-
-define( 'ELEMENTOR_VERSION', '3.34.1' );
+define( 'ELEMENTOR_VERSION', '3.35.5' );
 
 define( 'ELEMENTOR__FILE__', __FILE__ );
 define( 'ELEMENTOR_PLUGIN_BASE', plugin_basename( ELEMENTOR__FILE__ ) );
@@ -57,6 +52,16 @@ if ( file_exists( ELEMENTOR_PATH . 'vendor/autoload.php' ) ) {
 	require_once ELEMENTOR_PATH . 'vendor/autoload.php';
 	// We need this file because of the DI\create function that we are using.
 	// Autoload classmap doesn't include this file.
+}
+
+$deprecation_func_file = ELEMENTOR_PATH . 'vendor_prefixed/twig/symfony/deprecation-contracts/function.php';
+if ( file_exists( $deprecation_func_file ) ) {
+	require_once $deprecation_func_file;
+	if ( ! function_exists( 'trigger_deprecation' ) ) {
+		function trigger_deprecation( string $package, string $version, string $message, ...$args ): void {
+			\ElementorDeps\trigger_deprecation( $package, $version, $message, ...$args );
+		}
+	}
 }
 
 if ( ! version_compare( PHP_VERSION, '7.4', '>=' ) ) {

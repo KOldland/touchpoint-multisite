@@ -313,10 +313,19 @@ class ECommerceService {
             return ['success' => false, 'error' => 'Cart is empty'];
         }
 
+        $subtotal = (float) ($purchase_data['subtotal'] ?? $cart['member_subtotal']);
+        $discount_amount = (float) ($purchase_data['discount_amount'] ?? 0.0);
+        $total = isset($purchase_data['total'])
+            ? (float) $purchase_data['total']
+            : max(0.0, $subtotal - $discount_amount);
+
         // Create order
         $order_data = [
             'user_id' => $user_id,
-            'total' => $cart['member_subtotal'],
+            'subtotal' => $subtotal,
+            'discount_amount' => $discount_amount,
+            'discount_code' => sanitize_text_field((string) ($purchase_data['discount_code'] ?? '')),
+            'total' => $total,
             'currency' => 'GBP',
             'status' => 'pending',
             'item_type' => 'article_purchase',

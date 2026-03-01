@@ -12,6 +12,10 @@
         <testsuite name="Unit Tests">
             <directory>tests/GEO</directory>
             <directory>tests/Sponsors</directory>
+            <directory>tests/Services</directory>
+            <directory>tests/Rest</directory>
+            <directory>tests/CLI</directory>
+            <directory>tests/Admin</directory>
         </testsuite>
         <testsuite name="Membership Integration Tests">
             <directory>tests/Membership</directory>

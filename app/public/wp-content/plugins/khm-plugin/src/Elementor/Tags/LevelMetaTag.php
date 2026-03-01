@@ -44,11 +44,26 @@ class LevelMetaTag extends Tag {
 				'placeholder' => 'features.gifting',
 			]
 		);
+
+		$this->add_control(
+			'array_format',
+			[
+				'label' => __( 'Array Output', 'khm-membership' ),
+				'type' => Controls_Manager::SELECT,
+				'default' => 'json',
+				'options' => [
+					'json' => __( 'JSON', 'khm-membership' ),
+					'lines' => __( 'New Lines', 'khm-membership' ),
+					'html_list' => __( 'HTML List', 'khm-membership' ),
+				],
+			]
+		);
 	}
 
 	public function render() {
 		$level_id = (int) $this->get_settings( 'level_id' );
 		$key = (string) $this->get_settings( 'key' );
+		$array_format = (string) $this->get_settings( 'array_format' );
 
 		if ( $level_id < 1 || $key === '' ) {
 			return;
@@ -59,6 +74,18 @@ class LevelMetaTag extends Tag {
 			: '';
 
 		if ( is_array( $value ) ) {
+			if ( $array_format === 'lines' ) {
+				echo esc_html( implode( PHP_EOL, array_map( 'strval', $value ) ) );
+				return;
+			}
+			if ( $array_format === 'html_list' ) {
+				echo '<ul class="khm-level-meta-list">';
+				foreach ( $value as $item ) {
+					echo '<li>' . esc_html( (string) $item ) . '</li>';
+				}
+				echo '</ul>';
+				return;
+			}
 			echo wp_json_encode( $value );
 			return;
 		}

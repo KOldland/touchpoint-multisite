@@ -269,6 +269,73 @@ if (!function_exists('khm_get_level_price_id')) {
     }
 }
 
+if (!function_exists('khm_get_level_marketing_features')) {
+    /**
+     * Get presentation marketing features from khm_level_meta.
+     *
+     * @param int $levelId
+     * @return array<int,string>
+     */
+    function khm_get_level_marketing_features(int $levelId): array
+    {
+        $repo = khm_get_level_repository();
+        if (!$repo) {
+            return [];
+        }
+
+        $meta = $repo->getMeta($levelId, 'khm_level_meta', []);
+        if (is_string($meta)) {
+            $decoded = json_decode($meta, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $meta = $decoded;
+            }
+        }
+
+        if (!is_array($meta)) {
+            return [];
+        }
+
+        $features = $meta['presentation']['marketing_features'] ?? [];
+        if (!is_array($features)) {
+            return [];
+        }
+
+        return array_values(
+            array_filter(
+                array_map(
+                    static fn($line) => sanitize_text_field((string) $line),
+                    $features
+                ),
+                static fn($line) => $line !== ''
+            )
+        );
+    }
+}
+
+if (!function_exists('khm_render_level_marketing_features')) {
+    /**
+     * Render marketing features as a bullet list.
+     *
+     * @param int $levelId
+     * @return string
+     */
+    function khm_render_level_marketing_features(int $levelId): string
+    {
+        $features = khm_get_level_marketing_features($levelId);
+        if (empty($features)) {
+            return '';
+        }
+
+        $html = '<ul class="khm-marketing-features">';
+        foreach ($features as $feature) {
+            $html .= '<li>' . esc_html($feature) . '</li>';
+        }
+        $html .= '</ul>';
+
+        return $html;
+    }
+}
+
 if (!function_exists('khm_level_meta_shortcode')) {
     /**
      * Shortcode: [khm_level_meta level=10 key="features.gifting" default=""]
