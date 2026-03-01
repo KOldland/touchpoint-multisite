@@ -3,6 +3,7 @@
 namespace KHM\Tests\Membership;
 
 use PHPUnit\Framework\TestCase;
+use KHM\Membership\ProcessedWebhook;
 use KHM\Membership\StripeWebhookHandler;
 use WP_REST_Request;
 
@@ -12,17 +13,20 @@ class StripeWebhookHandlerTest extends TestCase {
     protected function setUp(): void {
         parent::setUp();
         $this->handler = new StripeWebhookHandler();
+        ProcessedWebhook::maybe_create_table();
+        add_filter( 'khm_membership_webhook_skip_signature_verification', '__return_true' );
 
         // Clean up test data
         global $wpdb;
-        $wpdb->query("DELETE FROM {$wpdb->prefix}stripe_webhook_events");
+        $wpdb->query("DELETE FROM {$wpdb->prefix}khm_processed_webhooks");
         $wpdb->query("DELETE FROM {$wpdb->prefix}user_membership");
     }
 
     protected function tearDown(): void {
         global $wpdb;
-        $wpdb->query("DELETE FROM {$wpdb->prefix}stripe_webhook_events");
+        $wpdb->query("DELETE FROM {$wpdb->prefix}khm_processed_webhooks");
         $wpdb->query("DELETE FROM {$wpdb->prefix}user_membership");
+        remove_filter( 'khm_membership_webhook_skip_signature_verification', '__return_true' );
         parent::tearDown();
     }
 
@@ -54,6 +58,12 @@ class StripeWebhookHandlerTest extends TestCase {
         $response1 = $this->handler->handle_request($request1);
 
         $this->assertEquals(200, $response1->get_status());
+        $this->handler->process_queued_event([
+            'event_id' => 'evt_test_12345',
+            'event_type' => 'invoice.paid',
+            'data_object' => [ 'customer' => 'cus_12345' ],
+            'trace_id' => 'test-trace',
+        ]);
 
         // Second identical request
         $request2 = new WP_REST_Request('POST');
@@ -67,7 +77,7 @@ class StripeWebhookHandlerTest extends TestCase {
         // Verify only one event record exists
         global $wpdb;
         $count = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}stripe_webhook_events WHERE event_id = %s",
+            "SELECT COUNT(*) FROM {$wpdb->prefix}khm_processed_webhooks WHERE event_id = %s",
             'evt_test_12345'
         ));
         $this->assertEquals(1, $count);
@@ -106,6 +116,12 @@ class StripeWebhookHandlerTest extends TestCase {
         $response = $this->handler->handle_request($request);
 
         $this->assertEquals(200, $response->get_status());
+        $this->handler->process_queued_event([
+            'event_id' => 'evt_checkout_completed',
+            'event_type' => 'checkout.session.completed',
+            'data_object' => $event_payload['data']['object'],
+            'trace_id' => 'test-trace',
+        ]);
 
         // Verify membership created
         $membership = $wpdb->get_row($wpdb->prepare(
@@ -149,6 +165,12 @@ class StripeWebhookHandlerTest extends TestCase {
         $response = $this->handler->handle_request($request);
 
         $this->assertEquals(200, $response->get_status());
+        $this->handler->process_queued_event([
+            'event_id' => 'evt_invoice_paid',
+            'event_type' => 'invoice.paid',
+            'data_object' => $event_payload['data']['object'],
+            'trace_id' => 'test-trace',
+        ]);
 
         // Verify status updated
         $membership = $wpdb->get_row($wpdb->prepare(
@@ -185,6 +207,12 @@ class StripeWebhookHandlerTest extends TestCase {
         $response = $this->handler->handle_request($request);
 
         $this->assertEquals(200, $response->get_status());
+        $this->handler->process_queued_event([
+            'event_id' => 'evt_payment_failed',
+            'event_type' => 'invoice.payment_failed',
+            'data_object' => $event_payload['data']['object'],
+            'trace_id' => 'test-trace',
+        ]);
 
         // Verify status updated
         $membership = $wpdb->get_row($wpdb->prepare(
@@ -221,6 +249,12 @@ class StripeWebhookHandlerTest extends TestCase {
         $response = $this->handler->handle_request($request);
 
         $this->assertEquals(200, $response->get_status());
+        $this->handler->process_queued_event([
+            'event_id' => 'evt_sub_deleted',
+            'event_type' => 'customer.subscription.deleted',
+            'data_object' => $event_payload['data']['object'],
+            'trace_id' => 'test-trace',
+        ]);
 
         // Verify cancellation
         $membership = $wpdb->get_row($wpdb->prepare(
@@ -245,11 +279,17 @@ class StripeWebhookHandlerTest extends TestCase {
 
         // Should still return success
         $this->assertEquals(200, $response->get_status());
+        $this->handler->process_queued_event([
+            'event_id' => 'evt_unknown',
+            'event_type' => 'customer.unknown_event',
+            'data_object' => [],
+            'trace_id' => 'test-trace',
+        ]);
 
         // Event should still be marked as processed
         global $wpdb;
         $exists = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$wpdb->prefix}stripe_webhook_events WHERE event_id = %s",
+            "SELECT event_id FROM {$wpdb->prefix}khm_processed_webhooks WHERE event_id = %s",
             'evt_unknown'
         ));
         $this->assertNotNull($exists);

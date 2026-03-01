@@ -5,6 +5,7 @@ namespace KHM\Membership;
 class StripeWebhookHandler {
     public function __construct() {
         add_action('rest_api_init', [ $this, 'register_routes' ]);
+        add_action( 'khm_process_membership_stripe_webhook_event', [ $this, 'process_queued_event' ], 10, 1 );
     }
 
     public function register_routes() {
@@ -16,64 +17,121 @@ class StripeWebhookHandler {
     }
 
     public function handle_request( \WP_REST_Request $req ) {
+        $started_at = microtime( true );
         $payload = $req->get_body();
-        $sig_header = $req->get_header('stripe-signature');
-        $event = null;
-
-        // --- Signature Validation ---
-        $webhook_secret = get_option('khm_stripe_webhook_secret', '');
-
-        if ( !empty($webhook_secret) ) {
-            try {
-                \Stripe\Stripe::setApiKey(get_option('khm_stripe_secret_key', ''));
-                $event = \Stripe\Webhook::constructEvent(
-                    $payload, $sig_header, $webhook_secret
-                );
-            } catch(\UnexpectedValueException $e) {
-                return new \WP_REST_Response(['error' => 'Invalid payload'], 400);
-            } catch(\Stripe\Exception\SignatureVerificationException $e) {
-                return new \WP_REST_Response(['error' => 'Invalid signature'], 400);
-            }
-        } else {
-            // Fallback for development without signature verification
-            $event = json_decode($payload);
+        $sig_header = $this->get_signature_header( $req );
+        $event = $this->verify_event_signature( $payload, $sig_header );
+        if ( is_wp_error( $event ) ) {
+            $this->emit_telemetry( 'webhook.invalid_signature', [
+                'code' => $event->get_error_code(),
+                'message' => $event->get_error_message(),
+            ] );
+            return new \WP_REST_Response(['error' => 'Invalid signature'], 400);
         }
 
         if ( !isset($event->type) || !isset($event->id) ) {
+            $this->emit_telemetry( 'webhook.invalid_event', [ 'payload_hash' => hash( 'sha256', (string) $payload ) ] );
             return new \WP_REST_Response(['error' => 'Invalid event'], 400);
         }
 
-        // --- Idempotency Check ---
-        if ( $this->has_processed_event($event->id) ) {
-            // Event already processed, return success
+        $event_id = (string) $event->id;
+        $event_type = (string) $event->type;
+
+        $claim_status = ProcessedWebhook::claim_event( $event_id, $event_type, (string) $payload );
+        if ( 'processed' === $claim_status ) {
             return new \WP_REST_Response(['status' => 'success', 'note' => 'already processed'], 200);
         }
-
-        // --- Event Handling ---
-        switch ($event->type) {
-            case 'checkout.session.completed':
-                $this->handle_checkout_session_completed($event->data->object);
-                break;
-            case 'invoice.paid':
-                $this->handle_invoice_paid($event->data->object);
-                break;
-            case 'invoice.payment_failed':
-                $this->handle_payment_failed($event->data->object);
-                break;
-            case 'customer.subscription.updated':
-                $this->handle_subscription_updated($event->data->object);
-                break;
-            case 'customer.subscription.deleted':
-                $this->handle_subscription_deleted($event->data->object);
-                break;
-            default:
-                // Unhandled event type - still mark as processed
+        if ( 'processing' === $claim_status ) {
+            return new \WP_REST_Response(['status' => 'success', 'note' => 'already processing'], 200);
         }
 
-        // Mark event as processed
-        $this->mark_event_processed($event->id, $event->type);
+        $job = [
+            'event_id' => $event_id,
+            'event_type' => $event_type,
+            'data_object' => isset($event->data->object) ? json_decode( wp_json_encode( $event->data->object ), true ) : [],
+            'trace_id' => wp_generate_uuid4(),
+        ];
 
-        return new \WP_REST_Response(['status' => 'success'], 200);
+        if ( ! $this->enqueue_event_job( $job ) ) {
+            ProcessedWebhook::mark_failed( $event_id, 'Failed to enqueue webhook job.' );
+            $this->emit_telemetry( 'webhook.queue_failed', [ 'event_id' => $event_id, 'event_type' => $event_type ] );
+            return new \WP_REST_Response(['error' => 'Failed to queue event'], 500);
+        }
+
+        $latency_ms = (int) round( ( microtime( true ) - $started_at ) * 1000 );
+        $this->emit_telemetry( 'webhook.received', [
+            'event_id' => $event_id,
+            'event_type' => $event_type,
+            'latency_ms' => $latency_ms,
+        ] );
+
+        return new \WP_REST_Response(['status' => 'queued', 'id' => $event_id, 'type' => $event_type], 200);
+    }
+
+    public function process_queued_event( $job ) {
+        if ( ! is_array( $job ) ) {
+            return;
+        }
+
+        $event_id = isset( $job['event_id'] ) ? sanitize_text_field( (string) $job['event_id'] ) : '';
+        $event_type = isset( $job['event_type'] ) ? sanitize_text_field( (string) $job['event_type'] ) : '';
+        if ( '' === $event_id || '' === $event_type ) {
+            return;
+        }
+
+        $existing = ProcessedWebhook::get_event( $event_id );
+        if ( is_array( $existing ) && isset( $existing['status'] ) && $existing['status'] === ProcessedWebhook::STATUS_PROCESSED ) {
+            return;
+        }
+
+        ProcessedWebhook::mark_processing( $event_id, 'Queued worker started.' );
+        $started_at = microtime( true );
+
+        try {
+            $object = $this->to_object( $job['data_object'] ?? [] );
+            $this->route_event( $event_type, $object, $event_id );
+
+            ProcessedWebhook::mark_processed( $event_id, 'Processed successfully.' );
+            $this->emit_telemetry( 'webhook.processed', [
+                'event_id' => $event_id,
+                'event_type' => $event_type,
+                'latency_ms' => (int) round( ( microtime( true ) - $started_at ) * 1000 ),
+            ] );
+        } catch ( \Throwable $e ) {
+            ProcessedWebhook::mark_failed( $event_id, $e->getMessage() );
+            error_log( 'Stripe webhook processing failed for ' . $event_id . ': ' . $e->getMessage() );
+            $this->emit_telemetry( 'webhook.failed', [
+                'event_id' => $event_id,
+                'event_type' => $event_type,
+                'error' => $e->getMessage(),
+            ] );
+        }
+    }
+
+    private function route_event( string $event_type, $object, string $event_id ) : void {
+        switch ( $event_type ) {
+            case 'checkout.session.completed':
+                $this->handle_checkout_session_completed( $object );
+                break;
+            case 'invoice.paid':
+                $this->handle_invoice_paid( $object );
+                break;
+            case 'invoice.payment_failed':
+                $this->handle_payment_failed( $object );
+                break;
+            case 'customer.subscription.updated':
+                $this->handle_subscription_updated( $object );
+                break;
+            case 'customer.subscription.deleted':
+                $this->handle_subscription_deleted( $object );
+                break;
+            case 'charge.refunded':
+                $this->handle_charge_refunded( $object, $event_id );
+                break;
+            default:
+                // Intentionally acknowledge unhandled events to prevent infinite retries.
+                break;
+        }
     }
 
     private function handle_checkout_session_completed($session) {
@@ -105,6 +163,11 @@ class StripeWebhookHandler {
             'status' => 'active',
             'started_at' => current_time('mysql', 1),
         ]);
+
+        $schedule_id = isset( $metadata['schedule_id'] ) ? absint( $metadata['schedule_id'] ) : 0;
+        if ( $schedule_id > 0 ) {
+            $this->record_paid_attribution( $user_id, $plan_id, $schedule_id );
+        }
     }
 
     private function handle_invoice_paid($invoice) {
@@ -121,6 +184,11 @@ class StripeWebhookHandler {
             ['status' => 'active'],
             ['user_id' => $user_id]
         );
+
+        if ( ! empty( $invoice->payment_intent ) ) {
+            update_user_meta( $user_id, 'khm_last_payment_intent_id', sanitize_text_field( (string) $invoice->payment_intent ) );
+        }
+        update_user_meta( $user_id, 'khm_last_payment_status', 'paid' );
     }
 
     private function handle_payment_failed($invoice) {
@@ -137,6 +205,8 @@ class StripeWebhookHandler {
             ['status' => 'past_due'],
             ['user_id' => $user_id]
         );
+
+        do_action( 'khm_membership_invoice_payment_failed', $user_id, $invoice );
     }
 
     private function handle_subscription_updated($subscription) {
@@ -191,6 +261,13 @@ class StripeWebhookHandler {
         );
     }
 
+    private function handle_charge_refunded( $charge, string $event_id ): void {
+        do_action( 'khm_membership_stripe_charge_refunded', $charge, $event_id );
+        if ( function_exists( 'khm_handle_stripe_charge_refunded' ) ) {
+            khm_handle_stripe_charge_refunded( $charge, $event_id );
+        }
+    }
+
     private function get_user_id_by_stripe_customer($stripe_customer_id) {
         if ( empty($stripe_customer_id) ) {
             return null;
@@ -207,40 +284,107 @@ class StripeWebhookHandler {
         return $user_id ? intval($user_id) : null;
     }
 
-    private function has_processed_event($event_id) {
+    private function record_paid_attribution( int $user_id, int $plan_id, int $schedule_id ): void {
         global $wpdb;
-        $table = $wpdb->prefix . 'stripe_webhook_events';
+        $table = $wpdb->prefix . 'promotion_attribution';
 
-        $exists = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM $table WHERE event_id = %s LIMIT 1",
-            $event_id
-        ));
+        $existing = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT id FROM {$table} WHERE user_id = %d AND schedule_id = %d AND conversion_type = %s LIMIT 1",
+                $user_id,
+                $schedule_id,
+                'paid'
+            )
+        );
 
-        return !empty($exists);
-    }
-
-    private function mark_event_processed($event_id, $event_type) {
-        global $wpdb;
-        $table = $wpdb->prefix . 'stripe_webhook_events';
-
-        // Create table if it doesn't exist
-        $charset_collate = $wpdb->get_charset_collate();
-        if ( $wpdb->get_var("SHOW TABLES LIKE '$table'") != $table ) {
-            $sql = "CREATE TABLE $table (
-                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                event_id VARCHAR(255) UNIQUE NOT NULL,
-                event_type VARCHAR(100) NOT NULL,
-                processed_at DATETIME NOT NULL,
-                KEY event_id_idx (event_id)
-            ) $charset_collate;";
-            require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-            dbDelta($sql);
+        if ( $existing ) {
+            return;
         }
 
-        $wpdb->insert($table, [
-            'event_id' => $event_id,
-            'event_type' => $event_type,
-            'processed_at' => current_time('mysql', 1)
-        ]);
+        $user = get_user_by( 'id', $user_id );
+        $wpdb->insert(
+            $table,
+            [
+                'schedule_id' => $schedule_id,
+                'user_id' => $user_id,
+                'user_email' => $user ? $user->user_email : '',
+                'conversion_type' => 'paid',
+                'plan_id' => $plan_id,
+                'reference_metadata' => wp_json_encode( [ 'source' => 'stripe.checkout.session.completed' ] ),
+                'created_at' => current_time( 'mysql', 1 ),
+            ],
+            [ '%d', '%d', '%s', '%s', '%d', '%s', '%s' ]
+        );
+    }
+
+    private function verify_event_signature( string $payload, string $sig_header ) {
+        $skip_verification = (bool) apply_filters(
+            'khm_membership_webhook_skip_signature_verification',
+            false,
+            $payload,
+            $sig_header
+        );
+        if ( $skip_verification ) {
+            $decoded = json_decode( $payload );
+            return is_object( $decoded ) ? $decoded : new \WP_Error( 'khm_invalid_payload', 'Invalid payload.' );
+        }
+
+        $webhook_secret = trim( (string) get_option('khm_stripe_webhook_secret', '') );
+        if ( '' === $webhook_secret ) {
+            error_log( 'Stripe webhook rejected: khm_stripe_webhook_secret not configured.' );
+            return new \WP_Error( 'khm_missing_webhook_secret', 'Missing webhook secret.' );
+        }
+
+        if ( ! class_exists( '\Stripe\Webhook' ) ) {
+            error_log( 'Stripe webhook rejected: Stripe SDK unavailable.' );
+            return new \WP_Error( 'khm_missing_stripe_sdk', 'Stripe SDK unavailable.' );
+        }
+
+        try {
+            return \Stripe\Webhook::constructEvent( $payload, $sig_header, $webhook_secret );
+        } catch (\UnexpectedValueException $e) {
+            return new \WP_Error( 'khm_invalid_payload', $e->getMessage() );
+        } catch (\Stripe\Exception\SignatureVerificationException $e) {
+            return new \WP_Error( 'khm_invalid_signature', $e->getMessage() );
+        } catch (\Throwable $e) {
+            return new \WP_Error( 'khm_webhook_verify_failed', $e->getMessage() );
+        }
+    }
+
+    private function enqueue_event_job( array $job ): bool {
+        if ( function_exists( 'wp_schedule_single_event' ) ) {
+            return (bool) wp_schedule_single_event( time() + 1, 'khm_process_membership_stripe_webhook_event', [ $job ] );
+        }
+
+        $this->process_queued_event( $job );
+        return true;
+    }
+
+    private function get_signature_header( \WP_REST_Request $req ): string {
+        $header = (string) $req->get_header( 'stripe-signature' );
+        if ( '' !== $header ) {
+            return $header;
+        }
+
+        if ( isset( $_SERVER['HTTP_STRIPE_SIGNATURE'] ) ) {
+            return (string) $_SERVER['HTTP_STRIPE_SIGNATURE'];
+        }
+
+        return '';
+    }
+
+    private function emit_telemetry( string $metric, array $context = [] ): void {
+        do_action( 'khm_membership_webhook_telemetry', $metric, $context );
+        error_log( 'KHM webhook ' . $metric . ' ' . wp_json_encode( $context ) );
+    }
+
+    private function to_object( $value ) {
+        if ( is_object( $value ) ) {
+            return $value;
+        }
+        if ( ! is_array( $value ) ) {
+            return (object) [];
+        }
+        return json_decode( wp_json_encode( $value ) );
     }
 }

@@ -1578,6 +1578,11 @@ add_action('init', function () {
         $reports_page->register();
     }
 
+    // Register membership webhook operations page.
+    if ( is_admin() && class_exists( 'KHM\\Membership\\Admin\\WebhookEventsPage' ) ) {
+        ( new KHM\Membership\Admin\WebhookEventsPage() )->register();
+    }
+
     // Register members page
     if ( is_admin() && class_exists('KHM\\Admin\\MembersPage') ) {
         $members_page = new KHM\Admin\MembersPage();
