@@ -5,6 +5,7 @@ namespace KHM\Membership;
 class StripeWebhookHandler {
     private const DEFAULT_RATE_LIMIT_WINDOW_SECONDS = 60;
     private const DEFAULT_RATE_LIMIT_MAX_REQUESTS = 100;
+    private const VALID_STATUSES = [ 'trial', 'active', 'past_due', 'pending_cancel', 'canceled' ];
 
     public function __construct() {
         add_action('rest_api_init', [ $this, 'register_routes' ]);
@@ -210,20 +211,43 @@ class StripeWebhookHandler {
             if ( ! $plan_id ) {
                 throw new \RuntimeException( 'checkout.session.completed missing membership tier metadata' );
             }
+            $tier_slug = isset( $metadata['tier_slug'] ) ? sanitize_key( (string) $metadata['tier_slug'] ) : '';
+            $metadata_price_id = isset( $metadata['stripe_price_id'] ) ? sanitize_text_field( (string) $metadata['stripe_price_id'] ) : '';
+            if ( $tier_slug === '' || $metadata_price_id === '' ) {
+                throw new \RuntimeException( 'checkout.session.completed missing tier_slug or stripe_price_id metadata' );
+            }
+            if ( ! TierRegistry::validate_price_match( $tier_slug, $metadata_price_id ) ) {
+                $this->audit_handler(
+                    'checkout.session.completed',
+                    $operation_key,
+                    $session_id,
+                    $user_id,
+                    'security_mismatch',
+                    'Tier to price mismatch detected in checkout metadata.',
+                    [ 'tier_slug' => $tier_slug, 'stripe_price_id' => $metadata_price_id ]
+                );
+                throw new \RuntimeException( 'checkout.session.completed tier/price mismatch' );
+            }
 
             global $wpdb;
             $user_membership_table = $wpdb->prefix . 'user_membership';
 
             $stripe_customer_id = isset($session->customer) ? $session->customer : null;
             $stripe_subscription_id = isset($session->subscription) ? $session->subscription : null;
-            $stripe_price_id = isset( $metadata['stripe_price_id'] ) ? sanitize_text_field( (string) $metadata['stripe_price_id'] ) : '';
+            $stripe_price_id = $metadata_price_id;
+            $trial_days = isset( $metadata['trial_days'] ) ? max( 0, (int) $metadata['trial_days'] ) : 0;
+            $status = $trial_days > 0 ? 'trial' : 'active';
 
             $wpdb->replace($user_membership_table, [
                 'user_id' => $user_id,
                 'tier_id' => $plan_id,
+                'tier_slug' => $tier_slug,
                 'stripe_customer_id' => $stripe_customer_id,
                 'stripe_subscription_id' => $stripe_subscription_id,
-                'status' => 'active',
+                'stripe_price_id' => $stripe_price_id,
+                'status' => $status,
+                'trial_ends_at' => $trial_days > 0 ? gmdate( 'Y-m-d H:i:s', time() + ( $trial_days * 86400 ) ) : null,
+                'trial_end_date' => $trial_days > 0 ? gmdate( 'Y-m-d H:i:s', time() + ( $trial_days * 86400 ) ) : null,
                 'started_at' => current_time('mysql', 1),
             ]);
 
@@ -308,11 +332,14 @@ class StripeWebhookHandler {
         $period_end = isset( $invoice->period_end ) ? (int) $invoice->period_end : 0;
         $next_renewal = $period_end > 0 ? gmdate( 'Y-m-d H:i:s', $period_end ) : null;
 
-        $wpdb->update(
-            $user_membership_table,
-            ['status' => 'active'],
-            ['user_id' => $user_id]
-        );
+        $update = [
+            'status' => 'active',
+            'last_payment_date' => current_time( 'mysql', 1 ),
+        ];
+        if ( $next_renewal ) {
+            $update['current_period_end'] = $next_renewal;
+        }
+        $wpdb->update( $user_membership_table, $update, [ 'user_id' => $user_id ] );
 
         update_user_meta( $user_id, 'khm_membership_last_payment_date', current_time( 'mysql', 1 ) );
         if ( $next_renewal ) {
@@ -361,11 +388,7 @@ class StripeWebhookHandler {
             $failure_reason = (string) $invoice->last_finalization_error->message;
         }
 
-        $wpdb->update(
-            $user_membership_table,
-            ['status' => 'past_due'],
-            ['user_id' => $user_id]
-        );
+        $wpdb->update( $user_membership_table, [ 'status' => 'past_due' ], [ 'user_id' => $user_id ] );
 
         $retry_count = (int) get_user_meta( $user_id, 'khm_membership_payment_failed_retry_count', true );
         update_user_meta( $user_id, 'khm_membership_payment_failed_retry_count', $retry_count + 1 );
@@ -408,21 +431,42 @@ class StripeWebhookHandler {
         $user_membership_table = $wpdb->prefix . 'user_membership';
 
         $update_data = [
-            'status' => $subscription->status,
             'stripe_subscription_id' => $subscription->id,
         ];
 
+        $remote_status = isset( $subscription->status ) ? strtolower( (string) $subscription->status ) : '';
+        if ( in_array( $remote_status, [ 'trialing' ], true ) ) {
+            $update_data['status'] = 'trial';
+        } elseif ( in_array( $remote_status, [ 'active' ], true ) ) {
+            $update_data['status'] = 'active';
+        } elseif ( in_array( $remote_status, [ 'past_due', 'unpaid' ], true ) ) {
+            $update_data['status'] = 'past_due';
+        } elseif ( in_array( $remote_status, [ 'canceled', 'cancelled' ], true ) ) {
+            $update_data['status'] = 'canceled';
+        } else {
+            $update_data['status'] = 'past_due';
+        }
+
         if ( isset($subscription->trial_end) && $subscription->trial_end ) {
             $update_data['trial_ends_at'] = gmdate('Y-m-d H:i:s', $subscription->trial_end);
+            $update_data['trial_end_date'] = gmdate('Y-m-d H:i:s', $subscription->trial_end);
         }
 
         if ( isset($subscription->cancel_at_period_end) && $subscription->cancel_at_period_end ) {
             $update_data['status'] = 'pending_cancel';
+            $update_data['cancel_at_period_end'] = 1;
             if ( isset($subscription->cancel_at) && $subscription->cancel_at ) {
                 $update_data['cancelled_at'] = gmdate('Y-m-d H:i:s', $subscription->cancel_at);
             }
         } else {
+            $update_data['cancel_at_period_end'] = 0;
             $update_data['cancelled_at'] = null;
+        }
+        if ( isset( $subscription->current_period_end ) && $subscription->current_period_end ) {
+            $update_data['current_period_end'] = gmdate( 'Y-m-d H:i:s', (int) $subscription->current_period_end );
+        }
+        if ( ! in_array( (string) ( $update_data['status'] ?? '' ), self::VALID_STATUSES, true ) ) {
+            $update_data['status'] = 'past_due';
         }
 
         $wpdb->update(
@@ -431,7 +475,7 @@ class StripeWebhookHandler {
             ['user_id' => $user_id]
         );
 
-        $status = isset( $subscription->status ) ? (string) $subscription->status : (string) ( $update_data['status'] ?? '' );
+        $status = (string) ( $update_data['status'] ?? '' );
         if ( $status === 'active' ) {
             $this->emit_telemetry( 'membership.subscription_updated', [ 'user_id' => $user_id, 'subscription_id' => $subscription_id, 'status' => $status ] );
         } elseif ( in_array( $status, [ 'canceled', 'cancelled' ], true ) ) {
@@ -464,7 +508,7 @@ class StripeWebhookHandler {
         $wpdb->update(
             $user_membership_table,
             [
-                'status' => 'cancelled',
+                'status' => 'canceled',
                 'cancelled_at' => current_time('mysql', 1)
             ],
             ['user_id' => $user_id]

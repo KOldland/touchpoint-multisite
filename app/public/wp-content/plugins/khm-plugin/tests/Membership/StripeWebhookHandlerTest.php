@@ -281,7 +281,7 @@ class StripeWebhookHandlerTest extends TestCase {
             789
         ), ARRAY_A);
 
-        $this->assertEquals('cancelled', $membership['status']);
+        $this->assertEquals('canceled', $membership['status']);
         $this->assertNotNull($membership['cancelled_at']);
     }
 
@@ -449,5 +449,52 @@ class StripeWebhookHandlerTest extends TestCase {
             "SELECT COUNT(*) FROM {$audit_table} WHERE operation_key = 'invoice_paid:in_replay'"
         );
         $this->assertEquals(2, (int) $op_count); // one success + one duplicate audit marker
+    }
+
+    public function test_checkout_session_rejects_tier_price_mismatch(): void {
+        $filter = function () {
+            return [
+                'pro' => [
+                    'price_id' => 'price_expected',
+                    'trial_eligible' => false,
+                    'trial_days' => 0,
+                ],
+            ];
+        };
+        add_filter(
+            'khm_membership_tier_registry',
+            $filter
+        );
+
+        $event_payload = [
+            'id' => 'evt_checkout_mismatch',
+            'type' => 'checkout.session.completed',
+            'data' => [
+                'object' => [
+                    'id' => 'cs_mismatch',
+                    'mode' => 'subscription',
+                    'customer' => 'cus_mismatch',
+                    'subscription' => 'sub_mismatch',
+                    'metadata' => [
+                        'user_id' => '123',
+                        'membership_level_id' => '1',
+                        'tier_slug' => 'pro',
+                        'stripe_price_id' => 'price_tampered',
+                    ],
+                ],
+            ],
+        ];
+
+        $this->handler->process_queued_event([
+            'event_id' => 'evt_checkout_mismatch',
+            'event_type' => 'checkout.session.completed',
+            'data_object' => $event_payload['data']['object'],
+            'trace_id' => 'trace-mismatch',
+        ]);
+
+        $failed = \KHM\Membership\ProcessedWebhook::get_event('evt_checkout_mismatch');
+        $this->assertNotNull($failed);
+        $this->assertEquals('failed', $failed['status'] ?? '');
+        remove_filter( 'khm_membership_tier_registry', $filter );
     }
 }

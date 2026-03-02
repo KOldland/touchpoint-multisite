@@ -26,22 +26,21 @@ class SignupEndpoint {
             return new \WP_REST_Response(['error' => 'invalid email'], 400);
         }
 
+        $tier_slug = isset( $p['tier'] ) ? sanitize_key( (string) $p['tier'] ) : '';
         $plan_id = isset($p['plan_id']) ? intval($p['plan_id']) : 0;
-        if ( empty($plan_id) ) {
+        if ( $plan_id <= 0 && $tier_slug === '' ) {
             return new \WP_REST_Response(['error' => 'invalid plan_id'], 400);
         }
 
-        // Validate plan exists
-        global $wpdb;
-        $membership_tier_table = $wpdb->prefix . 'membership_tier';
-        $plan = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM $membership_tier_table WHERE id = %d AND is_active = 1",
-            $plan_id
-        ));
-
-        if (!$plan) {
+        $plan = $this->resolve_plan( $plan_id, $tier_slug );
+        if ( ! $plan ) {
+            if ( $tier_slug !== '' ) {
+                return new \WP_REST_Response(['error' => 'unknown tier'], 400);
+            }
             return new \WP_REST_Response(['error' => 'plan_id does not exist'], 400);
         }
+        $plan_id = (int) $plan->id;
+        $tier_slug = sanitize_key( (string) ( $plan->slug ?? $tier_slug ) );
 
         // --- User Creation or Retrieval ---
         $provided_user_id = isset($p['user_id']) ? intval($p['user_id']) : 0;
@@ -66,9 +65,10 @@ class SignupEndpoint {
         }
 
         // Check for existing active subscription
+        global $wpdb;
         $user_membership_table = $wpdb->prefix . 'user_membership';
         $existing_membership = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM $user_membership_table WHERE user_id = %d AND status IN ('active', 'trialing')",
+            "SELECT * FROM $user_membership_table WHERE user_id = %d AND status IN ('active', 'trial')",
             $user_id
         ));
 
@@ -83,18 +83,21 @@ class SignupEndpoint {
 
         // --- Determine if plan requires payment ---
         $requires_payment = !empty($plan->price_cents) && $plan->price_cents > 0;
-        $trial_days = isset($plan->trial_days) ? intval($plan->trial_days) : 0;
+        $registry_entry = TierRegistry::get_tier( $tier_slug );
+        $trial_days = $registry_entry && ! empty( $registry_entry['trial_eligible'] )
+            ? (int) ( $registry_entry['trial_days'] ?? 0 )
+            : ( isset($plan->trial_days) ? intval($plan->trial_days) : 0 );
 
         // If plan is free or has a trial period without immediate payment, start trial
-        if (!$requires_payment || $trial_days > 0) {
-            return $this->start_trial($user_id, $plan_id, $plan, $trial_days);
+        if (!$requires_payment) {
+            return $this->start_trial($user_id, $plan_id, $tier_slug, $trial_days);
         }
 
         // Otherwise, create Stripe Checkout Session
-        return $this->create_checkout_session($user_id, $email, $plan_id, $plan, $p);
+        return $this->create_checkout_session($user_id, $email, $plan_id, $tier_slug, $trial_days, $p);
     }
 
-    private function start_trial($user_id, $plan_id, $plan, $trial_days) {
+    private function start_trial($user_id, $plan_id, string $tier_slug, $trial_days) {
         global $wpdb;
         $user_membership_table = $wpdb->prefix . 'user_membership';
 
@@ -106,24 +109,27 @@ class SignupEndpoint {
         $wpdb->replace($user_membership_table, [
             'user_id' => $user_id,
             'tier_id' => $plan_id,
-            'status' => 'trialing',
+            'tier_slug' => $tier_slug,
+            'status' => 'trial',
             'trial_ends_at' => $trial_ends_at,
+            'trial_end_date' => $trial_ends_at,
             'started_at' => current_time('mysql', 1),
         ]);
 
         return rest_ensure_response([
             'success' => true,
-            'status' => 'trialing',
+            'status' => 'trial',
             'user_id' => $user_id,
             'membership' => [
                 'tier_id' => $plan_id,
-                'status' => 'trialing',
+                'tier_slug' => $tier_slug,
+                'status' => 'trial',
                 'trial_ends_at' => $trial_ends_at ? gmdate('c', strtotime($trial_ends_at)) : null
             ]
         ]);
     }
 
-    private function create_checkout_session($user_id, $email, $plan_id, $plan, $params) {
+    private function create_checkout_session($user_id, $email, $plan_id, string $tier_slug, int $trial_days, $params) {
         $secret = get_option('khm_stripe_secret_key', '');
         if ( empty($secret) ) {
             return new \WP_REST_Response([
@@ -132,7 +138,7 @@ class SignupEndpoint {
         }
 
         // Resolve Stripe price ID
-        $price_id = $this->resolve_price_id($plan_id);
+        $price_id = $this->resolve_price_id($plan_id, $tier_slug);
         if ( empty($price_id) ) {
             return new \WP_REST_Response([
                 'error' => 'Stripe price mapping not configured for this plan'
@@ -145,8 +151,11 @@ class SignupEndpoint {
         $metadata = [
             'purchase_type' => 'subscription',
             'membership_level_id' => (string) $plan_id,
+            'tier_slug' => (string) $tier_slug,
+            'stripe_price_id' => (string) $price_id,
             'user_id' => (string) $user_id,
             'schedule_id' => isset($params['schedule_id']) ? (string) $params['schedule_id'] : '',
+            'trial_days' => (string) max( 0, $trial_days ),
         ];
 
         try {
@@ -166,6 +175,16 @@ class SignupEndpoint {
                 'allow_promotion_codes' => true,
                 'metadata' => $metadata,
             ];
+            if ( $trial_days > 0 ) {
+                $session_params['subscription_data'] = [
+                    'trial_period_days' => $trial_days,
+                    'metadata' => $metadata,
+                ];
+            } else {
+                $session_params['subscription_data'] = [
+                    'metadata' => $metadata,
+                ];
+            }
 
             $session = \Stripe\Checkout\Session::create($session_params);
 
@@ -189,7 +208,14 @@ class SignupEndpoint {
         }
     }
 
-    private function resolve_price_id($plan_id) {
+    private function resolve_price_id($plan_id, string $tier_slug = '') {
+        if ( $tier_slug !== '' ) {
+            $tier = TierRegistry::get_tier( $tier_slug );
+            if ( $tier && ! empty( $tier['price_id'] ) ) {
+                return sanitize_text_field( (string) $tier['price_id'] );
+            }
+        }
+
         // Try filter first
         $filtered = apply_filters('khm_stripe_membership_price_map', null, $plan_id);
         if ( is_string($filtered) && $filtered !== '' ) {
@@ -213,6 +239,24 @@ class SignupEndpoint {
         ));
 
         return $stripe_price_id ? sanitize_text_field($stripe_price_id) : null;
+    }
+
+    private function resolve_plan( int $plan_id, string $tier_slug = '' ) {
+        global $wpdb;
+        $membership_tier_table = $wpdb->prefix . 'membership_tier';
+        if ( $plan_id > 0 ) {
+            return $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM $membership_tier_table WHERE id = %d AND is_active = 1",
+                $plan_id
+            ));
+        }
+        if ( $tier_slug !== '' ) {
+            return $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM $membership_tier_table WHERE slug = %s AND is_active = 1",
+                $tier_slug
+            ));
+        }
+        return null;
     }
 
     private function create_attribution($params, $user_id, $email, $plan_id) {

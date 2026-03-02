@@ -16,11 +16,13 @@ class SignupEndpointTest extends TestCase {
         // Clean up test data
         global $wpdb;
         $wpdb->query("DELETE FROM {$wpdb->prefix}user_membership");
+        $GLOBALS['khm_test_email_exists'] = [];
     }
 
     protected function tearDown(): void {
         global $wpdb;
         $wpdb->query("DELETE FROM {$wpdb->prefix}user_membership");
+        $GLOBALS['khm_test_email_exists'] = [];
         parent::tearDown();
     }
 
@@ -105,11 +107,11 @@ class SignupEndpointTest extends TestCase {
         $data = $response->get_data();
 
         $this->assertTrue($data['success']);
-        $this->assertEquals('trialing', $data['status']);
+        $this->assertEquals('trial', $data['status']);
         $this->assertArrayHasKey('user_id', $data);
         $this->assertArrayHasKey('membership', $data);
         $this->assertEquals($plan_id, $data['membership']['tier_id']);
-        $this->assertEquals('trialing', $data['membership']['status']);
+        $this->assertEquals('trial', $data['membership']['status']);
         $this->assertNotNull($data['membership']['trial_ends_at']);
 
         // Cleanup
@@ -137,9 +139,9 @@ class SignupEndpointTest extends TestCase {
         ]);
 
         // Mock email_exists to return user_id 123
-        \WP_Mock::userFunction('email_exists', [
-            'return' => 123
-        ]);
+        $GLOBALS['khm_test_email_exists'] = [
+            'existing@example.com' => 123,
+        ];
 
         $request = new WP_REST_Request('POST');
         $request->set_body(json_encode([
@@ -154,6 +156,7 @@ class SignupEndpointTest extends TestCase {
         $this->assertEquals('user already has an active subscription', $data['error']);
 
         // Cleanup
+        $GLOBALS['khm_test_email_exists'] = [];
         $wpdb->delete($wpdb->prefix . 'user_membership', ['user_id' => 123]);
         $wpdb->delete($wpdb->prefix . 'membership_tier', ['id' => $plan_id]);
     }
@@ -196,6 +199,48 @@ class SignupEndpointTest extends TestCase {
         );
 
         // Cleanup
+        $wpdb->delete($wpdb->prefix . 'membership_tier', ['id' => $plan_id]);
+    }
+
+    public function test_rejects_unknown_tier_slug(): void {
+        $request = new WP_REST_Request('POST');
+        $request->set_body(json_encode([
+            'email' => 'test@example.com',
+            'tier' => 'does-not-exist',
+        ]));
+
+        $response = $this->endpoint->handle_request($request);
+        $this->assertEquals(400, $response->get_status());
+        $data = $response->get_data();
+        $this->assertEquals('unknown tier', $data['error']);
+    }
+
+    public function test_resolves_plan_by_tier_slug(): void {
+        global $wpdb;
+
+        $wpdb->insert($wpdb->prefix . 'membership_tier', [
+            'slug' => 'pro',
+            'name' => 'Pro',
+            'price_cents' => 0,
+            'trial_days' => 0,
+            'is_active' => 1
+        ]);
+        $plan_id = $wpdb->insert_id;
+
+        $request = new WP_REST_Request('POST');
+        $request->set_body(json_encode([
+            'email' => 'pro@example.com',
+            'tier' => 'pro',
+        ]));
+
+        $response = $this->endpoint->handle_request($request);
+        $this->assertEquals(200, $response->get_status());
+        $data = $response->get_data();
+        $this->assertTrue($data['success']);
+        $this->assertEquals('trial', $data['status']);
+        $this->assertEquals($plan_id, $data['membership']['tier_id']);
+        $this->assertEquals('pro', $data['membership']['tier_slug']);
+
         $wpdb->delete($wpdb->prefix . 'membership_tier', ['id' => $plan_id]);
     }
 }

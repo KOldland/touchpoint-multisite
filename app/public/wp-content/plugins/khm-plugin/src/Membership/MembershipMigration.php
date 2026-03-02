@@ -35,7 +35,7 @@ class MembershipMigration {
               tier_id INT,
               stripe_customer_id TEXT,
               stripe_subscription_id TEXT,
-              status TEXT NOT NULL DEFAULT 'trialing',
+              status TEXT NOT NULL DEFAULT 'trial',
               trial_ends_at TIMESTAMP WITH TIME ZONE,
               started_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
               cancelled_at TIMESTAMP WITH TIME ZONE,
@@ -79,6 +79,7 @@ class MembershipMigration {
         $table_name = $wpdb->prefix . 'user_membership';
         $index_sql = "CREATE INDEX idx_user_membership_status ON $table_name (status);";
         $wpdb->query($index_sql);
+        self::ensure_membership_columns();
 
         // -- processed webhook events (idempotency + ops)
         $table_name = $wpdb->prefix . 'khm_processed_webhooks';
@@ -151,5 +152,25 @@ class MembershipMigration {
             dbDelta( $sql );
         }
 
+    }
+
+    private static function ensure_membership_columns(): void {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'user_membership';
+        $columns = [
+            'tier_slug' => "ALTER TABLE {$table_name} ADD COLUMN tier_slug VARCHAR(64) NULL",
+            'stripe_price_id' => "ALTER TABLE {$table_name} ADD COLUMN stripe_price_id VARCHAR(255) NULL",
+            'trial_end_date' => "ALTER TABLE {$table_name} ADD COLUMN trial_end_date DATETIME NULL",
+            'current_period_end' => "ALTER TABLE {$table_name} ADD COLUMN current_period_end DATETIME NULL",
+            'cancel_at_period_end' => "ALTER TABLE {$table_name} ADD COLUMN cancel_at_period_end TINYINT(1) NOT NULL DEFAULT 0",
+            'last_payment_date' => "ALTER TABLE {$table_name} ADD COLUMN last_payment_date DATETIME NULL",
+        ];
+
+        foreach ( $columns as $column => $sql ) {
+            $exists = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table_name} LIKE %s", $column ) );
+            if ( ! $exists ) {
+                $wpdb->query( $sql );
+            }
+        }
     }
 }

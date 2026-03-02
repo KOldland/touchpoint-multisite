@@ -76,6 +76,10 @@ if (!isset($wpdb)) {
                 return in_array($table, $this->tables, true) ? $table : null;
             }
 
+            if (preg_match('/SHOW COLUMNS FROM\s+([a-zA-Z0-9_`]+)\s+LIKE\s+[\'"]?([^\'"\s]+)[\'"]?/i', $query, $m)) {
+                return null;
+            }
+
             if (preg_match('/SELECT COUNT\(\*\) FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+event_id\s*=\s*[\'"]?([^\'"\s]+)[\'"]?/i', $query, $m)) {
                 $table = $this->normalize_table($m[1]);
                 $event_id = $m[2];
@@ -172,6 +176,40 @@ if (!isset($wpdb)) {
                 foreach ($this->data[$table] ?? [] as $row) {
                     if ((int)($row['user_id'] ?? 0) === $user_id) {
                         return $output === ARRAY_A ? $row : (object) $row;
+                    }
+                }
+                return null;
+            }
+
+            if (preg_match('/SELECT \* FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+id\s*=\s*([0-9]+)\s+AND\s+is_active\s*=\s*1/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $id = (int) $m[2];
+                foreach ($this->data[$table] ?? [] as $row) {
+                    if ((int)($row['id'] ?? 0) === $id && (int)($row['is_active'] ?? 0) === 1) {
+                        return $output === ARRAY_A ? $row : (object) $row;
+                    }
+                }
+                return null;
+            }
+
+            if (preg_match('/SELECT \* FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+slug\s*=\s*[\'"]?([^\'"\s]+)[\'"]?\s+AND\s+is_active\s*=\s*1/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $slug = $m[2];
+                foreach ($this->data[$table] ?? [] as $row) {
+                    if ((string)($row['slug'] ?? '') === $slug && (int)($row['is_active'] ?? 0) === 1) {
+                        return $output === ARRAY_A ? $row : (object) $row;
+                    }
+                }
+                return null;
+            }
+
+            if (preg_match('/SELECT\s+stripe_customer_id\s+FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+user_id\s*=\s*([0-9]+)/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $user_id = (int) $m[2];
+                foreach ($this->data[$table] ?? [] as $row) {
+                    if ((int)($row['user_id'] ?? 0) === $user_id) {
+                        $result = ['stripe_customer_id' => $row['stripe_customer_id'] ?? null];
+                        return $output === ARRAY_A ? $result : (object) $result;
                     }
                 }
                 return null;
@@ -364,6 +402,10 @@ if (!function_exists('is_email')) {
 
 if (!function_exists('email_exists')) {
     function email_exists($email) {
+        global $khm_test_email_exists;
+        if (is_array($khm_test_email_exists ?? null) && array_key_exists((string) $email, $khm_test_email_exists)) {
+            return $khm_test_email_exists[(string) $email];
+        }
         return false; // Mock: user doesn't exist
     }
 }

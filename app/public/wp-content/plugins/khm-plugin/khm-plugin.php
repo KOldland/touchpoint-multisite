@@ -161,8 +161,10 @@ require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
 require_once __DIR__ . '/src/Admin/PriceValidationAjax.php';
 require_once __DIR__ . '/src/Membership/MembershipMigration.php';
 require_once __DIR__ . '/src/Membership/AttributionEndpoint.php';
+require_once __DIR__ . '/src/Membership/TierRegistry.php';
 require_once __DIR__ . '/src/Membership/SignupEndpoint.php';
 require_once __DIR__ . '/src/Membership/StatusEndpoint.php';
+require_once __DIR__ . '/src/Membership/CustomerPortalEndpoint.php';
 require_once __DIR__ . '/src/Membership/StripeWebhookHandler.php';
 require_once __DIR__ . '/src/Membership/LandingPageShortcode.php';
 require_once __DIR__ . '/src/Membership/DashboardShortcode.php';
@@ -201,6 +203,9 @@ add_action( 'rest_api_init', function() {
     }
     if ( class_exists( 'KHM\\Membership\\StatusEndpoint' ) ) {
         new KHM\Membership\StatusEndpoint();
+    }
+    if ( class_exists( 'KHM\\Membership\\CustomerPortalEndpoint' ) ) {
+        new KHM\Membership\CustomerPortalEndpoint();
     }
     if ( class_exists( 'KHM\\Membership\\StripeWebhookHandler' ) ) {
         new KHM\Membership\StripeWebhookHandler();
