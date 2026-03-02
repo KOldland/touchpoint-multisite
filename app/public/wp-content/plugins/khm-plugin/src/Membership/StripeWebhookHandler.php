@@ -226,6 +226,17 @@ class StripeWebhookHandler {
                     'Tier to price mismatch detected in checkout metadata.',
                     [ 'tier_slug' => $tier_slug, 'stripe_price_id' => $metadata_price_id ]
                 );
+                $this->log_security_anomaly(
+                    'checkout_tier_price_mismatch',
+                    'Checkout metadata tier/price mismatch.',
+                    [
+                        'event_id' => $event_id,
+                        'session_id' => $session_id,
+                        'user_id' => $user_id,
+                        'tier_slug' => $tier_slug,
+                        'stripe_price_id' => $metadata_price_id,
+                    ]
+                );
                 throw new \RuntimeException( 'checkout.session.completed tier/price mismatch' );
             }
 
@@ -465,6 +476,32 @@ class StripeWebhookHandler {
         if ( isset( $subscription->current_period_end ) && $subscription->current_period_end ) {
             $update_data['current_period_end'] = gmdate( 'Y-m-d H:i:s', (int) $subscription->current_period_end );
         }
+        $price_id = $this->extract_subscription_price_id( $subscription );
+        if ( $price_id !== '' ) {
+            $update_data['stripe_price_id'] = $price_id;
+            $tier = TierRegistry::find_tier_by_price( $price_id );
+            if ( $tier ) {
+                $resolved_slug = (string) ( $tier['slug'] ?? '' );
+                if ( $resolved_slug !== '' ) {
+                    $update_data['tier_slug'] = $resolved_slug;
+                    $resolved_tier_id = $this->find_plan_id_by_tier_slug( $resolved_slug );
+                    if ( $resolved_tier_id > 0 ) {
+                        $update_data['tier_id'] = $resolved_tier_id;
+                    }
+                }
+            } else {
+                $this->log_security_anomaly(
+                    'subscription_unknown_price_id',
+                    'Subscription updated contains unknown stripe_price_id.',
+                    [
+                        'event_id' => $event_id,
+                        'subscription_id' => $subscription_id,
+                        'user_id' => $user_id,
+                        'stripe_price_id' => $price_id,
+                    ]
+                );
+            }
+        }
         if ( ! in_array( (string) ( $update_data['status'] ?? '' ), self::VALID_STATUSES, true ) ) {
             $update_data['status'] = 'past_due';
         }
@@ -490,7 +527,7 @@ class StripeWebhookHandler {
             $user_id,
             'success',
             'Subscription update applied.',
-            [ 'status' => $status ]
+            [ 'status' => $status, 'stripe_price_id' => $price_id ]
         );
         $this->update_subscription_event_cursor( $subscription_id, $event_created );
         $this->mark_operation_succeeded( $operation_key );
@@ -1011,6 +1048,48 @@ class StripeWebhookHandler {
 
     private function get_subscription_event_cursor_key( string $subscription_id ): string {
         return 'khm_membership_sub_event_cursor_' . md5( $subscription_id );
+    }
+
+    private function extract_subscription_price_id( $subscription ): string {
+        if ( ! isset( $subscription->items ) || ! isset( $subscription->items->data ) || ! is_array( $subscription->items->data ) ) {
+            return '';
+        }
+        foreach ( $subscription->items->data as $item ) {
+            if ( is_object( $item ) && isset( $item->price ) && is_object( $item->price ) && ! empty( $item->price->id ) ) {
+                return sanitize_text_field( (string) $item->price->id );
+            }
+            if ( is_array( $item ) && isset( $item['price'] ) && is_array( $item['price'] ) && ! empty( $item['price']['id'] ) ) {
+                return sanitize_text_field( (string) $item['price']['id'] );
+            }
+        }
+        return '';
+    }
+
+    private function find_plan_id_by_tier_slug( string $tier_slug ): int {
+        $tier_slug = sanitize_key( $tier_slug );
+        if ( '' === $tier_slug ) {
+            return 0;
+        }
+        global $wpdb;
+        $membership_tier_table = $wpdb->prefix . 'membership_tier';
+        $plan_id = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT id FROM {$membership_tier_table} WHERE slug = %s LIMIT 1",
+                $tier_slug
+            )
+        );
+        return $plan_id ? (int) $plan_id : 0;
+    }
+
+    private function log_security_anomaly( string $code, string $message, array $context = [] ): void {
+        $payload = [
+            'code' => $code,
+            'message' => $message,
+            'context' => $context,
+        ];
+        error_log( 'KHM membership security anomaly ' . wp_json_encode( $payload ) );
+        do_action( 'khm_membership_webhook_security_anomaly', $payload );
+        $this->emit_telemetry( 'webhook.security_anomaly', $payload );
     }
 
     private function audit_handler(

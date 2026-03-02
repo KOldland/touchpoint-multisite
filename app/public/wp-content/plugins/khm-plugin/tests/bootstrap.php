@@ -138,6 +138,17 @@ if (!isset($wpdb)) {
                 return null;
             }
 
+            if (preg_match('/SELECT\s+id\s+FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+slug\s*=\s*[\'"]?([^\'"\s]+)[\'"]?/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $slug = $m[2];
+                foreach ($this->data[$table] ?? [] as $row) {
+                    if (($row['slug'] ?? null) === $slug) {
+                        return $row['id'] ?? null;
+                    }
+                }
+                return null;
+            }
+
             return null;
         }
 
@@ -442,13 +453,22 @@ if (!function_exists('get_user_by')) {
 
 if (!function_exists('get_current_user_id')) {
     function get_current_user_id() {
-        return 0; // Not logged in by default
+        return isset($GLOBALS['khm_test_current_user_id']) ? (int) $GLOBALS['khm_test_current_user_id'] : 0;
     }
 }
 
 if (!function_exists('current_user_can')) {
     function current_user_can($capability) {
+        if (isset($GLOBALS['khm_test_current_user_caps']) && is_array($GLOBALS['khm_test_current_user_caps'])) {
+            return !empty($GLOBALS['khm_test_current_user_caps'][(string) $capability]);
+        }
         return false;
+    }
+}
+
+if (!function_exists('is_user_logged_in')) {
+    function is_user_logged_in() {
+        return get_current_user_id() > 0;
     }
 }
 

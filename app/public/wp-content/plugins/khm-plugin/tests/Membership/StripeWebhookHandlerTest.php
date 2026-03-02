@@ -111,6 +111,17 @@ class StripeWebhookHandlerTest extends TestCase {
         ]);
         $plan_id = $wpdb->insert_id;
 
+        $filter = function () {
+            return [
+                'premium' => [
+                    'price_id' => 'price_premium_monthly',
+                    'trial_eligible' => false,
+                    'trial_days' => 0,
+                ],
+            ];
+        };
+        add_filter('khm_membership_tier_registry', $filter);
+
         $event_payload = [
             'id' => 'evt_checkout_completed',
             'type' => 'checkout.session.completed',
@@ -122,7 +133,9 @@ class StripeWebhookHandlerTest extends TestCase {
                     'subscription' => 'sub_test123',
                     'metadata' => [
                         'user_id' => '123',
-                        'membership_level_id' => (string) $plan_id
+                        'membership_level_id' => (string) $plan_id,
+                        'tier_slug' => 'premium',
+                        'stripe_price_id' => 'price_premium_monthly',
                     ]
                 ]
             ]
@@ -153,6 +166,7 @@ class StripeWebhookHandlerTest extends TestCase {
         $this->assertEquals('sub_test123', $membership['stripe_subscription_id']);
 
         // Cleanup
+        remove_filter('khm_membership_tier_registry', $filter);
         $wpdb->delete($wpdb->prefix . 'membership_tier', ['id' => $plan_id]);
     }
 
@@ -485,6 +499,11 @@ class StripeWebhookHandlerTest extends TestCase {
             ],
         ];
 
+        $request = new WP_REST_Request('POST');
+        $request->set_body(json_encode($event_payload));
+        $response = $this->handler->handle_request($request);
+        $this->assertEquals(200, $response->get_status());
+
         $this->handler->process_queued_event([
             'event_id' => 'evt_checkout_mismatch',
             'event_type' => 'checkout.session.completed',
@@ -496,5 +515,107 @@ class StripeWebhookHandlerTest extends TestCase {
         $this->assertNotNull($failed);
         $this->assertEquals('failed', $failed['status'] ?? '');
         remove_filter( 'khm_membership_tier_registry', $filter );
+    }
+
+    public function test_subscription_updated_lifecycle_matrix_transitions(): void {
+        global $wpdb;
+        $wpdb->insert($wpdb->prefix . 'user_membership', [
+            'user_id' => 901,
+            'tier_id' => 1,
+            'tier_slug' => 'basic',
+            'stripe_customer_id' => 'cus_matrix',
+            'stripe_subscription_id' => 'sub_matrix',
+            'status' => 'active'
+        ]);
+
+        $matrix = [
+            [ 'label' => 'trialing to trial', 'remote_status' => 'trialing', 'cancel_at_period_end' => false, 'expected' => 'trial' ],
+            [ 'label' => 'active to active', 'remote_status' => 'active', 'cancel_at_period_end' => false, 'expected' => 'active' ],
+            [ 'label' => 'active to pending_cancel', 'remote_status' => 'active', 'cancel_at_period_end' => true, 'expected' => 'pending_cancel' ],
+            [ 'label' => 'past due', 'remote_status' => 'past_due', 'cancel_at_period_end' => false, 'expected' => 'past_due' ],
+            [ 'label' => 'canceled', 'remote_status' => 'canceled', 'cancel_at_period_end' => false, 'expected' => 'canceled' ],
+        ];
+
+        foreach ($matrix as $idx => $row) {
+            $this->handler->process_queued_event([
+                'event_id' => 'evt_sub_matrix_' . $idx,
+                'event_type' => 'customer.subscription.updated',
+                'event_created' => 1700000000 + $idx,
+                'data_object' => [
+                    'id' => 'sub_matrix',
+                    'customer' => 'cus_matrix',
+                    'status' => $row['remote_status'],
+                    'cancel_at_period_end' => $row['cancel_at_period_end'],
+                    'current_period_end' => 1701000000 + $idx,
+                ],
+                'trace_id' => 'trace-sub-matrix-' . $idx,
+            ]);
+
+            $membership = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}user_membership WHERE user_id = %d",
+                901
+            ), ARRAY_A);
+            $this->assertEquals($row['expected'], $membership['status'], $row['label']);
+        }
+    }
+
+    public function test_subscription_updated_plan_change_maps_tier_and_price(): void {
+        global $wpdb;
+        $wpdb->insert($wpdb->prefix . 'membership_tier', [
+            'slug' => 'pro',
+            'name' => 'Pro',
+            'price_cents' => 1000,
+            'is_active' => 1,
+        ]);
+        $pro_tier_id = $wpdb->insert_id;
+
+        $wpdb->insert($wpdb->prefix . 'user_membership', [
+            'user_id' => 902,
+            'tier_id' => 1,
+            'tier_slug' => 'basic',
+            'stripe_customer_id' => 'cus_plan_change',
+            'stripe_subscription_id' => 'sub_plan_change',
+            'status' => 'active'
+        ]);
+
+        $filter = function () {
+            return [
+                'pro' => [
+                    'price_id' => 'price_pro_monthly',
+                    'trial_eligible' => false,
+                    'trial_days' => 0,
+                ],
+            ];
+        };
+        add_filter('khm_membership_tier_registry', $filter);
+
+        $this->handler->process_queued_event([
+            'event_id' => 'evt_sub_plan_change',
+            'event_type' => 'customer.subscription.updated',
+            'event_created' => 1702000000,
+            'data_object' => [
+                'id' => 'sub_plan_change',
+                'customer' => 'cus_plan_change',
+                'status' => 'active',
+                'cancel_at_period_end' => false,
+                'items' => [
+                    'data' => [
+                        [ 'price' => [ 'id' => 'price_pro_monthly' ] ],
+                    ],
+                ],
+            ],
+            'trace_id' => 'trace-plan-change',
+        ]);
+
+        $membership = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}user_membership WHERE user_id = %d",
+            902
+        ), ARRAY_A);
+
+        $this->assertEquals('pro', $membership['tier_slug']);
+        $this->assertEquals($pro_tier_id, (int) $membership['tier_id']);
+        $this->assertEquals('price_pro_monthly', $membership['stripe_price_id']);
+        remove_filter('khm_membership_tier_registry', $filter);
+        $wpdb->delete($wpdb->prefix . 'membership_tier', ['id' => $pro_tier_id]);
     }
 }

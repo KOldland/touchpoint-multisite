@@ -15,12 +15,22 @@ class CustomerPortalEndpoint {
         ] );
     }
 
-    public function check_permission() {
+    public function check_permission( \WP_REST_Request $request ) {
         if ( ! is_user_logged_in() ) {
             return new \WP_Error(
                 'rest_forbidden',
                 __( 'Authentication required.', 'khm' ),
                 [ 'status' => 401 ]
+            );
+        }
+
+        $requested_user_id = (int) $request->get_param( 'user_id' );
+        $current_user_id = (int) get_current_user_id();
+        if ( $requested_user_id > 0 && $requested_user_id !== $current_user_id && ! current_user_can( 'manage_options' ) ) {
+            return new \WP_Error(
+                'rest_forbidden',
+                __( 'You can only access your own customer portal.', 'khm' ),
+                [ 'status' => 403 ]
             );
         }
         return true;
@@ -76,4 +86,3 @@ class CustomerPortalEndpoint {
         }
     }
 }
-

@@ -58,6 +58,28 @@ class TierRegistry {
         return (string) $tier['price_id'] === trim( $price_id );
     }
 
+    public static function find_tier_by_price( string $price_id ): ?array {
+        $needle = trim( $price_id );
+        if ( '' === $needle ) {
+            return null;
+        }
+
+        foreach ( self::get_registry() as $slug => $entry ) {
+            if ( ! is_array( $entry ) ) {
+                continue;
+            }
+            $resolved = self::resolve_price_id_from_entry( $entry );
+            if ( $resolved !== '' && $resolved === $needle ) {
+                $tier = self::get_tier( (string) $slug );
+                if ( $tier ) {
+                    return $tier;
+                }
+            }
+        }
+
+        return null;
+    }
+
     /**
      * @param array<string,mixed> $entry
      */
@@ -83,4 +105,3 @@ class TierRegistry {
         return strpos( $secret, 'sk_live_' ) === 0;
     }
 }
-
