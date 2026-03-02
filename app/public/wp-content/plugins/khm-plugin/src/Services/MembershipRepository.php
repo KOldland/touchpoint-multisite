@@ -18,6 +18,12 @@ class MembershipRepository implements MembershipRepositoryInterface {
     private string $tableName;
     private string $levelsTable;
     private string $usersTable;
+    private string $promotionAttributionTable;
+    private string $sponsorsTable;
+    private string $postsTable;
+    private bool $hasPromotionAttributionTable;
+    private bool $hasSponsorsTable;
+    private bool $hasPostsTable;
     private LevelRepository $levels;
 
     public function __construct() {
@@ -25,6 +31,12 @@ class MembershipRepository implements MembershipRepositoryInterface {
         $this->tableName = $wpdb->prefix . 'khm_memberships_users';
         $this->levelsTable = $wpdb->prefix . 'khm_membership_levels';
         $this->usersTable  = $wpdb->users;
+        $this->promotionAttributionTable = $wpdb->prefix . 'promotion_attribution';
+        $this->sponsorsTable = $wpdb->prefix . 'khm_sponsors';
+        $this->postsTable = $wpdb->posts;
+        $this->hasPromotionAttributionTable = $this->tableExists( $this->promotionAttributionTable );
+        $this->hasSponsorsTable = $this->tableExists( $this->sponsorsTable );
+        $this->hasPostsTable = $this->tableExists( $this->postsTable );
         $this->levels = new LevelRepository();
     }
 
@@ -496,13 +508,15 @@ class MembershipRepository implements MembershipRepositoryInterface {
      */
     public function getById( int $membershipId ): ?object {
         global $wpdb;
+        $attribution = $this->attributionSelectSql( 'm.user_id', true );
 
         $membership = $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT m.*, l.name AS level_name, u.user_login, u.user_email, u.display_name
+                "SELECT m.*, l.name AS level_name, u.user_login, u.user_email, u.display_name, {$attribution['select']}
                  FROM {$this->tableName} m
                  LEFT JOIN {$this->levelsTable} l ON m.membership_id = l.id
                  LEFT JOIN {$this->usersTable} u ON m.user_id = u.ID
+                 {$attribution['join']}
                  WHERE m.id = %d LIMIT 1",
                 $membershipId
             )
@@ -830,6 +844,7 @@ class MembershipRepository implements MembershipRepositoryInterface {
 
         $limit  = max( 1, (int) $args['per_page'] );
         $offset = max( 0, (int) $args['offset'] );
+        $attribution = $this->attributionSelectSql( 'm.user_id', false );
 
         $selectSql = "SELECT m.id,
                              m.user_id,
@@ -847,10 +862,12 @@ class MembershipRepository implements MembershipRepositoryInterface {
                              u.user_login,
                              u.user_email,
                              u.display_name,
-                             l.name AS level_name
+                             l.name AS level_name,
+                             {$attribution['select']}
                       FROM {$this->tableName} m
                       LEFT JOIN {$this->levelsTable} l ON m.membership_id = l.id
                       LEFT JOIN {$this->usersTable} u ON m.user_id = u.ID
+                      {$attribution['join']}
                       {$whereSql}
                       ORDER BY {$orderBy} {$order}
                       LIMIT %d OFFSET %d";
@@ -936,6 +953,92 @@ class MembershipRepository implements MembershipRepositoryInterface {
         }
 
         return $normalized;
+    }
+
+    private function attributionSelectSql( string $userIdSql, bool $extended = false ): array {
+        if ( ! $this->hasPromotionAttributionTable ) {
+            $fields = [
+                'NULL AS attribution_schedule_id',
+                'NULL AS attribution_sponsor_id',
+                'NULL AS attribution_utm_source',
+                'NULL AS attribution_phase_at_click',
+                'NULL AS attribution_conversion_type',
+                'NULL AS attribution_created_at',
+                'NULL AS attribution_schedule_title',
+                'NULL AS attribution_sponsor_name',
+            ];
+
+            if ( $extended ) {
+                $fields[] = 'NULL AS attribution_utm_medium';
+                $fields[] = 'NULL AS attribution_utm_campaign';
+                $fields[] = 'NULL AS attribution_utm_term';
+                $fields[] = 'NULL AS attribution_utm_content';
+                $fields[] = 'NULL AS attribution_reference_metadata';
+            }
+
+            return [
+                'select' => implode( ', ', $fields ),
+                'join'   => '',
+            ];
+        }
+
+        $fields = [
+            'pa.schedule_id AS attribution_schedule_id',
+            'pa.sponsor_id AS attribution_sponsor_id',
+            'pa.utm_source AS attribution_utm_source',
+            'pa.phase_at_click AS attribution_phase_at_click',
+            'pa.conversion_type AS attribution_conversion_type',
+            'pa.created_at AS attribution_created_at',
+        ];
+
+        if ( $extended ) {
+            $fields[] = 'pa.utm_medium AS attribution_utm_medium';
+            $fields[] = 'pa.utm_campaign AS attribution_utm_campaign';
+            $fields[] = 'pa.utm_term AS attribution_utm_term';
+            $fields[] = 'pa.utm_content AS attribution_utm_content';
+            $fields[] = 'pa.reference_metadata AS attribution_reference_metadata';
+        }
+
+        if ( $this->hasPostsTable ) {
+            $fields[] = 'schedule_post.post_title AS attribution_schedule_title';
+        } else {
+            $fields[] = 'NULL AS attribution_schedule_title';
+        }
+
+        if ( $this->hasSponsorsTable ) {
+            $fields[] = 'sponsor.name AS attribution_sponsor_name';
+        } else {
+            $fields[] = 'NULL AS attribution_sponsor_name';
+        }
+
+        $join = "LEFT JOIN {$this->promotionAttributionTable} pa
+                 ON pa.id = (
+                    SELECT pa2.id
+                    FROM {$this->promotionAttributionTable} pa2
+                    WHERE pa2.user_id = {$userIdSql}
+                    ORDER BY pa2.created_at DESC, pa2.id DESC
+                    LIMIT 1
+                 )";
+
+        if ( $this->hasPostsTable ) {
+            $join .= " LEFT JOIN {$this->postsTable} schedule_post ON schedule_post.ID = pa.schedule_id";
+        }
+
+        if ( $this->hasSponsorsTable ) {
+            $join .= " LEFT JOIN {$this->sponsorsTable} sponsor ON sponsor.id = pa.sponsor_id";
+        }
+
+        return [
+            'select' => implode( ', ', $fields ),
+            'join'   => $join,
+        ];
+    }
+
+    private function tableExists( string $table ): bool {
+        global $wpdb;
+
+        $found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+        return $found === $table;
     }
 
     /**

@@ -496,6 +496,8 @@ class MembersPage {
 		echo '<p><a class="button" href="' . esc_url( $user_link ) . '">' . esc_html__( 'View WordPress User Profile', 'khm-membership' ) . '</a></p>';
 		echo '</div>';
 
+		$this->render_attribution_summary( $membership );
+
 		// Edit Membership Level section
 		echo '<div class="khm-member-change-level">';
 		echo '<h2>' . esc_html__( 'Change Membership Level', 'khm-membership' ) . '</h2>';
@@ -594,6 +596,86 @@ class MembersPage {
 
 		$this->render_notes_section( $membership );
 
+		echo '</div>';
+	}
+
+	private function render_attribution_summary( object $membership ): void {
+		$schedule_id    = isset( $membership->attribution_schedule_id ) ? absint( $membership->attribution_schedule_id ) : 0;
+		$sponsor_id     = isset( $membership->attribution_sponsor_id ) ? absint( $membership->attribution_sponsor_id ) : 0;
+		$schedule_title = isset( $membership->attribution_schedule_title ) ? trim( (string) $membership->attribution_schedule_title ) : '';
+		$sponsor_name   = isset( $membership->attribution_sponsor_name ) ? trim( (string) $membership->attribution_sponsor_name ) : '';
+		$utm_source     = isset( $membership->attribution_utm_source ) ? trim( (string) $membership->attribution_utm_source ) : '';
+		$utm_medium     = isset( $membership->attribution_utm_medium ) ? trim( (string) $membership->attribution_utm_medium ) : '';
+		$utm_campaign   = isset( $membership->attribution_utm_campaign ) ? trim( (string) $membership->attribution_utm_campaign ) : '';
+		$phase          = isset( $membership->attribution_phase_at_click ) ? trim( (string) $membership->attribution_phase_at_click ) : '';
+		$conversion     = isset( $membership->attribution_conversion_type ) ? trim( (string) $membership->attribution_conversion_type ) : '';
+		$created_at     = isset( $membership->attribution_created_at ) ? trim( (string) $membership->attribution_created_at ) : '';
+
+		$has_data = $schedule_id > 0
+			|| $sponsor_id > 0
+			|| $utm_source !== ''
+			|| $utm_medium !== ''
+			|| $utm_campaign !== ''
+			|| $phase !== ''
+			|| $conversion !== '';
+
+		if ( ! $has_data ) {
+			return;
+		}
+
+		echo '<div class="khm-member-attribution">';
+		echo '<h2>' . esc_html__( 'Attribution', 'khm-membership' ) . '</h2>';
+		echo '<p>';
+
+		if ( $schedule_id > 0 ) {
+			$schedule_label = $schedule_title !== ''
+				? sprintf( '%s (#%d)', $schedule_title, $schedule_id )
+				: sprintf( '#%d', $schedule_id );
+			$schedule_link = get_edit_post_link( $schedule_id, '' );
+			if ( ! $schedule_link ) {
+				$schedule_link = add_query_arg(
+					[
+						'page'        => 'khm-membership-reports',
+						'schedule_id' => $schedule_id,
+					],
+					admin_url( 'admin.php' )
+				);
+			}
+			echo '<strong>' . esc_html__( 'Schedule:', 'khm-membership' ) . '</strong> <a href="' . esc_url( $schedule_link ) . '">' . esc_html( $schedule_label ) . '</a><br>';
+		}
+
+		if ( $sponsor_id > 0 ) {
+			$sponsor_label = $sponsor_name !== ''
+				? sprintf( '%s (#%d)', $sponsor_name, $sponsor_id )
+				: sprintf( '#%d', $sponsor_id );
+			echo '<strong>' . esc_html__( 'Sponsor:', 'khm-membership' ) . '</strong> <a href="' . esc_url( admin_url( 'admin.php?page=khm-sponsor-library' ) ) . '">' . esc_html( $sponsor_label ) . '</a><br>';
+		}
+
+		if ( $utm_source !== '' ) {
+			echo '<strong>' . esc_html__( 'UTM Source:', 'khm-membership' ) . '</strong> ' . esc_html( $utm_source ) . '<br>';
+		}
+
+		if ( $utm_medium !== '' ) {
+			echo '<strong>' . esc_html__( 'UTM Medium:', 'khm-membership' ) . '</strong> ' . esc_html( $utm_medium ) . '<br>';
+		}
+
+		if ( $utm_campaign !== '' ) {
+			echo '<strong>' . esc_html__( 'UTM Campaign:', 'khm-membership' ) . '</strong> ' . esc_html( $utm_campaign ) . '<br>';
+		}
+
+		if ( $phase !== '' ) {
+			echo '<strong>' . esc_html__( 'Phase at Click:', 'khm-membership' ) . '</strong> ' . esc_html( $phase ) . '<br>';
+		}
+
+		if ( $conversion !== '' ) {
+			echo '<strong>' . esc_html__( 'Conversion Type:', 'khm-membership' ) . '</strong> ' . esc_html( $conversion ) . '<br>';
+		}
+
+		if ( $created_at !== '' ) {
+			echo '<strong>' . esc_html__( 'Recorded:', 'khm-membership' ) . '</strong> ' . esc_html( $this->format_date_display( $created_at ) ) . '<br>';
+		}
+
+		echo '</p>';
 		echo '</div>';
 	}
 
