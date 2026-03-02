@@ -19,25 +19,27 @@ class SignupEndpoint {
 
     public function handle_request( \WP_REST_Request $req ) {
         $p = $req->get_json_params();
+        $p = is_array( $p ) ? $p : [];
+        $attribution = $this->normalize_attribution_payload( $p );
 
         // --- Validation ---
         $email = sanitize_email($p['email'] ?? '');
         if ( !is_email($email) ) {
-            return new \WP_REST_Response(['error' => 'invalid email'], 400);
+            return $this->error_response( 'MBR_ERR_100', 'invalid_email', 400, false, [ 'field' => 'email' ] );
         }
 
         $tier_slug = isset( $p['tier'] ) ? sanitize_key( (string) $p['tier'] ) : '';
         $plan_id = isset($p['plan_id']) ? intval($p['plan_id']) : 0;
         if ( $plan_id <= 0 && $tier_slug === '' ) {
-            return new \WP_REST_Response(['error' => 'invalid plan_id'], 400);
+            return $this->error_response( 'MBR_ERR_101', 'invalid_plan', 400, false, [ 'field' => 'plan_id' ] );
         }
 
         $plan = $this->resolve_plan( $plan_id, $tier_slug );
         if ( ! $plan ) {
             if ( $tier_slug !== '' ) {
-                return new \WP_REST_Response(['error' => 'unknown tier'], 400);
+                return $this->error_response( 'MBR_ERR_103', 'unknown_tier', 400, false, [ 'tier' => $tier_slug ] );
             }
-            return new \WP_REST_Response(['error' => 'plan_id does not exist'], 400);
+            return $this->error_response( 'MBR_ERR_104', 'unknown_plan', 400, false, [ 'plan_id' => $plan_id ] );
         }
         $plan_id = (int) $plan->id;
         $tier_slug = sanitize_key( (string) ( $plan->slug ?? $tier_slug ) );
@@ -47,9 +49,7 @@ class SignupEndpoint {
         $user_id = email_exists($email);
 
         if ($user_id && $provided_user_id && $user_id !== $provided_user_id) {
-            return new \WP_REST_Response([
-                'error' => 'email already exists for a different user'
-            ], 409);
+            return $this->error_response( 'MBR_ERR_105', 'email_conflict', 409, false );
         }
 
         if ( !$user_id ) {
@@ -57,10 +57,13 @@ class SignupEndpoint {
             $password = wp_generate_password();
             $user_id = wp_create_user($email, $password, $email);
             if ( is_wp_error($user_id) ) {
-                return new \WP_REST_Response([
-                    'error' => 'could not create user',
-                    'details' => $user_id->get_error_message()
-                ], 500);
+                return $this->error_response(
+                    'MBR_ERR_106',
+                    'user_create_failed',
+                    500,
+                    true,
+                    [ 'wp_error' => $user_id->get_error_message() ]
+                );
             }
         }
 
@@ -73,13 +76,11 @@ class SignupEndpoint {
         ));
 
         if ($existing_membership) {
-            return new \WP_REST_Response([
-                'error' => 'user already has an active subscription'
-            ], 409);
+            return $this->error_response( 'MBR_ERR_107', 'already_subscribed', 409, false );
         }
 
         // --- Promotion Attribution ---
-        $this->create_attribution($p, $user_id, $email, $plan_id);
+        $this->create_attribution($attribution, $user_id, $email, $plan_id);
 
         // --- Determine if plan requires payment ---
         $requires_payment = !empty($plan->price_cents) && $plan->price_cents > 0;
@@ -94,7 +95,7 @@ class SignupEndpoint {
         }
 
         // Otherwise, create Stripe Checkout Session
-        return $this->create_checkout_session($user_id, $email, $plan_id, $tier_slug, $trial_days, $p);
+        return $this->create_checkout_session($user_id, $email, $plan_id, $tier_slug, $trial_days, $attribution);
     }
 
     private function start_trial($user_id, $plan_id, string $tier_slug, $trial_days) {
@@ -129,20 +130,16 @@ class SignupEndpoint {
         ]);
     }
 
-    private function create_checkout_session($user_id, $email, $plan_id, string $tier_slug, int $trial_days, $params) {
+    private function create_checkout_session($user_id, $email, $plan_id, string $tier_slug, int $trial_days, array $attribution) {
         $secret = get_option('khm_stripe_secret_key', '');
         if ( empty($secret) ) {
-            return new \WP_REST_Response([
-                'error' => 'Stripe is not configured'
-            ], 500);
+            return $this->error_response( 'MBR_ERR_200', 'stripe_not_configured', 500, false );
         }
 
         // Resolve Stripe price ID
         $price_id = $this->resolve_price_id($plan_id, $tier_slug);
         if ( empty($price_id) ) {
-            return new \WP_REST_Response([
-                'error' => 'Stripe price mapping not configured for this plan'
-            ], 400);
+            return $this->error_response( 'MBR_ERR_201', 'stripe_price_missing', 400, false );
         }
 
         $success_url = apply_filters('khm_membership_checkout_success_url', home_url('/account/'), $plan_id, $user_id);
@@ -154,7 +151,14 @@ class SignupEndpoint {
             'tier_slug' => (string) $tier_slug,
             'stripe_price_id' => (string) $price_id,
             'user_id' => (string) $user_id,
-            'schedule_id' => isset($params['schedule_id']) ? (string) $params['schedule_id'] : '',
+            'schedule_id' => (string) ( $attribution['schedule_id'] ?? '' ),
+            'sponsor_id' => (string) ( $attribution['sponsor_id'] ?? '' ),
+            'utm_source' => (string) ( $attribution['utm_source'] ?? '' ),
+            'utm_medium' => (string) ( $attribution['utm_medium'] ?? '' ),
+            'utm_campaign' => (string) ( $attribution['utm_campaign'] ?? '' ),
+            'phase_at_click' => (string) ( $attribution['phase_at_click'] ?? '' ),
+            'idempotency_key' => (string) ( $attribution['idempotency_key'] ?? '' ),
+            'consent' => ! empty( $attribution['consent'] ) ? '1' : '0',
             'trial_days' => (string) max( 0, $trial_days ),
         ];
 
@@ -189,9 +193,7 @@ class SignupEndpoint {
             $session = \Stripe\Checkout\Session::create($session_params);
 
             if ( empty($session->url) ) {
-                return new \WP_REST_Response([
-                    'error' => 'Checkout session missing URL'
-                ], 500);
+                return $this->error_response( 'MBR_ERR_202', 'checkout_session_missing_url', 500, true );
             }
 
             return rest_ensure_response([
@@ -202,9 +204,13 @@ class SignupEndpoint {
 
         } catch ( \Throwable $e ) {
             error_log('Stripe checkout session error in /signup: ' . $e->getMessage());
-            return new \WP_REST_Response([
-                'error' => 'Unable to create checkout session'
-            ], 500);
+            return $this->error_response(
+                'MBR_ERR_203',
+                'checkout_create_failed',
+                500,
+                true,
+                [ 'exception' => $e->getMessage() ]
+            );
         }
     }
 
@@ -259,25 +265,29 @@ class SignupEndpoint {
         return null;
     }
 
-    private function create_attribution($params, $user_id, $email, $plan_id) {
-        if (!isset($params['schedule_id'])) {
+    private function create_attribution(array $attribution, $user_id, $email, $plan_id) {
+        if ( empty( $attribution['consent'] ) ) {
+            return;
+        }
+
+        if ( empty( $attribution['schedule_id'] ) ) {
             return;
         }
 
         $attribution_data = [
             'conversion_type' => 'signup',
-            'schedule_id' => isset($params['schedule_id']) ? intval($params['schedule_id']) : null,
-            'sponsor_id' => isset($params['sponsor_id']) ? intval($params['sponsor_id']) : null,
+            'schedule_id' => intval($attribution['schedule_id']),
+            'sponsor_id' => ! empty( $attribution['sponsor_id'] ) ? intval($attribution['sponsor_id']) : null,
             'user_id' => $user_id,
             'user_email' => $email,
-            'utm_source' => sanitize_text_field($params['utm_source'] ?? ''),
-            'utm_medium' => sanitize_text_field($params['utm_medium'] ?? ''),
-            'utm_campaign' => sanitize_text_field($params['utm_campaign'] ?? ''),
-            'utm_term' => sanitize_text_field($params['utm_term'] ?? ''),
-            'utm_content' => sanitize_text_field($params['utm_content'] ?? ''),
-            'phase_at_click' => sanitize_text_field($params['phase_at_click'] ?? ''),
+            'utm_source' => sanitize_text_field($attribution['utm_source'] ?? ''),
+            'utm_medium' => sanitize_text_field($attribution['utm_medium'] ?? ''),
+            'utm_campaign' => sanitize_text_field($attribution['utm_campaign'] ?? ''),
+            'utm_term' => sanitize_text_field($attribution['utm_term'] ?? ''),
+            'utm_content' => sanitize_text_field($attribution['utm_content'] ?? ''),
+            'phase_at_click' => sanitize_text_field($attribution['phase_at_click'] ?? ''),
             'plan_id' => $plan_id,
-            'reference_metadata' => wp_json_encode($params)
+            'reference_metadata' => wp_json_encode($attribution)
         ];
 
         if (class_exists('KHM\Membership\AttributionEndpoint')) {
@@ -287,5 +297,58 @@ class SignupEndpoint {
             $attribution_endpoint = new AttributionEndpoint();
             $attribution_endpoint->handle_request($req);
         }
+    }
+
+    private function normalize_attribution_payload( array $params ): array {
+        $consent = ! empty( $params['consent'] ) && in_array( strtolower( (string) $params['consent'] ), [ '1', 'true', 'yes', 'on' ], true );
+
+        $payload = [
+            'schedule_id' => isset( $params['schedule_id'] ) ? absint( $params['schedule_id'] ) : 0,
+            'sponsor_id' => isset( $params['sponsor_id'] ) ? absint( $params['sponsor_id'] ) : 0,
+            'utm_source' => sanitize_text_field( (string) ( $params['utm_source'] ?? '' ) ),
+            'utm_medium' => sanitize_text_field( (string) ( $params['utm_medium'] ?? '' ) ),
+            'utm_campaign' => sanitize_text_field( (string) ( $params['utm_campaign'] ?? '' ) ),
+            'utm_term' => sanitize_text_field( (string) ( $params['utm_term'] ?? '' ) ),
+            'utm_content' => sanitize_text_field( (string) ( $params['utm_content'] ?? '' ) ),
+            'phase_at_click' => sanitize_text_field( (string) ( $params['phase_at_click'] ?? '' ) ),
+            'idempotency_key' => sanitize_text_field( (string) ( $params['idempotency_key'] ?? wp_generate_uuid4() ) ),
+            'consent' => $consent,
+        ];
+
+        if ( ! $consent ) {
+            $payload['sponsor_id'] = 0;
+            $payload['utm_source'] = '';
+            $payload['utm_medium'] = '';
+            $payload['utm_campaign'] = '';
+            $payload['utm_term'] = '';
+            $payload['utm_content'] = '';
+            $payload['phase_at_click'] = '';
+        }
+
+        return $payload;
+    }
+
+    private function error_response( string $code, string $message, int $status = 400, bool $retryable = false, array $details = [] ): \WP_REST_Response {
+        $support_code = $code . '-' . strtoupper( substr( md5( uniqid( '', true ) ), 0, 6 ) );
+        $help_url = apply_filters( 'khm_membership_help_url', home_url( '/support/' ) );
+        $legacy_error_map = [
+            'invalid_plan' => 'invalid plan_id',
+            'unknown_plan' => 'plan_id does not exist',
+            'already_subscribed' => 'user already has an active subscription',
+        ];
+        $legacy_error = isset( $legacy_error_map[ $message ] ) ? $legacy_error_map[ $message ] : str_replace( '_', ' ', $message );
+
+        return new \WP_REST_Response(
+            [
+                'error' => $legacy_error,
+                'code' => $code,
+                'message' => $message,
+                'details' => $details,
+                'help_url' => $help_url,
+                'retryable' => $retryable,
+                'support_code' => $support_code,
+            ],
+            $status
+        );
     }
 }

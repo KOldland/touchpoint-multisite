@@ -79,7 +79,14 @@ This server-side endpoint handles the creation of a user, a Stripe customer, and
   "email": "test@example.com",
   "plan_id": 1,
   "user_id": 123,
-  "schedule_id": 99
+  "schedule_id": 99,
+  "sponsor_id": 12,
+  "utm_source": "newsletter",
+  "utm_medium": "email",
+  "utm_campaign": "q1-promo",
+  "phase_at_click": "Attention",
+  "idempotency_key": "a30ef20f-e6a5-4380-a8e9-190523f0de54",
+  "consent": true
 }
 ```
 
@@ -88,7 +95,13 @@ This server-side endpoint handles the creation of a user, a Stripe customer, and
     -   `plan_id` (integer): The ID of the `membership_tier` to subscribe to.
 -   **Optional:**
     -   `user_id` (integer): The WordPress user ID. If provided, the system will link the membership to this existing user. If omitted, a new WordPress user will be created.
-    -   `schedule_id` (integer): The promotion schedule ID, passed to ensure attribution is created if it doesn't already exist.
+    -   Canonical attribution payload:
+        - `schedule_id` (integer)
+        - `sponsor_id` (integer)
+        - `utm_source` / `utm_medium` / `utm_campaign` (string)
+        - `phase_at_click` (string)
+        - `idempotency_key` (string UUID)
+        - `consent` (boolean; when `false`, UTM/sponsor attribution is not persisted)
 
 ### Behavior
 
@@ -124,9 +137,22 @@ This server-side endpoint handles the creation of a user, a Stripe customer, and
 ```
 
 **Error Conditions (for UI handling):**
--   `400 Bad Request`: Invalid `email` format or `plan_id` does not exist.
+-   `400 Bad Request`: Invalid `email` format or plan metadata.
 -   `409 Conflict`: A user with this email already has an active subscription.
 -   `500 Internal Server Error`: A failure occurred during interaction with the Stripe API.
+
+Structured error response schema:
+```json
+{
+  "error": "invalid email",
+  "code": "MBR_ERR_100",
+  "message": "invalid_email",
+  "details": { "field": "email" },
+  "help_url": "https://example.com/support/",
+  "retryable": false,
+  "support_code": "MBR_ERR_100-ABC123"
+}
+```
 
 ---
 
@@ -189,6 +215,12 @@ The handler is responsible for updating the `user_membership` table based on Str
     -   `invoice.payment_failed`: A payment failed. Sets `status` to `past_due`.
     -   `customer.subscription.updated`: A subscription was changed (e.g., upgraded, cancelled). Updates `tier_id`, `status`, `cancelled_at`.
     -   `customer.subscription.deleted`: A subscription has ended. Sets `status` to `cancelled`.
+
+-   **Email side effects:**
+    -   `checkout.session.completed` sends idempotent welcome email (`welcome` template).
+    -   `invoice.paid` and immediate paid checkout sends idempotent payment email (`payment_confirmation` template).
+    -   Telemetry events: `membership.email.welcome.sent`, `membership.email.payment.sent`, `membership.email.failed`.
+    -   Safety toggle: emails are gated by option `khm_membership_transactional_emails_enabled` (admin configurable).
 
 ### Guarantees & Idempotency
 
