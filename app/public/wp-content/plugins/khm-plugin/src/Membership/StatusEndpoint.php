@@ -85,9 +85,9 @@ class StatusEndpoint {
 
         // Calculate renews_at (approximation - would need Stripe subscription data for exact value)
         $renews_at = null;
-        if ($result['status'] === 'active' || $result['status'] === 'trialing') {
+        if ($result['status'] === 'active' || $result['status'] === 'trial') {
             // If trial, renews_at is trial_ends_at
-            if ($result['status'] === 'trialing' && !empty($result['trial_ends_at'])) {
+            if ($result['status'] === 'trial' && !empty($result['trial_ends_at'])) {
                 $renews_at = $result['trial_ends_at'];
             } elseif (!empty($result['started_at'])) {
                 // Approximate monthly renewal from started_at

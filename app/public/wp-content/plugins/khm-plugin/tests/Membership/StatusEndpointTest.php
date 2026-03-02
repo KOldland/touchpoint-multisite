@@ -137,11 +137,11 @@ class StatusEndpointTest extends TestCase {
         ]);
         $tier_id = $wpdb->insert_id;
 
-        // Create trialing membership
+        // Create trial membership
         $wpdb->insert($wpdb->prefix . 'user_membership', [
             'user_id' => 456,
             'tier_id' => $tier_id,
-            'status' => 'trialing',
+            'status' => 'trial',
             'trial_ends_at' => '2026-02-18 12:00:00',
             'started_at' => '2026-02-01 12:00:00'
         ]);
@@ -167,7 +167,7 @@ class StatusEndpointTest extends TestCase {
         $this->assertArrayHasKey('name', $data['tier']);
 
         // Verify status values
-        $this->assertContains($data['status'], ['trialing', 'active', 'past_due', 'unpaid', 'cancelled', 'none']);
+        $this->assertContains($data['status'], ['trial', 'active', 'past_due', 'pending_cancel', 'canceled', 'none']);
 
         // Cleanup
         $wpdb->delete($wpdb->prefix . 'user_membership', ['user_id' => 456]);

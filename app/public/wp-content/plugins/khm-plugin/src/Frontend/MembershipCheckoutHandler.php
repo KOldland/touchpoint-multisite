@@ -9,11 +9,13 @@
 namespace KHM\Frontend;
 
 use KHM\Services\LevelRepository;
+use KHM\Services\DiscountCodeService;
 
 class MembershipCheckoutHandler {
 
     private static bool $booted = false;
     private ?LevelRepository $levels = null;
+    private ?DiscountCodeService $discounts = null;
 
     public function __construct() {
         if (self::$booted) {
@@ -31,6 +33,8 @@ class MembershipCheckoutHandler {
         // Register AJAX handler (accessible to logged-in and logged-out users)
         add_action('wp_ajax_khm_create_membership_checkout', [$this, 'ajax_create_checkout_session']);
         add_action('wp_ajax_nopriv_khm_create_membership_checkout', [$this, 'ajax_create_checkout_session']);
+        add_action('wp_ajax_khm_validate_membership_promo', [$this, 'ajax_validate_membership_promo']);
+        add_action('wp_ajax_nopriv_khm_validate_membership_promo', [$this, 'ajax_validate_membership_promo']);
     }
 
     /**
@@ -140,6 +144,51 @@ class MembershipCheckoutHandler {
             $metadata['user_id'] = (string) $user_id;
         }
 
+        $create_account = !empty($_POST['create_account']) ? '1' : '0';
+        $profile = $this->sanitize_profile_payload($_POST['profile'] ?? null);
+        $guest_email = sanitize_email((string) ($_POST['guest_email'] ?? ''));
+
+        if ($create_account === '1') {
+            if ($profile['first_name'] === '' || $profile['last_name'] === '') {
+                wp_send_json_error([
+                    'message' => __('First name and last name are required to create an account.', 'khm-membership')
+                ], 400);
+            }
+            if ($profile['mobile'] !== '' && strlen($profile['mobile']) < 7) {
+                wp_send_json_error([
+                    'message' => __('Please provide a valid mobile number.', 'khm-membership')
+                ], 400);
+            }
+        }
+
+        $metadata['create_account'] = $create_account;
+        if (!empty($profile['first_name'])) {
+            $metadata['profile_first_name'] = $profile['first_name'];
+        }
+        if (!empty($profile['last_name'])) {
+            $metadata['profile_last_name'] = $profile['last_name'];
+        }
+        if (!empty($profile['mobile'])) {
+            $metadata['profile_mobile'] = $profile['mobile'];
+        }
+        if (!empty($profile['job_title'])) {
+            $metadata['profile_job_title'] = $profile['job_title'];
+        }
+        if (!empty($profile['company'])) {
+            $metadata['profile_company'] = $profile['company'];
+        }
+        if (!empty($profile['marketing_opt_in'])) {
+            $metadata['profile_marketing_optin'] = '1';
+        }
+        if ($guest_email && is_email($guest_email)) {
+            $metadata['guest_email'] = $guest_email;
+        }
+
+        $promo = $this->resolve_membership_promo($level_id, $user_id, $_POST);
+        if (!empty($promo['metadata']) && is_array($promo['metadata'])) {
+            $metadata = array_merge($metadata, $promo['metadata']);
+        }
+
         // Create Stripe Checkout Session
         try {
             \Stripe\Stripe::setApiKey($stripe_secret);
@@ -157,10 +206,19 @@ class MembershipCheckoutHandler {
                 'metadata' => $metadata,
                 'allow_promotion_codes' => $this->resolve_allow_promotion_codes( $level_id ),
             ];
+            if (!empty($promo['stripe_promotion_code'])) {
+                $session_params['discounts'] = [
+                    [
+                        'promotion_code' => $promo['stripe_promotion_code'],
+                    ]
+                ];
+            }
 
             // If user is logged in, pre-fill email
             if ($user_email) {
                 $session_params['customer_email'] = $user_email;
+            } elseif ($guest_email && is_email($guest_email)) {
+                $session_params['customer_email'] = $guest_email;
             }
 
             // Optional: Set subscription data
@@ -207,6 +265,55 @@ class MembershipCheckoutHandler {
                 'message' => __('An unexpected error occurred. Please try again.', 'khm-membership')
             ], 500);
         }
+    }
+
+    /**
+     * Validate a membership promo code without mutating session state.
+     *
+     * Expected POST params:
+     * - membership_level_id: level ID
+     * - promo_code: code string
+     * - nonce: khm_membership_checkout_nonce
+     */
+    public function ajax_validate_membership_promo(): void {
+        check_ajax_referer('khm_membership_checkout_nonce', 'nonce');
+
+        $level_id = intval($_POST['membership_level_id'] ?? 0);
+        $promo_code = sanitize_text_field((string) ($_POST['promo_code'] ?? ''));
+        $user_id = get_current_user_id();
+
+        if ($level_id <= 0 || $promo_code === '') {
+            wp_send_json_error([
+                'message' => __('Membership level and promo code are required.', 'khm-membership')
+            ], 400);
+        }
+
+        if (!$this->discounts) {
+            $this->discounts = class_exists(DiscountCodeService::class) ? new DiscountCodeService() : null;
+        }
+
+        if (!$this->discounts) {
+            wp_send_json_error([
+                'message' => __('Promo service unavailable.', 'khm-membership')
+            ], 500);
+        }
+
+        $validation = $this->discounts->validate_code($promo_code, $level_id, $user_id);
+        if (empty($validation['valid']) || empty($validation['code'])) {
+            wp_send_json_error([
+                'message' => sanitize_text_field((string) ($validation['message'] ?? __('Invalid promo code.', 'khm-membership')))
+            ], 400);
+        }
+
+        $code = $validation['code'];
+        wp_send_json_success([
+            'message' => sanitize_text_field((string) ($validation['message'] ?? __('Promo code applied.', 'khm-membership'))),
+            'promo_code' => $promo_code,
+            'promo_id' => (int) ($code->id ?? 0),
+            'promo_type' => sanitize_text_field((string) ($code->type ?? '')),
+            'promo_amount' => (float) ($code->value ?? 0),
+            'stripe_promotion_code' => sanitize_text_field((string) ($code->stripe_promotion_code ?? '')),
+        ]);
     }
 
     /**
@@ -278,5 +385,91 @@ class MembershipCheckoutHandler {
         }
 
         return true;
+    }
+
+    /**
+     * Sanitize optional guest profile payload passed from checkout modal.
+     *
+     * @param mixed $profile
+     * @return array{first_name:string,last_name:string,mobile:string,job_title:string,company:string,marketing_opt_in:int}
+     */
+    private function sanitize_profile_payload($profile): array {
+        if (!is_array($profile)) {
+            return [
+                'first_name' => '',
+                'last_name' => '',
+                'mobile' => '',
+                'job_title' => '',
+                'company' => '',
+                'marketing_opt_in' => 0,
+            ];
+        }
+
+        return [
+            'first_name' => sanitize_text_field((string) ($profile['first_name'] ?? '')),
+            'last_name' => sanitize_text_field((string) ($profile['last_name'] ?? '')),
+            'mobile' => sanitize_text_field((string) ($profile['mobile'] ?? '')),
+            'job_title' => sanitize_text_field((string) ($profile['job_title'] ?? '')),
+            'company' => sanitize_text_field((string) ($profile['company'] ?? '')),
+            'marketing_opt_in' => !empty($profile['marketing_opt_in']) ? 1 : 0,
+        ];
+    }
+
+    /**
+     * Resolve promo payload for membership checkout and normalize metadata.
+     *
+     * @param int $level_id
+     * @param int $user_id
+     * @param array<string,mixed> $payload
+     * @return array{metadata:array<string,string>,stripe_promotion_code:string}
+     */
+    private function resolve_membership_promo(int $level_id, int $user_id, array $payload): array {
+        $metadata = [];
+        $stripePromotionCode = '';
+
+        $incomingCode = sanitize_text_field((string) ($payload['applied_promo_code'] ?? $payload['promo_code'] ?? ''));
+        $incomingPromoId = sanitize_text_field((string) ($payload['applied_promo'] ?? $payload['promo_id'] ?? ''));
+        $incomingStripePromotionCode = sanitize_text_field((string) ($payload['stripe_promotion_code'] ?? ''));
+
+        if ($incomingStripePromotionCode !== '') {
+            $stripePromotionCode = $incomingStripePromotionCode;
+        }
+
+        if ($incomingCode !== '') {
+            if (!$this->discounts) {
+                $this->discounts = class_exists(DiscountCodeService::class) ? new DiscountCodeService() : null;
+            }
+
+            if ($this->discounts) {
+                $validated = $this->discounts->validate_code($incomingCode, $level_id, $user_id);
+                if (!empty($validated['valid']) && !empty($validated['code'])) {
+                    $codeObject = $validated['code'];
+                    $metadata['khm_applied_promo_code'] = $incomingCode;
+                    $metadata['khm_applied_promo'] = (string) ($codeObject->id ?? $incomingPromoId);
+                    $metadata['khm_applied_promo_type'] = sanitize_text_field((string) ($codeObject->type ?? ''));
+                    $metadata['khm_applied_promo_amount'] = (string) (float) ($codeObject->value ?? 0);
+
+                    // Optional mapping if a custom property exists on the model/row.
+                    if (isset($codeObject->stripe_promotion_code) && !empty($codeObject->stripe_promotion_code)) {
+                        $stripePromotionCode = sanitize_text_field((string) $codeObject->stripe_promotion_code);
+                    }
+                }
+            }
+        }
+
+        if ($incomingPromoId !== '' && !isset($metadata['khm_applied_promo'])) {
+            $metadata['khm_applied_promo'] = $incomingPromoId;
+        }
+        if ($incomingCode !== '' && !isset($metadata['khm_applied_promo_code'])) {
+            $metadata['khm_applied_promo_code'] = $incomingCode;
+        }
+        if ($stripePromotionCode !== '') {
+            $metadata['khm_stripe_promotion_code'] = $stripePromotionCode;
+        }
+
+        return [
+            'metadata' => $metadata,
+            'stripe_promotion_code' => $stripePromotionCode,
+        ];
     }
 }

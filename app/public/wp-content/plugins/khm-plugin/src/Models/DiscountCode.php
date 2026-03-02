@@ -20,6 +20,7 @@ class DiscountCode {
 	public $first_payment_only;
 	public $recurring_discount_type;
 	public $recurring_discount_amount;
+	public $stripe_promotion_code;
 	public $created_at;
 	public $updated_at;
 
