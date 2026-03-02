@@ -45,6 +45,7 @@ if (isset($_POST['khm_settings_submit'])) {
     // Email settings
     update_option('khm_email_from_name', sanitize_text_field($_POST['khm_email_from_name'] ?? ''));
     update_option('khm_email_from_address', sanitize_email($_POST['khm_email_from_address'] ?? ''));
+    update_option('khm_membership_transactional_emails_enabled', isset($_POST['khm_membership_transactional_emails_enabled']) ? 1 : 0);
     
     // General settings
     update_option('khm_currency', sanitize_text_field($_POST['khm_currency'] ?? 'USD'));
@@ -119,6 +120,7 @@ $webhook_ready = $has_secret_key && $has_publishable_key && $has_webhook_secret;
 $webhook_ready_split = $has_secret_key && $has_publishable_key && $has_webhook_secret_marketing && $has_webhook_secret_billing;
 $email_from_name = get_option('khm_email_from_name', get_bloginfo('name'));
 $email_from_address = get_option('khm_email_from_address', get_option('admin_email'));
+$transactional_emails_enabled = (bool) get_option('khm_membership_transactional_emails_enabled', false);
 $currency = get_option('khm_currency', 'USD');
 $tax_rate = get_option('khm_tax_rate', 0);
 $cron_enabled_val = get_option('khm_cron_enabled', true);
@@ -306,6 +308,20 @@ if (class_exists('KHM\\Scheduled\\Scheduler')) {
                 <td>
                     <input type="email" id="khm_email_from_address" name="khm_email_from_address" 
                            value="<?php echo esc_attr($email_from_address); ?>" class="regular-text" />
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">
+                    <label for="khm_membership_transactional_emails_enabled"><?php esc_html_e('Transactional Membership Emails', 'khm-membership'); ?></label>
+                </th>
+                <td>
+                    <label>
+                        <input type="checkbox" id="khm_membership_transactional_emails_enabled" name="khm_membership_transactional_emails_enabled" value="1" <?php checked($transactional_emails_enabled, true); ?> />
+                        <?php esc_html_e('Enable welcome and payment confirmation emails from membership webhooks.', 'khm-membership'); ?>
+                    </label>
+                    <p class="description">
+                        <?php esc_html_e('Safety toggle for staging/production rollout. Disable to stop webhook-triggered transactional sends immediately.', 'khm-membership'); ?>
+                    </p>
                 </td>
             </tr>
         </table>

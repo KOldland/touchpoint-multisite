@@ -45,6 +45,7 @@ class MembersListTable extends \WP_List_Table {
 			'start_date'  => __( 'Start Date', 'khm-membership' ),
 			'end_date'    => __( 'End Date', 'khm-membership' ),
 			'status'      => __( 'Status', 'khm-membership' ),
+			'attribution' => __( 'Attribution', 'khm-membership' ),
 			'billing'     => __( 'Billing', 'khm-membership' ),
 			'trial'       => __( 'Trial', 'khm-membership' ),
 		];
@@ -270,6 +271,80 @@ class MembersListTable extends \WP_List_Table {
 			esc_attr( $status ),
 			esc_html( ucfirst( $status ) )
 		);
+	}
+
+	public function column_attribution( $item ): string {
+		$schedule_id    = isset( $item['attribution_schedule_id'] ) ? absint( $item['attribution_schedule_id'] ) : 0;
+		$sponsor_id     = isset( $item['attribution_sponsor_id'] ) ? absint( $item['attribution_sponsor_id'] ) : 0;
+		$schedule_title = isset( $item['attribution_schedule_title'] ) ? trim( (string) $item['attribution_schedule_title'] ) : '';
+		$sponsor_name   = isset( $item['attribution_sponsor_name'] ) ? trim( (string) $item['attribution_sponsor_name'] ) : '';
+		$utm_source     = isset( $item['attribution_utm_source'] ) ? trim( (string) $item['attribution_utm_source'] ) : '';
+		$phase          = isset( $item['attribution_phase_at_click'] ) ? trim( (string) $item['attribution_phase_at_click'] ) : '';
+		$conversion     = isset( $item['attribution_conversion_type'] ) ? trim( (string) $item['attribution_conversion_type'] ) : '';
+
+		$rows = [];
+
+		if ( $schedule_id > 0 ) {
+			$schedule_label = $schedule_title !== ''
+				? sprintf( '%s (#%d)', $schedule_title, $schedule_id )
+				: sprintf( '#%d', $schedule_id );
+			$schedule_link = add_query_arg(
+				[
+					'page'        => 'khm-membership-reports',
+					'schedule_id' => $schedule_id,
+				],
+				admin_url( 'admin.php' )
+			);
+			$rows[] = sprintf(
+				'%s <a href="%s">%s</a>',
+				esc_html__( 'Schedule:', 'khm-membership' ),
+				esc_url( $schedule_link ),
+				esc_html( $schedule_label )
+			);
+		}
+
+		if ( $sponsor_id > 0 ) {
+			$sponsor_label = $sponsor_name !== ''
+				? sprintf( '%s (#%d)', $sponsor_name, $sponsor_id )
+				: sprintf( '#%d', $sponsor_id );
+			$sponsor_link = admin_url( 'admin.php?page=khm-sponsor-library' );
+			$rows[] = sprintf(
+				'%s <a href="%s">%s</a>',
+				esc_html__( 'Sponsor:', 'khm-membership' ),
+				esc_url( $sponsor_link ),
+				esc_html( $sponsor_label )
+			);
+		}
+
+		if ( $utm_source !== '' ) {
+			$rows[] = sprintf(
+				'%s %s',
+				esc_html__( 'UTM Source:', 'khm-membership' ),
+				esc_html( $utm_source )
+			);
+		}
+
+		if ( $phase !== '' ) {
+			$rows[] = sprintf(
+				'%s %s',
+				esc_html__( 'Phase:', 'khm-membership' ),
+				esc_html( $phase )
+			);
+		}
+
+		if ( $conversion !== '' ) {
+			$rows[] = sprintf(
+				'%s %s',
+				esc_html__( 'Conversion:', 'khm-membership' ),
+				esc_html( $conversion )
+			);
+		}
+
+		if ( empty( $rows ) ) {
+			return '—';
+		}
+
+		return implode( '<br>', $rows );
 	}
 
 	public function column_billing( $item ): string {

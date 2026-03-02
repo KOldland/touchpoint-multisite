@@ -8,9 +8,9 @@ if ( isset( $routes['/khm-geo/v1'] ) && isset( $routes['/khm-geo/v1']['/suggest-
     // show khm-geo namespace routes if any
     foreach ( $routes as $ns => $r ) {
         if ( strpos( $ns, 'khm-geo' ) !== false ) {
-            echo \"FOUND_NS: $ns\\n\";
+            echo "FOUND_NS: $ns\n";
             foreach ( $r as $rt => $meta ) {
-                echo \"  route: $rt\\n\";
+                echo "  route: $rt\n";
             }
         }
     }

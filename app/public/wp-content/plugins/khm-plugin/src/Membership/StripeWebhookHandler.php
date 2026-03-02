@@ -3,6 +3,11 @@
 namespace KHM\Membership;
 
 class StripeWebhookHandler {
+    private const STATUS_TRIAL = 'trial';
+    private const STATUS_ACTIVE = 'active';
+    private const STATUS_PAST_DUE = 'past_due';
+    private const STATUS_PENDING_CANCEL = 'pending_cancel';
+    private const STATUS_CANCELED = 'canceled';
     private const DEFAULT_RATE_LIMIT_WINDOW_SECONDS = 60;
     private const DEFAULT_RATE_LIMIT_MAX_REQUESTS = 100;
     private const VALID_STATUSES = [ 'trial', 'active', 'past_due', 'pending_cancel', 'canceled' ];
@@ -41,12 +46,12 @@ class StripeWebhookHandler {
                 'code' => $event->get_error_code(),
                 'message' => $event->get_error_message(),
             ] );
-            return new \WP_REST_Response(['error' => 'Invalid signature'], 400);
+            return new \WP_REST_Response( [ 'error' => 'Invalid signature' ], 400 );
         }
 
-        if ( !isset($event->type) || !isset($event->id) ) {
+        if ( ! isset( $event->type ) || ! isset( $event->id ) ) {
             $this->emit_telemetry( 'webhook.invalid_event', [ 'payload_hash' => hash( 'sha256', (string) $payload ) ] );
-            return new \WP_REST_Response(['error' => 'Invalid event'], 400);
+            return new \WP_REST_Response( [ 'error' => 'Invalid event' ], 400 );
         }
 
         $event_id = (string) $event->id;
@@ -54,16 +59,16 @@ class StripeWebhookHandler {
 
         $claim_status = ProcessedWebhook::claim_event( $event_id, $event_type, (string) $payload );
         if ( 'processed' === $claim_status ) {
-            return new \WP_REST_Response(['status' => 'success', 'note' => 'already processed'], 200);
+            return new \WP_REST_Response( [ 'status' => 'success', 'note' => 'already processed' ], 200 );
         }
         if ( 'processing' === $claim_status ) {
-            return new \WP_REST_Response(['status' => 'success', 'note' => 'already processing'], 200);
+            return new \WP_REST_Response( [ 'status' => 'success', 'note' => 'already processing' ], 200 );
         }
 
         $job = [
             'event_id' => $event_id,
             'event_type' => $event_type,
-            'data_object' => isset($event->data->object) ? json_decode( wp_json_encode( $event->data->object ), true ) : [],
+            'data_object' => isset( $event->data->object ) ? json_decode( wp_json_encode( $event->data->object ), true ) : [],
             'event_created' => isset( $event->created ) ? (int) $event->created : 0,
             'trace_id' => wp_generate_uuid4(),
         ];
@@ -71,7 +76,7 @@ class StripeWebhookHandler {
         if ( ! $this->enqueue_event_job( $job ) ) {
             ProcessedWebhook::mark_failed( $event_id, 'Failed to enqueue webhook job.' );
             $this->emit_telemetry( 'webhook.queue_failed', [ 'event_id' => $event_id, 'event_type' => $event_type ] );
-            return new \WP_REST_Response(['error' => 'Failed to queue event'], 500);
+            return new \WP_REST_Response( [ 'error' => 'Failed to queue event' ], 500 );
         }
 
         $latency_ms = (int) round( ( microtime( true ) - $started_at ) * 1000 );
@@ -81,7 +86,7 @@ class StripeWebhookHandler {
             'latency_ms' => $latency_ms,
         ] );
 
-        return new \WP_REST_Response(['status' => 'queued', 'id' => $event_id, 'type' => $event_type], 200);
+        return new \WP_REST_Response( [ 'status' => 'queued', 'id' => $event_id, 'type' => $event_type ], 200 );
     }
 
     public function process_queued_event( $job ) {
@@ -207,6 +212,18 @@ class StripeWebhookHandler {
             throw new \RuntimeException( 'checkout.session.completed unable to resolve user' );
         }
 
+        update_user_meta( $user_id, 'khm_last_schedule_id', isset( $metadata['schedule_id'] ) ? absint( $metadata['schedule_id'] ) : 0 );
+        update_user_meta( $user_id, 'khm_last_sponsor_id', isset( $metadata['sponsor_id'] ) ? absint( $metadata['sponsor_id'] ) : 0 );
+        update_user_meta( $user_id, 'khm_last_utm_source', isset( $metadata['utm_source'] ) ? sanitize_text_field( (string) $metadata['utm_source'] ) : '' );
+        update_user_meta( $user_id, 'khm_last_utm_medium', isset( $metadata['utm_medium'] ) ? sanitize_text_field( (string) $metadata['utm_medium'] ) : '' );
+        update_user_meta( $user_id, 'khm_last_utm_campaign', isset( $metadata['utm_campaign'] ) ? sanitize_text_field( (string) $metadata['utm_campaign'] ) : '' );
+        update_user_meta( $user_id, 'khm_last_phase_at_click', isset( $metadata['phase_at_click'] ) ? sanitize_text_field( (string) $metadata['phase_at_click'] ) : '' );
+        update_user_meta(
+            $user_id,
+            'khm_last_attribution_consent',
+            isset( $metadata['consent'] ) && in_array( strtolower( (string) $metadata['consent'] ), [ '1', 'true', 'yes', 'on' ], true ) ? 1 : 0
+        );
+
         if ( 'subscription' === $mode ) {
             if ( ! $plan_id ) {
                 throw new \RuntimeException( 'checkout.session.completed missing membership tier metadata' );
@@ -268,7 +285,13 @@ class StripeWebhookHandler {
 
             $schedule_id = isset( $metadata['schedule_id'] ) ? absint( $metadata['schedule_id'] ) : 0;
             if ( $schedule_id > 0 ) {
-                $this->record_paid_attribution( $user_id, $plan_id, $schedule_id );
+                $this->record_paid_attribution( $user_id, $plan_id, $schedule_id, $metadata, $session_id );
+            } else {
+                $this->emit_telemetry( 'membership.attribution.missing', [
+                    'user_id' => $user_id,
+                    'reference' => $session_id,
+                    'reason' => 'missing_schedule_id',
+                ] );
             }
 
             $this->emit_telemetry( 'membership.signup', [
@@ -277,6 +300,27 @@ class StripeWebhookHandler {
                 'attribution_id' => isset( $metadata['attribution_id'] ) ? (string) $metadata['attribution_id'] : '',
                 'payment_type' => 'subscription',
             ] );
+            $this->emit_telemetry( 'landing.success', [
+                'user_id' => $user_id,
+                'schedule_id' => $schedule_id,
+                'sponsor_id' => isset( $metadata['sponsor_id'] ) ? absint( $metadata['sponsor_id'] ) : 0,
+                'utm_source' => isset( $metadata['utm_source'] ) ? sanitize_text_field( (string) $metadata['utm_source'] ) : '',
+                'utm_campaign' => isset( $metadata['utm_campaign'] ) ? sanitize_text_field( (string) $metadata['utm_campaign'] ) : '',
+                'reference' => $session_id,
+            ] );
+
+            $this->maybe_send_welcome_email( $user_id, $plan_id, $metadata, $session_id, $trial_days );
+            if ( $trial_days <= 0 ) {
+                $this->maybe_send_payment_email(
+                    $user_id,
+                    'session:' . $session_id,
+                    0.0,
+                    'GBP',
+                    $metadata,
+                    $session_id,
+                    $plan_id
+                );
+            }
 
             $this->audit_handler(
                 'checkout.session.completed',
@@ -364,6 +408,18 @@ class StripeWebhookHandler {
             $this->update_subscription_event_cursor( $subscription_id, $event_created );
         }
         $this->emit_telemetry( 'membership.renewal', [ 'user_id' => $user_id, 'invoice_id' => $invoice_id, 'subscription_id' => $subscription_id ] );
+        $metadata = [
+            'schedule_id' => get_user_meta( $user_id, 'khm_last_schedule_id', true ),
+            'sponsor_id' => get_user_meta( $user_id, 'khm_last_sponsor_id', true ),
+            'utm_source' => get_user_meta( $user_id, 'khm_last_utm_source', true ),
+            'utm_medium' => get_user_meta( $user_id, 'khm_last_utm_medium', true ),
+            'utm_campaign' => get_user_meta( $user_id, 'khm_last_utm_campaign', true ),
+            'phase_at_click' => get_user_meta( $user_id, 'khm_last_phase_at_click', true ),
+            'consent' => get_user_meta( $user_id, 'khm_last_attribution_consent', true ) ? '1' : '0',
+        ];
+        $amount_paid = isset( $invoice->amount_paid ) ? ((float) $invoice->amount_paid / 100.0) : 0.0;
+        $currency = isset( $invoice->currency ) ? strtoupper( sanitize_text_field( (string) $invoice->currency ) ) : 'GBP';
+        $this->maybe_send_payment_email( $user_id, 'invoice:' . $invoice_id, $amount_paid, $currency, $metadata, $invoice_id );
         $this->audit_handler( 'invoice.paid', $operation_key, $invoice_id, $user_id, 'success', 'Invoice paid applied.', [ 'subscription_id' => $subscription_id ] );
         $this->mark_operation_succeeded( $operation_key );
     }
@@ -441,7 +497,9 @@ class StripeWebhookHandler {
         global $wpdb;
         $user_membership_table = $wpdb->prefix . 'user_membership';
 
+        $remote_status = isset($subscription->status) ? (string) $subscription->status : '';
         $update_data = [
+            'status' => $this->normalize_subscription_status( $remote_status ),
             'stripe_subscription_id' => $subscription->id,
         ];
 
@@ -464,6 +522,7 @@ class StripeWebhookHandler {
         }
 
         if ( isset($subscription->cancel_at_period_end) && $subscription->cancel_at_period_end ) {
+            $update_data['status'] = self::STATUS_PENDING_CANCEL;
             $update_data['status'] = 'pending_cancel';
             $update_data['cancel_at_period_end'] = 1;
             if ( isset($subscription->cancel_at) && $subscription->cancel_at ) {
@@ -545,6 +604,7 @@ class StripeWebhookHandler {
         $wpdb->update(
             $user_membership_table,
             [
+                'status' => self::STATUS_CANCELED,
                 'status' => 'canceled',
                 'cancelled_at' => current_time('mysql', 1)
             ],
@@ -599,9 +659,14 @@ class StripeWebhookHandler {
         return $user_id ? intval($user_id) : null;
     }
 
-    private function record_paid_attribution( int $user_id, int $plan_id, int $schedule_id ): void {
+    private function record_paid_attribution( int $user_id, int $plan_id, int $schedule_id, array $metadata = [], string $session_id = '' ): void {
         global $wpdb;
         $table = $wpdb->prefix . 'promotion_attribution';
+
+        $consent = isset( $metadata['consent'] ) ? in_array( strtolower( (string) $metadata['consent'] ), [ '1', 'true', 'yes', 'on' ], true ) : false;
+        if ( ! $consent ) {
+            return;
+        }
 
         $existing = $wpdb->get_var(
             $wpdb->prepare(
@@ -617,19 +682,282 @@ class StripeWebhookHandler {
         }
 
         $user = get_user_by( 'id', $user_id );
+        $reference = [
+            'source' => 'stripe.checkout.session.completed',
+            'stripe_session_id' => $session_id,
+            'idempotency_key' => isset( $metadata['idempotency_key'] ) ? sanitize_text_field( (string) $metadata['idempotency_key'] ) : '',
+            'reference' => $session_id,
+        ];
+
         $wpdb->insert(
             $table,
             [
                 'schedule_id' => $schedule_id,
+                'sponsor_id' => isset( $metadata['sponsor_id'] ) ? absint( $metadata['sponsor_id'] ) : 0,
                 'user_id' => $user_id,
                 'user_email' => $user ? $user->user_email : '',
+                'utm_source' => isset( $metadata['utm_source'] ) ? sanitize_text_field( (string) $metadata['utm_source'] ) : '',
+                'utm_medium' => isset( $metadata['utm_medium'] ) ? sanitize_text_field( (string) $metadata['utm_medium'] ) : '',
+                'utm_campaign' => isset( $metadata['utm_campaign'] ) ? sanitize_text_field( (string) $metadata['utm_campaign'] ) : '',
+                'utm_term' => isset( $metadata['utm_term'] ) ? sanitize_text_field( (string) $metadata['utm_term'] ) : '',
+                'utm_content' => isset( $metadata['utm_content'] ) ? sanitize_text_field( (string) $metadata['utm_content'] ) : '',
+                'phase_at_click' => isset( $metadata['phase_at_click'] ) ? sanitize_text_field( (string) $metadata['phase_at_click'] ) : '',
                 'conversion_type' => 'paid',
                 'plan_id' => $plan_id,
-                'reference_metadata' => wp_json_encode( [ 'source' => 'stripe.checkout.session.completed' ] ),
+                'reference_metadata' => wp_json_encode( $reference ),
                 'created_at' => current_time( 'mysql', 1 ),
             ],
-            [ '%d', '%d', '%s', '%s', '%d', '%s', '%s' ]
+            [ '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s' ]
         );
+
+        $this->emit_telemetry( 'membership.attribution.created', [
+            'user_id' => $user_id,
+            'schedule_id' => $schedule_id,
+            'sponsor_id' => isset( $metadata['sponsor_id'] ) ? absint( $metadata['sponsor_id'] ) : 0,
+            'reference' => $session_id,
+        ] );
+        $this->emit_telemetry( 'membership.attribution.confirmed', [
+            'user_id' => $user_id,
+            'schedule_id' => $schedule_id,
+            'reference' => $session_id,
+        ] );
+    }
+
+    private function maybe_send_welcome_email( int $user_id, int $plan_id, array $metadata, string $reference, int $trial_days ): void {
+        if ( ! $this->are_transactional_emails_enabled() ) {
+            $this->emit_telemetry( 'membership.email.skipped', [
+                'type' => 'welcome',
+                'user_id' => $user_id,
+                'reason' => 'transactional_emails_disabled',
+                'reference' => $reference,
+            ] );
+            MembershipWebhookAuditLogger::log( '', 'membership.email.welcome', 'skipped', null, $user_id, 'Transactional emails disabled.' );
+            return;
+        }
+
+        $idempotency_key = sprintf( 'welcome_v1:%d:%d', $user_id, $plan_id );
+        if ( $this->has_sent_email_key( $user_id, $idempotency_key ) ) {
+            return;
+        }
+
+        $user = get_user_by( 'id', $user_id );
+        if ( ! $user ) {
+            return;
+        }
+
+        $email_data = $this->build_membership_email_data( $user_id, $plan_id, $metadata, $reference );
+        $email_data['trial_end'] = $trial_days > 0 ? gmdate( 'Y-m-d', time() + ( $trial_days * DAY_IN_SECONDS ) ) : '';
+
+        $sent = false;
+        try {
+            $sent = $this->send_membership_email(
+                'welcome',
+                (string) $user->user_email,
+                __( 'Welcome to your membership', 'khm-membership' ),
+                $email_data
+            );
+        } catch ( \Throwable $e ) {
+            $this->emit_email_failure( 'welcome', $user_id, $e->getMessage() );
+            MembershipWebhookAuditLogger::log( '', 'membership.email.welcome', 'failed', null, $user_id, $e->getMessage() );
+            return;
+        }
+
+        if ( $sent ) {
+            $this->mark_email_key_sent( $user_id, $idempotency_key );
+            $this->emit_telemetry( 'membership.email.welcome.sent', [
+                'user_id' => $user_id,
+                'reference' => $reference,
+            ] );
+            MembershipWebhookAuditLogger::log( '', 'membership.email.welcome', 'success', null, $user_id, 'Welcome email sent.' );
+            return;
+        }
+
+        $this->emit_email_failure( 'welcome', $user_id, 'send_failed' );
+        MembershipWebhookAuditLogger::log( '', 'membership.email.welcome', 'failed', null, $user_id, 'Welcome email send failed.' );
+    }
+
+    private function maybe_send_payment_email( int $user_id, string $id_reference, float $amount, string $currency, array $metadata, string $reference, int $plan_id = 0 ): void {
+        if ( ! $this->are_transactional_emails_enabled() ) {
+            $this->emit_telemetry( 'membership.email.skipped', [
+                'type' => 'payment',
+                'user_id' => $user_id,
+                'reason' => 'transactional_emails_disabled',
+                'reference' => $id_reference,
+            ] );
+            MembershipWebhookAuditLogger::log( '', 'membership.email.payment', 'skipped', null, $user_id, 'Transactional emails disabled.' );
+            return;
+        }
+
+        $idempotency_key = 'payment_v1:' . sanitize_key( str_replace( ':', '_', $id_reference ) );
+        if ( $this->has_sent_email_key( $user_id, $idempotency_key ) ) {
+            return;
+        }
+
+        $user = get_user_by( 'id', $user_id );
+        if ( ! $user ) {
+            return;
+        }
+
+        if ( $plan_id <= 0 ) {
+            $plan_id = (int) get_user_meta( $user_id, 'khm_last_plan_id', true );
+        } else {
+            update_user_meta( $user_id, 'khm_last_plan_id', $plan_id );
+        }
+
+        $email_data = $this->build_membership_email_data( $user_id, $plan_id, $metadata, $reference );
+        $email_data['amount'] = $amount;
+        $email_data['currency'] = $currency ?: 'GBP';
+
+        $sent = false;
+        try {
+            $sent = $this->send_membership_email(
+                'payment_confirmation',
+                (string) $user->user_email,
+                __( 'Your membership payment confirmation', 'khm-membership' ),
+                $email_data
+            );
+        } catch ( \Throwable $e ) {
+            $this->emit_email_failure( 'payment', $user_id, $e->getMessage() );
+            MembershipWebhookAuditLogger::log( '', 'membership.email.payment', 'failed', null, $user_id, $e->getMessage() );
+            return;
+        }
+
+        if ( $sent ) {
+            $this->mark_email_key_sent( $user_id, $idempotency_key );
+            $this->emit_telemetry( 'membership.email.payment.sent', [
+                'user_id' => $user_id,
+                'reference' => $id_reference,
+            ] );
+            MembershipWebhookAuditLogger::log( '', 'membership.email.payment', 'success', null, $user_id, 'Payment email sent.' );
+            return;
+        }
+
+        $this->emit_email_failure( 'payment', $user_id, 'send_failed' );
+        MembershipWebhookAuditLogger::log( '', 'membership.email.payment', 'failed', null, $user_id, 'Payment email send failed.' );
+    }
+
+    private function emit_email_failure( string $type, int $user_id, string $error ): void {
+        $payload = [
+            'type' => $type,
+            'user_id' => $user_id,
+            'error' => $error,
+        ];
+        $this->emit_telemetry( 'membership.email.failed', $payload );
+        $this->emit_telemetry( 'membership.email.sent.failed', $payload );
+    }
+
+    private function send_membership_email( string $template, string $recipient, string $subject, array $data ): bool {
+        $service = $this->get_membership_email_service();
+        return $service
+            ->setSubject( $subject )
+            ->send( $template, $recipient, $data );
+    }
+
+    private function get_membership_email_service() {
+        $plugin_dir = dirname( __DIR__, 2 );
+        $use_enhanced = (bool) apply_filters(
+            'khm_membership_use_enhanced_email_service',
+            (bool) get_option( 'khm_membership_use_enhanced_email_service', true )
+        );
+
+        if ( $use_enhanced && class_exists( '\KHM\Services\EnhancedEmailService' ) ) {
+            return new \KHM\Services\EnhancedEmailService( $plugin_dir );
+        }
+
+        return new \KHM\Services\EmailService( $plugin_dir );
+    }
+
+    private function are_transactional_emails_enabled(): bool {
+        $enabled = (bool) get_option( 'khm_membership_transactional_emails_enabled', false );
+        return (bool) apply_filters( 'khm_membership_transactional_emails_enabled', $enabled );
+    }
+
+    private function build_membership_email_data( int $user_id, int $plan_id, array $metadata, string $reference ): array {
+        $user = get_user_by( 'id', $user_id );
+        $tier_name = $this->resolve_membership_tier_name( $plan_id );
+        $schedule_id = isset( $metadata['schedule_id'] ) ? absint( $metadata['schedule_id'] ) : 0;
+        $sponsor_id = isset( $metadata['sponsor_id'] ) ? absint( $metadata['sponsor_id'] ) : 0;
+        $sponsor_name = $this->resolve_sponsor_name( $sponsor_id );
+
+        return [
+            'user_name' => $user ? (string) $user->display_name : __( 'Member', 'khm-membership' ),
+            'membership_tier' => $tier_name,
+            'start_date' => gmdate( 'Y-m-d' ),
+            'trial_end' => '',
+            'amount' => '',
+            'currency' => 'GBP',
+            'schedule_id' => $schedule_id > 0 ? (string) $schedule_id : '',
+            'sponsor_name' => $sponsor_name,
+            'utm_source' => isset( $metadata['utm_source'] ) ? sanitize_text_field( (string) $metadata['utm_source'] ) : '',
+            'reference' => $reference,
+            'support_contact' => get_option( 'admin_email' ),
+            'account_url' => home_url( '/account/' ),
+            'preferences_url' => home_url( '/account/' ),
+            'siteurl' => home_url(),
+            'sitename' => get_bloginfo( 'name' ),
+        ];
+    }
+
+    private function resolve_membership_tier_name( int $plan_id ): string {
+        if ( $plan_id <= 0 ) {
+            return __( 'Membership', 'khm-membership' );
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'membership_tier';
+        $name = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT name FROM {$table} WHERE id = %d LIMIT 1",
+                $plan_id
+            )
+        );
+
+        return $name ? sanitize_text_field( (string) $name ) : __( 'Membership', 'khm-membership' );
+    }
+
+    private function resolve_sponsor_name( int $sponsor_id ): string {
+        if ( $sponsor_id <= 0 ) {
+            return '';
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_sponsors';
+        $name = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT name FROM {$table} WHERE id = %d LIMIT 1",
+                $sponsor_id
+            )
+        );
+
+        return $name ? sanitize_text_field( (string) $name ) : '';
+    }
+
+    private function has_sent_email_key( int $user_id, string $idempotency_key ): bool {
+        $meta_key = '_khm_email_sent_' . md5( $idempotency_key );
+        return (bool) get_user_meta( $user_id, $meta_key, true );
+    }
+
+    private function mark_email_key_sent( int $user_id, string $idempotency_key ): void {
+        $meta_key = '_khm_email_sent_' . md5( $idempotency_key );
+        update_user_meta( $user_id, $meta_key, current_time( 'mysql', 1 ) );
+    }
+
+    private function normalize_subscription_status( string $status ): string {
+        $normalized = strtolower( trim( $status ) );
+        if ( in_array( $normalized, [ 'trialing', 'trial' ], true ) ) {
+            return self::STATUS_TRIAL;
+        }
+        if ( in_array( $normalized, [ 'active' ], true ) ) {
+            return self::STATUS_ACTIVE;
+        }
+        if ( in_array( $normalized, [ 'past_due', 'unpaid' ], true ) ) {
+            return self::STATUS_PAST_DUE;
+        }
+        if ( in_array( $normalized, [ 'canceled', 'cancelled' ], true ) ) {
+            return self::STATUS_CANCELED;
+        }
+
+        return self::STATUS_PAST_DUE;
     }
 
     private function verify_event_signature( string $payload, string $sig_header ) {

@@ -32,6 +32,9 @@ class EnhancedEmailService implements EmailServiceInterface {
     const STATUS_SENT = 'sent';
     const STATUS_FAILED = 'failed';
     const STATUS_QUEUED = 'queued';
+    const STATUS_PROCESSING = 'processing';
+    private const DEFAULT_MAX_QUEUE_ATTEMPTS = 3;
+    private const DEFAULT_RETRY_BASE_SECONDS = 60;
 
     public function __construct( string $pluginDir ) {
         $this->pluginDir = $pluginDir;
@@ -314,6 +317,7 @@ class EnhancedEmailService implements EmailServiceInterface {
             'attachments' => \wp_json_encode( $this->attachments ),
             'data' => \wp_json_encode( $data ),
             'priority' => $this->get_email_priority( $template ),
+            'max_attempts' => $this->get_max_queue_attempts(),
             'scheduled_at' => \current_time( 'mysql' ),
             'created_at' => \current_time( 'mysql' )
         ] );
@@ -362,7 +366,7 @@ class EnhancedEmailService implements EmailServiceInterface {
         
         // Mark as processing
         $wpdb->update( $table, 
-            [ 'status' => 'processing', 'processed_at' => \current_time( 'mysql' ) ],
+            [ 'status' => self::STATUS_PROCESSING, 'processed_at' => \current_time( 'mysql' ) ],
             [ 'id' => $email->id ]
         );
         
@@ -373,16 +377,66 @@ class EnhancedEmailService implements EmailServiceInterface {
         
         // Send email
         $success = $this->send_email_now( $email->email_log_id, $email->recipient, $email->body );
-        
-        // Update queue status
-        $wpdb->update( $table,
-            [ 
-                'status' => $success ? 'sent' : 'failed',
-                'sent_at' => $success ? \current_time( 'mysql' ) : null,
-                'error' => $success ? null : 'Failed to send email'
+        $attempts = isset( $email->attempts ) ? (int) $email->attempts : 0;
+        $max_attempts = isset( $email->max_attempts ) ? (int) $email->max_attempts : $this->get_max_queue_attempts();
+        $max_attempts = max( 1, $max_attempts );
+
+        if ( $success ) {
+            $wpdb->update(
+                $table,
+                [
+                    'status' => self::STATUS_SENT,
+                    'sent_at' => \current_time( 'mysql' ),
+                    'error' => null,
+                ],
+                [ 'id' => $email->id ]
+            );
+            return;
+        }
+
+        $attempts++;
+        if ( $attempts < $max_attempts ) {
+            $retry_delay = $this->calculate_retry_delay_seconds( $attempts );
+            $scheduled_at = \gmdate( 'Y-m-d H:i:s', \time() + $retry_delay );
+            $wpdb->update(
+                $table,
+                [
+                    'status' => self::STATUS_PENDING,
+                    'attempts' => $attempts,
+                    'scheduled_at' => $scheduled_at,
+                    'error' => 'Failed to send email (retry scheduled)',
+                ],
+                [ 'id' => $email->id ]
+            );
+            \do_action( 'khm_email_queue_retry_scheduled', (int) $email->id, $attempts, $retry_delay );
+            return;
+        }
+
+        $wpdb->update(
+            $table,
+            [
+                'status' => self::STATUS_FAILED,
+                'attempts' => $attempts,
+                'error' => 'Failed to send email (max retries reached)',
             ],
             [ 'id' => $email->id ]
         );
+        \do_action( 'khm_email_queue_permanent_failure', (int) $email->id, $attempts );
+    }
+
+    private function get_max_queue_attempts(): int {
+        $default = (int) \get_option( 'khm_email_queue_max_attempts', self::DEFAULT_MAX_QUEUE_ATTEMPTS );
+        $value = (int) \apply_filters( 'khm_email_queue_max_attempts', $default );
+        return max( 1, $value );
+    }
+
+    private function calculate_retry_delay_seconds( int $attempt_number ): int {
+        $base = (int) \get_option( 'khm_email_queue_retry_base_seconds', self::DEFAULT_RETRY_BASE_SECONDS );
+        $base = (int) \apply_filters( 'khm_email_queue_retry_base_seconds', $base );
+        $base = max( 1, $base );
+
+        // Exponential backoff: base, base*2, base*4 ...
+        return (int) ( $base * ( 2 ** max( 0, $attempt_number - 1 ) ) );
     }
 
     /**

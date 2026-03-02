@@ -196,19 +196,24 @@ add_action( 'rest_api_init', function() {
         $controller->register_routes();
     }
     if ( class_exists( 'KHM\\Membership\\AttributionEndpoint' ) ) {
-        new KHM\Membership\AttributionEndpoint();
+        $endpoint = new KHM\Membership\AttributionEndpoint();
+        $endpoint->register_routes();
     }
     if ( class_exists( 'KHM\\Membership\\SignupEndpoint' ) ) {
-        new KHM\Membership\SignupEndpoint();
+        $endpoint = new KHM\Membership\SignupEndpoint();
+        $endpoint->register_routes();
     }
     if ( class_exists( 'KHM\\Membership\\StatusEndpoint' ) ) {
-        new KHM\Membership\StatusEndpoint();
+        $endpoint = new KHM\Membership\StatusEndpoint();
+        $endpoint->register_routes();
     }
     if ( class_exists( 'KHM\\Membership\\CustomerPortalEndpoint' ) ) {
-        new KHM\Membership\CustomerPortalEndpoint();
+        $endpoint = new KHM\Membership\CustomerPortalEndpoint();
+        $endpoint->register_routes();
     }
     if ( class_exists( 'KHM\\Membership\\StripeWebhookHandler' ) ) {
-        new KHM\Membership\StripeWebhookHandler();
+        $endpoint = new KHM\Membership\StripeWebhookHandler();
+        $endpoint->register_routes();
     }
 } );
 

@@ -5,7 +5,6 @@ namespace KHM\Rest;
 use WP_REST_Request;
 use WP_REST_Response;
 use KHM\Services\LevelRepository;
-use KHM\Gateways\StripeGateway;
 use KHM\Services\LevelPriceResolver;
 use KHM\Services\DiscountCodeService;
 
@@ -92,11 +91,7 @@ class CheckoutController {
         }
 
         try {
-            $gateway = new StripeGateway([
-                'secret_key' => $secret,
-                'publishable_key' => get_option('khm_stripe_publishable_key', ''),
-                'environment' => get_option('khm_stripe_environment', 'production'),
-            ]);
+            \Stripe\Stripe::setApiKey( $secret );
 
         $params = [
             'mode' => 'subscription',
