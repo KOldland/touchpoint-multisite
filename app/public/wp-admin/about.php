@@ -65,26 +65,30 @@ require_once ABSPATH . 'wp-admin/admin-header.php';
 				<h2><?php _e( 'Maintenance and Security Release' ); ?></h2>
 				<p>
 					<?php
+					$maintenance_version   = $display_version;
+					$maintenance_bug_count = 49;
+
 					printf(
 						 /* translators: 1: WordPress version number, 2: Plural number of bugs. */
 						 _n(
 							'<strong>Version %1$s</strong> addressed %2$s bug.',
 							'<strong>Version %1$s</strong> addressed %2$s bugs.',
-							49
+							$maintenance_bug_count
 						),
-						'6.9.1',
-						49
+						$maintenance_version,
+						$maintenance_bug_count
 					);
 					?>
 					<?php
+					$maintenance_release_notes_url = sprintf(
+						'https://wordpress.org/support/wordpress-version/version-%s/',
+						sanitize_title( $maintenance_version )
+					);
+
 					printf(
 						 /* translators: %s: HelpHub URL. */
 						 __( 'For more information, see <a href="%s">the release notes</a>.' ),
-						 sprintf(
-							/* translators: %s: WordPress version. */
-							esc_url( __( 'https://wordpress.org/support/wordpress-version/version-%s/' ) ),
-							sanitize_title( '6.9.1' )
-						)
+						 esc_url( $maintenance_release_notes_url )
 					);
 					?>
 				</p>
