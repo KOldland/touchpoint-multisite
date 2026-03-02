@@ -92,6 +92,7 @@ class SmmaGenerator {
             $variants = $this->build_fallback_variants( $input );
         }
 
+        $variants = $this->limit_variant_count( $variants, $input );
         $variants = $this->apply_compliance( $variants, $input, $model );
 
         return array(
@@ -107,14 +108,9 @@ class SmmaGenerator {
      * @return array
      */
     private function generate_google_ad_draft( array $input ): array {
-        $google_service = new GoogleAdDraftService();
-        $draft = $google_service->generate( $input );
-
-        if ( is_wp_error( $draft ) ) {
-            return array();
-        }
-
-        return $draft;
+        // Backward-compatible contract: this draft is filter-driven and empty by default.
+        $draft = apply_filters( 'kh_smma_google_ad_draft', array(), $input );
+        return is_array( $draft ) ? $draft : array();
     }
 
     private function hydrate_input( array $input ): array {
@@ -435,5 +431,12 @@ class SmmaGenerator {
         }
 
         return 'WARN: no allowed sponsor claims detected.';
+    }
+
+    private function limit_variant_count( array $variants, array $input ): array {
+        $requested = (int) ( $input['num_variants'] ?? ( $input['user_controls']['num_variants'] ?? 1 ) );
+        $requested = max( 1, min( 5, $requested ) );
+
+        return array_slice( $variants, 0, $requested );
     }
 }
