@@ -35,7 +35,7 @@ class MembershipMigration {
               tier_id INT,
               stripe_customer_id TEXT,
               stripe_subscription_id TEXT,
-              status TEXT NOT NULL DEFAULT 'trialing',
+              status TEXT NOT NULL DEFAULT 'trial',
               trial_ends_at TIMESTAMP WITH TIME ZONE,
               started_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
               cancelled_at TIMESTAMP WITH TIME ZONE,
@@ -79,6 +79,98 @@ class MembershipMigration {
         $table_name = $wpdb->prefix . 'user_membership';
         $index_sql = "CREATE INDEX idx_user_membership_status ON $table_name (status);";
         $wpdb->query($index_sql);
+        self::ensure_membership_columns();
 
+        // -- processed webhook events (idempotency + ops)
+        $table_name = $wpdb->prefix . 'khm_processed_webhooks';
+        if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) != $table_name ) {
+            $sql = "CREATE TABLE $table_name (
+              event_id VARCHAR(255) NOT NULL,
+              event_type VARCHAR(128) NOT NULL,
+              status VARCHAR(16) NOT NULL DEFAULT 'processing',
+              payload LONGTEXT NULL,
+              payload_hash CHAR(64) NULL,
+              attempts INT UNSIGNED NOT NULL DEFAULT 1,
+              notes TEXT NULL,
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              processed_at DATETIME NULL,
+              PRIMARY KEY  (event_id),
+              KEY idx_khm_processed_status (status),
+              KEY idx_khm_processed_type (event_type)
+            ) $charset_collate;";
+            require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+            dbDelta( $sql );
+        }
+
+        // -- membership webhook audit log
+        $table_name = $wpdb->prefix . 'khm_membership_webhook_audit';
+        if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) != $table_name ) {
+            $sql = "CREATE TABLE $table_name (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+              event_id VARCHAR(255) NOT NULL,
+              event_type VARCHAR(128) NOT NULL,
+              operation_key VARCHAR(255) NULL,
+              object_id VARCHAR(255) NULL,
+              user_id BIGINT UNSIGNED NULL,
+              outcome VARCHAR(32) NOT NULL,
+              message TEXT NULL,
+              context LONGTEXT NULL,
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (id),
+              KEY idx_khm_webhook_audit_event (event_id),
+              KEY idx_khm_webhook_audit_type (event_type),
+              KEY idx_khm_webhook_audit_user (user_id),
+              KEY idx_khm_webhook_audit_outcome (outcome),
+              KEY idx_khm_webhook_audit_op (operation_key)
+            ) $charset_collate;";
+            require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+            dbDelta( $sql );
+        }
+
+        // -- membership webhook operations (unique idempotency keys)
+        $table_name = $wpdb->prefix . 'khm_membership_webhook_operations';
+        if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) != $table_name ) {
+            $sql = "CREATE TABLE $table_name (
+              operation_key VARCHAR(255) NOT NULL,
+              event_id VARCHAR(255) NOT NULL,
+              event_type VARCHAR(128) NOT NULL,
+              object_id VARCHAR(255) NULL,
+              user_id BIGINT UNSIGNED NULL,
+              status VARCHAR(16) NOT NULL DEFAULT 'processing',
+              attempts INT UNSIGNED NOT NULL DEFAULT 1,
+              last_error TEXT NULL,
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              completed_at DATETIME NULL,
+              PRIMARY KEY (operation_key),
+              KEY idx_khm_wh_op_status (status),
+              KEY idx_khm_wh_op_event (event_id),
+              KEY idx_khm_wh_op_user (user_id)
+            ) $charset_collate;";
+            require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+            dbDelta( $sql );
+        }
+
+    }
+
+    private static function ensure_membership_columns(): void {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'user_membership';
+        $columns = [
+            'tier_slug' => "ALTER TABLE {$table_name} ADD COLUMN tier_slug VARCHAR(64) NULL",
+            'stripe_price_id' => "ALTER TABLE {$table_name} ADD COLUMN stripe_price_id VARCHAR(255) NULL",
+            'trial_end_date' => "ALTER TABLE {$table_name} ADD COLUMN trial_end_date DATETIME NULL",
+            'current_period_end' => "ALTER TABLE {$table_name} ADD COLUMN current_period_end DATETIME NULL",
+            'cancel_at_period_end' => "ALTER TABLE {$table_name} ADD COLUMN cancel_at_period_end TINYINT(1) NOT NULL DEFAULT 0",
+            'last_payment_date' => "ALTER TABLE {$table_name} ADD COLUMN last_payment_date DATETIME NULL",
+        ];
+
+        foreach ( $columns as $column => $sql ) {
+            $exists = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table_name} LIKE %s", $column ) );
+            if ( ! $exists ) {
+                $wpdb->query( $sql );
+            }
+        }
     }
 }

@@ -138,6 +138,22 @@
                 this.openQuickBuy(postId);
             });
 
+            // Generic trigger for widget/shortcode/block buttons.
+            $(document).on('click', '.khm-commerce-checkout-trigger', (e) => {
+                e.preventDefault();
+                const $button = $(e.currentTarget);
+                const postId = parseInt($button.data('post-id'), 10);
+                if (!postId) {
+                    return;
+                }
+
+                const fallbackMeta = {
+                    title: ($button.data('title') || '').toString(),
+                    image_url: ($button.data('image-url') || '').toString()
+                };
+                this.openQuickBuy(postId, fallbackMeta);
+            });
+
             // Modal close
             $(document).on('click', '.khm-modal-close, .khm-modal-overlay', (e) => {
                 if (e.target === e.currentTarget) {

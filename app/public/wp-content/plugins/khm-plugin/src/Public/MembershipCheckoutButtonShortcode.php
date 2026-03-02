@@ -113,6 +113,7 @@ class MembershipCheckoutButtonShortcode {
 				array(
 					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 					'nonce'   => wp_create_nonce( 'khm_membership_checkout_nonce' ),
+					'isLoggedIn' => is_user_logged_in(),
 					'strings' => array(
 						'error_generic' => __( 'An error occurred. Please try again.', 'khm-membership' ),
 						'loading'       => __( 'Loading...', 'khm-membership' ),

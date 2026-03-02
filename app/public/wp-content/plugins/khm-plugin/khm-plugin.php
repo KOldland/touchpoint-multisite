@@ -161,8 +161,10 @@ require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
 require_once __DIR__ . '/src/Admin/PriceValidationAjax.php';
 require_once __DIR__ . '/src/Membership/MembershipMigration.php';
 require_once __DIR__ . '/src/Membership/AttributionEndpoint.php';
+require_once __DIR__ . '/src/Membership/TierRegistry.php';
 require_once __DIR__ . '/src/Membership/SignupEndpoint.php';
 require_once __DIR__ . '/src/Membership/StatusEndpoint.php';
+require_once __DIR__ . '/src/Membership/CustomerPortalEndpoint.php';
 require_once __DIR__ . '/src/Membership/StripeWebhookHandler.php';
 require_once __DIR__ . '/src/Membership/LandingPageShortcode.php';
 require_once __DIR__ . '/src/Membership/DashboardShortcode.php';
@@ -201,6 +203,9 @@ add_action( 'rest_api_init', function() {
     }
     if ( class_exists( 'KHM\\Membership\\StatusEndpoint' ) ) {
         new KHM\Membership\StatusEndpoint();
+    }
+    if ( class_exists( 'KHM\\Membership\\CustomerPortalEndpoint' ) ) {
+        new KHM\Membership\CustomerPortalEndpoint();
     }
     if ( class_exists( 'KHM\\Membership\\StripeWebhookHandler' ) ) {
         new KHM\Membership\StripeWebhookHandler();
@@ -401,6 +406,7 @@ function khm_register_elementor_widgets( $widgets_manager ) {
         'PortalVoucher_Widget.php',
         'TestPortalDashboard_Widget.php',
         'MembershipCheckoutButton_Widget.php',
+        'CommerceCheckoutButton_Widget.php',
     ];
 
     foreach ( $widget_files as $file ) {
@@ -530,6 +536,15 @@ function khm_register_elementor_widgets( $widgets_manager ) {
             $widgets_manager->register( new \KHM\Elementor\Widgets\MembershipCheckoutButton_Widget() );
         } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
             $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\MembershipCheckoutButton_Widget() );
+        }
+    }
+
+    // Commerce Checkout Button Widget
+    if ( class_exists( '\KHM\Elementor\Widgets\CommerceCheckoutButton_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\CommerceCheckoutButton_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\CommerceCheckoutButton_Widget() );
         }
     }
 
@@ -1460,11 +1475,17 @@ add_action('init', function () {
     if ( class_exists('KHM\\Public\\MembershipCheckoutButtonShortcode') ) {
         ( new KHM\Public\MembershipCheckoutButtonShortcode() )->register();
     }
+    if ( class_exists('KHM\\Public\\CommerceCheckoutButtonShortcode') ) {
+        ( new KHM\Public\CommerceCheckoutButtonShortcode() )->register();
+    }
     if ( class_exists('KHM\\Membership\\LandingPageShortcode') ) {
         new KHM\Membership\LandingPageShortcode();
     }
     if ( class_exists('KHM\\Membership\\DashboardShortcode') ) {
         new KHM\Membership\DashboardShortcode();
+    }
+    if ( class_exists('KHM\\Blocks\\CommerceCheckoutButtonBlock') ) {
+        ( new KHM\Blocks\CommerceCheckoutButtonBlock() )->register();
     }
 });
 
@@ -1560,6 +1581,11 @@ add_action('init', function () {
             new KHM\Services\ReportsService()
         );
         $reports_page->register();
+    }
+
+    // Register membership webhook operations page.
+    if ( is_admin() && class_exists( 'KHM\\Membership\\Admin\\WebhookEventsPage' ) ) {
+        ( new KHM\Membership\Admin\WebhookEventsPage() )->register();
     }
 
     // Register members page

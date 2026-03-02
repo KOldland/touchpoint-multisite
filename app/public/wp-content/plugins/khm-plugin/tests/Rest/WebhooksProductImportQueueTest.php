@@ -75,7 +75,7 @@ class WebhooksProductImportQueueTest extends TestCase {
 		);
 
 		$product = (object) [
-			'id' => 'prod_queue_1',
+			'id' => 'prod_QUE123ABC1',
 			'metadata' => (object) [ 'wp_level_id' => '33' ],
 		];
 
@@ -86,7 +86,7 @@ class WebhooksProductImportQueueTest extends TestCase {
 
 		$this->assertCount( 1, $GLOBALS['khm_test_scheduled_events'] );
 		$this->assertSame( 'khm_import_stripe_marketing_product_updated', $GLOBALS['khm_test_scheduled_events'][0]['hook'] );
-		$this->assertSame( [ 'prod_queue_1', 33 ], $GLOBALS['khm_test_scheduled_events'][0]['args'] );
+		$this->assertSame( [ 'prod_QUE123ABC1', 33 ], $GLOBALS['khm_test_scheduled_events'][0]['args'] );
 	}
 
 	public function test_product_updated_debounces_with_transient_lock(): void {
@@ -98,7 +98,7 @@ class WebhooksProductImportQueueTest extends TestCase {
 		);
 
 		$product = (object) [
-			'id' => 'prod_queue_2',
+			'id' => 'prod_QUE123ABC2',
 			'metadata' => (object) [ 'wp_level_id' => '77' ],
 		];
 

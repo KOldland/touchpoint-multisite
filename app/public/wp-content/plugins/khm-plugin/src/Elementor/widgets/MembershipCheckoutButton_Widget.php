@@ -417,6 +417,7 @@ class MembershipCheckoutButton_Widget extends Widget_Base {
             wp_localize_script('khm-membership-modal', 'khmMembershipModal', [
                 'ajaxUrl' => admin_url('admin-ajax.php'),
                 'nonce' => wp_create_nonce('khm_membership_checkout_nonce'),
+                'isLoggedIn' => is_user_logged_in(),
                 'strings' => [
                     'error_generic' => __('An error occurred. Please try again.', 'khm-membership'),
                     'loading' => __('Loading...', 'khm-membership'),

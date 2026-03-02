@@ -223,6 +223,101 @@ body.khm-modal-open {
     border-bottom: 1px solid #f0f0f0;
 }
 
+/* ========================================
+   Membership Promo Section
+   ======================================== */
+
+.khm-membership-promo-section {
+    margin: 0 0 18px;
+    padding: 12px;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    background: #fcfcfc;
+}
+
+.khm-membership-promo-section > label {
+    display: block;
+    margin: 0 0 7px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+}
+
+.khm-membership-promo-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.khm-membership-promo-row input[type="text"] {
+    flex: 1;
+    min-height: 36px;
+    padding: 8px 10px;
+    border: 1px solid #d6d6d6;
+    border-radius: 4px;
+}
+
+.khm-btn-link {
+    background: none;
+    border: 0;
+    color: #6b0b0b;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0 2px;
+}
+
+/* ========================================
+   Optional Guest Account Section
+   ======================================== */
+
+.khm-create-account-section {
+    border: 1px solid #e7e7e7;
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    background: #fafafa;
+}
+
+.khm-create-account-toggle-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.khm-create-account-details {
+    margin-top: 12px;
+}
+
+.khm-create-account-description {
+    margin: 0 0 12px;
+    color: #555;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.khm-field-group {
+    margin: 0 0 10px;
+}
+
+.khm-field-group label {
+    display: block;
+    margin: 0 0 5px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+}
+
+.khm-field-group input[type="text"],
+.khm-field-group input[type="tel"] {
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 10px;
+    border: 1px solid #d6d6d6;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
 .khm-tier-features li:last-child {
     border-bottom: none;
 }

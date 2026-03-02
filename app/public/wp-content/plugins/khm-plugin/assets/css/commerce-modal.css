@@ -4,6 +4,27 @@
  * Provides consistent modal experience for cart and checkout
  */
 
+/* Generic trigger button used by widget/shortcode/block wrappers. */
+.khm-commerce-checkout-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    padding: 10px 22px;
+    border: 0;
+    border-radius: 4px;
+    background: #0b4c6b;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.khm-commerce-checkout-trigger:hover {
+    opacity: 0.92;
+}
+
 /* Modal Overlay */
 .khm-modal-overlay {
     position: fixed;
