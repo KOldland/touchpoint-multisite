@@ -28,7 +28,9 @@ class PriceValidationAjax {
 			wp_send_json_error( [ 'message' => __( 'Invalid Stripe Price ID format.', 'khm-membership' ) ], 400 );
 		}
 
-		$secret = get_option( 'khm_stripe_secret_key', '' );
+		$secret = function_exists( 'khm_get_stripe_secret' )
+			? (string) ( khm_get_stripe_secret( 'KH_STRIPE_SECRET_KEY' ) ?? '' )
+			: '';
 		if ( empty( $secret ) ) {
 			$this->log_validation_event( 'stripe_not_configured', $price_id );
 			wp_send_json_error( [ 'message' => __( 'Stripe is not configured.', 'khm-membership' ) ], 400 );

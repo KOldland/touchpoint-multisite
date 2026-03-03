@@ -972,9 +972,12 @@ class StripeWebhookHandler {
             return is_object( $decoded ) ? $decoded : new \WP_Error( 'khm_invalid_payload', 'Invalid payload.' );
         }
 
-        $webhook_secret = trim( (string) get_option('khm_stripe_webhook_secret', '') );
+        $webhook_secret = '';
+        if ( function_exists( 'khm_get_stripe_secret' ) ) {
+            $webhook_secret = trim( (string) ( khm_get_stripe_secret( 'KH_STRIPE_WEBHOOK_SECRET' ) ?? '' ) );
+        }
         if ( '' === $webhook_secret ) {
-            error_log( 'Stripe webhook rejected: khm_stripe_webhook_secret not configured.' );
+            error_log( 'Stripe webhook rejected: KH_STRIPE_WEBHOOK_SECRET not configured.' );
             return new \WP_Error( 'khm_missing_webhook_secret', 'Missing webhook secret.' );
         }
 

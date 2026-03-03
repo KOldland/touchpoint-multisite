@@ -99,7 +99,9 @@ class MembershipCheckoutHandler {
         }
 
         // Get Stripe configuration
-        $stripe_secret = get_option('khm_stripe_secret_key', '');
+        $stripe_secret = function_exists('khm_get_stripe_secret')
+            ? (string) (khm_get_stripe_secret('KH_STRIPE_SECRET_KEY') ?? '')
+            : '';
         $stripe_publishable = get_option('khm_stripe_publishable_key', '');
 
         if (empty($stripe_secret) || empty($stripe_publishable)) {

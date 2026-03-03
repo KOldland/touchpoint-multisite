@@ -11,36 +11,33 @@ if (!defined('ABSPATH')) {
 if (isset($_POST['khm_settings_submit'])) {
     check_admin_referer('khm_settings');
     if (!current_user_can('manage_options')) {
+        error_log(sprintf('unauthorized_admin_access user_id=%d resource=%s', (int) get_current_user_id(), 'khm-settings-save'));
         wp_die(__('You do not have permission to perform this action.', 'khm-membership'));
     }
     
-    // Gateway settings
-    $stripe_secret_input = sanitize_text_field($_POST['khm_stripe_secret_key'] ?? '');
+    // Gateway settings: only non-secret keys are stored in options.
     $stripe_publishable_input = sanitize_text_field($_POST['khm_stripe_publishable_key'] ?? '');
-    $stripe_webhook_input = sanitize_text_field($_POST['khm_stripe_webhook_secret'] ?? '');
-    $stripe_webhook_marketing_input = sanitize_text_field($_POST['khm_stripe_webhook_secret_marketing'] ?? '');
-    $stripe_webhook_billing_input = sanitize_text_field($_POST['khm_stripe_webhook_secret_billing'] ?? '');
-    update_option('khm_stripe_secret_key', $stripe_secret_input);
     update_option('khm_stripe_publishable_key', $stripe_publishable_input);
-    update_option('khm_stripe_webhook_secret', $stripe_webhook_input);
-    update_option('khm_stripe_webhook_secret_marketing', $stripe_webhook_marketing_input);
-    update_option('khm_stripe_webhook_secret_billing', $stripe_webhook_billing_input);
+    update_option('khm_stripe_keys_are_set', isset($_POST['khm_stripe_keys_are_set']) ? 1 : 0);
 
-    if ($stripe_secret_input !== '' && !preg_match('/^sk_(test|live)_/i', $stripe_secret_input)) {
-        add_settings_error('khm_messages', 'khm_stripe_secret_format', __('Stripe Secret Key format looks invalid. Expected sk_test_... or sk_live_....', 'khm-membership'));
-    }
     if ($stripe_publishable_input !== '' && !preg_match('/^pk_(test|live)_/i', $stripe_publishable_input)) {
         add_settings_error('khm_messages', 'khm_stripe_publishable_format', __('Stripe Publishable Key format looks invalid. Expected pk_test_... or pk_live_....', 'khm-membership'));
     }
-    if ($stripe_webhook_input !== '' && !preg_match('/^whsec_/i', $stripe_webhook_input)) {
-        add_settings_error('khm_messages', 'khm_stripe_webhook_format', __('Stripe Webhook Secret format looks invalid. Expected whsec_....', 'khm-membership'));
+
+    // Remove any legacy secret options so keys do not persist in DB.
+    if (function_exists('delete_option')) {
+        delete_option('khm_stripe_secret_key');
+        delete_option('khm_stripe_webhook_secret');
+        delete_option('khm_stripe_webhook_secret_marketing');
+        delete_option('khm_stripe_webhook_secret_billing');
     }
-    if ($stripe_webhook_marketing_input !== '' && !preg_match('/^whsec_/i', $stripe_webhook_marketing_input)) {
-        add_settings_error('khm_messages', 'khm_stripe_webhook_marketing_format', __('Stripe Marketing Webhook Secret format looks invalid. Expected whsec_....', 'khm-membership'));
-    }
-    if ($stripe_webhook_billing_input !== '' && !preg_match('/^whsec_/i', $stripe_webhook_billing_input)) {
-        add_settings_error('khm_messages', 'khm_stripe_webhook_billing_format', __('Stripe Billing Webhook Secret format looks invalid. Expected whsec_....', 'khm-membership'));
-    }
+
+    // Webhook rate limiting settings.
+    update_option('khm_webhook_rate_limit_per_minute', max(1, intval($_POST['khm_webhook_rate_limit_per_minute'] ?? 60)));
+    update_option('khm_webhook_badsig_threshold', max(1, intval($_POST['khm_webhook_badsig_threshold'] ?? 10)));
+    update_option('khm_webhook_badsig_window', max(1, intval($_POST['khm_webhook_badsig_window'] ?? 60)));
+    update_option('khm_webhook_block_base_ttl', max(1, intval($_POST['khm_webhook_block_base_ttl'] ?? 60)));
+    update_option('khm_webhook_block_max_ttl', max(1, intval($_POST['khm_webhook_block_max_ttl'] ?? 3600)));
     
     // Email settings
     update_option('khm_email_from_name', sanitize_text_field($_POST['khm_email_from_name'] ?? ''));
@@ -75,6 +72,7 @@ if (isset($_POST['khm_settings_submit'])) {
 elseif (isset($_POST['khm_run_daily_now'])) {
     check_admin_referer('khm_settings');
     if (!current_user_can('manage_options')) {
+        error_log(sprintf('unauthorized_admin_access user_id=%d resource=%s', (int) get_current_user_id(), 'khm-settings-run-daily'));
         wp_die(__('You do not have permission to perform this action.', 'khm-membership'));
     }
     if (class_exists('KHM\\Scheduled\\Tasks')) {
@@ -90,14 +88,20 @@ elseif (isset($_POST['khm_run_daily_now'])) {
 }
 
 // Get current settings
-$stripe_secret = get_option('khm_stripe_secret_key', '');
+$stripe_secret = function_exists('khm_get_stripe_secret') ? (string) (khm_get_stripe_secret('KH_STRIPE_SECRET_KEY') ?? '') : '';
 $stripe_publishable = get_option('khm_stripe_publishable_key', '');
-$stripe_webhook = get_option('khm_stripe_webhook_secret', '');
-$stripe_webhook_marketing = get_option('khm_stripe_webhook_secret_marketing', '');
-$stripe_webhook_billing = get_option('khm_stripe_webhook_secret_billing', '');
+$stripe_webhook = function_exists('khm_get_stripe_secret') ? (string) (khm_get_stripe_secret('KH_STRIPE_WEBHOOK_SECRET') ?? '') : '';
+$stripe_webhook_marketing = function_exists('khm_get_stripe_secret') ? (string) (khm_get_stripe_secret('KH_STRIPE_WEBHOOK_SECRET_MARKETING') ?? '') : '';
+$stripe_webhook_billing = function_exists('khm_get_stripe_secret') ? (string) (khm_get_stripe_secret('KH_STRIPE_WEBHOOK_SECRET_BILLING') ?? '') : '';
 $webhook_endpoint = rest_url('khm/v1/webhooks/stripe');
 $webhook_endpoint_marketing = rest_url('khm/v1/webhooks/stripe/marketing');
 $webhook_endpoint_billing = rest_url('khm/v1/webhooks/stripe/billing');
+$webhook_rate_limit_per_minute = (int) get_option('khm_webhook_rate_limit_per_minute', 60);
+$webhook_badsig_threshold = (int) get_option('khm_webhook_badsig_threshold', 10);
+$webhook_badsig_window = (int) get_option('khm_webhook_badsig_window', 60);
+$webhook_block_base_ttl = (int) get_option('khm_webhook_block_base_ttl', 60);
+$webhook_block_max_ttl = (int) get_option('khm_webhook_block_max_ttl', 3600);
+$stripe_keys_are_set = (bool) get_option('khm_stripe_keys_are_set', 0);
 $stripe_secret_mode = '';
 if (strpos($stripe_secret, 'sk_test_') === 0) {
     $stripe_secret_mode = 'test';
@@ -150,14 +154,11 @@ if (class_exists('KHM\\Scheduled\\Scheduler')) {
         <table class="form-table" role="presentation">
             <tr>
                 <th scope="row">
-                    <label for="khm_stripe_secret_key"><?php esc_html_e('Stripe Secret Key', 'khm-membership'); ?></label>
+                    <?php esc_html_e('Stripe Secret Key', 'khm-membership'); ?>
                 </th>
                 <td>
-                    <input type="text" id="khm_stripe_secret_key" name="khm_stripe_secret_key" 
-                           value="<?php echo esc_attr($stripe_secret); ?>" class="regular-text" />
-                    <p class="description">
-                        <?php esc_html_e('Your Stripe secret key (sk_test_... or sk_live_...)', 'khm-membership'); ?>
-                    </p>
+                    <strong><?php echo $has_secret_key ? esc_html__('Configured via environment', 'khm-membership') : esc_html__('Missing', 'khm-membership'); ?></strong>
+                    <p class="description"><?php esc_html_e('Set KH_STRIPE_SECRET_KEY as an environment variable or wp-config constant. Secret values are not stored in WordPress options.', 'khm-membership'); ?></p>
                 </td>
             </tr>
             <tr>
@@ -174,15 +175,14 @@ if (class_exists('KHM\\Scheduled\\Scheduler')) {
             </tr>
             <tr>
                 <th scope="row">
-                    <label for="khm_stripe_webhook_secret"><?php esc_html_e('Stripe Webhook Secret', 'khm-membership'); ?></label>
+                    <?php esc_html_e('Stripe Webhook Secret', 'khm-membership'); ?>
                 </th>
                 <td>
-                    <input type="text" id="khm_stripe_webhook_secret" name="khm_stripe_webhook_secret" 
-                           value="<?php echo esc_attr($stripe_webhook); ?>" class="regular-text" />
+                    <strong><?php echo $has_webhook_secret ? esc_html__('Configured via environment', 'khm-membership') : esc_html__('Missing', 'khm-membership'); ?></strong>
                     <p class="description">
                         <?php
                         printf(
-                            esc_html__('Your webhook signing secret. Webhook URL: %s', 'khm-membership'),
+                            esc_html__('Set KH_STRIPE_WEBHOOK_SECRET in deployment secrets. Webhook URL: %s', 'khm-membership'),
                             '<code>' . esc_url($webhook_endpoint) . '</code>'
                         );
                         ?>
@@ -191,15 +191,14 @@ if (class_exists('KHM\\Scheduled\\Scheduler')) {
             </tr>
             <tr>
                 <th scope="row">
-                    <label for="khm_stripe_webhook_secret_marketing"><?php esc_html_e('Stripe Marketing Webhook Secret', 'khm-membership'); ?></label>
+                    <?php esc_html_e('Stripe Marketing Webhook Secret', 'khm-membership'); ?>
                 </th>
                 <td>
-                    <input type="text" id="khm_stripe_webhook_secret_marketing" name="khm_stripe_webhook_secret_marketing"
-                           value="<?php echo esc_attr($stripe_webhook_marketing); ?>" class="regular-text" />
+                    <strong><?php echo $has_webhook_secret_marketing ? esc_html__('Configured via environment', 'khm-membership') : esc_html__('Optional / missing', 'khm-membership'); ?></strong>
                     <p class="description">
                         <?php
                         printf(
-                            esc_html__('Signing secret for marketing webhook endpoint: %s', 'khm-membership'),
+                            esc_html__('Optional KH_STRIPE_WEBHOOK_SECRET_MARKETING for marketing endpoint: %s', 'khm-membership'),
                             '<code>' . esc_url($webhook_endpoint_marketing) . '</code>'
                         );
                         ?>
@@ -208,19 +207,29 @@ if (class_exists('KHM\\Scheduled\\Scheduler')) {
             </tr>
             <tr>
                 <th scope="row">
-                    <label for="khm_stripe_webhook_secret_billing"><?php esc_html_e('Stripe Billing Webhook Secret', 'khm-membership'); ?></label>
+                    <?php esc_html_e('Stripe Billing Webhook Secret', 'khm-membership'); ?>
                 </th>
                 <td>
-                    <input type="text" id="khm_stripe_webhook_secret_billing" name="khm_stripe_webhook_secret_billing"
-                           value="<?php echo esc_attr($stripe_webhook_billing); ?>" class="regular-text" />
+                    <strong><?php echo $has_webhook_secret_billing ? esc_html__('Configured via environment', 'khm-membership') : esc_html__('Optional / missing', 'khm-membership'); ?></strong>
                     <p class="description">
                         <?php
                         printf(
-                            esc_html__('Signing secret for billing webhook endpoint: %s', 'khm-membership'),
+                            esc_html__('Optional KH_STRIPE_WEBHOOK_SECRET_BILLING for billing endpoint: %s', 'khm-membership'),
                             '<code>' . esc_url($webhook_endpoint_billing) . '</code>'
                         );
                         ?>
                     </p>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">
+                    <label for="khm_stripe_keys_are_set"><?php esc_html_e('Env Keys Confirmed', 'khm-membership'); ?></label>
+                </th>
+                <td>
+                    <label>
+                        <input type="checkbox" id="khm_stripe_keys_are_set" name="khm_stripe_keys_are_set" value="1" <?php checked($stripe_keys_are_set, true); ?> />
+                        <?php esc_html_e('Staging/dev confirmation only. This flag does not store secrets.', 'khm-membership'); ?>
+                    </label>
                 </td>
             </tr>
         </table>
@@ -232,7 +241,7 @@ if (class_exists('KHM\\Scheduled\\Scheduler')) {
                 <td>
                     <strong><?php echo $webhook_ready ? esc_html__('Ready', 'khm-membership') : esc_html__('Needs setup', 'khm-membership'); ?></strong>
                     <?php if (!$webhook_ready) : ?>
-                        <p class="description"><?php esc_html_e('Set all three Stripe fields above to enable automatic webhook sync.', 'khm-membership'); ?></p>
+                        <p class="description"><?php esc_html_e('Set Stripe env vars/constants and save this page to refresh checks.', 'khm-membership'); ?></p>
                     <?php endif; ?>
                 </td>
             </tr>
@@ -287,6 +296,30 @@ if (class_exists('KHM\\Scheduled\\Scheduler')) {
             <tr>
                 <th scope="row"><?php esc_html_e('Split Endpoint Readiness', 'khm-membership'); ?></th>
                 <td><?php echo $webhook_ready_split ? esc_html__('Ready', 'khm-membership') : esc_html__('Needs marketing+billing secrets', 'khm-membership'); ?></td>
+            </tr>
+        </table>
+
+        <h2 class="title"><?php esc_html_e('Webhook Rate Limiting', 'khm-membership'); ?></h2>
+        <table class="form-table" role="presentation">
+            <tr>
+                <th scope="row"><label for="khm_webhook_rate_limit_per_minute"><?php esc_html_e('Per-IP Requests/Minute', 'khm-membership'); ?></label></th>
+                <td><input type="number" id="khm_webhook_rate_limit_per_minute" name="khm_webhook_rate_limit_per_minute" value="<?php echo esc_attr($webhook_rate_limit_per_minute); ?>" min="1" max="1000" /></td>
+            </tr>
+            <tr>
+                <th scope="row"><label for="khm_webhook_badsig_threshold"><?php esc_html_e('Bad Signature Threshold', 'khm-membership'); ?></label></th>
+                <td><input type="number" id="khm_webhook_badsig_threshold" name="khm_webhook_badsig_threshold" value="<?php echo esc_attr($webhook_badsig_threshold); ?>" min="1" max="1000" /></td>
+            </tr>
+            <tr>
+                <th scope="row"><label for="khm_webhook_badsig_window"><?php esc_html_e('Bad Signature Window (sec)', 'khm-membership'); ?></label></th>
+                <td><input type="number" id="khm_webhook_badsig_window" name="khm_webhook_badsig_window" value="<?php echo esc_attr($webhook_badsig_window); ?>" min="1" max="3600" /></td>
+            </tr>
+            <tr>
+                <th scope="row"><label for="khm_webhook_block_base_ttl"><?php esc_html_e('Initial Block TTL (sec)', 'khm-membership'); ?></label></th>
+                <td><input type="number" id="khm_webhook_block_base_ttl" name="khm_webhook_block_base_ttl" value="<?php echo esc_attr($webhook_block_base_ttl); ?>" min="1" max="3600" /></td>
+            </tr>
+            <tr>
+                <th scope="row"><label for="khm_webhook_block_max_ttl"><?php esc_html_e('Max Block TTL (sec)', 'khm-membership'); ?></label></th>
+                <td><input type="number" id="khm_webhook_block_max_ttl" name="khm_webhook_block_max_ttl" value="<?php echo esc_attr($webhook_block_max_ttl); ?>" min="1" max="86400" /></td>
             </tr>
         </table>
 

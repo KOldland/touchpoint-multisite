@@ -311,7 +311,7 @@ class CommerceFrontend {
                 wp_send_json_success($this->build_purchase_response($user_id, $result));
             }
 
-            if (empty(get_option('khm_stripe_secret_key', ''))) {
+            if ($this->get_stripe_secret() === '') {
                 wp_send_json_error('Stripe is not configured.');
             }
 
@@ -385,7 +385,7 @@ class CommerceFrontend {
             wp_send_json_error('Invalid security token. Please refresh and try again.');
         }
 
-        if (empty(get_option('khm_stripe_secret_key', ''))) {
+        if ($this->get_stripe_secret() === '') {
             wp_send_json_error('Stripe is not configured.');
         }
 
@@ -459,7 +459,7 @@ class CommerceFrontend {
         }
 
         try {
-            if (empty(get_option('khm_stripe_secret_key', ''))) {
+            if ($this->get_stripe_secret() === '') {
                 error_log('KHM Commerce finalize: Stripe not configured');
                 wp_send_json_error('Stripe is not configured.');
             }
@@ -602,10 +602,18 @@ class CommerceFrontend {
 
     private function get_gateway(): StripeGateway {
         return new StripeGateway([
-            'secret_key' => get_option('khm_stripe_secret_key', ''),
+            'secret_key' => $this->get_stripe_secret(),
             'publishable_key' => get_option('khm_stripe_publishable_key', ''),
             'environment' => get_option('khm_stripe_environment', 'sandbox'),
         ]);
+    }
+
+    private function get_stripe_secret(): string {
+        if (!function_exists('khm_get_stripe_secret')) {
+            return '';
+        }
+
+        return (string) (khm_get_stripe_secret('KH_STRIPE_SECRET_KEY') ?? '');
     }
 
     private function build_promo_cart_response(int $user_id, array $cart): array {

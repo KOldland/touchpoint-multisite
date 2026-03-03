@@ -101,7 +101,9 @@ class TierRegistry {
     }
 
     private static function is_live_mode(): bool {
-        $secret = (string) get_option( 'khm_stripe_secret_key', '' );
+        $secret = function_exists( 'khm_get_stripe_secret' )
+            ? (string) ( khm_get_stripe_secret( 'KH_STRIPE_SECRET_KEY' ) ?? '' )
+            : '';
         return strpos( $secret, 'sk_live_' ) === 0;
     }
 }

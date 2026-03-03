@@ -34,7 +34,7 @@ class FourAIngestionController {
 					array(
 						'methods'             => 'POST',
 						'callback'            => array( $this, 'ingest_ga4' ),
-						'permission_callback' => '__return_true',
+						'permission_callback' => array( $this, 'permission_callback' ),
 					)
 				);
 
@@ -44,7 +44,7 @@ class FourAIngestionController {
 					array(
 						'methods'             => 'POST',
 						'callback'            => array( $this, 'ingest_email' ),
-						'permission_callback' => '__return_true',
+						'permission_callback' => array( $this, 'permission_callback' ),
 					)
 				);
 
@@ -54,11 +54,21 @@ class FourAIngestionController {
 					array(
 						'methods'             => 'POST',
 						'callback'            => array( $this, 'ingest_webinar' ),
-						'permission_callback' => '__return_true',
+						'permission_callback' => array( $this, 'permission_callback' ),
 					)
 				);
 			}
 		);
+	}
+
+	/**
+	 * Route-level permission callback.
+	 *
+	 * @param WP_REST_Request $request Request instance.
+	 * @return true|WP_Error
+	 */
+	public function permission_callback( WP_REST_Request $request ) {
+		return $this->authorize_request( $request );
 	}
 
 	/**

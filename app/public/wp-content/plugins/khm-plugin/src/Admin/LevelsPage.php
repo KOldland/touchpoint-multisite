@@ -463,7 +463,9 @@ class LevelsPage {
 		$nonce = wp_create_nonce( 'khm_validate_stripe_price' );
 		$marketing_import_nonce = wp_create_nonce( 'khm_marketing_features_nonce' );
 		$ajax_url = admin_url( 'admin-ajax.php' );
-		$stripe_secret = (string) get_option( 'khm_stripe_secret_key', '' );
+		$stripe_secret = function_exists( 'khm_get_stripe_secret' )
+			? (string) ( khm_get_stripe_secret( 'KH_STRIPE_SECRET_KEY' ) ?? '' )
+			: '';
 		$stripe_mode = 'unknown';
 		if ( $stripe_secret !== '' ) {
 			if ( str_starts_with( $stripe_secret, 'sk_test_' ) ) {

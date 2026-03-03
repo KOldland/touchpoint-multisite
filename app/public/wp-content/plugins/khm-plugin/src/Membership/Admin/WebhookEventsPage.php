@@ -15,14 +15,15 @@ class WebhookEventsPage {
             'khm-membership',
             __( 'Webhook Events', 'khm-membership' ),
             __( 'Webhook Events', 'khm-membership' ),
-            'manage_khm',
+            'manage_options',
             'khm-membership-webhooks',
             [ $this, 'render_page' ]
         );
     }
 
     public function render_page(): void {
-        if ( ! current_user_can( 'manage_khm' ) && ! current_user_can( 'manage_options' ) ) {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            error_log( sprintf( 'unauthorized_admin_access user_id=%d resource=%s', (int) get_current_user_id(), 'khm-membership-webhooks' ) );
             wp_die( esc_html__( 'Insufficient permissions.', 'khm-membership' ) );
         }
 
@@ -70,7 +71,8 @@ class WebhookEventsPage {
     }
 
     public function handle_action(): void {
-        if ( ! current_user_can( 'manage_khm' ) && ! current_user_can( 'manage_options' ) ) {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            error_log( sprintf( 'unauthorized_admin_access user_id=%d resource=%s', (int) get_current_user_id(), 'khm-membership-webhooks-action' ) );
             wp_die( esc_html__( 'Insufficient permissions.', 'khm-membership' ) );
         }
 
@@ -104,7 +106,33 @@ class WebhookEventsPage {
 
         $event = json_decode( (string) $row['payload'], true );
         if ( ! is_array( $event ) || empty( $event['type'] ) ) {
-            ProcessedWebhook::mark_failed( $event_id, 'Admin requeue failed: payload parse error.' );
+            $stripe_client = apply_filters( 'khm_membership_stripe_client', null );
+
+            // Fallback: build a StripeClient from the stored API key if the filter provides none.
+            if ( ! ( $stripe_client instanceof \Stripe\StripeClient ) && class_exists( '\Stripe\StripeClient' ) ) {
+                $secret = function_exists( 'khm_get_stripe_secret' )
+                    ? (string) ( khm_get_stripe_secret( 'KH_STRIPE_SECRET_KEY' ) ?? '' )
+                    : '';
+                if ( '' !== $secret ) {
+                    $stripe_client = new \Stripe\StripeClient( $secret );
+                }
+            }
+
+            if ( $stripe_client instanceof \Stripe\StripeClient ) {
+                try {
+                    $stripe_event = $stripe_client->events->retrieve( $event_id, [] );
+                    if ( $stripe_event ) {
+                        $event = $stripe_event->toArray();
+                    }
+                } catch ( \Exception $e ) {
+                    ProcessedWebhook::mark_failed( $event_id, 'Admin requeue failed: could not retrieve event from Stripe (' . $e->getMessage() . ').' );
+                    return;
+                }
+            }
+        }
+
+        if ( ! is_array( $event ) || empty( $event['type'] ) ) {
+            ProcessedWebhook::mark_failed( $event_id, 'Admin requeue failed: payload missing or could not be reconstructed.' );
             return;
         }
 
@@ -141,4 +169,3 @@ class WebhookEventsPage {
         );
     }
 }
-

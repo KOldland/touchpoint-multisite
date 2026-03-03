@@ -52,6 +52,11 @@ if ( file_exists(__DIR__ . '/vendor/autoload.php') ) {
     error_log('KHM Plugin vendor/autoload.php not found. Composer dependencies are missing.');
 }
 
+$khm_secrets_helper = __DIR__ . '/src/Lib/Secrets.php';
+if ( file_exists( $khm_secrets_helper ) ) {
+    require_once $khm_secrets_helper;
+}
+
 function khm_elementor_feature_flags() {
     $defaults = [
         'register_widgets' => true,
