@@ -114,19 +114,55 @@ class WebhooksController {
 	 * @return \WP_REST_Response|\WP_Error REST response or error if validation fails.
 	 */
 	public function handle_stripe( $request, string $scope = 'all' ) {
-		// Get webhook secret from options.
+		$ip = $this->get_request_ip( $request );
+
 		$secret = $this->resolveWebhookSecret( $scope );
 		if ( empty( $secret ) ) {
 			return new \WP_Error( 'khm_missing_secret', 'Stripe webhook is not configured (missing secret).', array( 'status' => 500 ) );
 		}
 
 		$payload = $request->get_body();
+		$this->emit_webhook_telemetry(
+			'webhook.received',
+			array(
+				'ip'    => $ip,
+				'path'  => '/wp-json/khm/v1/webhooks/stripe',
+				'scope' => $scope,
+			)
+		);
+
+		$block = $this->get_active_ip_block( $ip );
+		if ( $block['blocked'] ) {
+			$this->emit_webhook_telemetry(
+				'webhook.rate_limit.blocked',
+				array(
+					'ip'    => $ip,
+					'scope' => $scope,
+					'path'  => '/wp-json/khm/v1/webhooks/stripe',
+					'code'  => 429,
+					'reason'=> (string) $block['reason'],
+				)
+			);
+			return $this->build_rate_limited_response( (int) $block['retry_after'], (string) $block['reason'] );
+		}
+
 		// Collect all headers for signature extraction; normalize in verifier.
-		$headers = $request->get_headers();
+		$headers = method_exists( $request, 'get_headers' ) ? (array) $request->get_headers() : array();
 
 		// Verify signature.
 		$verified_event = $this->verifier->verify( $payload, $headers, $secret );
 		if ( ! $verified_event ) {
+			$badsig = $this->increment_badsig_counter( $ip );
+			$this->emit_webhook_telemetry(
+				'webhook.invalid_signature',
+				array(
+					'ip'    => $ip,
+					'scope' => $scope,
+					'path'  => '/wp-json/khm/v1/webhooks/stripe',
+					'count' => $badsig,
+					'code'  => 400,
+				)
+			);
 			return new \WP_Error( 'khm_invalid_signature', 'Invalid Stripe webhook signature.', array( 'status' => 400 ) );
 		}
 
@@ -144,7 +180,34 @@ class WebhooksController {
 			return new \WP_Error( 'khm_missing_event_id', 'Missing event id in payload.', array( 'status' => 400 ) );
 		}
 
+		$throttle = $this->increment_ip_rate_counter( $ip );
+		if ( $throttle['limited'] ) {
+			$this->emit_webhook_telemetry(
+				'webhook.rate_limit.exceeded',
+				array(
+					'ip'         => $ip,
+					'scope'      => $scope,
+					'path'       => '/wp-json/khm/v1/webhooks/stripe',
+					'event_type' => $eventType,
+					'count'      => (int) $throttle['count'],
+					'limit'      => (int) $throttle['limit'],
+					'code'       => 429,
+				)
+			);
+			return $this->build_rate_limited_response( (int) $throttle['retry_after'], 'rate_limit_exceeded' );
+		}
+
 		if ( ! $this->isEventAllowedForScope( $eventType, $scope ) ) {
+			$this->emit_webhook_telemetry(
+				'webhook.processed',
+				array(
+					'ip'         => $ip,
+					'path'       => '/wp-json/khm/v1/webhooks/stripe',
+					'event_type' => $eventType,
+					'code'       => 200,
+					'status'     => 'ignored',
+				)
+			);
 			return new \WP_REST_Response(
 				array(
 					'ok'     => true,
@@ -160,6 +223,16 @@ class WebhooksController {
 		// Idempotency check.
 		if ( $this->idempotency->hasProcessed( $eventId ) ) {
 			// Already processed; respond 200 to avoid retries.
+			$this->emit_webhook_telemetry(
+				'webhook.processed',
+				array(
+					'ip'         => $ip,
+					'path'       => '/wp-json/khm/v1/webhooks/stripe',
+					'event_type' => $eventType,
+					'code'       => 200,
+					'status'     => 'duplicate',
+				)
+			);
 			return new \WP_REST_Response(
 				array(
 					'ok'     => true,
@@ -203,6 +276,17 @@ class WebhooksController {
 			return new \WP_Error( 'khm_webhook_error', 'Webhook handling failed. Retry will occur.', array( 'status' => 500 ) );
 		}
 
+		$this->emit_webhook_telemetry(
+			'webhook.processed',
+			array(
+				'ip'         => $ip,
+				'path'       => '/wp-json/khm/v1/webhooks/stripe',
+				'event_type' => $eventType,
+				'code'       => 200,
+				'status'     => 'processed',
+			)
+		);
+
 		return new \WP_REST_Response(
 			array(
 				'ok'     => true,
@@ -215,21 +299,20 @@ class WebhooksController {
 	}
 
 	private function resolveWebhookSecret( string $scope ): string {
+		$scope = strtolower( trim( $scope ) );
 		if ( $scope === 'marketing' ) {
-			$secret = (string) get_option( 'khm_stripe_webhook_secret_marketing', '' );
-			if ( $secret !== '' ) {
-				return $secret;
-			}
+			return $this->resolve_secret_value(
+				array( 'KH_STRIPE_WEBHOOK_SECRET_MARKETING', 'KH_STRIPE_WEBHOOK_SECRET' )
+			);
 		}
 
 		if ( $scope === 'billing' ) {
-			$secret = (string) get_option( 'khm_stripe_webhook_secret_billing', '' );
-			if ( $secret !== '' ) {
-				return $secret;
-			}
+			return $this->resolve_secret_value(
+				array( 'KH_STRIPE_WEBHOOK_SECRET_BILLING', 'KH_STRIPE_WEBHOOK_SECRET' )
+			);
 		}
 
-		return (string) get_option( 'khm_stripe_webhook_secret', '' );
+		return $this->resolve_secret_value( array( 'KH_STRIPE_WEBHOOK_SECRET' ) );
 	}
 
 	private function isEventAllowedForScope( string $eventType, string $scope ): bool {
@@ -243,6 +326,226 @@ class WebhooksController {
 		}
 
 		return true;
+	}
+
+	private function resolve_secret_value( array $keys ): string {
+		foreach ( $keys as $key ) {
+			if ( function_exists( 'khm_get_stripe_secret' ) ) {
+				$secret = (string) ( khm_get_stripe_secret( $key ) ?? '' );
+				if ( $secret !== '' ) {
+					return $secret;
+				}
+			}
+		}
+
+		return '';
+	}
+
+	private function get_request_ip( $request ): string {
+		$ipHeaders = array(
+			'x-forwarded-for',
+			'cf-connecting-ip',
+			'x-real-ip',
+			'client-ip',
+		);
+
+		foreach ( $ipHeaders as $header ) {
+			$value = $this->request_header( $request, $header );
+			if ( $value === '' ) {
+				continue;
+			}
+
+			$candidate = trim( explode( ',', $value )[0] ?? '' );
+			if ( filter_var( $candidate, FILTER_VALIDATE_IP ) ) {
+				return $candidate;
+			}
+		}
+
+		if ( isset( $_SERVER['REMOTE_ADDR'] ) && filter_var( (string) $_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP ) ) {
+			return (string) $_SERVER['REMOTE_ADDR'];
+		}
+
+		return 'unknown';
+	}
+
+	private function request_header( $request, string $name ): string {
+		if ( method_exists( $request, 'get_header' ) ) {
+			$value = (string) $request->get_header( $name );
+			if ( $value !== '' ) {
+				return $value;
+			}
+		}
+
+		if ( method_exists( $request, 'get_headers' ) ) {
+			$headers = (array) $request->get_headers();
+			$lower   = strtolower( $name );
+			foreach ( $headers as $k => $v ) {
+				if ( strtolower( (string) $k ) !== $lower ) {
+					continue;
+				}
+				if ( is_array( $v ) ) {
+					return isset( $v[0] ) ? (string) $v[0] : '';
+				}
+				return (string) $v;
+			}
+		}
+
+		return '';
+	}
+
+	private function should_enable_rate_limit_test_mode(): bool {
+		$raw = function_exists( 'khm_get_stripe_secret' )
+			? (string) ( khm_get_stripe_secret( 'KHM_WEBHOOK_RATE_LIMIT_TEST_MODE' ) ?? '' )
+			: '';
+		return in_array( strtolower( $raw ), array( '1', 'true', 'yes', 'on' ), true );
+	}
+
+	private function get_rate_limit_config(): array {
+		$testMode = $this->should_enable_rate_limit_test_mode();
+
+		$defaults = array(
+			'requests_per_minute' => 60,
+			'badsig_threshold'    => 10,
+			'badsig_window'       => 60,
+			'block_base_ttl'      => 60,
+			'block_max_ttl'       => 3600,
+		);
+
+		if ( $testMode ) {
+			$defaults['requests_per_minute'] = 5;
+			$defaults['badsig_threshold']    = 3;
+			$defaults['block_base_ttl']      = 15;
+			$defaults['block_max_ttl']       = 120;
+		}
+
+		$config = array(
+			'requests_per_minute' => (int) get_option( 'khm_webhook_rate_limit_per_minute', $defaults['requests_per_minute'] ),
+			'badsig_threshold'    => (int) get_option( 'khm_webhook_badsig_threshold', $defaults['badsig_threshold'] ),
+			'badsig_window'       => (int) get_option( 'khm_webhook_badsig_window', $defaults['badsig_window'] ),
+			'block_base_ttl'      => (int) get_option( 'khm_webhook_block_base_ttl', $defaults['block_base_ttl'] ),
+			'block_max_ttl'       => (int) get_option( 'khm_webhook_block_max_ttl', $defaults['block_max_ttl'] ),
+		);
+
+		foreach ( $config as $key => $value ) {
+			$config[ $key ] = max( 1, (int) $value );
+		}
+
+		return $config;
+	}
+
+	private function get_active_ip_block( string $ip ): array {
+		$blockKey   = 'khm_webhook_block:' . md5( $ip );
+		$blockUntil = (int) get_transient( $blockKey );
+		$now        = time();
+
+		if ( $blockUntil > $now ) {
+			return array(
+				'blocked'     => true,
+				'retry_after' => max( 1, $blockUntil - $now ),
+				'reason'      => 'ip_blocked',
+			);
+		}
+
+		return array(
+			'blocked'     => false,
+			'retry_after' => 0,
+			'reason'      => '',
+		);
+	}
+
+	private function increment_badsig_counter( string $ip ): int {
+		$config     = $this->get_rate_limit_config();
+		$window     = max( 1, (int) $config['badsig_window'] );
+		$counterKey = 'khm_webhook_badsig:' . md5( $ip );
+		$count      = (int) get_transient( $counterKey );
+		$count++;
+		set_transient( $counterKey, $count, $window );
+
+		$total = (int) get_transient( 'khm_webhook_badsig_total' );
+		set_transient( 'khm_webhook_badsig_total', $total + 1, 3600 );
+
+		if ( $count > (int) $config['badsig_threshold'] ) {
+			$this->apply_progressive_block( $ip, 'invalid_signature' );
+		}
+
+		return $count;
+	}
+
+	private function increment_ip_rate_counter( string $ip ): array {
+		$config   = $this->get_rate_limit_config();
+		$limit    = max( 1, (int) $config['requests_per_minute'] );
+		$window   = 60;
+		$bucketTs = (int) floor( time() / $window ) * $window;
+		$key      = 'khm_webhook_rate:' . md5( $ip ) . ':' . $bucketTs;
+		$count    = (int) get_transient( $key );
+		$count++;
+		set_transient( $key, $count, $window + 5 );
+
+		if ( $count > $limit ) {
+			$retryAfter = max( 1, ( $bucketTs + $window ) - time() );
+			$this->apply_progressive_block( $ip, 'rate_limit_exceeded' );
+			return array(
+				'limited'     => true,
+				'count'       => $count,
+				'limit'       => $limit,
+				'retry_after' => $retryAfter,
+			);
+		}
+
+		return array(
+			'limited'     => false,
+			'count'       => $count,
+			'limit'       => $limit,
+			'retry_after' => 0,
+		);
+	}
+
+	private function apply_progressive_block( string $ip, string $reason ): void {
+		$config    = $this->get_rate_limit_config();
+		$levelKey  = 'khm_webhook_block_level:' . md5( $ip );
+		$level     = (int) get_transient( $levelKey );
+		$level     = max( 1, $level + 1 );
+		$base      = max( 1, (int) $config['block_base_ttl'] );
+		$max       = max( $base, (int) $config['block_max_ttl'] );
+		$ttl       = min( $max, (int) ( $base * ( 5 ** ( $level - 1 ) ) ) );
+		$blockTill = time() + $ttl;
+
+		set_transient( $levelKey, $level, $max );
+		set_transient( 'khm_webhook_block:' . md5( $ip ), $blockTill, $ttl );
+
+		$this->emit_webhook_telemetry(
+			'webhook.rate_limit.blocked',
+			array(
+				'ip'          => $ip,
+				'path'        => '/wp-json/khm/v1/webhooks/stripe',
+				'reason'      => $reason,
+				'block_level' => $level,
+				'block_ttl'   => $ttl,
+				'code'        => 429,
+			)
+		);
+	}
+
+	private function build_rate_limited_response( int $retryAfter, string $reason ): \WP_REST_Response {
+		$response = new \WP_REST_Response(
+			array(
+				'ok'          => false,
+				'error'       => 'rate_limited',
+				'reason'      => $reason,
+				'retry_after' => max( 1, $retryAfter ),
+			),
+			429
+		);
+
+		if ( method_exists( $response, 'header' ) ) {
+			$response->header( 'Retry-After', (string) max( 1, $retryAfter ) );
+		}
+
+		return $response;
+	}
+
+	private function emit_webhook_telemetry( string $metric, array $context = array() ): void {
+		do_action( 'khm_membership_webhook_telemetry', $metric, $context );
 	}
 
 	/**
@@ -1141,7 +1444,9 @@ class WebhooksController {
 	 * @return object|null
 	 */
 	private function retrieve_stripe_subscription( string $subscriptionId ): ?object {
-		$secret = get_option( 'khm_stripe_secret_key', '' );
+		$secret = function_exists( 'khm_get_stripe_secret' )
+			? (string) ( khm_get_stripe_secret( 'KH_STRIPE_SECRET_KEY' ) ?? '' )
+			: '';
 		if ( empty( $secret ) ) {
 			return null;
 		}

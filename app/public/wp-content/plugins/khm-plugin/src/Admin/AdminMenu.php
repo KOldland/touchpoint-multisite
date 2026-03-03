@@ -87,7 +87,7 @@ class AdminMenu {
             'khm-membership',
             __('Settings', 'khm-membership'),
             __('Settings', 'khm-membership'),
-            'manage_khm',
+            'manage_options',
             'khm-settings',
             [ $this, 'render_settings' ]
         );
@@ -107,7 +107,7 @@ class AdminMenu {
             'khm-membership',
             __('Email Preview', 'khm-membership'),
             __('Emails', 'khm-membership'),
-            'manage_khm',
+            'manage_options',
             'khm-email-preview',
             [ $this, 'render_email_preview' ]
         );

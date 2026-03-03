@@ -272,7 +272,9 @@ class StripeMarketingImporter {
 	 * @return object
 	 */
 	protected function retrieveProduct( string $productId ) {
-		$secret = get_option( 'khm_stripe_secret_key' );
+		$secret = function_exists( 'khm_get_stripe_secret' )
+			? (string) ( khm_get_stripe_secret( 'KH_STRIPE_SECRET_KEY' ) ?? '' )
+			: '';
 		if ( empty( $secret ) ) {
 			throw new \RuntimeException( 'Stripe secret key not configured.' );
 		}

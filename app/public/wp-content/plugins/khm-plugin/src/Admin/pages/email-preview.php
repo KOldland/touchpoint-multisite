@@ -9,7 +9,14 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-if ( ! current_user_can( 'manage_khm' ) ) {
+if ( ! current_user_can( 'manage_options' ) ) {
+    error_log(
+        sprintf(
+            'unauthorized_admin_access user_id=%d resource=%s',
+            (int) get_current_user_id(),
+            'khm-email-preview'
+        )
+    );
     wp_die( __( 'You do not have permission to access this page.', 'khm-membership' ) );
 }
 
