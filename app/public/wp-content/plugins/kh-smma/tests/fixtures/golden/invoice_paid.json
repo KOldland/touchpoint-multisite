@@ -1,0 +1,13 @@
+{
+  "id": "evt_{{EVENT_ID}}",
+  "type": "invoice.paid",
+  "created": "{{UNIX_TS}}",
+  "data": {
+    "object": {
+      "id": "in_{{INVOICE_ID}}",
+      "customer": "cus_{{CUSTOMER_ID}}",
+      "subscription": "sub_{{SUBSCRIPTION_ID}}",
+      "status": "paid"
+    }
+  }
+}

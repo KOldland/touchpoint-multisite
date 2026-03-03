@@ -1,0 +1,15 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "{\"linkedin_variants\":[{\"variant_id\":\"{{VARIANT_ID_1}}\",\"channel\":\"linkedin\",\"phase_tag\":\"Awareness\",\"text\":\"Discover practical growth tactics your team can apply this week.\",\"sponsor_flag\":false,\"approval_required\":false,\"recommended_post_time_gmt\":\"{{UNIX_TS}}\",\"compliance_notes\":\"OK\"}]}"
+      }
+    }
+  ],
+  "model": "mock-gpt-4-turbo",
+  "usage": {
+    "prompt_tokens": 210,
+    "completion_tokens": 120,
+    "total_tokens": 330
+  }
+}

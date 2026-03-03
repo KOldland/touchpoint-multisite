@@ -36,6 +36,38 @@ if ( ! function_exists( 'wp_json_encode' ) ) {
     }
 }
 
+if ( ! function_exists( 'normalize_fixture' ) ) {
+    /**
+     * Normalize volatile fixture fields for deterministic assertions.
+     *
+     * @param mixed $value Value to normalize.
+     * @return mixed
+     */
+    function normalize_fixture( $value ) {
+        if ( is_array( $value ) ) {
+            $normalized = array();
+            foreach ( $value as $key => $item ) {
+                if ( is_string( $key ) && preg_match( '/(created|updated|timestamp|time)$/i', $key ) ) {
+                    $normalized[ $key ] = '{{UNIX_TS}}';
+                    continue;
+                }
+                if ( is_string( $key ) && preg_match( '/(^id$|_id$)/i', $key ) && is_scalar( $item ) ) {
+                    $normalized[ $key ] = '{{ID}}';
+                    continue;
+                }
+                $normalized[ $key ] = normalize_fixture( $item );
+            }
+            return $normalized;
+        }
+
+        if ( is_string( $value ) && preg_match( '/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/', $value ) ) {
+            return '{{ISO8601}}';
+        }
+
+        return $value;
+    }
+}
+
 if ( ! function_exists( 'wp_generate_uuid4' ) ) {
     function wp_generate_uuid4() {
         return uniqid( 'uuid', true );

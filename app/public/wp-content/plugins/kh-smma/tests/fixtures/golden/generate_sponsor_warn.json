@@ -1,0 +1,15 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "{\"linkedin_variants\":[{\"variant_id\":\"{{VARIANT_ID_2}}\",\"channel\":\"linkedin\",\"phase_tag\":\"Awareness\",\"text\":\"Join brands reporting stronger outcomes after introducing this framework.\",\"sponsor_flag\":true,\"approval_required\":true,\"recommended_post_time_gmt\":\"{{UNIX_TS}}\",\"compliance_notes\":\"WARN: sponsor claim requires verification\"}]}"
+      }
+    }
+  ],
+  "model": "mock-gpt-4-turbo",
+  "usage": {
+    "prompt_tokens": 214,
+    "completion_tokens": 126,
+    "total_tokens": 340
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "run_id": "exec_{{RUN_ID}}",
+  "adapter": "meta_ads",
+  "mode": "execute",
+  "result": "success",
+  "created_ids": {
+    "campaign_id": "cmp_{{CAMPAIGN_ID}}",
+    "adset_id": "adset_{{ADSET_ID}}",
+    "ad_id": "ad_{{AD_ID}}"
+  }
+}

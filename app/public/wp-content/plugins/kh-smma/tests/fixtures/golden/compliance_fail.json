@@ -1,0 +1,10 @@
+{
+  "passed": false,
+  "level": "FAIL",
+  "message": "Contains prohibited guarantee/risk-free wording.",
+  "confidence_score": 1,
+  "flags": [
+    "blacklist_violation",
+    "guaranteed_claims"
+  ]
+}

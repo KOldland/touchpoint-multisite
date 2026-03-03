@@ -29,7 +29,9 @@ jobs:
 
       # Ensure no live API keys leak into CI
       OPENAI_API_KEY: ''
+      OPENAI_KEY: ''
       ANTHROPIC_API_KEY: ''
+      ANTHROPIC_KEY: ''
       DUAL_GPT_API_KEY: ''
       LLM_API_KEY: ''
 
@@ -67,12 +69,18 @@ jobs:
 
       - name: Check for real API keys (safety check)
         run: |
-          if [ -n "$OPENAI_API_KEY" ] || [ -n "$ANTHROPIC_API_KEY" ] || [ -n "$DUAL_GPT_API_KEY" ]; then
+          if [ -n "$OPENAI_API_KEY" ] || [ -n "$OPENAI_KEY" ] || [ -n "$ANTHROPIC_API_KEY" ] || [ -n "$ANTHROPIC_KEY" ] || [ -n "$DUAL_GPT_API_KEY" ]; then
             echo "ERROR: Real API keys detected in CI environment!"
             echo "Tests must use golden stubs only."
             exit 1
           fi
           echo "✓ No real API keys detected"
+
+      - name: Run PHPUnit - MockLLM Deterministic Tests
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          export KH_SMMA_GOLDEN_FIXTURE=generate_awareness_ok.json
+          vendor/bin/phpunit tests/Lib/MockLLMClientTest.php --testdox --colors=always
 
       - name: Run PHPUnit - Golden AI Tests
         working-directory: app/public/wp-content/plugins/kh-smma
@@ -99,6 +107,18 @@ jobs:
         run: |
           echo "Checking golden fixtures..."
           FIXTURES=(
+            "tests/fixtures/golden/generate_awareness_ok.json"
+            "tests/fixtures/golden/generate_sponsor_warn.json"
+            "tests/fixtures/golden/generate_sponsor_fail.json"
+            "tests/fixtures/golden/google_ad_draft.json"
+            "tests/fixtures/golden/compliance_ok.json"
+            "tests/fixtures/golden/compliance_warn.json"
+            "tests/fixtures/golden/compliance_fail.json"
+            "tests/fixtures/golden/checkout_session_completed.json"
+            "tests/fixtures/golden/invoice_paid.json"
+            "tests/fixtures/golden/checkout_session_no_consent.json"
+            "tests/fixtures/golden/paid_adapter_dry_run_manifest.json"
+            "tests/fixtures/golden/paid_adapter_execute_response.json"
             "tests/fixtures/golden/generate_response.json"
             "tests/fixtures/golden/generate_warn_response.json"
             "tests/fixtures/golden/generate_fail_response.json"

@@ -1,0 +1,18 @@
+{
+  "id": "evt_checkout_completed_contract",
+  "type": "checkout.session.completed",
+  "data": {
+    "object": {
+      "id": "cs_test_contract",
+      "mode": "subscription",
+      "customer": "cus_contract_001",
+      "subscription": "sub_contract_001",
+      "metadata": {
+        "user_id": "123",
+        "membership_level_id": "1",
+        "tier_slug": "premium",
+        "stripe_price_id": "price_contract_monthly"
+      }
+    }
+  }
+}

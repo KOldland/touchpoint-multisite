@@ -1,0 +1,17 @@
+{
+  "run_id": "dryrun_{{RUN_ID}}",
+  "adapter": "meta_ads",
+  "mode": "dry_run",
+  "items": [
+    {
+      "asset_id": "asset_{{ASSET_ID_1}}",
+      "action": "create_campaign",
+      "status": "planned"
+    },
+    {
+      "asset_id": "asset_{{ASSET_ID_2}}",
+      "action": "create_adset",
+      "status": "planned"
+    }
+  ]
+}
