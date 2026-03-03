@@ -25,6 +25,7 @@ jobs:
     env:
       # CI mode forces deterministic mock LLM behavior
       KH_SMMA_TEST_MODE: ci
+      KH_SMMA_GOLDEN_FIXTURE: generate_response.json
       CI: true
 
       # Ensure no live API keys leak into CI
