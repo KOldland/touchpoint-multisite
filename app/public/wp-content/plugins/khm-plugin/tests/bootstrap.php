@@ -5,7 +5,7 @@
 
 // Composer autoloader
 require_once dirname(__DIR__) . '/vendor/autoload.php';
-require_once dirname(__DIR__) . '/src/Lib/Secrets.php';
+require_once dirname(__DIR__) . '/src/Lib/StripeEnv.php';
 
 // Define test environment constants
 if (!defined('ABSPATH')) {
