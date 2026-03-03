@@ -1,0 +1,30 @@
+[
+  {
+    "event": "generate.request",
+    "channel": "linkedin",
+    "fixture": "generate_response.json",
+    "trace_id": "smoke-trace-001",
+    "payload_hash": "81ffbe4ee2770eb188ad4dad9026f4eb1b66ef0f591ac43f44462317c539f4db"
+  },
+  {
+    "event": "generate.response",
+    "channel": "linkedin",
+    "fixture": "generate_response.json",
+    "trace_id": "smoke-trace-001",
+    "payload_hash": "2ac4f55c54b1500abbb076418ea2d752d3c8db893579f2e814b1552a2b0a1aec"
+  },
+  {
+    "event": "compliance.check",
+    "channel": "linkedin",
+    "fixture": "compliance_pass_response.json",
+    "trace_id": "smoke-trace-001",
+    "payload_hash": "92be01e1ee4dfe5462ba6350e47a29ad2a2a6a6e2a0ca91596b65c74425230ae"
+  },
+  {
+    "event": "schedule.dispatch",
+    "channel": "linkedin",
+    "adapter": "manual_export",
+    "trace_id": "smoke-trace-001",
+    "status": "awaiting_manual_export"
+  }
+]

@@ -1,0 +1,15 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "{\"ad_groups\":[{\"name\":\"growth_basics\",\"headlines\":[\"Scale Practical Growth\",\"Plan Better Campaigns\",\"Train Teams Faster\"],\"descriptions\":[\"Build campaign confidence with practical weekly guidance.\",\"Structured workflow for planning, QA, and launch readiness.\"],\"final_url\":\"https://example.com/growth\",\"final_url_with_utm\":\"https://example.com/growth?utm_source=google&utm_medium=cpc&utm_campaign=awareness\",\"cpc_suggestion\":2.8}]}"
+      }
+    }
+  ],
+  "model": "mock-gpt-4-turbo",
+  "usage": {
+    "prompt_tokens": 240,
+    "completion_tokens": 160,
+    "total_tokens": 400
+  }
+}

@@ -57,6 +57,7 @@ jobs:
           vendor/bin/phpunit tests/Rest/WebhooksRateLimitTest.php --testdox --colors=always
           vendor/bin/phpunit tests/Rest/FourAIngestionPermissionTest.php --testdox --colors=always
           vendor/bin/phpunit tests/Lib/StripeEnvTest.php --testdox --colors=always
+          vendor/bin/phpunit tests/Lib/StripeSignatureHelperTest.php --testdox --colors=always
 
       - name: Summary
         if: always()

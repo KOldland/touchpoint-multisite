@@ -47,14 +47,16 @@ class MockLLMClient {
 	private function has_real_api_key(): bool {
 		$suspects = array(
 			'OPENAI_API_KEY',
+			'OPENAI_KEY',
 			'ANTHROPIC_API_KEY',
+			'ANTHROPIC_KEY',
 			'DUAL_GPT_API_KEY',
 			'LLM_API_KEY',
 		);
 
 		foreach ( $suspects as $key ) {
 			$value = getenv( $key );
-			if ( ! empty( $value ) && strlen( $value ) > 10 ) {
+			if ( ! empty( $value ) && strlen( (string) $value ) > 10 ) {
 				return true;
 			}
 		}
@@ -94,15 +96,14 @@ class MockLLMClient {
 		$fixture_path = $this->fixture_dir . $fixture_name;
 
 		if ( ! file_exists( $fixture_path ) ) {
-			// Fallback to default generate response
-			$fixture_path = $this->fixture_dir . 'generate_response.json';
+			throw new \RuntimeException( "Golden fixture not found: {$fixture_name}" );
 		}
 
 		$content = file_get_contents( $fixture_path );
 		$response = json_decode( $content, true );
 
 		if ( ! $response ) {
-			throw new \Exception( "Failed to parse golden fixture: {$fixture_name}" );
+			throw new \RuntimeException( "Failed to parse golden fixture: {$fixture_name}" );
 		}
 
 		// Add metadata for telemetry tracking
@@ -110,6 +111,27 @@ class MockLLMClient {
 		$response['_fixture'] = $fixture_name;
 		$response['_prompt_hash'] = $this->hash_prompt( $system, $user );
 
+		return $response;
+	}
+
+	/**
+	 * Convenience method for tests that expect decoded payload content.
+	 *
+	 * @param array $input Prompt payload (used only for deterministic prompt hash).
+	 * @return array Decoded payload from the selected fixture.
+	 */
+	public function generate( array $input ): array {
+		$system = 'SMMA-AI';
+		$user = json_encode( $input );
+		$response = $this->call( $system, (string) $user );
+		$content = $response['choices'][0]['message']['content'] ?? '';
+		$decoded = json_decode( (string) $content, true );
+
+		if ( is_array( $decoded ) ) {
+			return $decoded;
+		}
+
+		// Non-LLM envelope fixtures are still valid canonical fixtures.
 		return $response;
 	}
 
@@ -122,8 +144,15 @@ class MockLLMClient {
 	 */
 	private function determine_fixture( string $system, string $user ): string {
 		// Allow explicit fixture selection via env var
-		$explicit = getenv( 'KH_SMMA_GOLDEN_FIXTURE' );
-		if ( ! empty( $explicit ) ) {
+		$explicit = (string) getenv( 'KH_SMMA_GOLDEN_FIXTURE' );
+		if ( $this->is_ci_mode() && '' === trim( $explicit ) ) {
+			throw new \RuntimeException(
+				'KH_SMMA_TEST_MODE=ci requires KH_SMMA_GOLDEN_FIXTURE to be set.'
+			);
+		}
+
+		if ( '' !== trim( $explicit ) ) {
+			$explicit = basename( $explicit );
 			return $explicit;
 		}
 
@@ -135,23 +164,23 @@ class MockLLMClient {
 			// FAIL: Multiple blacklisted phrases
 			if ( strpos( $text_lower, 'guaranteed' ) !== false &&
 			     strpos( $text_lower, 'risk-free' ) !== false ) {
-				return 'compliance_fail_response.json';
+				return 'compliance_fail.json';
 			}
 
 			// WARN: Single blacklisted phrase or unverified claims
 			if ( strpos( $text_lower, 'guaranteed' ) !== false ||
 			     strpos( $text_lower, 'risk-free' ) !== false ||
 			     strpos( $text_lower, '100%' ) !== false ) {
-				return 'compliance_warn_response.json';
+				return 'compliance_warn.json';
 			}
 
 			// PASS: Clean compliance
-			return 'compliance_pass_response.json';
+			return 'compliance_ok.json';
 		}
 
 		// Google Ads Draft Generator
 		if ( stripos( $system, 'Google Ads Draft Generator' ) !== false ) {
-			return 'google_ad_draft_response.json';
+			return 'google_ad_draft.json';
 		}
 
 		// SMMA Generation prompts
@@ -162,18 +191,18 @@ class MockLLMClient {
 			if ( strpos( $text_lower, 'test_fail' ) !== false ||
 			     ( strpos( $text_lower, 'guaranteed' ) !== false &&
 			       strpos( $text_lower, 'risk-free' ) !== false ) ) {
-				return 'generate_fail_response.json';
+				return 'generate_sponsor_fail.json';
 			}
 
 			// WARN: Sponsor claims need verification
 			if ( strpos( $text_lower, 'test_warn' ) !== false ||
 			     strpos( $text_lower, 'satisfied customers' ) !== false ) {
-				return 'generate_warn_response.json';
+				return 'generate_sponsor_warn.json';
 			}
 		}
 
 		// Default to OK generation response
-		return 'generate_response.json';
+		return 'generate_awareness_ok.json';
 	}
 
 	/**

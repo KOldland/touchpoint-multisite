@@ -82,6 +82,13 @@ if ( $is_ci && $test_mode !== 'ci' ) {
 echo "[3/4] Checking golden fixtures...\n";
 $fixture_dir = __DIR__ . '/fixtures/golden/';
 $required_fixtures = array(
+	'generate_awareness_ok.json',
+	'generate_sponsor_warn.json',
+	'generate_sponsor_fail.json',
+	'google_ad_draft.json',
+	'compliance_ok.json',
+	'compliance_warn.json',
+	'compliance_fail.json',
 	'generate_response.json',
 	'compliance_pass_response.json',
 	'compliance_warn_response.json',

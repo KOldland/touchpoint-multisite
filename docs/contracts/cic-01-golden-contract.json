@@ -1,0 +1,35 @@
+{
+  "id": "cic-01-golden-contract",
+  "version": "1.0.0",
+  "updated_at": "2026-03-03",
+  "owner": "@ci-qa-team",
+  "scope": [
+    "smma",
+    "compliance",
+    "membership",
+    "paid_adapters"
+  ],
+  "fixtures": [
+    "generate_awareness_ok.json",
+    "generate_sponsor_warn.json",
+    "generate_sponsor_fail.json",
+    "google_ad_draft.json",
+    "compliance_ok.json",
+    "compliance_warn.json",
+    "compliance_fail.json",
+    "checkout_session_completed.json",
+    "invoice_paid.json",
+    "checkout_session_no_consent.json",
+    "paid_adapter_dry_run_manifest.json",
+    "paid_adapter_execute_response.json"
+  ],
+  "determinism_env": {
+    "KH_SMMA_TEST_MODE": "ci",
+    "KH_SMMA_GOLDEN_FIXTURE": "<fixture>.json"
+  },
+  "policy": {
+    "fixture_label_required": "golden-owner-approved",
+    "metadata_sidecar_required": true,
+    "secret_scan_required": true
+  }
+}

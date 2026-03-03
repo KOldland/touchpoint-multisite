@@ -1,0 +1,9 @@
+{
+    "version": "1.0.0",
+    "prompt_hash": "497fb38dad18263ea7b47e8ded2db537df1e4ef7373783d9f05275dba84cae76",
+    "prompt_version": "cic-01",
+    "created_at": "2026-03-03T00:00:00Z",
+    "author": "@ci-qa-team",
+    "checksum": "d9c2167f5dbaf3946f40677e1e450281e2eda9149239822e2889744ecc4f5c62",
+    "notes": "Canonical CIC-01 golden fixture"
+}
