@@ -9,8 +9,12 @@ require_once dirname( __DIR__ ) . '/MockLLMClient.php';
 require_once dirname( __DIR__ ) . '/TestHelpers.php';
 
 class MockLLMClientTest extends TestCase {
+	/** @var array<string, string|false> */
+	private $original_env = array();
+
 	protected function setUp(): void {
 		parent::setUp();
+		$this->snapshot_env();
 		putenv( 'KH_SMMA_TEST_MODE=ci' );
 		putenv( 'KH_SMMA_GOLDEN_FIXTURE=generate_awareness_ok.json' );
 		putenv( 'OPENAI_API_KEY' );
@@ -22,15 +26,35 @@ class MockLLMClientTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		putenv( 'KH_SMMA_TEST_MODE' );
-		putenv( 'KH_SMMA_GOLDEN_FIXTURE' );
-		putenv( 'OPENAI_API_KEY' );
-		putenv( 'OPENAI_KEY' );
-		putenv( 'ANTHROPIC_API_KEY' );
-		putenv( 'ANTHROPIC_KEY' );
-		putenv( 'DUAL_GPT_API_KEY' );
-		putenv( 'LLM_API_KEY' );
+		$this->restore_env();
 		parent::tearDown();
+	}
+
+	private function snapshot_env(): void {
+		$keys = array(
+			'KH_SMMA_TEST_MODE',
+			'KH_SMMA_GOLDEN_FIXTURE',
+			'OPENAI_API_KEY',
+			'OPENAI_KEY',
+			'ANTHROPIC_API_KEY',
+			'ANTHROPIC_KEY',
+			'DUAL_GPT_API_KEY',
+			'LLM_API_KEY',
+		);
+
+		foreach ( $keys as $key ) {
+			$this->original_env[ $key ] = getenv( $key );
+		}
+	}
+
+	private function restore_env(): void {
+		foreach ( $this->original_env as $key => $value ) {
+			if ( false === $value ) {
+				putenv( $key );
+			} else {
+				putenv( $key . '=' . $value );
+			}
+		}
 	}
 
 	public function test_returns_fixture_when_in_ci_mode(): void {
