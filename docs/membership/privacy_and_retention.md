@@ -1,4 +1,4 @@
-# MEM-05 Privacy and Retention Runbook
+# Privacy and Retention (MEM)
 
 ## Policy Summary
 
@@ -6,6 +6,10 @@
 - Records with `consent=false` must not retain UTMs or direct identifiers.
 - Default retention is 24 months (`730` days) via site option `khm_attribution_retention_days`.
 - Expired records are anonymized by default; optional delete mode is available for strict policies.
+
+Legal baseline statement (required in sign-off evidence):
+
+> Legal has reviewed DSAR flows and approves anonymize-by-default; deletion requires sign-off.
 
 ## Consent Rules
 
@@ -38,6 +42,8 @@ If recovery is required for legal reasons, restoration must come from an encrypt
 
 - Must be provided via environment, not in repository.
 - Expected source of truth: Ops secrets vault / deployment environment variables / GitHub Actions encrypted secrets.
+- Follow CIC secret-handling controls (CIC-07 policy/ticket process) for rotation, access, and audit trail.
+- CI secret and fixture hygiene reference: [../contracts/CONTRIBUTING-GOLDEN.md](../contracts/CONTRIBUTING-GOLDEN.md)
 - Do not commit `.env` values or sample salts to the repo.
 - Staging verification command:
   - `wp eval 'echo getenv("KHM_ANON_SALT") ? "KHM_ANON_SALT present\n" : "KHM_ANON_SALT missing\n";'`
@@ -100,6 +106,21 @@ If recovery is required for legal reasons, restoration must come from an encrypt
 
 Deletion policy: anonymization is the default DSAR fulfillment mode; hard deletion requires legal/compliance sign-off and ticket reference.
 
+### DSAR export format and retention policy
+
+- Export bundle is zip containing `attribution.json` generated at approval time.
+- Export files are written to a private uploads subdirectory (`khm-dsar-private`) with access denied via `.htaccess`.
+- Export retention recommendation:
+  - staging: purge within 7 days of verification
+  - production: purge within 30 days unless legal hold requires longer
+- Every export must be traceable to a compliance ticket ID and approver.
+
+### Emergency access policy
+
+- Two-person approval required for direct data access.
+- Ticket ID and time window required.
+- Access logs and post-access review mandatory.
+
 ## Rollout and Rollback
 
 - Staged rollout:
@@ -111,9 +132,8 @@ Deletion policy: anonymization is the default DSAR fulfillment mode; hard deleti
   - Restore from approved database backup if recovery is legally required.
   - Document incident + ticket references in the runbook log.
 
-## Emergency Access
+## Export file handling
 
-- Two-person approval
-- Ticket ID required
-- Time-limited access
-- Access logging and post-incident review mandatory
+- Never move DSAR export files to public buckets or shared drives without legal approval.
+- Do not attach raw export contents to PRs; attach only controlled evidence metadata and redacted snippets.
+- On completion, record purge date and operator in ticket.
