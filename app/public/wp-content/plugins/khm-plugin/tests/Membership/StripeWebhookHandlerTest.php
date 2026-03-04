@@ -187,6 +187,30 @@ class StripeWebhookHandlerTest extends TestCase {
         $this->test_checkout_session_completed_creates_membership();
     }
 
+    public function test_resolve_or_create_user_prefers_stripe_email_over_metadata_guest_email(): void {
+        $stripeUser = (object) [ 'ID' => 501 ];
+        $guestUser = (object) [ 'ID' => 777 ];
+
+        $GLOBALS['khm_test_users_by']['email'] = [
+            'stripe@example.com' => $stripeUser,
+            'guest@example.com' => $guestUser,
+        ];
+
+        $session = (object) [
+            'customer_details' => (object) [ 'email' => 'stripe@example.com' ],
+            'customer_email' => 'fallback@example.com',
+        ];
+        $metadata = [
+            'guest_email' => 'guest@example.com',
+        ];
+
+        $method = new \ReflectionMethod( StripeWebhookHandler::class, 'resolve_or_create_user_from_session' );
+        $method->setAccessible( true );
+        $resolvedUserId = (int) $method->invoke( $this->handler, $session, $metadata, 0 );
+
+        $this->assertSame( 501, $resolvedUserId );
+    }
+
     public function test_invoice_paid_updates_status_to_active() {
         global $wpdb;
 

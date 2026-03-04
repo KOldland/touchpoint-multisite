@@ -139,4 +139,53 @@ class SignupInitTest extends TestCase {
         $this->assertNull( $stored['payload']['utm_medium'] );
         $this->assertNull( $stored['payload']['utm_campaign'] );
     }
+
+    public function test_signup_init_rejects_raw_stripe_promotion_code_without_validated_promo_code(): void {
+        $request = new WP_REST_Request( 'POST', '/kh-membership/v1/signup-init' );
+        $request->set_body( wp_json_encode([
+            'schedule_id' => 'sch_123',
+            'idempotency_key' => '123e4567-e89b-12d3-a456-426614174004',
+            'consent' => true,
+            'stripe_promotion_code' => 'promo_raw_unvalidated',
+        ]) );
+
+        $response = $this->endpoint->handle_signup_init( $request );
+        $this->assertEquals( 400, $response->get_status() );
+
+        $body = $response->get_data();
+        $this->assertEquals( 'MBR_ERR_INVALID_PROMO', $body['error']['code'] );
+    }
+
+    public function test_signup_init_accepts_validated_promo_code(): void {
+        $override = function ( $value, $promoCode, $payload ) {
+            if ( $promoCode === 'WELCOME20' ) {
+                return [
+                    'valid' => true,
+                    'message' => 'Discount code applied successfully.',
+                    'code' => (object) [ 'id' => 99, 'code' => 'WELCOME20' ],
+                ];
+            }
+            return $value;
+        };
+        add_filter( 'khm_membership_signup_init_validate_promo_override', $override );
+
+        try {
+            $request = new WP_REST_Request( 'POST', '/kh-membership/v1/signup-init' );
+            $request->set_body( wp_json_encode([
+                'schedule_id' => 'sch_123',
+                'idempotency_key' => '123e4567-e89b-12d3-a456-426614174005',
+                'consent' => true,
+                'promo_code' => 'WELCOME20',
+            ]) );
+
+            $response = $this->endpoint->handle_signup_init( $request );
+            $this->assertEquals( 201, $response->get_status() );
+
+            $body = $response->get_data();
+            $this->assertArrayHasKey( 'session_id', $body );
+            $this->assertArrayHasKey( 'checkout_url', $body );
+        } finally {
+            remove_filter( 'khm_membership_signup_init_validate_promo_override', $override );
+        }
+    }
 }

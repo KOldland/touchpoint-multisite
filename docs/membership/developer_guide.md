@@ -118,6 +118,7 @@ Example response (contract-conformant):
 |---|---|---:|---|
 | `MBR_ERR_INVALID_ATTR` | We could not start checkout. Check referral data and try again. | sometimes | show inline form error + retry button |
 | `MBR_ERR_INVALID_SPONSOR` | This sponsor link is invalid for the selected schedule. | no | show blocking validation state |
+| `MBR_ERR_INVALID_PROMO` | Promo code is invalid or unverified. | no | show promo validation error and keep user on form |
 | `MBR_ERR_100` | Enter a valid email address. | no | highlight email field |
 | `MBR_ERR_101` | Select a membership plan. | no | highlight plan selector |
 | `MBR_ERR_103` | Requested tier is unavailable. | no | reload plan options |
@@ -176,6 +177,13 @@ async function pollLandingSuccess(sessionId) {
 - Consent semantics:
   - `consent=true`: attribution may include UTM/sponsor values.
   - `consent=false`: server stores minimal marker and redacts attribution payload fields.
+- Promo semantics:
+  - `promo_code` is validated server-side before checkout session creation.
+  - raw `stripe_promotion_code` without validated `promo_code` is rejected with `MBR_ERR_INVALID_PROMO`.
+- Profile metadata semantics:
+  - `profile_marketing_optin` is persisted as explicit boolean (`"1"` or `"0"`) so downstream webhook/account handlers can distinguish explicit opt-out.
+- Webhook email resolution precedence:
+  - Stripe-captured email (`customer_details.email` then `customer_email`) is authoritative over `metadata.guest_email`.
 - Success rendering:
   - Render `message`, `membership_status`, and `ctas[]` from landing-success payload.
   - Hide attribution UI when `consent=false` or `attribution=null`.

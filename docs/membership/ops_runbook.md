@@ -37,9 +37,9 @@ Immediate actions:
 Primary replay command set:
 
 ```bash
-wp khm membership-webhook-dead-letters --last=50
-wp khm membership-webhook-dead-letters-replay --id=123
-wp khm membership-webhook-dead-letters-replay --all-open --limit=20
+wp khm membership:dlq --last=50
+wp khm membership:dlq:replay --id=123
+wp khm membership:dlq:replay --all-open --limit=20
 ```
 
 Compatibility note: if your environment provides a wrapper command `php bin/khm requeue:webhook {event_id}`, it should map to the same replay behavior. This repository ships WP-CLI replay commands above.
@@ -99,6 +99,7 @@ Performance knobs:
 ```bash
 wp khm anonymize_attribution --id=123 --dry-run
 wp khm anonymize_attribution --id=123 --reason="incident-response"
+wp khm anonymize_attribution --id=123 --execute
 ```
 
 Batch mode:

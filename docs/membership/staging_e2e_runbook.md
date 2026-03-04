@@ -45,6 +45,19 @@ Expected output contains:
 - `message=checkout_created`
 - `temp_store_ttl_seconds=86400`
 
+Promo validation check (must fail with `MBR_ERR_INVALID_PROMO`):
+
+```bash
+curl -sS -X POST "https://staging.example.com/wp-json/kh-membership/v1/signup-init" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "schedule_id":"sch_123",
+    "idempotency_key":"11111111-1111-4111-8111-111111111111",
+    "consent":true,
+    "stripe_promotion_code":"promo_raw_unvalidated"
+  }'
+```
+
 ## 3) Trigger signed Stripe webhook (`checkout.session.completed`)
 
 ```bash
@@ -111,7 +124,7 @@ Check for expected audit/telemetry lines (`membership.email.*`, `webhook.*`).
 ```bash
 wp khm anonymize_attribution --id=<ATTRIBUTION_ID> --dry-run
 wp db query "SELECT id,user_email,utm_source,reference,reference_hash,anonymized_at FROM wp_promotion_attribution WHERE id=<ATTRIBUTION_ID>;" | tee artifacts/anonymize_before_after.sql
-wp khm anonymize_attribution --id=<ATTRIBUTION_ID> --reason="staging-e2e"
+wp khm anonymize_attribution --id=<ATTRIBUTION_ID> --reason="staging-e2e" --execute
 wp db query "SELECT id,user_email,utm_source,reference,reference_hash,anonymized_at FROM wp_promotion_attribution WHERE id=<ATTRIBUTION_ID>;" | tee -a artifacts/anonymize_before_after.sql
 
 time wp khm retention:run --dry-run --chunk-size=1000 | tee artifacts/retention_dry_run.log

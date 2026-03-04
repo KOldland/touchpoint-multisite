@@ -524,6 +524,14 @@ class SignupEndpoint {
         $promoCode = sanitize_text_field( (string) ( $payload['promo_code'] ?? '' ) );
         $stripePromoCode = sanitize_text_field( (string) ( $payload['stripe_promotion_code'] ?? '' ) );
 
+        $override = apply_filters( 'khm_membership_signup_init_validate_promo_override', null, $promoCode, $payload );
+        if ( is_wp_error( $override ) ) {
+            return $override;
+        }
+        if ( is_array( $override ) ) {
+            return $override;
+        }
+
         // Reject raw stripe_promotion_code without server validation
         if ( '' !== $stripePromoCode && '' === $promoCode ) {
             return new \WP_Error(
