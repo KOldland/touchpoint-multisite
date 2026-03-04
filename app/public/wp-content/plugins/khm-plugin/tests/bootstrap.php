@@ -414,6 +414,13 @@ if (!function_exists('sanitize_key')) {
         $key = strtolower($key);
         return preg_replace('/[^a-z0-9_\\-]/', '', $key);
     }
+
+if (!function_exists('sanitize_file_name')) {
+    function sanitize_file_name($filename) {
+        $filename = preg_replace('/[^A-Za-z0-9._-]/', '-', (string) $filename);
+        return trim((string) $filename, '-');
+    }
+}
 }
 
 if (!function_exists('absint')) {
@@ -464,6 +471,15 @@ if (!function_exists('wp_rand')) {
 
 if (!function_exists('get_user_by')) {
     function get_user_by($field, $value) {
+        if (isset($GLOBALS['khm_test_users_by']) && is_array($GLOBALS['khm_test_users_by'])) {
+            $fieldKey = (string) $field;
+            $lookupValue = (string) $value;
+            if (isset($GLOBALS['khm_test_users_by'][$fieldKey]) && is_array($GLOBALS['khm_test_users_by'][$fieldKey])) {
+                if (isset($GLOBALS['khm_test_users_by'][$fieldKey][$lookupValue])) {
+                    return $GLOBALS['khm_test_users_by'][$fieldKey][$lookupValue];
+                }
+            }
+        }
         return false;
     }
 }
@@ -543,6 +559,12 @@ if (!function_exists('wp_mkdir_p')) {
 if (!function_exists('home_url')) {
     function home_url($path = '') {
         return 'https://example.com' . $path;
+    }
+}
+
+if (!function_exists('trailingslashit')) {
+    function trailingslashit($value) {
+        return rtrim((string) $value, '/\\') . '/';
     }
 }
 

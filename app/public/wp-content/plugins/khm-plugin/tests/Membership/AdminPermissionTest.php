@@ -65,6 +65,11 @@ class AdminPermissionTest extends TestCase {
         $this->assertUnauthorizedLogContains('khm-members-anonymize');
     }
 
+    public function testAdminPermissionDeniedForNonAdmin(): void {
+        $this->test_reports_export_denies_non_admin_and_logs_unauthorized_access();
+        $this->test_member_anonymize_denies_non_admin_and_logs_unauthorized_access();
+    }
+
     private function assertUnauthorizedLogContains(string $resource): void {
         $logs = is_array($GLOBALS['khm_test_error_logs'] ?? null) ? $GLOBALS['khm_test_error_logs'] : [];
         $this->assertNotEmpty($logs);

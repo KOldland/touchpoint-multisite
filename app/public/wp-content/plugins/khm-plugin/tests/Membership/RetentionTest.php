@@ -46,4 +46,8 @@ class RetentionTest extends TestCase {
         $this->assertEmpty( $newRow['anonymized_at'] ?? '' );
         $this->assertSame( 'new', (string) ( $newRow['utm_source'] ?? '' ) );
     }
+
+    public function testRetentionWorkerAnonymizesExpiredRows(): void {
+        $this->test_retention_worker_anonymizes_expired_rows_only();
+    }
 }

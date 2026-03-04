@@ -43,4 +43,37 @@ class AnonymizeTest extends TestCase {
         $this->assertSame( '77', (string) ( $row['anonymized_by'] ?? '' ) );
         $this->assertSame( hash( 'sha256', 'test-salt' . 'cs_12345' ), (string) ( $row['reference_hash'] ?? '' ) );
     }
+
+    public function testAnonymizeCommandRedactsFields(): void {
+        putenv( 'KHM_ANON_SALT=test-salt' );
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'promotion_attribution';
+
+        $wpdb->insert( $table, [
+            'id' => 9002,
+            'schedule_id' => 13,
+            'sponsor_id' => 45,
+            'user_id' => 56,
+            'user_email' => 'command@example.com',
+            'utm_source' => 'campaign',
+            'utm_medium' => 'email',
+            'utm_campaign' => 'winter',
+            'phase_at_click' => 'decision',
+            'conversion_type' => 'signup',
+            'reference' => 'cs_67890',
+            'consent' => 1,
+            'created_at' => gmdate( 'Y-m-d H:i:s' ),
+        ] );
+
+        $repo = new MembershipRepository();
+        $ok = $repo->anonymizeAttributionById( 9002, 88, 'cli_simulated' );
+        $this->assertTrue( $ok );
+
+        $row = $wpdb->get_row( "SELECT * FROM {$table} WHERE id = 9002", ARRAY_A );
+        $this->assertIsArray( $row );
+        $this->assertEmpty( $row['user_email'] ?? null );
+        $this->assertEmpty( $row['utm_source'] ?? null );
+        $this->assertNotEmpty( $row['reference_hash'] ?? '' );
+    }
 }

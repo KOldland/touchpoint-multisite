@@ -7,4 +7,7 @@ test('landing success markup snapshot is stable', async ({ page }) => {
   await expect(successRoot.first()).toBeVisible();
 
   await expect(successRoot.first()).toHaveScreenshot('landing-success.png');
+
+  const markup = await successRoot.first().innerHTML();
+  expect(markup).toMatchSnapshot('landing-success.markup.html');
 });
