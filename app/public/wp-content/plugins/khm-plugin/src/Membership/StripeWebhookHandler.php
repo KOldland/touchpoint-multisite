@@ -1190,13 +1190,14 @@ class StripeWebhookHandler {
             return $user_id;
         }
 
+        // HIGH-PRIORITY FIX #3: Prefer Stripe-captured email over metadata.guest_email
         $email = '';
-        if ( isset( $metadata['guest_email'] ) && is_email( $metadata['guest_email'] ) ) {
-            $email = sanitize_email( (string) $metadata['guest_email'] );
-        } elseif ( isset( $session->customer_details ) && isset( $session->customer_details->email ) && is_email( $session->customer_details->email ) ) {
+        if ( isset( $session->customer_details ) && isset( $session->customer_details->email ) && is_email( $session->customer_details->email ) ) {
             $email = sanitize_email( (string) $session->customer_details->email );
         } elseif ( isset( $session->customer_email ) && is_email( $session->customer_email ) ) {
             $email = sanitize_email( (string) $session->customer_email );
+        } elseif ( isset( $metadata['guest_email'] ) && is_email( $metadata['guest_email'] ) ) {
+            $email = sanitize_email( (string) $metadata['guest_email'] );
         }
 
         if ( $email === '' ) {

@@ -179,9 +179,8 @@ class MembershipCheckoutHandler {
         if (!empty($profile['company'])) {
             $metadata['profile_company'] = $profile['company'];
         }
-        if (!empty($profile['marketing_opt_in'])) {
-            $metadata['profile_marketing_optin'] = '1';
-        }
+        // HIGH-PRIORITY FIX #2: Always persist marketing_opt_in as explicit true/false
+        $metadata['profile_marketing_optin'] = !empty($profile['marketing_opt_in']) ? '1' : '0';
         if ($guest_email && is_email($guest_email)) {
             $metadata['guest_email'] = $guest_email;
         }

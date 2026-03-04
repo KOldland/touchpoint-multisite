@@ -4,6 +4,7 @@ namespace KHM\Membership;
 
 use KHM\Gateways\StripeGateway;
 use KHM\Services\MembershipRepository;
+use KHM\Services\DiscountCodeService;
 
 class SignupEndpoint {
     private const TEMP_ATTRIBUTION_TTL_SECONDS = 86400;
@@ -118,6 +119,20 @@ class SignupEndpoint {
         $params = $req->get_json_params();
         $params = is_array( $params ) ? $params : [];
         $payload = $this->normalize_canonical_attribution_payload( $params );
+
+        // Server-side promo validation (HIGH-PRIORITY FIX #1)
+        if ( ! empty( $payload['promo_code'] ) || ! empty( $payload['stripe_promotion_code'] ) ) {
+            $promoValidation = $this->validate_promo_code( $payload );
+            if ( is_wp_error( $promoValidation ) ) {
+                return $this->contract_error_response(
+                    'MBR_ERR_INVALID_PROMO',
+                    $promoValidation->get_error_message(),
+                    400,
+                    false
+                );
+            }
+            $payload['validated_promo'] = $promoValidation;
+        }
 
         if ( '' === $payload['schedule_id'] || ! $this->is_valid_uuid( $payload['idempotency_key'] ) ) {
             return $this->contract_error_response( 'MBR_ERR_INVALID_ATTR', 'Invalid attribution payload.', 400, false );
@@ -422,6 +437,8 @@ class SignupEndpoint {
             'consent_given_at' => $consent ? current_time( 'mysql', 1 ) : null,
             'client_reference' => $this->nullable_text( $params['client_reference'] ?? null, 255 ),
             'plan_id' => $this->nullable_text( $params['plan_id'] ?? null, 128 ),
+            'promo_code' => $this->nullable_text( $params['promo_code'] ?? null, 128 ),
+            'stripe_promotion_code' => $this->nullable_text( $params['stripe_promotion_code'] ?? null, 255 ),
         ];
 
         if ( ! $consent ) {
@@ -495,6 +512,60 @@ class SignupEndpoint {
 
     private function is_valid_uuid( string $value ): bool {
         return (bool) preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $value );
+    }
+
+    /**
+     * Validate promo code server-side using DiscountCodeService.
+     *
+     * @param array $payload Attribution payload with promo_code or stripe_promotion_code.
+     * @return array|\WP_Error Validated promo data or error.
+     */
+    private function validate_promo_code( array $payload ) {
+        $promoCode = sanitize_text_field( (string) ( $payload['promo_code'] ?? '' ) );
+        $stripePromoCode = sanitize_text_field( (string) ( $payload['stripe_promotion_code'] ?? '' ) );
+
+        // Reject raw stripe_promotion_code without server validation
+        if ( '' !== $stripePromoCode && '' === $promoCode ) {
+            return new \WP_Error(
+                'invalid_promo',
+                'stripe_promotion_code must be validated via promo_code parameter.',
+                [ 'retryable' => false ]
+            );
+        }
+
+        if ( '' === $promoCode ) {
+            return [];
+        }
+
+        // Extract plan_id from payload for validation (if available)
+        $planId = 0;
+        $planIdStr = (string) ( $payload['plan_id'] ?? '' );
+        if ( '' !== $planIdStr ) {
+            $planId = $this->extract_numeric_identifier( $planIdStr );
+        }
+
+        // If no plan_id, use default membership level (filter-based)
+        if ( $planId <= 0 ) {
+            $planId = (int) apply_filters( 'khm_membership_default_plan_id', 1 );
+        }
+
+        $userId = get_current_user_id();
+        if ( ! $userId ) {
+            $userId = 0; // Guest user
+        }
+
+        $discountService = new DiscountCodeService();
+        $validation = $discountService->validate_code( $promoCode, $planId, $userId );
+
+        if ( empty( $validation['valid'] ) ) {
+            return new \WP_Error(
+                'invalid_promo',
+                $validation['message'] ?? 'Invalid discount code.',
+                [ 'retryable' => false ]
+            );
+        }
+
+        return $validation;
     }
 
     private function create_signup_init_checkout_session( array $payload ) {

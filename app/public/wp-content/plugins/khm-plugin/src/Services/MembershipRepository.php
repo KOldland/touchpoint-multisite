@@ -240,6 +240,58 @@ class MembershipRepository implements MembershipRepositoryInterface {
     }
 
     /**
+     * Create a promotion_attribution record.
+     *
+     * @param array $data Attribution data with keys: schedule_id, sponsor_id, user_id, user_email, utm_*, phase_at_click, conversion_type, reference, consent, etc.
+     * @return int|false Attribution record ID or false on failure.
+     */
+    public function createPromotionAttribution( array $data ) {
+        if ( ! $this->hasPromotionAttributionTable ) {
+            return false;
+        }
+
+        global $wpdb;
+
+        $record = [
+            'schedule_id' => isset( $data['schedule_id'] ) ? absint( $data['schedule_id'] ) : 0,
+            'sponsor_id' => isset( $data['sponsor_id'] ) ? ( $data['sponsor_id'] > 0 ? absint( $data['sponsor_id'] ) : null ) : null,
+            'user_id' => isset( $data['user_id'] ) ? ( $data['user_id'] > 0 ? absint( $data['user_id'] ) : null ) : null,
+            'user_email' => isset( $data['user_email'] ) && is_email( $data['user_email'] ) ? sanitize_email( $data['user_email'] ) : null,
+            'utm_source' => isset( $data['utm_source'] ) ? sanitize_text_field( $data['utm_source'] ) : null,
+            'utm_medium' => isset( $data['utm_medium'] ) ? sanitize_text_field( $data['utm_medium'] ) : null,
+            'utm_campaign' => isset( $data['utm_campaign'] ) ? sanitize_text_field( $data['utm_campaign'] ) : null,
+            'utm_term' => isset( $data['utm_term'] ) ? sanitize_text_field( $data['utm_term'] ) : null,
+            'utm_content' => isset( $data['utm_content'] ) ? sanitize_text_field( $data['utm_content'] ) : null,
+            'phase_at_click' => isset( $data['phase_at_click'] ) ? sanitize_text_field( $data['phase_at_click'] ) : null,
+            'conversion_type' => isset( $data['conversion_type'] ) ? sanitize_key( $data['conversion_type'] ) : 'signup',
+            'reference' => isset( $data['reference'] ) ? sanitize_text_field( $data['reference'] ) : null,
+            'reference_metadata' => isset( $data['reference_metadata'] ) && is_string( $data['reference_metadata'] ) ? $data['reference_metadata'] : null,
+            'consent' => ! empty( $data['consent'] ) ? 1 : 0,
+            'consent_source' => isset( $data['consent_source'] ) ? sanitize_key( $data['consent_source'] ) : null,
+            'consent_given_at' => isset( $data['consent_given_at'] ) && ! empty( $data['consent_given_at'] ) ? sanitize_text_field( $data['consent_given_at'] ) : null,
+            'plan_id' => isset( $data['plan_id'] ) ? absint( $data['plan_id'] ) : null,
+            'created_at' => current_time( 'mysql', 1 ),
+        ];
+
+        $inserted = $wpdb->insert( $this->promotionAttributionTable, $record );
+        if ( ! $inserted ) {
+            return false;
+        }
+
+        $attributionId = (int) $wpdb->insert_id;
+
+        do_action( 'khm_membership_attribution_created', [
+            'attribution_id' => $attributionId,
+            'schedule_id' => $record['schedule_id'],
+            'sponsor_id' => $record['sponsor_id'],
+            'user_id' => $record['user_id'],
+            'conversion_type' => $record['conversion_type'],
+        ] );
+
+        return $attributionId;
+    }
+
+    /**
      * Assign a membership level to a user.
      */
     public function assign( int $userId, int $levelId, array $options = [] ): object {

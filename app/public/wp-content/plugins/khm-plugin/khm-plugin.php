@@ -1478,6 +1478,13 @@ if ( defined('WP_CLI') && WP_CLI ) {
     require_once __DIR__ . $cli_dir . 'AnonymizeAttributionCommand.php';
     require_once __DIR__ . $cli_dir . 'RetentionRunCommand.php';
     require_once __DIR__ . $cli_dir . 'MembershipEmailControlCommand.php';
+
+    // Register CLI commands
+    WP_CLI::add_command( 'khm membership:dlq', 'KHM\\CLI\\MembershipWebhookDeadLettersCommand' );
+    WP_CLI::add_command( 'khm membership:dlq:replay', 'KHM\\CLI\\MembershipWebhookDeadLettersReplayCommand' );
+    WP_CLI::add_command( 'khm anonymize_attribution', 'KHM\\CLI\\AnonymizeAttributionCommand' );
+    WP_CLI::add_command( 'khm retention:run', 'KHM\\CLI\\RetentionRunCommand' );
+    WP_CLI::add_command( 'khm membership:email-control', 'KHM\\CLI\\MembershipEmailControlCommand' );
 }
 
 // Register webhook email notifications
