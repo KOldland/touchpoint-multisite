@@ -21,6 +21,8 @@
 
 Anonymization is irreversible by default.
 
+If recovery is required for legal reasons, restoration must come from an encrypted database backup controlled by Ops with explicit legal/compliance approval.
+
 - Null/redact:
   - `user_id`, `user_email`
   - `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`
@@ -35,14 +37,25 @@ Anonymization is irreversible by default.
 ## Salt Management (`KHM_ANON_SALT`)
 
 - Must be provided via environment, not in repository.
+- Expected source of truth: Ops secrets vault / deployment environment variables / GitHub Actions encrypted secrets.
+- Do not commit `.env` values or sample salts to the repo.
+- Staging verification command:
+  - `wp eval 'echo getenv("KHM_ANON_SALT") ? "KHM_ANON_SALT present\n" : "KHM_ANON_SALT missing\n";'`
+- Hash verification example (matches `reference_hash = sha256(KHM_ANON_SALT + reference)`):
+  - `wp eval '$salt=getenv("KHM_ANON_SALT"); $ref="cs_test_123"; echo hash("sha256", $salt . $ref) . "\n";'`
 - Rotation impact:
   - Old `reference_hash` values are no longer comparable to newly generated hashes.
   - Rotation is best-effort only; rehashing original references is not reversible.
+- Rotation plan:
+  - Rotate in maintenance window, record ticket/change ID.
+  - Keep prior salt only in secure vault for audit reconciliation window (no app access).
+  - Confirm new anonymizations produce expected hashes and close change ticket.
 
 ## Retention Worker
 
 - Cron hook: `khm_cleanup_attribution`
 - Worker class: `src/Membership/RetentionWorker.php`
+- Default chunk size per run: `1000` rows (configurable in CLI via `--chunk-size`).
 - Mode option:
   - `khm_attribution_retention_mode=anonymize` (default)
   - `khm_attribution_retention_mode=delete`
@@ -71,6 +84,10 @@ Anonymization is irreversible by default.
   - `wp khm anonymize_attribution --batch --filter="consent=false AND created_at < '2025-01-01'" --dry-run`
 - Batch execute:
   - `wp khm anonymize_attribution --batch --filter="consent=false AND created_at < '2025-01-01'" --limit=1000`
+- Retention preview:
+  - `wp khm retention:run --dry-run`
+- Retention execute:
+  - `wp khm retention:run --chunk-size=1000`
 
 ## DSAR Workflow
 
@@ -80,6 +97,19 @@ Anonymization is irreversible by default.
   - `dsar.requested`
   - `dsar.completed`
   - `dsar.deleted`
+
+Deletion policy: anonymization is the default DSAR fulfillment mode; hard deletion requires legal/compliance sign-off and ticket reference.
+
+## Rollout and Rollback
+
+- Staged rollout:
+  - Deploy to staging.
+  - Run `wp khm retention:run --dry-run` and review candidate counts.
+  - Execute a small anonymize batch, validate audit/telemetry, then promote to production window.
+- Rollback:
+  - Stop further anonymization jobs/actions immediately.
+  - Restore from approved database backup if recovery is legally required.
+  - Document incident + ticket references in the runbook log.
 
 ## Emergency Access
 

@@ -658,9 +658,36 @@ if (!function_exists('__return_false')) {
     }
 }
 
+if (!function_exists('esc_html__')) {
+    function esc_html__($text, $domain = 'default') {
+        return (string) $text;
+    }
+}
+
+if (!function_exists('check_admin_referer')) {
+    function check_admin_referer($action = -1, $query_arg = '_wpnonce') {
+        return true;
+    }
+}
+
+if (!function_exists('wp_die')) {
+    function wp_die($message = '', $title = '', $args = []) {
+        $status = 403;
+        if (is_array($args) && isset($args['response'])) {
+            $status = (int) $args['response'];
+        }
+
+        throw new RuntimeException((string) $message, $status > 0 ? $status : 403);
+    }
+}
+
 if (!function_exists('error_log')) {
     function error_log($message, $message_type = 0, $destination = null, $extra_headers = null) {
-        // Suppress error logs during tests
+        if (!isset($GLOBALS['khm_test_error_logs']) || !is_array($GLOBALS['khm_test_error_logs'])) {
+            $GLOBALS['khm_test_error_logs'] = [];
+        }
+
+        $GLOBALS['khm_test_error_logs'][] = (string) $message;
         return true;
     }
 }
