@@ -9,6 +9,8 @@ This directory is the canonical handover pack for builders, QA, and ops working 
 - Builder/API implementation: [developer_guide.md](developer_guide.md)
 - Staging deterministic E2E: [staging_e2e_runbook.md](staging_e2e_runbook.md)
 - Ops production procedures: [ops_runbook.md](ops_runbook.md)
+- Release rollout + rollback: [release_runbook.md](release_runbook.md)
+- Post-release acceptance: [post_release_checklist.md](post_release_checklist.md)
 - Command quick reference: [commands.md](commands.md)
 - Failure triage and rollback: [troubleshooting.md](troubleshooting.md)
 - Privacy/legal controls: [privacy_and_retention.md](privacy_and_retention.md)

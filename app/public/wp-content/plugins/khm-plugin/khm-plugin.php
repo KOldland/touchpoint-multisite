@@ -1477,6 +1477,7 @@ if ( defined('WP_CLI') && WP_CLI ) {
     require_once __DIR__ . $cli_dir . 'MembershipWebhookDeadLettersReplayCommand.php';
     require_once __DIR__ . $cli_dir . 'AnonymizeAttributionCommand.php';
     require_once __DIR__ . $cli_dir . 'RetentionRunCommand.php';
+    require_once __DIR__ . $cli_dir . 'MembershipEmailControlCommand.php';
 }
 
 // Register webhook email notifications
