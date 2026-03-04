@@ -2,6 +2,8 @@
 
 namespace KHM\Membership\Admin;
 
+use KHM\Services\MembershipRepository;
+
 class ReportsPage {
 	private AttributionReportService $service;
 
@@ -9,6 +11,8 @@ class ReportsPage {
         $this->service = new AttributionReportService();
         add_action('admin_menu', [ $this, 'add_admin_menu' ]);
         add_action( 'admin_post_khm_membership_reports_export', [ $this, 'handle_export' ] );
+        add_action( 'admin_post_khm_membership_reports_anonymize', [ $this, 'handle_anonymize' ] );
+        add_action( 'admin_post_khm_membership_retention_settings', [ $this, 'handle_retention_settings' ] );
     }
 
     public function add_admin_menu() {
@@ -35,6 +39,14 @@ class ReportsPage {
         $report = $this->service->query( $filters, $page, $per_page );
         $rows = $report['items'];
         $kpis = $this->service->get_kpis( $filters );
+        $redactedRows = 0;
+        foreach ( $rows as $row ) {
+            $cleaned = $this->service->apply_consent_redaction( $row );
+            if ( (string) ( $cleaned['user_email'] ?? '' ) === '' && (string) ( $row['user_email'] ?? '' ) !== '' ) {
+                $redactedRows++;
+            }
+        }
+        $retentionDays = (int) get_site_option( 'khm_attribution_retention_days', 730 );
 
         $this->emit_telemetry( 'membership.report.view', [
             'user_id' => (int) get_current_user_id(),
@@ -64,8 +76,17 @@ class ReportsPage {
                 <strong><?php esc_html_e( 'Paid:', 'khm-membership' ); ?></strong> <?php echo esc_html( (string) $kpis['paid'] ); ?> &nbsp;|&nbsp;
                 <strong><?php esc_html_e( 'Signup:', 'khm-membership' ); ?></strong> <?php echo esc_html( (string) $kpis['signup'] ); ?> &nbsp;|&nbsp;
                 <strong><?php esc_html_e( 'No Consent:', 'khm-membership' ); ?></strong> <?php echo esc_html( (string) $kpis['no_consent'] ); ?> &nbsp;|&nbsp;
-                <strong><?php esc_html_e( 'Unique Users:', 'khm-membership' ); ?></strong> <?php echo esc_html( (string) $kpis['unique_users'] ); ?>
+                <strong><?php esc_html_e( 'Unique Users:', 'khm-membership' ); ?></strong> <?php echo esc_html( (string) $kpis['unique_users'] ); ?> &nbsp;|&nbsp;
+                <strong><?php esc_html_e( 'Rows redacted:', 'khm-membership' ); ?></strong> <?php echo esc_html( (string) $redactedRows ); ?>
             </p>
+
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-bottom: 12px;">
+                <?php wp_nonce_field( 'khm_membership_retention_settings', 'khm_membership_retention_settings_nonce' ); ?>
+                <input type="hidden" name="action" value="khm_membership_retention_settings" />
+                <label for="khm_attribution_retention_days"><strong><?php esc_html_e( 'Retention days', 'khm-membership' ); ?></strong></label>
+                <input id="khm_attribution_retention_days" type="number" min="1" name="khm_attribution_retention_days" value="<?php echo esc_attr( (string) $retentionDays ); ?>" />
+                <button class="button" type="submit"><?php esc_html_e( 'Save retention', 'khm-membership' ); ?></button>
+            </form>
 
             <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-bottom: 12px;">
                 <?php wp_nonce_field( 'khm_membership_reports_export', 'khm_membership_reports_export_nonce' ); ?>
@@ -78,6 +99,19 @@ class ReportsPage {
                 <input type="hidden" name="date_to" value="<?php echo esc_attr( (string) ( $filters['date_to'] ?? '' ) ); ?>" />
                 <input type="hidden" name="q" value="<?php echo esc_attr( (string) ( $filters['q'] ?? '' ) ); ?>" />
                 <button class="button" type="submit"><?php esc_html_e( 'Export CSV', 'khm-membership' ); ?></button>
+            </form>
+
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-bottom: 12px;">
+                <?php wp_nonce_field( 'khm_membership_reports_anonymize', 'khm_membership_reports_anonymize_nonce' ); ?>
+                <input type="hidden" name="action" value="khm_membership_reports_anonymize" />
+                <input type="hidden" name="schedule_id" value="<?php echo esc_attr( (string) ( $filters['schedule_id'] ?? '' ) ); ?>" />
+                <input type="hidden" name="sponsor_id" value="<?php echo esc_attr( (string) ( $filters['sponsor_id'] ?? '' ) ); ?>" />
+                <input type="hidden" name="user_id" value="<?php echo esc_attr( (string) ( $filters['user_id'] ?? '' ) ); ?>" />
+                <input type="hidden" name="conversion_type" value="<?php echo esc_attr( (string) ( $filters['conversion_type'] ?? '' ) ); ?>" />
+                <input type="hidden" name="date_from" value="<?php echo esc_attr( (string) ( $filters['date_from'] ?? '' ) ); ?>" />
+                <input type="hidden" name="date_to" value="<?php echo esc_attr( (string) ( $filters['date_to'] ?? '' ) ); ?>" />
+                <input type="hidden" name="q" value="<?php echo esc_attr( (string) ( $filters['q'] ?? '' ) ); ?>" />
+                <button class="button button-secondary" type="submit" onclick="return confirm('<?php echo esc_js( __( 'This anonymizes rows matching the current report filters. Continue?', 'khm-membership' ) ); ?>');"><?php esc_html_e( 'Anonymize Filtered Rows', 'khm-membership' ); ?></button>
             </form>
 
             <table class="widefat striped" cellspacing="0">
@@ -198,6 +232,7 @@ class ReportsPage {
         $this->emit_telemetry( 'membership.export.completed', [
             'user_id' => (int) get_current_user_id(),
             'rows' => (int) $export['rows'],
+            'redacted_rows' => (int) ( $export['redacted_rows'] ?? 0 ),
             'checksum' => (string) $export['checksum'],
             'filename' => (string) $export['filename'],
         ] );
@@ -205,7 +240,63 @@ class ReportsPage {
         header( 'Content-Type: text/csv; charset=utf-8' );
         header( 'Content-Disposition: attachment; filename=' . sanitize_file_name( (string) $export['filename'] ) );
         header( 'X-KHM-Export-Checksum: ' . (string) $export['checksum'] );
+        header( 'X-KHM-Export-Redacted: ' . (string) ( $export['redacted_rows'] ?? 0 ) );
         readfile( (string) $export['file'] );
+        exit;
+    }
+
+    public function handle_anonymize(): void {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            error_log( sprintf( 'unauthorized_admin_access user_id=%d resource=%s', (int) get_current_user_id(), 'khm-membership-reports-anonymize' ) );
+            wp_die( esc_html__( 'You do not have permission to anonymize reports.', 'khm-membership' ) );
+        }
+
+        check_admin_referer( 'khm_membership_reports_anonymize', 'khm_membership_reports_anonymize_nonce' );
+        $filters = $this->get_filters_from_post();
+
+        $repository = new MembershipRepository();
+        $mappedFilters = [
+            'consent' => strpos( (string) ( $filters['conversion_type'] ?? '' ), 'no_consent' ) !== false ? 0 : null,
+            'created_before' => ! empty( $filters['date_to'] ) ? (string) $filters['date_to'] . ' 23:59:59' : null,
+        ];
+        $mappedFilters = array_filter( $mappedFilters, static fn( $v ) => null !== $v );
+
+        $result = $repository->anonymizeAttributionByFilters(
+            $mappedFilters,
+            (int) get_current_user_id(),
+            'admin_reports_bulk',
+            1000,
+            false
+        );
+
+        $this->emit_telemetry( 'membership.anonymize.executed', [
+            'user_id' => (int) get_current_user_id(),
+            'matched' => (int) ( $result['matched'] ?? 0 ),
+            'updated' => (int) ( $result['updated'] ?? 0 ),
+        ] );
+
+        wp_safe_redirect( admin_url( 'admin.php?page=khm-membership-reports&anonymized=' . (int) ( $result['updated'] ?? 0 ) ) );
+        exit;
+    }
+
+    public function handle_retention_settings(): void {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            error_log( sprintf( 'unauthorized_admin_access user_id=%d resource=%s', (int) get_current_user_id(), 'khm-membership-retention-settings' ) );
+            wp_die( esc_html__( 'You do not have permission to update retention settings.', 'khm-membership' ) );
+        }
+
+        check_admin_referer( 'khm_membership_retention_settings', 'khm_membership_retention_settings_nonce' );
+
+        $days = isset( $_POST['khm_attribution_retention_days'] ) ? absint( $_POST['khm_attribution_retention_days'] ) : 730;
+        $days = max( 1, $days );
+        update_site_option( 'khm_attribution_retention_days', $days );
+
+        $this->emit_telemetry( 'membership.retention.updated', [
+            'user_id' => (int) get_current_user_id(),
+            'retention_days' => $days,
+        ] );
+
+        wp_safe_redirect( admin_url( 'admin.php?page=khm-membership-reports&retention_updated=1' ) );
         exit;
     }
 

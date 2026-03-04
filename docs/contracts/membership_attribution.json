@@ -13,6 +13,7 @@
     "phase_at_click",
     "idempotency_key",
     "consent",
+    "consent_source",
     "client_reference"
   ],
   "properties": {
@@ -49,6 +50,14 @@
     },
     "consent": {
       "type": "boolean"
+    },
+    "consent_given_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "consent_source": {
+      "type": "string",
+      "enum": ["landing", "manual", "api", "webhook", "anonymized"]
     },
     "client_reference": {
       "type": ["string", "null"],

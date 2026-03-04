@@ -17,6 +17,7 @@ class MembershipRepository implements MembershipRepositoryInterface {
 
     private const TEMP_ATTRIBUTION_OPTION_PREFIX = 'khm_temp_attribution_';
     private const SIGNUP_IDEMPOTENCY_OPTION_PREFIX = 'khm_signup_init_idem_';
+    private const RETENTION_DEFAULT_DAYS = 730;
 
     private string $tableName;
     private string $levelsTable;
@@ -1199,24 +1200,253 @@ class MembershipRepository implements MembershipRepositoryInterface {
 
         global $wpdb;
 
-        $result = $wpdb->query(
+        $rows = $wpdb->get_results(
             $wpdb->prepare(
-                "UPDATE {$this->promotionAttributionTable}
-                 SET user_id = NULL,
-                     user_email = NULL,
-                     utm_source = NULL,
-                     utm_medium = NULL,
-                     utm_campaign = NULL,
-                     utm_term = NULL,
-                     utm_content = NULL,
-                     reference_metadata = %s
-                 WHERE user_id = %d",
-                wp_json_encode( [] ),
-                $userId
-            )
+                "SELECT id FROM {$this->promotionAttributionTable} WHERE user_id = %d ORDER BY id DESC LIMIT %d",
+                $userId,
+                50000
+            ),
+            ARRAY_A
         );
 
-        return is_numeric( $result ) ? (int) $result : 0;
+        if ( ! is_array( $rows ) || empty( $rows ) ) {
+            return 0;
+        }
+
+        $count = 0;
+        $actor_id = function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
+        foreach ( $rows as $row ) {
+            $id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+            if ( $id <= 0 ) {
+                continue;
+            }
+            if ( $this->anonymizeAttributionById( $id, $actor_id, 'user_request_or_admin' ) ) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    public function anonymizeAttributionById( int $id, int $actorId = 0, string $reason = 'manual' ): bool {
+        if ( $id <= 0 || ! $this->hasPromotionAttributionTable ) {
+            return false;
+        }
+
+        global $wpdb;
+
+        $row = $wpdb->get_row(
+            $wpdb->prepare( "SELECT * FROM {$this->promotionAttributionTable} WHERE id = %d LIMIT 1", $id ),
+            ARRAY_A
+        );
+
+        if ( ! is_array( $row ) ) {
+            return false;
+        }
+
+        $reference = isset( $row['reference'] ) ? (string) $row['reference'] : '';
+        if ( '' === $reference ) {
+            $metadata = isset( $row['reference_metadata'] ) ? json_decode( (string) $row['reference_metadata'], true ) : null;
+            if ( is_array( $metadata ) ) {
+                $reference = isset( $metadata['reference'] ) ? (string) $metadata['reference'] : ( isset( $metadata['stripe_session_id'] ) ? (string) $metadata['stripe_session_id'] : '' );
+            }
+        }
+
+        $referenceHash = $reference !== '' ? $this->buildReferenceHash( $reference ) : null;
+
+        $metadata_audit = [
+            'anonymized' => true,
+            'anonymized_at' => gmdate( 'c' ),
+            'anonymized_by' => $actorId,
+            'reason' => $reason,
+            'reference_hash' => $referenceHash,
+        ];
+
+        $updated = $wpdb->update(
+            $this->promotionAttributionTable,
+            [
+                'user_id' => null,
+                'user_email' => null,
+                'utm_source' => null,
+                'utm_medium' => null,
+                'utm_campaign' => null,
+                'utm_term' => null,
+                'utm_content' => null,
+                'phase_at_click' => null,
+                'reference' => null,
+                'reference_hash' => $referenceHash,
+                'consent' => 0,
+                'consent_source' => 'anonymized',
+                'anonymized_at' => current_time( 'mysql', 1 ),
+                'anonymized_by' => $actorId > 0 ? $actorId : null,
+                'anonymize_reason' => substr( sanitize_text_field( $reason ), 0, 255 ),
+                'reference_metadata' => wp_json_encode( $metadata_audit ),
+            ],
+            [ 'id' => $id ],
+            [ '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d', '%s', '%s' ],
+            [ '%d' ]
+        );
+
+        if ( false === $updated ) {
+            do_action( 'khm_membership_reporting_telemetry', 'membership.anonymize.failed', [
+                'id' => $id,
+                'actor_id' => $actorId,
+                'reason' => $reason,
+            ] );
+            return false;
+        }
+
+        do_action( 'khm_membership_reporting_telemetry', 'membership.anonymize.succeeded', [
+            'id' => $id,
+            'actor_id' => $actorId,
+            'reason' => $reason,
+        ] );
+
+        return true;
+    }
+
+    /**
+     * @param array<string,mixed> $filters
+     */
+    public function anonymizeAttributionByFilters( array $filters, int $actorId, string $reason, int $limit = 500, bool $dryRun = false ): array {
+        if ( ! $this->hasPromotionAttributionTable ) {
+            return [ 'matched' => 0, 'updated' => 0, 'ids' => [] ];
+        }
+
+        global $wpdb;
+        $limit = max( 1, min( 5000, $limit ) );
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$this->promotionAttributionTable} ORDER BY created_at ASC, id ASC LIMIT %d",
+                100000
+            ),
+            ARRAY_A
+        );
+
+        $matchedIds = [];
+        foreach ( $rows as $row ) {
+            if ( count( $matchedIds ) >= $limit ) {
+                break;
+            }
+
+            if ( ! empty( $row['anonymized_at'] ) ) {
+                continue;
+            }
+
+            if ( isset( $filters['consent'] ) ) {
+                $consentWanted = (int) $filters['consent'];
+                $rowConsent = isset( $row['consent'] ) ? (int) $row['consent'] : 0;
+                if ( $rowConsent !== $consentWanted ) {
+                    continue;
+                }
+            }
+
+            if ( ! empty( $filters['created_before'] ) ) {
+                $cutoff = strtotime( (string) $filters['created_before'] );
+                $rowTime = isset( $row['created_at'] ) ? strtotime( (string) $row['created_at'] ) : false;
+                if ( false === $rowTime || false === $cutoff || $rowTime >= $cutoff ) {
+                    continue;
+                }
+            }
+
+            $id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+            if ( $id > 0 ) {
+                $matchedIds[] = $id;
+            }
+        }
+
+        if ( $dryRun ) {
+            return [ 'matched' => count( $matchedIds ), 'updated' => 0, 'ids' => $matchedIds ];
+        }
+
+        $updated = 0;
+        foreach ( $matchedIds as $id ) {
+            if ( $this->anonymizeAttributionById( (int) $id, $actorId, $reason ) ) {
+                $updated++;
+            }
+        }
+
+        return [ 'matched' => count( $matchedIds ), 'updated' => $updated, 'ids' => $matchedIds ];
+    }
+
+    public function anonymizeExpiredAttribution( int $retentionDays = self::RETENTION_DEFAULT_DAYS, int $chunkSize = 500 ): array {
+        $retentionDays = max( 1, $retentionDays );
+        $cutoff = gmdate( 'Y-m-d H:i:s', time() - ( $retentionDays * 86400 ) );
+
+        $result = $this->anonymizeAttributionByFilters(
+            [
+                'created_before' => $cutoff,
+            ],
+            0,
+            'retention_expired',
+            $chunkSize,
+            false
+        );
+
+        $result['cutoff'] = $cutoff;
+        return $result;
+    }
+
+    public function deleteAttributionForUser( int $userId ): int {
+        if ( $userId <= 0 || ! $this->hasPromotionAttributionTable ) {
+            return 0;
+        }
+
+        global $wpdb;
+        $deleted = $wpdb->delete( $this->promotionAttributionTable, [ 'user_id' => $userId ], [ '%d' ] );
+        return is_numeric( $deleted ) ? (int) $deleted : 0;
+    }
+
+    public function deleteExpiredAttribution( int $retentionDays = self::RETENTION_DEFAULT_DAYS, int $limit = 500 ): int {
+        if ( ! $this->hasPromotionAttributionTable ) {
+            return 0;
+        }
+
+        global $wpdb;
+        $retentionDays = max( 1, $retentionDays );
+        $cutoff = gmdate( 'Y-m-d H:i:s', time() - ( $retentionDays * 86400 ) );
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id FROM {$this->promotionAttributionTable}
+                 WHERE created_at < %s
+                 AND (legal_hold_until IS NULL OR legal_hold_until < %s)
+                 ORDER BY created_at ASC, id ASC
+                 LIMIT %d",
+                $cutoff,
+                current_time( 'mysql', 1 ),
+                max( 1, min( 5000, $limit ) )
+            ),
+            ARRAY_A
+        );
+
+        if ( ! is_array( $rows ) || empty( $rows ) ) {
+            return 0;
+        }
+
+        $count = 0;
+        foreach ( $rows as $row ) {
+            $id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+            if ( $id <= 0 ) {
+                continue;
+            }
+            $deleted = $wpdb->delete( $this->promotionAttributionTable, [ 'id' => $id ], [ '%d' ] );
+            if ( is_numeric( $deleted ) && (int) $deleted > 0 ) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    private function buildReferenceHash( string $reference ): string {
+        $salt = getenv( 'KHM_ANON_SALT' );
+        if ( ! is_string( $salt ) || '' === trim( $salt ) ) {
+            $salt = (string) apply_filters( 'khm_membership_anonymization_salt_fallback', 'khm-anon-default-salt' );
+        }
+
+        return hash( 'sha256', $salt . $reference );
     }
 
     /**

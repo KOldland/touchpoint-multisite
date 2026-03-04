@@ -510,6 +510,36 @@ if (!function_exists('update_option')) {
     }
 }
 
+if (!function_exists('get_site_option')) {
+    function get_site_option($option, $default = false) {
+        return get_option($option, $default);
+    }
+}
+
+if (!function_exists('update_site_option')) {
+    function update_site_option($option, $value) {
+        return update_option($option, $value, false);
+    }
+}
+
+if (!function_exists('wp_upload_dir')) {
+    function wp_upload_dir() {
+        return [
+            'basedir' => sys_get_temp_dir() . '/khm-test-uploads',
+            'baseurl' => 'https://example.com/uploads',
+        ];
+    }
+}
+
+if (!function_exists('wp_mkdir_p')) {
+    function wp_mkdir_p($target) {
+        if (is_dir($target)) {
+            return true;
+        }
+        return mkdir($target, 0777, true);
+    }
+}
+
 if (!function_exists('home_url')) {
     function home_url($path = '') {
         return 'https://example.com' . $path;

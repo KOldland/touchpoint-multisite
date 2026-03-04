@@ -76,7 +76,8 @@ class MembershipMigration {
             $wpdb->query($index_sql);
         }
 
-          self::ensure_promotion_attribution_indexes();
+        self::ensure_promotion_attribution_columns();
+        self::ensure_promotion_attribution_indexes();
 
         $table_name = $wpdb->prefix . 'user_membership';
         $index_sql = "CREATE INDEX idx_user_membership_status ON $table_name (status);";
@@ -236,6 +237,36 @@ class MembershipMigration {
         self::maybe_create_index( $table_name, 'idx_promotion_created', 'created_at' );
         self::maybe_create_index( $table_name, 'idx_promotion_conversion', 'conversion_type' );
         self::maybe_create_index( $table_name, 'idx_promotion_user_created', 'user_id, created_at' );
+        self::maybe_create_index( $table_name, 'idx_promotion_retention', 'created_at, anonymized_at, legal_hold_until' );
+        self::maybe_create_index( $table_name, 'idx_promotion_reference_hash', 'reference_hash' );
+      }
+
+      private static function ensure_promotion_attribution_columns(): void {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . 'promotion_attribution';
+        if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name ) ) !== $table_name ) {
+          return;
+        }
+
+        $columns = [
+          'consent' => "ALTER TABLE {$table_name} ADD COLUMN consent TINYINT(1) NOT NULL DEFAULT 0",
+          'consent_given_at' => "ALTER TABLE {$table_name} ADD COLUMN consent_given_at DATETIME NULL",
+          'consent_source' => "ALTER TABLE {$table_name} ADD COLUMN consent_source VARCHAR(32) NULL",
+          'reference' => "ALTER TABLE {$table_name} ADD COLUMN reference VARCHAR(255) NULL",
+          'reference_hash' => "ALTER TABLE {$table_name} ADD COLUMN reference_hash CHAR(64) NULL",
+          'anonymized_at' => "ALTER TABLE {$table_name} ADD COLUMN anonymized_at DATETIME NULL",
+          'anonymized_by' => "ALTER TABLE {$table_name} ADD COLUMN anonymized_by BIGINT NULL",
+          'anonymize_reason' => "ALTER TABLE {$table_name} ADD COLUMN anonymize_reason VARCHAR(255) NULL",
+          'legal_hold_until' => "ALTER TABLE {$table_name} ADD COLUMN legal_hold_until DATETIME NULL",
+        ];
+
+        foreach ( $columns as $column => $sql ) {
+          $exists = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table_name} LIKE %s", $column ) );
+          if ( ! $exists ) {
+            $wpdb->query( $sql );
+          }
+        }
       }
 
       private static function maybe_create_index( string $table_name, string $index_name, string $columns ): void {

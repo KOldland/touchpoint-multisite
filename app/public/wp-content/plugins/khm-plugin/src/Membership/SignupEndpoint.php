@@ -360,28 +360,35 @@ class SignupEndpoint {
     }
 
     private function create_attribution(array $attribution, $user_id, $email, $plan_id) {
-        if ( empty( $attribution['consent'] ) ) {
-            return;
-        }
-
         if ( empty( $attribution['schedule_id'] ) ) {
             return;
         }
 
+        $consent = ! empty( $attribution['consent'] );
+        $conversionType = $consent ? 'signup' : 'signup_no_consent';
+
         $attribution_data = [
-            'conversion_type' => 'signup',
+            'conversion_type' => $conversionType,
             'schedule_id' => intval($attribution['schedule_id']),
             'sponsor_id' => ! empty( $attribution['sponsor_id'] ) ? intval($attribution['sponsor_id']) : null,
-            'user_id' => $user_id,
-            'user_email' => $email,
-            'utm_source' => sanitize_text_field($attribution['utm_source'] ?? ''),
-            'utm_medium' => sanitize_text_field($attribution['utm_medium'] ?? ''),
-            'utm_campaign' => sanitize_text_field($attribution['utm_campaign'] ?? ''),
-            'utm_term' => sanitize_text_field($attribution['utm_term'] ?? ''),
-            'utm_content' => sanitize_text_field($attribution['utm_content'] ?? ''),
-            'phase_at_click' => sanitize_text_field($attribution['phase_at_click'] ?? ''),
+            'user_id' => $consent ? $user_id : null,
+            'user_email' => $consent ? $email : null,
+            'utm_source' => $consent ? sanitize_text_field($attribution['utm_source'] ?? '') : null,
+            'utm_medium' => $consent ? sanitize_text_field($attribution['utm_medium'] ?? '') : null,
+            'utm_campaign' => $consent ? sanitize_text_field($attribution['utm_campaign'] ?? '') : null,
+            'utm_term' => $consent ? sanitize_text_field($attribution['utm_term'] ?? '') : null,
+            'utm_content' => $consent ? sanitize_text_field($attribution['utm_content'] ?? '') : null,
+            'phase_at_click' => $consent ? sanitize_text_field($attribution['phase_at_click'] ?? '') : null,
             'plan_id' => $plan_id,
-            'reference_metadata' => wp_json_encode($attribution)
+            'reference_metadata' => wp_json_encode( [
+                'source' => 'signup',
+                'consent' => $consent,
+                'idempotency_key' => isset( $attribution['idempotency_key'] ) ? (string) $attribution['idempotency_key'] : '',
+            ] ),
+            'consent' => $consent,
+                'consent_source' => sanitize_key( (string) ( $attribution['consent_source'] ?? 'landing' ) ),
+            'consent_given_at' => $consent ? current_time( 'mysql', 1 ) : null,
+                'reference' => isset( $attribution['idempotency_key'] ) ? sanitize_text_field( (string) $attribution['idempotency_key'] ) : null,
         ];
 
         if (class_exists('KHM\Membership\AttributionEndpoint')) {
@@ -411,6 +418,8 @@ class SignupEndpoint {
             'phase_at_click' => $this->nullable_text( $params['phase_at_click'] ?? null, 64 ),
             'idempotency_key' => sanitize_text_field( (string) ( $params['idempotency_key'] ?? wp_generate_uuid4() ) ),
             'consent' => $consent,
+            'consent_source' => 'landing',
+            'consent_given_at' => $consent ? current_time( 'mysql', 1 ) : null,
             'client_reference' => $this->nullable_text( $params['client_reference'] ?? null, 255 ),
             'plan_id' => $this->nullable_text( $params['plan_id'] ?? null, 128 ),
         ];

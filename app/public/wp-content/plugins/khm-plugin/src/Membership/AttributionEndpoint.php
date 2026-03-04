@@ -20,7 +20,7 @@ class AttributionEndpoint {
 
         // Basic validation
         $conversion_type = sanitize_text_field($p['conversion_type'] ?? '');
-        $allowed = ['signup','trial','paid','demo_request'];
+        $allowed = ['signup','signup_no_consent','trial','paid','paid_no_consent','demo_request'];
         if (! in_array($conversion_type, $allowed, true)) {
             return new \WP_REST_Response([
                 'error' => 'invalid conversion_type',
@@ -118,20 +118,38 @@ class AttributionEndpoint {
             }
         }
 
+        $consent = isset( $p['consent'] ) ? in_array( strtolower( (string) $p['consent'] ), [ '1', 'true', 'yes', 'on' ], true ) : false;
+        $consent_source = isset( $p['consent_source'] ) ? sanitize_key( (string) $p['consent_source'] ) : 'api';
+        if ( '' === $consent_source ) {
+            $consent_source = 'api';
+        }
+        $consent_given_at = $consent ? current_time( 'mysql', 1 ) : null;
+
+        $utm_source = $consent ? sanitize_text_field($p['utm_source'] ?? '') : null;
+        $utm_medium = $consent ? sanitize_text_field($p['utm_medium'] ?? '') : null;
+        $utm_campaign = $consent ? sanitize_text_field($p['utm_campaign'] ?? '') : null;
+        $utm_term = $consent ? sanitize_text_field($p['utm_term'] ?? '') : null;
+        $utm_content = $consent ? sanitize_text_field($p['utm_content'] ?? '') : null;
+        $phase_at_click = $consent ? sanitize_text_field($p['phase_at_click'] ?? '') : null;
+
         // No duplicate found - insert new attribution record
         $wpdb->insert($table, [
             'schedule_id' => $schedule_id,
             'sponsor_id' => isset($p['sponsor_id']) ? intval($p['sponsor_id']) : null,
-            'user_id' => $user_id,
-            'user_email' => $user_email,
-            'utm_source' => sanitize_text_field($p['utm_source'] ?? ''),
-            'utm_medium' => sanitize_text_field($p['utm_medium'] ?? ''),
-            'utm_campaign' => sanitize_text_field($p['utm_campaign'] ?? ''),
-            'utm_term' => sanitize_text_field($p['utm_term'] ?? ''),
-            'utm_content' => sanitize_text_field($p['utm_content'] ?? ''),
-            'phase_at_click' => sanitize_text_field($p['phase_at_click'] ?? ''),
+            'user_id' => $consent ? $user_id : null,
+            'user_email' => $consent ? $user_email : null,
+            'utm_source' => $utm_source,
+            'utm_medium' => $utm_medium,
+            'utm_campaign' => $utm_campaign,
+            'utm_term' => $utm_term,
+            'utm_content' => $utm_content,
+            'phase_at_click' => $phase_at_click,
             'conversion_type' => $conversion_type,
             'plan_id' => isset($p['plan_id']) ? intval($p['plan_id']) : null,
+            'consent' => $consent ? 1 : 0,
+            'consent_given_at' => $consent_given_at,
+            'consent_source' => $consent_source,
+            'reference' => isset( $p['reference'] ) ? sanitize_text_field( (string) $p['reference'] ) : null,
             'reference_metadata' => wp_json_encode($p),
             'created_at' => current_time('mysql', 1)
         ]);

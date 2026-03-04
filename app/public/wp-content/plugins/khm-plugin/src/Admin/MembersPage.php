@@ -738,7 +738,10 @@ class MembersPage {
 	}
 
 	public function handle_anonymize_attribution_request(): void {
-		$this->ensure_capability();
+		if ( ! current_user_can( 'manage_options' ) ) {
+			error_log( sprintf( 'unauthorized_admin_access user_id=%d resource=%s', (int) get_current_user_id(), 'khm-members-anonymize' ) );
+			wp_die( esc_html__( 'You do not have permission to anonymize attribution records.', 'khm-membership' ) );
+		}
 
 		$membership_id = isset( $_POST['membership_id'] ) ? absint( $_POST['membership_id'] ) : 0;
 		check_admin_referer( 'khm_membership_anonymize_attribution_' . $membership_id );
@@ -756,6 +759,16 @@ class MembersPage {
 
 		$updated = 0;
 		if ( method_exists( $this->memberships, 'anonymizeAttributionForUser' ) ) {
+			do_action( 'khm_membership_reporting_telemetry', 'consent.changed', [
+				'user_id' => (int) $membership->user_id,
+				'actor' => 'admin',
+				'reason' => 'manual_anonymize',
+			] );
+			do_action( 'khm_membership_reporting_telemetry', 'membership.consent.revoked', [
+				'user_id' => (int) $membership->user_id,
+				'actor' => 'admin',
+				'reason' => 'manual_anonymize',
+			] );
 			$updated = (int) $this->memberships->anonymizeAttributionForUser( (int) $membership->user_id );
 		}
 

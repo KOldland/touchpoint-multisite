@@ -169,6 +169,8 @@ require_once __DIR__ . '/src/Membership/AttributionEndpoint.php';
 require_once __DIR__ . '/src/Membership/TierRegistry.php';
 require_once __DIR__ . '/src/Membership/SignupEndpoint.php';
 require_once __DIR__ . '/src/Membership/LandingSuccessEndpoint.php';
+require_once __DIR__ . '/src/Membership/DsarController.php';
+require_once __DIR__ . '/src/Membership/RetentionWorker.php';
 require_once __DIR__ . '/src/Membership/StatusEndpoint.php';
 require_once __DIR__ . '/src/Membership/CustomerPortalEndpoint.php';
 require_once __DIR__ . '/src/Membership/StripeWebhookHandler.php';
@@ -213,6 +215,10 @@ add_action( 'rest_api_init', function() {
         $endpoint = new KHM\Membership\LandingSuccessEndpoint();
         $endpoint->register_routes();
     }
+    if ( class_exists( 'KHM\\Membership\\DsarController' ) ) {
+        $endpoint = new KHM\Membership\DsarController();
+        $endpoint->register_routes();
+    }
     if ( class_exists( 'KHM\\Membership\\StatusEndpoint' ) ) {
         $endpoint = new KHM\Membership\StatusEndpoint();
         $endpoint->register_routes();
@@ -226,6 +232,13 @@ add_action( 'rest_api_init', function() {
         $endpoint->register_routes();
     }
 } );
+
+add_action( 'init', function() {
+    if ( class_exists( 'KHM\\Membership\\RetentionWorker' ) ) {
+        $worker = new KHM\Membership\RetentionWorker();
+        $worker->register();
+    }
+}, 5 );
 
 // Register planner_session post type
 add_action('init', function() {
@@ -1462,6 +1475,8 @@ if ( defined('WP_CLI') && WP_CLI ) {
     require_once __DIR__ . $cli_dir . 'StripeMarketingHealthCommand.php';
     require_once __DIR__ . $cli_dir . 'MembershipWebhookDeadLettersCommand.php';
     require_once __DIR__ . $cli_dir . 'MembershipWebhookDeadLettersReplayCommand.php';
+    require_once __DIR__ . $cli_dir . 'AnonymizeAttributionCommand.php';
+    require_once __DIR__ . $cli_dir . 'RetentionRunCommand.php';
 }
 
 // Register webhook email notifications

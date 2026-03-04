@@ -48,6 +48,7 @@ class AttributionReportService {
 			'p.phase_at_click',
 			'p.conversion_type',
 			'p.reference_metadata',
+			'p.anonymized_at',
 			'p.created_at',
 		];
 
@@ -127,7 +128,7 @@ class AttributionReportService {
 
 	/**
 	 * @param array<string,mixed> $filters
-	 * @return array{file:string,filename:string,checksum:string,rows:int}
+	 * @return array{file:string,filename:string,checksum:string,rows:int,redacted_rows:int}
 	 */
 	public function create_csv_export( array $filters ): array {
 		$all = $this->query( $filters, 1, 2000 );
@@ -148,8 +149,13 @@ class AttributionReportService {
 		fputcsv( $handle, [ 'id', 'schedule_id', 'schedule_title', 'sponsor_id', 'sponsor_name', 'user_id', 'user_email', 'utm_source', 'utm_medium', 'utm_campaign', 'phase_at_click', 'conversion_type', 'created_at' ] );
 
 		$written = 0;
+		$redacted = 0;
 		foreach ( $rows as $row ) {
+			$before = $row;
 			$clean = $this->apply_consent_redaction( $row );
+			if ( (string) ( $before['user_email'] ?? '' ) !== (string) ( $clean['user_email'] ?? '' ) ) {
+				$redacted++;
+			}
 			fputcsv(
 				$handle,
 				[
@@ -180,6 +186,7 @@ class AttributionReportService {
 			'filename' => $filename,
 			'checksum' => $checksum,
 			'rows' => $written,
+			'redacted_rows' => $redacted,
 		];
 	}
 
@@ -201,7 +208,9 @@ class AttributionReportService {
 			$has_consent = ! empty( $metadata['consent'] );
 		}
 
-		if ( ! $has_consent ) {
+		$is_anonymized = ! empty( $row['anonymized_at'] );
+
+		if ( ! $has_consent || $is_anonymized ) {
 			$row['user_id'] = '';
 			$row['user_email'] = '';
 			$row['utm_source'] = '';

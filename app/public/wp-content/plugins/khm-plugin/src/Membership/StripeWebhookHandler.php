@@ -731,10 +731,14 @@ class StripeWebhookHandler {
                     'phase_at_click' => '',
                     'conversion_type' => 'paid_no_consent',
                     'plan_id' => $plan_id,
+                    'consent' => 0,
+                    'consent_given_at' => null,
+                    'consent_source' => 'webhook',
+                    'reference' => $session_id,
                     'reference_metadata' => wp_json_encode( $reference ),
                     'created_at' => current_time( 'mysql', 1 ),
                 ],
-                [ '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s' ]
+                [ '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%s' ]
             );
 
             $this->emit_telemetry( 'membership.attribution.confirmed', [
@@ -769,10 +773,14 @@ class StripeWebhookHandler {
                 'phase_at_click' => isset( $metadata['phase_at_click'] ) ? sanitize_text_field( (string) $metadata['phase_at_click'] ) : '',
                 'conversion_type' => 'paid',
                 'plan_id' => $plan_id,
+                'consent' => 1,
+                'consent_given_at' => current_time( 'mysql', 1 ),
+                'consent_source' => 'webhook',
+                'reference' => $session_id,
                 'reference_metadata' => wp_json_encode( $reference ),
                 'created_at' => current_time( 'mysql', 1 ),
             ],
-            [ '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s' ]
+            [ '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%s' ]
         );
 
         $this->emit_telemetry( 'membership.attribution.created', [
