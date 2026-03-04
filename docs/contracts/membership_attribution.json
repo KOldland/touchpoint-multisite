@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://khm.local/contracts/membership_attribution.json",
+  "title": "MEM Canonical Membership Attribution Payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schedule_id",
+    "sponsor_id",
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "phase_at_click",
+    "idempotency_key",
+    "consent",
+    "client_reference"
+  ],
+  "properties": {
+    "schedule_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "sponsor_id": {
+      "type": ["string", "null"],
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "utm_source": {
+      "type": ["string", "null"],
+      "maxLength": 128
+    },
+    "utm_medium": {
+      "type": ["string", "null"],
+      "maxLength": 128
+    },
+    "utm_campaign": {
+      "type": ["string", "null"],
+      "maxLength": 256
+    },
+    "phase_at_click": {
+      "type": ["string", "null"],
+      "maxLength": 64
+    },
+    "idempotency_key": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "consent": {
+      "type": "boolean"
+    },
+    "client_reference": {
+      "type": ["string", "null"],
+      "maxLength": 255
+    },
+    "plan_id": {
+      "type": ["string", "null"],
+      "maxLength": 128
+    }
+  }
+}

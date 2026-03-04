@@ -14,7 +14,10 @@ Canonical fixture directory: `app/public/wp-content/plugins/kh-smma/tests/fixtur
 - `checkout_session_completed.json`
 - `invoice_paid.json`
 - `checkout_session_no_consent.json`
+- `signup_init_success.json`
+- `landing_success_complete.json`
 - `paid_adapter_dry_run_manifest.json`
+- `paid_adapter_dry_run_response.json`
 - `paid_adapter_execute_response.json`
 
 ## Sidecar metadata contract

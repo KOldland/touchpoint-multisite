@@ -3,8 +3,13 @@
 namespace KHM\Membership;
 
 use KHM\Gateways\StripeGateway;
+use KHM\Services\MembershipRepository;
 
 class SignupEndpoint {
+    private const TEMP_ATTRIBUTION_TTL_SECONDS = 86400;
+    private const RATE_LIMIT_WINDOW_SECONDS = 60;
+    private const RATE_LIMIT_MAX_REQUESTS = 30;
+
     public function __construct() {
         add_action('rest_api_init', [ $this, 'register_routes' ]);
     }
@@ -15,6 +20,13 @@ class SignupEndpoint {
             'callback' => [ $this, 'handle_request' ],
             'permission_callback' => '__return_true'
         ]);
+
+        register_rest_route('kh-membership/v1', '/signup-init', [
+            'methods' => 'POST',
+            'callback' => [ $this, 'handle_signup_init' ],
+            'permission_callback' => '__return_true'
+        ]);
+
     }
 
     public function handle_request( \WP_REST_Request $req ) {
@@ -96,6 +108,86 @@ class SignupEndpoint {
 
         // Otherwise, create Stripe Checkout Session
         return $this->create_checkout_session($user_id, $email, $plan_id, $tier_slug, $trial_days, $attribution);
+    }
+
+    public function handle_signup_init( \WP_REST_Request $req ) {
+        if ( $this->is_signup_init_rate_limited() ) {
+            return $this->contract_error_response( 'MBR_ERR_INVALID_ATTR', 'Rate limit exceeded. Please retry shortly.', 429, true );
+        }
+
+        $params = $req->get_json_params();
+        $params = is_array( $params ) ? $params : [];
+        $payload = $this->normalize_canonical_attribution_payload( $params );
+
+        if ( '' === $payload['schedule_id'] || ! $this->is_valid_uuid( $payload['idempotency_key'] ) ) {
+            return $this->contract_error_response( 'MBR_ERR_INVALID_ATTR', 'Invalid attribution payload.', 400, false );
+        }
+
+        if ( ! empty( $payload['sponsor_id'] ) ) {
+            $sponsorValidation = $this->validate_sponsor_for_schedule( $payload['schedule_id'], $payload['sponsor_id'] );
+            if ( is_wp_error( $sponsorValidation ) ) {
+                return $this->contract_error_response( 'MBR_ERR_INVALID_SPONSOR', $sponsorValidation->get_error_message(), 422, false );
+            }
+        }
+
+        $repo = new MembershipRepository();
+        $existing = $repo->getSignupInitByIdempotency( $payload['idempotency_key'] );
+        if ( is_array( $existing ) && ! empty( $existing['session_id'] ) && ! empty( $existing['checkout_url'] ) ) {
+            return new \WP_REST_Response([
+                'checkout_url' => $this->sanitize_url_value( (string) $existing['checkout_url'] ),
+                'session_id' => sanitize_text_field( (string) $existing['session_id'] ),
+                'message' => 'checkout_created',
+                'temp_store_ttl_seconds' => self::TEMP_ATTRIBUTION_TTL_SECONDS,
+            ], 201);
+        }
+
+        $checkout = $this->create_signup_init_checkout_session( $payload );
+        if ( is_wp_error( $checkout ) ) {
+            $message = $checkout->get_error_message();
+            $errorData = $checkout->get_error_data();
+            $retryable = is_array( $errorData ) ? ! empty( $errorData['retryable'] ) : false;
+            return $this->contract_error_response( 'MBR_ERR_INVALID_ATTR', $message, 400, $retryable );
+        }
+
+        $session_id = sanitize_text_field( (string) ( $checkout['session_id'] ?? '' ) );
+        $checkout_url = $this->sanitize_url_value( (string) ( $checkout['checkout_url'] ?? '' ) );
+        if ( '' === $session_id || '' === $checkout_url ) {
+            return $this->contract_error_response( 'MBR_ERR_INVALID_ATTR', 'Could not initialize checkout session.', 400, true );
+        }
+
+        $storePayload = $payload;
+        if ( ! $payload['consent'] ) {
+            $storePayload['sponsor_id'] = null;
+            $storePayload['utm_source'] = null;
+            $storePayload['utm_medium'] = null;
+            $storePayload['utm_campaign'] = null;
+            $storePayload['phase_at_click'] = null;
+            $storePayload['client_reference'] = null;
+        }
+        $storePayload['checkout_url'] = $checkout_url;
+
+        $repo->storeTempAttribution( $session_id, $storePayload, self::TEMP_ATTRIBUTION_TTL_SECONDS );
+        $repo->storeSignupInitIdempotency( $payload['idempotency_key'], $session_id, $checkout_url, self::TEMP_ATTRIBUTION_TTL_SECONDS );
+
+        $this->emit_landing_telemetry( 'landing.submit', [
+            'session_id' => $session_id,
+            'schedule_id' => $payload['schedule_id'],
+            'sponsor_id' => (string) ( $payload['sponsor_id'] ?? '' ),
+            'consent' => $payload['consent'] ? 1 : 0,
+            'source' => 'landing',
+        ] );
+
+        return new \WP_REST_Response([
+            'checkout_url' => $checkout_url,
+            'session_id' => $session_id,
+            'message' => 'checkout_created',
+            'temp_store_ttl_seconds' => self::TEMP_ATTRIBUTION_TTL_SECONDS,
+        ], 201);
+    }
+
+    public function handle_landing_success( \WP_REST_Request $req ) {
+        $endpoint = new LandingSuccessEndpoint();
+        return $endpoint->handle_request( $req );
     }
 
     private function start_trial($user_id, $plan_id, string $tier_slug, $trial_days) {
@@ -299,6 +391,277 @@ class SignupEndpoint {
             $attribution_endpoint = new AttributionEndpoint();
             $attribution_endpoint->handle_request($req);
         }
+    }
+
+    private function normalize_canonical_attribution_payload( array $params ): array {
+        $consent = ! empty( $params['consent'] ) && in_array( strtolower( (string) $params['consent'] ), [ '1', 'true', 'yes', 'on' ], true );
+
+        $schedule_id = sanitize_text_field( (string) ( $params['schedule_id'] ?? '' ) );
+        $sponsor_id = isset( $params['sponsor_id'] ) ? sanitize_text_field( (string) $params['sponsor_id'] ) : null;
+        if ( '' === (string) $sponsor_id ) {
+            $sponsor_id = null;
+        }
+
+        $payload = [
+            'schedule_id' => $this->sanitize_contract_identifier( $schedule_id ),
+            'sponsor_id' => $sponsor_id ? $this->sanitize_contract_identifier( $sponsor_id ) : null,
+            'utm_source' => $this->nullable_text( $params['utm_source'] ?? null, 128 ),
+            'utm_medium' => $this->nullable_text( $params['utm_medium'] ?? null, 128 ),
+            'utm_campaign' => $this->nullable_text( $params['utm_campaign'] ?? null, 256 ),
+            'phase_at_click' => $this->nullable_text( $params['phase_at_click'] ?? null, 64 ),
+            'idempotency_key' => sanitize_text_field( (string) ( $params['idempotency_key'] ?? wp_generate_uuid4() ) ),
+            'consent' => $consent,
+            'client_reference' => $this->nullable_text( $params['client_reference'] ?? null, 255 ),
+            'plan_id' => $this->nullable_text( $params['plan_id'] ?? null, 128 ),
+        ];
+
+        if ( ! $consent ) {
+            $payload['utm_source'] = null;
+            $payload['utm_medium'] = null;
+            $payload['utm_campaign'] = null;
+            $payload['phase_at_click'] = null;
+        }
+
+        return $payload;
+    }
+
+    private function sanitize_contract_identifier( string $value ): string {
+        $value = preg_replace( '/[^A-Za-z0-9_-]/', '', $value );
+        return substr( (string) $value, 0, 128 );
+    }
+
+    private function nullable_text( $value, int $maxLength ): ?string {
+        if ( null === $value ) {
+            return null;
+        }
+        $clean = sanitize_text_field( (string) $value );
+        $clean = substr( $clean, 0, max( 1, $maxLength ) );
+        return '' === $clean ? null : $clean;
+    }
+
+    private function sanitize_url_value( string $value ): string {
+        if ( function_exists( 'esc_url_raw' ) ) {
+            return esc_url_raw( $value );
+        }
+
+        return filter_var( $value, FILTER_SANITIZE_URL ) ?: '';
+    }
+
+    private function validate_sponsor_for_schedule( string $scheduleId, string $sponsorId ) {
+        $sponsorNumericId = $this->extract_numeric_identifier( $sponsorId );
+        if ( $sponsorNumericId <= 0 ) {
+            return new \WP_Error( 'invalid_sponsor', 'Sponsor identifier is invalid.' );
+        }
+
+        global $wpdb;
+        $sponsorTable = $wpdb->prefix . 'khm_sponsors';
+        $exists = $wpdb->get_var(
+            $wpdb->prepare( "SELECT id FROM {$sponsorTable} WHERE id = %d LIMIT 1", $sponsorNumericId )
+        );
+        if ( ! $exists ) {
+            return new \WP_Error( 'invalid_sponsor', 'Sponsor does not exist.' );
+        }
+
+        $scheduleNumericId = $this->extract_numeric_identifier( $scheduleId );
+        if ( $scheduleNumericId > 0 && function_exists( 'get_post_meta' ) ) {
+            $scheduleSponsor = get_post_meta( $scheduleNumericId, 'sponsor_id', true );
+            if ( '' === (string) $scheduleSponsor ) {
+                $scheduleSponsor = get_post_meta( $scheduleNumericId, 'khm_sponsor_id', true );
+            }
+            $scheduleSponsorNumeric = absint( $scheduleSponsor );
+            if ( $scheduleSponsorNumeric > 0 && $scheduleSponsorNumeric !== $sponsorNumericId ) {
+                return new \WP_Error( 'invalid_sponsor', 'Sponsor does not match this schedule.' );
+            }
+        }
+
+        return true;
+    }
+
+    private function extract_numeric_identifier( string $value ): int {
+        if ( preg_match( '/(\d+)/', $value, $matches ) ) {
+            return absint( $matches[1] );
+        }
+        return 0;
+    }
+
+    private function is_valid_uuid( string $value ): bool {
+        return (bool) preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $value );
+    }
+
+    private function create_signup_init_checkout_session( array $payload ) {
+        $mockMode = (bool) apply_filters( 'khm_membership_signup_init_use_mock_session', getenv( 'KH_SMMA_TEST_MODE' ) === 'ci' );
+        if ( $mockMode ) {
+            $sessionId = 'cs_test_' . substr( md5( $payload['idempotency_key'] ), 0, 16 );
+            return [
+                'session_id' => $sessionId,
+                'checkout_url' => 'https://checkout.stripe.com/c/pay/' . $sessionId,
+            ];
+        }
+
+        $secret = function_exists( 'khm_get_stripe_secret' )
+            ? (string) ( khm_get_stripe_secret( 'KH_STRIPE_SECRET_KEY' ) ?? '' )
+            : '';
+        if ( '' === trim( $secret ) || ! class_exists( '\\Stripe\\Checkout\\Session' ) ) {
+            return new \WP_Error( 'signup_init_not_configured', 'Stripe Checkout is not configured.', [ 'retryable' => false ] );
+        }
+
+        $priceId = (string) apply_filters( 'khm_membership_signup_init_price_id', '', $payload );
+        if ( '' === $priceId ) {
+            return new \WP_Error( 'signup_init_missing_price', 'No Stripe price configured for signup-init.', [ 'retryable' => false ] );
+        }
+
+        \Stripe\Stripe::setApiKey( $secret );
+
+        $params = [
+            'mode' => 'subscription',
+            'line_items' => [
+                [
+                    'price' => $priceId,
+                    'quantity' => 1,
+                ],
+            ],
+            'allow_promotion_codes' => true,
+            'success_url' => home_url( '/membership-success?session_id={CHECKOUT_SESSION_ID}' ),
+            'cancel_url' => home_url( '/membership-landing' ),
+            'metadata' => [
+                'schedule_id' => (string) ( $payload['schedule_id'] ?? '' ),
+                'sponsor_id' => (string) ( $payload['sponsor_id'] ?? '' ),
+                'utm_source' => (string) ( $payload['utm_source'] ?? '' ),
+                'utm_medium' => (string) ( $payload['utm_medium'] ?? '' ),
+                'utm_campaign' => (string) ( $payload['utm_campaign'] ?? '' ),
+                'phase_at_click' => (string) ( $payload['phase_at_click'] ?? '' ),
+                'idempotency_key' => (string) ( $payload['idempotency_key'] ?? '' ),
+                'consent' => ! empty( $payload['consent'] ) ? '1' : '0',
+                'client_reference' => (string) ( $payload['client_reference'] ?? '' ),
+            ],
+        ];
+
+        try {
+            $session = \Stripe\Checkout\Session::create( $params, [
+                'idempotency_key' => (string) $payload['idempotency_key'],
+            ]);
+        } catch ( \Throwable $throwable ) {
+            return new \WP_Error( 'signup_init_checkout_failed', 'Failed to create checkout session.', [ 'retryable' => true ] );
+        }
+
+        if ( empty( $session->id ) || empty( $session->url ) ) {
+            return new \WP_Error( 'signup_init_checkout_missing', 'Checkout session was created without URL.', [ 'retryable' => true ] );
+        }
+
+        return [
+            'session_id' => (string) $session->id,
+            'checkout_url' => $this->sanitize_url_value( (string) $session->url ),
+        ];
+    }
+
+    private function is_signup_init_rate_limited(): bool {
+        $windowSeconds = (int) apply_filters( 'khm_membership_signup_init_rate_limit_window', self::RATE_LIMIT_WINDOW_SECONDS );
+        $maxRequests = (int) apply_filters( 'khm_membership_signup_init_rate_limit_max_requests', self::RATE_LIMIT_MAX_REQUESTS );
+        $windowSeconds = max( 5, $windowSeconds );
+        $maxRequests = max( 1, $maxRequests );
+
+        $ip = 'unknown';
+        foreach ( [ 'HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR' ] as $headerKey ) {
+            if ( ! empty( $_SERVER[ $headerKey ] ) ) {
+                $ip = sanitize_text_field( (string) $_SERVER[ $headerKey ] );
+                break;
+            }
+        }
+
+        $key = 'khm_signup_init_rl_' . md5( $ip . '|' . gmdate( 'YmdHi' ) );
+        $count = (int) get_transient( $key );
+        $count++;
+        set_transient( $key, $count, $windowSeconds );
+
+        return $count > $maxRequests;
+    }
+
+    private function resolve_schedule_payload( string $scheduleId ): array {
+        $scheduleId = $this->sanitize_contract_identifier( $scheduleId );
+        $numericId = $this->extract_numeric_identifier( $scheduleId );
+        $title = '';
+        $recommended = '';
+        $boostCopy = '';
+
+        if ( $numericId > 0 && function_exists( 'get_post' ) ) {
+            $post = get_post( $numericId );
+            if ( is_object( $post ) && isset( $post->post_title ) ) {
+                $title = sanitize_text_field( (string) $post->post_title );
+            }
+            if ( function_exists( 'get_post_meta' ) ) {
+                $recommended = sanitize_text_field( (string) get_post_meta( $numericId, 'recommended_post_time', true ) );
+                $boostCopy = sanitize_text_field( (string) get_post_meta( $numericId, 'boost_copy', true ) );
+            }
+        }
+
+        return [
+            'id' => $scheduleId,
+            'title' => $title,
+            'recommended_post_time' => $recommended,
+            'boost_copy' => $boostCopy,
+        ];
+    }
+
+    private function resolve_sponsor_payload( string $sponsorId ): array {
+        $sponsorId = $this->sanitize_contract_identifier( $sponsorId );
+        if ( '' === $sponsorId ) {
+            return [
+                'id' => null,
+                'name' => '',
+                'logo_url' => '',
+                'accent_color' => '',
+                'blurb' => '',
+            ];
+        }
+
+        $numericId = $this->extract_numeric_identifier( $sponsorId );
+        $name = '';
+        if ( $numericId > 0 ) {
+            global $wpdb;
+            $table = $wpdb->prefix . 'khm_sponsors';
+            $name = (string) $wpdb->get_var(
+                $wpdb->prepare( "SELECT name FROM {$table} WHERE id = %d LIMIT 1", $numericId )
+            );
+        }
+
+        $logo = (string) get_option( 'khm_sponsor_logo_' . $sponsorId, '' );
+        $accent = sanitize_hex_color( (string) get_option( 'khm_sponsor_accent_' . $sponsorId, '' ) ) ?: '';
+        $blurb = (string) get_option( 'khm_sponsor_blurb_' . $sponsorId, '' );
+
+        $allowedBlurb = [
+            'a' => [ 'href' => [], 'target' => [], 'rel' => [] ],
+            'strong' => [],
+            'em' => [],
+            'br' => [],
+            'p' => [],
+            'span' => [ 'class' => [] ],
+        ];
+
+        return [
+            'id' => $sponsorId,
+            'name' => sanitize_text_field( $name ),
+            'logo_url' => $this->sanitize_url_value( $logo ),
+            'accent_color' => $accent,
+            'blurb' => wp_kses( $blurb, $allowedBlurb ),
+        ];
+    }
+
+    private function emit_landing_telemetry( string $metric, array $context = [] ): void {
+        do_action( 'khm_membership_landing_telemetry', $metric, $context );
+        error_log( 'KHM landing ' . $metric . ' ' . wp_json_encode( $context ) );
+    }
+
+    private function contract_error_response( string $code, string $message, int $status, bool $retryable ): \WP_REST_Response {
+        $helpUrl = apply_filters( 'khm_membership_help_url', home_url( '/support/' ) );
+
+        return new \WP_REST_Response([
+            'error' => [
+                'code' => $code,
+                'message' => $message,
+                'retryable' => $retryable,
+                'help_url' => $helpUrl,
+            ],
+        ], $status);
     }
 
     private function normalize_attribution_payload( array $params ): array {

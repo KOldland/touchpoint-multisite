@@ -248,6 +248,7 @@ class SmmaGenerator {
         return wp_json_encode( array(
             'post_id' => $input['post_id'] ?? 0,
             'blocks_json' => $input['blocks_json'] ?? array(),
+            'blocks_summary' => $input['blocks_summary'] ?? '',
             'phase_tag' => $input['phase_tag'] ?? 'Attention',
             'phase_context' => $input['phase_context'] ?? array(),
             'keywords' => $input['keywords'] ?? array(),

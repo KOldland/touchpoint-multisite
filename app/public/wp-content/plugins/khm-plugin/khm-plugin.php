@@ -168,6 +168,7 @@ require_once __DIR__ . '/src/Membership/MembershipMigration.php';
 require_once __DIR__ . '/src/Membership/AttributionEndpoint.php';
 require_once __DIR__ . '/src/Membership/TierRegistry.php';
 require_once __DIR__ . '/src/Membership/SignupEndpoint.php';
+require_once __DIR__ . '/src/Membership/LandingSuccessEndpoint.php';
 require_once __DIR__ . '/src/Membership/StatusEndpoint.php';
 require_once __DIR__ . '/src/Membership/CustomerPortalEndpoint.php';
 require_once __DIR__ . '/src/Membership/StripeWebhookHandler.php';
@@ -206,6 +207,10 @@ add_action( 'rest_api_init', function() {
     }
     if ( class_exists( 'KHM\\Membership\\SignupEndpoint' ) ) {
         $endpoint = new KHM\Membership\SignupEndpoint();
+        $endpoint->register_routes();
+    }
+    if ( class_exists( 'KHM\\Membership\\LandingSuccessEndpoint' ) ) {
+        $endpoint = new KHM\Membership\LandingSuccessEndpoint();
         $endpoint->register_routes();
     }
     if ( class_exists( 'KHM\\Membership\\StatusEndpoint' ) ) {
@@ -1455,6 +1460,8 @@ if ( defined('WP_CLI') && WP_CLI ) {
     require_once __DIR__ . $cli_dir . 'StripeMarketingDeadLettersCommand.php';
     require_once __DIR__ . $cli_dir . 'StripeMarketingDeadLettersReplayCommand.php';
     require_once __DIR__ . $cli_dir . 'StripeMarketingHealthCommand.php';
+    require_once __DIR__ . $cli_dir . 'MembershipWebhookDeadLettersCommand.php';
+    require_once __DIR__ . $cli_dir . 'MembershipWebhookDeadLettersReplayCommand.php';
 }
 
 // Register webhook email notifications

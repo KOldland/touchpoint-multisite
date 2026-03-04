@@ -1,11 +1,22 @@
 {
-  "run_id": "exec_{{RUN_ID}}",
-  "adapter": "meta_ads",
-  "mode": "execute",
-  "result": "success",
-  "created_ids": {
-    "campaign_id": "cmp_{{CAMPAIGN_ID}}",
-    "adset_id": "adset_{{ADSET_ID}}",
-    "ad_id": "ad_{{AD_ID}}"
+  "manifest_id": "man_20260303_001",
+  "status": "success",
+  "operation_results": [
+    {
+      "operation_id": "op_1",
+      "operation_id_on_channel": "li_op_12345",
+      "result": "created",
+      "actual_spend": 118.40,
+      "currency": "AUD",
+      "error": null
+    }
+  ],
+  "total_actual_spend": 118.40,
+  "currency": "AUD",
+  "errors": null,
+  "timestamp": "2026-03-03T12:05:00Z",
+  "adapter_meta": {
+    "adapter": "linkedin_sandbox",
+    "version": "1.0.0"
   }
 }

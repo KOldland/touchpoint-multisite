@@ -15,6 +15,9 @@ use DateTimeInterface;
 
 class MembershipRepository implements MembershipRepositoryInterface {
 
+    private const TEMP_ATTRIBUTION_OPTION_PREFIX = 'khm_temp_attribution_';
+    private const SIGNUP_IDEMPOTENCY_OPTION_PREFIX = 'khm_signup_init_idem_';
+
     private string $tableName;
     private string $levelsTable;
     private string $usersTable;
@@ -30,14 +33,209 @@ class MembershipRepository implements MembershipRepositoryInterface {
         global $wpdb;
         $this->tableName = $wpdb->prefix . 'khm_memberships_users';
         $this->levelsTable = $wpdb->prefix . 'khm_membership_levels';
-        $this->usersTable  = $wpdb->users;
+        $this->usersTable  = isset( $wpdb->users ) && is_string( $wpdb->users ) && $wpdb->users !== ''
+            ? $wpdb->users
+            : $wpdb->prefix . 'users';
         $this->promotionAttributionTable = $wpdb->prefix . 'promotion_attribution';
         $this->sponsorsTable = $wpdb->prefix . 'khm_sponsors';
-        $this->postsTable = $wpdb->posts;
+        $this->postsTable = isset( $wpdb->posts ) && is_string( $wpdb->posts ) && $wpdb->posts !== ''
+            ? $wpdb->posts
+            : $wpdb->prefix . 'posts';
         $this->hasPromotionAttributionTable = $this->tableExists( $this->promotionAttributionTable );
         $this->hasSponsorsTable = $this->tableExists( $this->sponsorsTable );
         $this->hasPostsTable = $this->tableExists( $this->postsTable );
         $this->levels = new LevelRepository();
+    }
+
+    public function storeTempAttribution( string $sessionId, array $payload, int $ttlSeconds = 86400 ): bool {
+        $sessionId = sanitize_text_field( $sessionId );
+        if ( '' === $sessionId ) {
+            return false;
+        }
+
+        $ttlSeconds = max( 60, $ttlSeconds );
+        $record = [
+            'session_id' => $sessionId,
+            'payload' => $payload,
+            'stored_at' => gmdate( 'c' ),
+            'expires_at' => time() + $ttlSeconds,
+        ];
+
+        $optionKey = self::TEMP_ATTRIBUTION_OPTION_PREFIX . $sessionId;
+        $updated = update_option( $optionKey, $record, false );
+        set_transient( $optionKey, $record, $ttlSeconds );
+
+        return (bool) $updated || get_option( $optionKey, null ) !== null;
+    }
+
+    public function getTempAttribution( string $sessionId ): ?array {
+        $sessionId = sanitize_text_field( $sessionId );
+        if ( '' === $sessionId ) {
+            return null;
+        }
+
+        $optionKey = self::TEMP_ATTRIBUTION_OPTION_PREFIX . $sessionId;
+        $record = get_transient( $optionKey );
+        if ( ! is_array( $record ) ) {
+            $record = get_option( $optionKey, null );
+        }
+
+        if ( ! is_array( $record ) ) {
+            return null;
+        }
+
+        $expiresAt = isset( $record['expires_at'] ) ? (int) $record['expires_at'] : 0;
+        if ( $expiresAt > 0 && $expiresAt < time() ) {
+            delete_transient( $optionKey );
+            return null;
+        }
+
+        return $record;
+    }
+
+    public function storeSignupInitIdempotency( string $idempotencyKey, string $sessionId, string $checkoutUrl, int $ttlSeconds = 86400 ): bool {
+        $idempotencyKey = sanitize_text_field( $idempotencyKey );
+        $sessionId = sanitize_text_field( $sessionId );
+        if ( '' === $idempotencyKey || '' === $sessionId ) {
+            return false;
+        }
+
+        $ttlSeconds = max( 60, $ttlSeconds );
+        $optionKey = self::SIGNUP_IDEMPOTENCY_OPTION_PREFIX . md5( $idempotencyKey );
+        $record = [
+            'idempotency_key' => $idempotencyKey,
+            'session_id' => $sessionId,
+            'checkout_url' => function_exists( 'esc_url_raw' ) ? esc_url_raw( $checkoutUrl ) : ( filter_var( $checkoutUrl, FILTER_SANITIZE_URL ) ?: '' ),
+            'stored_at' => gmdate( 'c' ),
+            'expires_at' => time() + $ttlSeconds,
+        ];
+
+        $updated = update_option( $optionKey, $record, false );
+        set_transient( $optionKey, $record, $ttlSeconds );
+
+        return (bool) $updated || get_option( $optionKey, null ) !== null;
+    }
+
+    public function getSignupInitByIdempotency( string $idempotencyKey ): ?array {
+        $idempotencyKey = sanitize_text_field( $idempotencyKey );
+        if ( '' === $idempotencyKey ) {
+            return null;
+        }
+
+        $optionKey = self::SIGNUP_IDEMPOTENCY_OPTION_PREFIX . md5( $idempotencyKey );
+        $record = get_transient( $optionKey );
+        if ( ! is_array( $record ) ) {
+            $record = get_option( $optionKey, null );
+        }
+
+        if ( ! is_array( $record ) ) {
+            return null;
+        }
+
+        $expiresAt = isset( $record['expires_at'] ) ? (int) $record['expires_at'] : 0;
+        if ( $expiresAt > 0 && $expiresAt < time() ) {
+            delete_transient( $optionKey );
+            return null;
+        }
+
+        return $record;
+    }
+
+    public function resolveLandingSchedule( string $scheduleId ): array {
+        $scheduleId = sanitize_text_field( $scheduleId );
+        $scheduleId = substr( preg_replace( '/[^A-Za-z0-9_-]/', '', $scheduleId ), 0, 128 );
+
+        $payload = [
+            'id' => $scheduleId,
+            'title' => '',
+            'recommended_post_time' => '',
+            'boost_copy' => '',
+        ];
+
+        if ( '' === $scheduleId ) {
+            $payload['id'] = 'unknown';
+            $payload['title'] = __( 'Membership Success', 'khm-membership' );
+            return $payload;
+        }
+
+        $numericId = 0;
+        if ( preg_match( '/(\d+)/', $scheduleId, $matches ) ) {
+            $numericId = absint( $matches[1] );
+        }
+
+        if ( $numericId > 0 && function_exists( 'get_post' ) ) {
+            $post = get_post( $numericId );
+            if ( is_object( $post ) && isset( $post->post_title ) ) {
+                $payload['title'] = sanitize_text_field( (string) $post->post_title );
+            }
+
+            if ( function_exists( 'get_post_meta' ) ) {
+                $payload['recommended_post_time'] = sanitize_text_field( (string) get_post_meta( $numericId, 'recommended_post_time', true ) );
+                $payload['boost_copy'] = sanitize_text_field( (string) get_post_meta( $numericId, 'boost_copy', true ) );
+            }
+        }
+
+        if ( '' === $payload['title'] ) {
+            $payload['title'] = __( 'Membership Success', 'khm-membership' );
+        }
+
+        return $payload;
+    }
+
+    public function resolveLandingSponsor( ?string $sponsorId ): ?array {
+        if ( null === $sponsorId ) {
+            return null;
+        }
+
+        $sponsorId = sanitize_text_field( $sponsorId );
+        $sponsorId = substr( preg_replace( '/[^A-Za-z0-9_-]/', '', $sponsorId ), 0, 128 );
+        if ( '' === $sponsorId ) {
+            return null;
+        }
+
+        $numericId = 0;
+        if ( preg_match( '/(\d+)/', $sponsorId, $matches ) ) {
+            $numericId = absint( $matches[1] );
+        }
+
+        $name = '';
+        if ( $numericId > 0 ) {
+            global $wpdb;
+            $table = $wpdb->prefix . 'khm_sponsors';
+            $name = (string) $wpdb->get_var(
+                $wpdb->prepare( "SELECT name FROM {$table} WHERE id = %d LIMIT 1", $numericId )
+            );
+        }
+
+        $logo = (string) get_option( 'khm_sponsor_logo_' . $sponsorId, '' );
+        $accent = sanitize_text_field( (string) get_option( 'khm_sponsor_accent_' . $sponsorId, '' ) );
+        $blurb = (string) get_option( 'khm_sponsor_blurb_' . $sponsorId, '' );
+
+        $allowedBlurb = [
+            'a' => [ 'href' => [], 'target' => [], 'rel' => [] ],
+            'strong' => [],
+            'em' => [],
+            'br' => [],
+            'p' => [],
+            'span' => [ 'class' => [] ],
+        ];
+
+        return [
+            'id' => $sponsorId,
+            'name' => sanitize_text_field( $name ),
+            'logo_url' => function_exists( 'esc_url_raw' ) ? esc_url_raw( $logo ) : ( filter_var( $logo, FILTER_SANITIZE_URL ) ?: '' ),
+            'accent_color' => preg_match( '/^#[A-Fa-f0-9]{6}$/', $accent ) ? $accent : '',
+            'blurb' => function_exists( 'wp_kses' ) ? wp_kses( $blurb, $allowedBlurb ) : strip_tags( $blurb, '<a><strong><em><br><p><span>' ),
+        ];
+    }
+
+    public function buildLandingSuccessCtas(): array {
+        return [
+            [ 'name' => 'Go to account', 'action' => 'account_url', 'url' => home_url( '/account' ) ],
+            [ 'name' => 'Download welcome pack', 'action' => 'download', 'url' => home_url( '/download/pack.pdf' ) ],
+            [ 'name' => 'Invite a friend', 'action' => 'invite', 'url' => home_url( '/invite' ) ],
+            [ 'name' => 'Manage membership', 'action' => 'manage', 'url' => home_url( '/account/membership' ) ],
+        ];
     }
 
     /**
@@ -796,6 +994,9 @@ class MembershipRepository implements MembershipRepositoryInterface {
             'search'   => '',
             'level_id' => null,
             'status'   => '',
+            'schedule_id' => null,
+            'sponsor_id' => null,
+            'conversion_type' => '',
             'orderby'  => 'start_date',
             'order'    => 'DESC',
             'per_page' => 20,
@@ -828,6 +1029,21 @@ class MembershipRepository implements MembershipRepositoryInterface {
             $values[] = $args['status'];
         }
 
+        if ( ! empty( $args['schedule_id'] ) && $this->hasPromotionAttributionTable ) {
+            $where[]  = 'pa.schedule_id = %d';
+            $values[] = (int) $args['schedule_id'];
+        }
+
+        if ( ! empty( $args['sponsor_id'] ) && $this->hasPromotionAttributionTable ) {
+            $where[]  = 'pa.sponsor_id = %d';
+            $values[] = (int) $args['sponsor_id'];
+        }
+
+        if ( ! empty( $args['conversion_type'] ) && $this->hasPromotionAttributionTable ) {
+            $where[]  = 'pa.conversion_type = %s';
+            $values[] = (string) $args['conversion_type'];
+        }
+
         $whereSql = $where ? 'WHERE ' . implode( ' AND ', $where ) : '';
 
         $orderMap = [
@@ -837,9 +1053,16 @@ class MembershipRepository implements MembershipRepositoryInterface {
             'start_date' => 'm.startdate',
             'end_date'   => 'm.enddate',
             'status'     => 'm.status',
+            'attribution_schedule' => 'pa.schedule_id',
+            'attribution_sponsor' => 'pa.sponsor_id',
+            'attribution_conversion' => 'pa.conversion_type',
+            'attribution_created' => 'pa.created_at',
         ];
 
         $orderBy = isset( $orderMap[ $args['orderby'] ] ) ? $orderMap[ $args['orderby'] ] : 'm.startdate';
+        if ( ! $this->hasPromotionAttributionTable && strpos( $orderBy, 'pa.' ) === 0 ) {
+            $orderBy = 'm.startdate';
+        }
         $order   = strtoupper( (string) $args['order'] ) === 'ASC' ? 'ASC' : 'DESC';
 
         $limit  = max( 1, (int) $args['per_page'] );
@@ -894,6 +1117,106 @@ class MembershipRepository implements MembershipRepositoryInterface {
             'items' => $items ?: [],
             'total' => $total,
         ];
+    }
+
+    /**
+     * Retrieve attribution history rows for a specific user.
+     *
+     * @param int $userId User ID.
+     * @param int $limit Max rows.
+     * @return array<int,array<string,mixed>>
+     */
+    public function getAttributionHistoryForUser( int $userId, int $limit = 100 ): array {
+        if ( $userId <= 0 || ! $this->hasPromotionAttributionTable ) {
+            return [];
+        }
+
+        global $wpdb;
+
+        $limit = max( 1, min( 500, $limit ) );
+
+        $fields = [
+            'pa.id',
+            'pa.schedule_id',
+            'pa.sponsor_id',
+            'pa.user_id',
+            'pa.user_email',
+            'pa.utm_source',
+            'pa.utm_medium',
+            'pa.utm_campaign',
+            'pa.utm_term',
+            'pa.utm_content',
+            'pa.phase_at_click',
+            'pa.conversion_type',
+            'pa.plan_id',
+            'pa.reference_metadata',
+            'pa.created_at',
+        ];
+
+        if ( $this->hasPostsTable ) {
+            $fields[] = 'schedule_post.post_title AS schedule_title';
+        } else {
+            $fields[] = 'NULL AS schedule_title';
+        }
+
+        if ( $this->hasSponsorsTable ) {
+            $fields[] = 'sponsor.name AS sponsor_name';
+        } else {
+            $fields[] = 'NULL AS sponsor_name';
+        }
+
+        $sql = "SELECT " . implode( ', ', $fields ) . "
+                FROM {$this->promotionAttributionTable} pa";
+
+        if ( $this->hasPostsTable ) {
+            $sql .= " LEFT JOIN {$this->postsTable} schedule_post ON schedule_post.ID = pa.schedule_id";
+        }
+
+        if ( $this->hasSponsorsTable ) {
+            $sql .= " LEFT JOIN {$this->sponsorsTable} sponsor ON sponsor.id = pa.sponsor_id";
+        }
+
+        $sql .= " WHERE pa.user_id = %d ORDER BY pa.created_at DESC, pa.id DESC LIMIT %d";
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare( $sql, $userId, $limit ),
+            ARRAY_A
+        );
+
+        return $rows ?: [];
+    }
+
+    /**
+     * Anonymize attribution rows for a specific user.
+     *
+     * @param int $userId User ID.
+     * @return int Number of updated rows.
+     */
+    public function anonymizeAttributionForUser( int $userId ): int {
+        if ( $userId <= 0 || ! $this->hasPromotionAttributionTable ) {
+            return 0;
+        }
+
+        global $wpdb;
+
+        $result = $wpdb->query(
+            $wpdb->prepare(
+                "UPDATE {$this->promotionAttributionTable}
+                 SET user_id = NULL,
+                     user_email = NULL,
+                     utm_source = NULL,
+                     utm_medium = NULL,
+                     utm_campaign = NULL,
+                     utm_term = NULL,
+                     utm_content = NULL,
+                     reference_metadata = %s
+                 WHERE user_id = %d",
+                wp_json_encode( [] ),
+                $userId
+            )
+        );
+
+        return is_numeric( $result ) ? (int) $result : 0;
     }
 
     /**

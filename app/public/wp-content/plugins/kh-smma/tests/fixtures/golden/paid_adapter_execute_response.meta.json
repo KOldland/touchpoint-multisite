@@ -1,9 +1,9 @@
 {
-    "version": "1.0.0",
-    "prompt_hash": "7a33acede0d5795e32d8970b841930b4423a922febd19476eb6e71d663a0a9af",
-    "prompt_version": "cic-01",
+    "version": "1.1.0",
+    "prompt_hash": "793020700eabef17c5e06d2327da97dc69ae336b69e8bcb583c6213f3e8f7289",
+    "prompt_version": "paid-01",
     "created_at": "2026-03-03T00:00:00Z",
-    "author": "@ci-qa-team",
-    "checksum": "48567d940b2269c732a89d3952906538ad118b62005c10476a92f019b548ba4e",
-    "notes": "Canonical CIC-01 golden fixture"
+    "author": "@paid-adapter-team",
+    "checksum": "793020700eabef17c5e06d2327da97dc69ae336b69e8bcb583c6213f3e8f7289",
+    "notes": "PAID-01: canonical execute() success response fixture — replaces CIC-01 template placeholder"
 }

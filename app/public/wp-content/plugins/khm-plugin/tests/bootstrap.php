@@ -105,6 +105,11 @@ if (!isset($wpdb)) {
                 return $count;
             }
 
+            if (preg_match('/SELECT COUNT\(\*\) FROM\s+([a-zA-Z0-9_`]+)\s*$/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                return count($this->data[$table] ?? []);
+            }
+
             if (preg_match('/SELECT\s+(?:id|event_id)\s+FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+event_id\s*=\s*[\'"]?([^\'"\s]+)[\'"]?/i', $query, $m)) {
                 $table = $this->normalize_table($m[1]);
                 $event_id = $m[2];
@@ -198,6 +203,17 @@ if (!isset($wpdb)) {
                 $id = (int) $m[2];
                 foreach ($this->data[$table] ?? [] as $row) {
                     if ((int)($row['id'] ?? 0) === $id && (int)($row['is_active'] ?? 0) === 1) {
+                        return $output === ARRAY_A ? $row : (object) $row;
+                    }
+                }
+                return null;
+            }
+
+            if (preg_match('/SELECT \* FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+id\s*=\s*([0-9]+)/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $id = (int) $m[2];
+                foreach ($this->data[$table] ?? [] as $row) {
+                    if ((int)($row['id'] ?? 0) === $id) {
                         return $output === ARRAY_A ? $row : (object) $row;
                     }
                 }
