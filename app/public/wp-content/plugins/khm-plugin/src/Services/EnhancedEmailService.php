@@ -35,6 +35,9 @@ class EnhancedEmailService implements EmailServiceInterface {
     const STATUS_PROCESSING = 'processing';
     private const DEFAULT_MAX_QUEUE_ATTEMPTS = 3;
     private const DEFAULT_RETRY_BASE_SECONDS = 60;
+    private const DEFAULT_QUEUE_BATCH_SIZE = 10;
+    private const DEFAULT_QUEUE_MAX_RUNTIME_SECONDS = 20;
+    private const DEFAULT_FAILED_QUEUE_CAP = 5000;
 
     public function __construct( string $pluginDir ) {
         $this->pluginDir = $pluginDir;
@@ -335,7 +338,10 @@ class EnhancedEmailService implements EmailServiceInterface {
         if ( ! $this->table_exists( $table ) ) {
             return;
         }
-        $batch_size = \apply_filters( 'khm_email_queue_batch_size', 10 );
+        $batch_size = $this->get_queue_batch_size();
+        $startedAt = \microtime( true );
+
+        $this->cleanup_failed_queue_if_needed();
         
         // Get pending emails ordered by priority and schedule time
         $emails = $wpdb->get_results( $wpdb->prepare(
@@ -349,8 +355,23 @@ class EnhancedEmailService implements EmailServiceInterface {
         ) );
         
         foreach ( $emails as $email ) {
+            if ( ( \microtime( true ) - $startedAt ) >= $this->get_queue_max_runtime_seconds() ) {
+                \do_action( 'khm_email_queue_runtime_guard_triggered', [
+                    'processed' => isset( $processed ) ? (int) $processed : 0,
+                    'batch_size' => $batch_size,
+                ] );
+                break;
+            }
+
             $this->process_queued_email( $email );
+            $processed = isset( $processed ) ? $processed + 1 : 1;
         }
+
+        \do_action( 'khm_email_queue_batch_completed', [
+            'batch_size' => $batch_size,
+            'processed' => isset( $processed ) ? (int) $processed : 0,
+            'duration_ms' => (int) round( ( \microtime( true ) - $startedAt ) * 1000 ),
+        ] );
     }
 
     /**
@@ -435,8 +456,95 @@ class EnhancedEmailService implements EmailServiceInterface {
         $base = (int) \apply_filters( 'khm_email_queue_retry_base_seconds', $base );
         $base = max( 1, $base );
 
-        // Exponential backoff: base, base*2, base*4 ...
-        return (int) ( $base * ( 2 ** max( 0, $attempt_number - 1 ) ) );
+        // Exponential backoff with cap: base, base*2, base*4 ... up to 1 hour.
+        $delay = (int) ( $base * ( 2 ** max( 0, $attempt_number - 1 ) ) );
+        return min( 3600, $delay );
+    }
+
+    private function get_queue_batch_size(): int {
+        $default = (int) \get_option( 'khm_email_queue_batch_size', self::DEFAULT_QUEUE_BATCH_SIZE );
+        $default = max( 1, min( 200, $default ) );
+
+        $adaptive = (int) \apply_filters( 'khm_email_queue_batch_size', $default );
+        $adaptive = max( 1, min( 200, $adaptive ) );
+
+        // If recent queue pressure is high, reduce batch to avoid DB/SMTP storms.
+        $pending = $this->count_queue_rows_by_status( self::STATUS_PENDING );
+        if ( $pending > 2000 ) {
+            return max( 1, (int) floor( $adaptive / 2 ) );
+        }
+
+        return $adaptive;
+    }
+
+    private function get_queue_max_runtime_seconds(): int {
+        $value = (int) \get_option( 'khm_email_queue_max_runtime_seconds', self::DEFAULT_QUEUE_MAX_RUNTIME_SECONDS );
+        $value = (int) \apply_filters( 'khm_email_queue_max_runtime_seconds', $value );
+        return max( 5, min( 120, $value ) );
+    }
+
+    private function count_queue_rows_by_status( string $status ): int {
+        global $wpdb;
+
+        $table = $this->get_queue_table();
+        if ( ! $this->table_exists( $table ) ) {
+            return 0;
+        }
+
+        $sql = $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE status = %s", $status );
+        return (int) $wpdb->get_var( $sql );
+    }
+
+    private function cleanup_failed_queue_if_needed(): void {
+        global $wpdb;
+
+        $table = $this->get_queue_table();
+        if ( ! $this->table_exists( $table ) ) {
+            return;
+        }
+
+        $cap = (int) \get_option( 'khm_email_failed_queue_cap', self::DEFAULT_FAILED_QUEUE_CAP );
+        $cap = (int) \apply_filters( 'khm_email_failed_queue_cap', $cap );
+        $cap = max( 100, $cap );
+
+        $failedCount = $this->count_queue_rows_by_status( self::STATUS_FAILED );
+        if ( $failedCount <= $cap ) {
+            return;
+        }
+
+        $prune = $failedCount - $cap;
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id FROM {$table} WHERE status = %s ORDER BY updated_at ASC, id ASC LIMIT %d",
+                self::STATUS_FAILED,
+                $prune
+            ),
+            ARRAY_A
+        );
+
+        if ( ! is_array( $rows ) || empty( $rows ) ) {
+            return;
+        }
+
+        $deleted = 0;
+        foreach ( $rows as $row ) {
+            $id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+            if ( $id <= 0 ) {
+                continue;
+            }
+            $result = $wpdb->delete( $table, [ 'id' => $id ], [ '%d' ] );
+            if ( is_numeric( $result ) && (int) $result > 0 ) {
+                $deleted++;
+            }
+        }
+
+        if ( $deleted > 0 ) {
+            \do_action( 'khm_email_queue_dlq_capped', [
+                'deleted' => $deleted,
+                'failed_count_before' => $failedCount,
+                'cap' => $cap,
+            ] );
+        }
     }
 
     /**

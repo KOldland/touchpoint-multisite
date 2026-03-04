@@ -7,6 +7,8 @@ use KHM\Services\MembershipRepository;
 class RetentionWorker {
     public const HOOK = 'khm_cleanup_attribution';
     public const DEFAULT_CHUNK_SIZE = 1000;
+    private const DEFAULT_MAX_BATCHES = 200;
+    private const PROGRESS_OPTION = 'khm_retention_last_progress';
 
     public function register(): void {
         add_action( 'init', [ $this, 'schedule' ] );
@@ -41,6 +43,8 @@ class RetentionWorker {
         }
 
         $chunkSize = max( 1, min( 5000, (int) $chunkSize ) );
+        $maxBatches = max( 1, (int) apply_filters( 'khm_retention_max_batches_per_run', self::DEFAULT_MAX_BATCHES ) );
+        $backpressureUs = max( 0, (int) apply_filters( 'khm_retention_backpressure_microseconds', 0 ) );
 
         $repository = new MembershipRepository();
 
@@ -57,35 +61,88 @@ class RetentionWorker {
         }
 
         try {
-            if ( 'delete' === $mode ) {
-                $updated = $repository->deleteExpiredAttribution( $retentionDays, $chunkSize );
-                $payload = [
+            $totalMatched = 0;
+            $totalUpdated = 0;
+            $lastId = 0;
+            $processedBatches = 0;
+            $startedAt = microtime( true );
+            $cutoff = '';
+
+            while ( $processedBatches < $maxBatches ) {
+                $processedBatches++;
+                $batchStartedAt = microtime( true );
+
+                if ( 'delete' === $mode ) {
+                    $batch = $repository->deleteExpiredAttributionBatch( $retentionDays, $chunkSize, $lastId );
+                    $matched = (int) ( $batch['matched'] ?? 0 );
+                    $updated = (int) ( $batch['deleted'] ?? 0 );
+                } else {
+                    $batch = $repository->anonymizeExpiredAttributionBatch( $retentionDays, $chunkSize, $lastId );
+                    $matched = (int) ( $batch['matched'] ?? 0 );
+                    $updated = (int) ( $batch['updated'] ?? 0 );
+                }
+
+                $cutoff = (string) ( $batch['cutoff'] ?? $cutoff );
+                $lastId = (int) ( $batch['last_id'] ?? $lastId );
+                $totalMatched += $matched;
+                $totalUpdated += $updated;
+
+                $this->save_progress( [
                     'mode' => $mode,
                     'retention_days' => $retentionDays,
-                    'rows_updated' => $updated,
                     'chunk_size' => $chunkSize,
-                ];
-                do_action( 'khm_membership_reporting_telemetry', 'membership.retention.delete.completed', [
+                    'batch' => $processedBatches,
+                    'last_id' => $lastId,
+                    'matched_total' => $totalMatched,
+                    'updated_total' => $totalUpdated,
+                    'cutoff' => $cutoff,
+                    'updated_at' => gmdate( 'c' ),
+                ] );
+
+                do_action( 'khm_membership_reporting_telemetry', 'membership.retention.batch.completed', [
                     'mode' => $mode,
-                    'retention_days' => $retentionDays,
-                    'rows_updated' => $updated,
+                    'batch' => $processedBatches,
+                    'matched' => $matched,
+                    'updated' => $updated,
+                    'duration_ms' => (int) round( ( microtime( true ) - $batchStartedAt ) * 1000 ),
+                    'last_id' => $lastId,
                     'chunk_size' => $chunkSize,
                 ] );
-                return $payload;
+
+                if ( $matched === 0 ) {
+                    break;
+                }
+
+                if ( $backpressureUs > 0 ) {
+                    usleep( $backpressureUs );
+                }
             }
 
-            $result = $repository->anonymizeExpiredAttribution( $retentionDays, $chunkSize );
-            $result['mode'] = $mode;
-            $result['retention_days'] = $retentionDays;
-            $result['chunk_size'] = $chunkSize;
-            do_action( 'khm_membership_reporting_telemetry', 'membership.retention.anonymize.completed', [
+            $payload = [
                 'mode' => $mode,
                 'retention_days' => $retentionDays,
-                'rows_updated' => (int) ( $result['updated'] ?? 0 ),
-                'cutoff' => (string) ( $result['cutoff'] ?? '' ),
+                'rows_updated' => $totalUpdated,
+                'matched' => $totalMatched,
                 'chunk_size' => $chunkSize,
+                'batches' => $processedBatches,
+                'last_id' => $lastId,
+                'cutoff' => $cutoff,
+                'duration_ms' => (int) round( ( microtime( true ) - $startedAt ) * 1000 ),
+            ];
+
+            do_action( 'khm_membership_reporting_telemetry', 'membership.retention.' . $mode . '.completed', [
+                'mode' => $mode,
+                'retention_days' => $retentionDays,
+                'rows_updated' => $totalUpdated,
+                'matched' => $totalMatched,
+                'chunk_size' => $chunkSize,
+                'batches' => $processedBatches,
+                'last_id' => $lastId,
+                'cutoff' => $cutoff,
+                'duration_ms' => $payload['duration_ms'],
             ] );
-            return $result;
+
+            return $payload;
         } catch ( \Throwable $e ) {
             do_action( 'khm_membership_reporting_telemetry', 'membership.anonymize.failed', [
                 'mode' => $mode,
@@ -100,6 +157,13 @@ class RetentionWorker {
                 'message' => $e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * @param array<string,mixed> $payload
+     */
+    private function save_progress( array $payload ): void {
+        update_site_option( self::PROGRESS_OPTION, $payload );
     }
 
     /**

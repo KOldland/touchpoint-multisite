@@ -1301,6 +1301,10 @@ class MembershipRepository implements MembershipRepositoryInterface {
             'actor_id' => $actorId,
             'reason' => $reason,
         ] );
+        do_action( 'khm_membership_attribution_mutated', [
+            'operation' => 'anonymize_by_id',
+            'id' => $id,
+        ] );
 
         return true;
     }
@@ -1367,6 +1371,14 @@ class MembershipRepository implements MembershipRepositoryInterface {
             }
         }
 
+        if ( $updated > 0 ) {
+            do_action( 'khm_membership_attribution_mutated', [
+                'operation' => 'anonymize_by_filters',
+                'updated' => $updated,
+                'matched' => count( $matchedIds ),
+            ] );
+        }
+
         return [ 'matched' => count( $matchedIds ), 'updated' => $updated, 'ids' => $matchedIds ];
     }
 
@@ -1388,6 +1400,44 @@ class MembershipRepository implements MembershipRepositoryInterface {
         return $result;
     }
 
+    /**
+     * Cursor-based retention anonymization to reduce lock contention at scale.
+     *
+     * @return array{matched:int,updated:int,ids:array<int,int>,last_id:int,cutoff:string}
+     */
+    public function anonymizeExpiredAttributionBatch( int $retentionDays = self::RETENTION_DEFAULT_DAYS, int $chunkSize = 500, int $lastSeenId = 0 ): array {
+        $retentionDays = max( 1, $retentionDays );
+        $chunkSize = max( 1, min( 5000, $chunkSize ) );
+        $lastSeenId = max( 0, $lastSeenId );
+        $cutoff = gmdate( 'Y-m-d H:i:s', time() - ( $retentionDays * 86400 ) );
+
+        $ids = $this->findRetentionCandidateIds( $cutoff, $chunkSize, $lastSeenId );
+        if ( empty( $ids ) ) {
+            return [
+                'matched' => 0,
+                'updated' => 0,
+                'ids' => [],
+                'last_id' => $lastSeenId,
+                'cutoff' => $cutoff,
+            ];
+        }
+
+        $updated = 0;
+        foreach ( $ids as $id ) {
+            if ( $this->anonymizeAttributionById( $id, 0, 'retention_expired' ) ) {
+                $updated++;
+            }
+        }
+
+        return [
+            'matched' => count( $ids ),
+            'updated' => $updated,
+            'ids' => $ids,
+            'last_id' => (int) max( $ids ),
+            'cutoff' => $cutoff,
+        ];
+    }
+
     public function deleteAttributionForUser( int $userId ): int {
         if ( $userId <= 0 || ! $this->hasPromotionAttributionTable ) {
             return 0;
@@ -1395,7 +1445,15 @@ class MembershipRepository implements MembershipRepositoryInterface {
 
         global $wpdb;
         $deleted = $wpdb->delete( $this->promotionAttributionTable, [ 'user_id' => $userId ], [ '%d' ] );
-        return is_numeric( $deleted ) ? (int) $deleted : 0;
+        $count = is_numeric( $deleted ) ? (int) $deleted : 0;
+        if ( $count > 0 ) {
+            do_action( 'khm_membership_attribution_mutated', [
+                'operation' => 'delete_for_user',
+                'user_id' => $userId,
+                'deleted' => $count,
+            ] );
+        }
+        return $count;
     }
 
     public function deleteExpiredAttribution( int $retentionDays = self::RETENTION_DEFAULT_DAYS, int $limit = 500 ): int {
@@ -1437,7 +1495,131 @@ class MembershipRepository implements MembershipRepositoryInterface {
             }
         }
 
+        if ( $count > 0 ) {
+            do_action( 'khm_membership_attribution_mutated', [
+                'operation' => 'delete_expired',
+                'deleted' => $count,
+                'retention_days' => $retentionDays,
+            ] );
+        }
+
         return $count;
+    }
+
+    /**
+     * Cursor-based retention delete path to avoid full-table scans during large cleanup runs.
+     *
+     * @return array{matched:int,deleted:int,ids:array<int,int>,last_id:int,cutoff:string}
+     */
+    public function deleteExpiredAttributionBatch( int $retentionDays = self::RETENTION_DEFAULT_DAYS, int $chunkSize = 500, int $lastSeenId = 0 ): array {
+        if ( ! $this->hasPromotionAttributionTable ) {
+            return [ 'matched' => 0, 'deleted' => 0, 'ids' => [], 'last_id' => $lastSeenId, 'cutoff' => '' ];
+        }
+
+        global $wpdb;
+        $retentionDays = max( 1, $retentionDays );
+        $chunkSize = max( 1, min( 5000, $chunkSize ) );
+        $lastSeenId = max( 0, $lastSeenId );
+        $cutoff = gmdate( 'Y-m-d H:i:s', time() - ( $retentionDays * 86400 ) );
+        $now = current_time( 'mysql', 1 );
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id FROM {$this->promotionAttributionTable}
+                 WHERE id > %d
+                   AND created_at < %s
+                   AND (legal_hold_until IS NULL OR legal_hold_until < %s)
+                 ORDER BY id ASC
+                 LIMIT %d",
+                $lastSeenId,
+                $cutoff,
+                $now,
+                $chunkSize
+            ),
+            ARRAY_A
+        );
+
+        if ( ! is_array( $rows ) || empty( $rows ) ) {
+            return [ 'matched' => 0, 'deleted' => 0, 'ids' => [], 'last_id' => $lastSeenId, 'cutoff' => $cutoff ];
+        }
+
+        $ids = [];
+        foreach ( $rows as $row ) {
+            $id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+            if ( $id > 0 ) {
+                $ids[] = $id;
+            }
+        }
+
+        $deleted = 0;
+        foreach ( $ids as $id ) {
+            $removed = $wpdb->delete( $this->promotionAttributionTable, [ 'id' => $id ], [ '%d' ] );
+            if ( is_numeric( $removed ) && (int) $removed > 0 ) {
+                $deleted++;
+            }
+        }
+
+        if ( $deleted > 0 ) {
+            do_action( 'khm_membership_attribution_mutated', [
+                'operation' => 'delete_expired_batch',
+                'deleted' => $deleted,
+                'retention_days' => $retentionDays,
+            ] );
+        }
+
+        return [
+            'matched' => count( $ids ),
+            'deleted' => $deleted,
+            'ids' => $ids,
+            'last_id' => (int) max( $ids ),
+            'cutoff' => $cutoff,
+        ];
+    }
+
+    /**
+     * @return array<int,int>
+     */
+    private function findRetentionCandidateIds( string $cutoff, int $limit, int $afterId = 0 ): array {
+        if ( ! $this->hasPromotionAttributionTable ) {
+            return [];
+        }
+
+        global $wpdb;
+        $limit = max( 1, min( 5000, $limit ) );
+        $afterId = max( 0, $afterId );
+        $now = current_time( 'mysql', 1 );
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id
+                 FROM {$this->promotionAttributionTable}
+                 WHERE id > %d
+                   AND created_at < %s
+                   AND anonymized_at IS NULL
+                   AND (legal_hold_until IS NULL OR legal_hold_until < %s)
+                 ORDER BY id ASC
+                 LIMIT %d",
+                $afterId,
+                $cutoff,
+                $now,
+                $limit
+            ),
+            ARRAY_A
+        );
+
+        if ( ! is_array( $rows ) || empty( $rows ) ) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ( $rows as $row ) {
+            $id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+            if ( $id > 0 ) {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
     }
 
     private function buildReferenceHash( string $reference ): string {

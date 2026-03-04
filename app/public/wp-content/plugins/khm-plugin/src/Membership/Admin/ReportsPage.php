@@ -4,6 +4,8 @@ namespace KHM\Membership\Admin;
 
 use KHM\Services\MembershipRepository;
 
+require_once __DIR__ . '/membership_cache.php';
+
 class ReportsPage {
 	private AttributionReportService $service;
 
@@ -13,6 +15,7 @@ class ReportsPage {
         add_action( 'admin_post_khm_membership_reports_export', [ $this, 'handle_export' ] );
         add_action( 'admin_post_khm_membership_reports_anonymize', [ $this, 'handle_anonymize' ] );
         add_action( 'admin_post_khm_membership_retention_settings', [ $this, 'handle_retention_settings' ] );
+        add_action( 'khm_membership_attribution_mutated', [ $this, 'invalidate_report_cache' ] );
     }
 
     public function add_admin_menu() {
@@ -269,6 +272,8 @@ class ReportsPage {
             false
         );
 
+        MembershipCache::invalidate_all();
+
         $this->emit_telemetry( 'membership.anonymize.executed', [
             'user_id' => (int) get_current_user_id(),
             'matched' => (int) ( $result['matched'] ?? 0 ),
@@ -290,6 +295,7 @@ class ReportsPage {
         $days = isset( $_POST['khm_attribution_retention_days'] ) ? absint( $_POST['khm_attribution_retention_days'] ) : 730;
         $days = max( 1, $days );
         update_site_option( 'khm_attribution_retention_days', $days );
+        MembershipCache::invalidate_all();
 
         $this->emit_telemetry( 'membership.retention.updated', [
             'user_id' => (int) get_current_user_id(),
@@ -336,5 +342,9 @@ class ReportsPage {
     private function emit_telemetry( string $metric, array $context = [] ): void {
         do_action( 'khm_membership_reporting_telemetry', $metric, $context );
         error_log( sprintf( 'membership_reporting metric=%s context=%s', $metric, wp_json_encode( $context ) ) );
+    }
+
+    public function invalidate_report_cache(): void {
+        MembershipCache::invalidate_all();
     }
 }

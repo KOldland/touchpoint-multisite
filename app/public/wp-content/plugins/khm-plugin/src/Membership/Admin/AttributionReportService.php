@@ -2,6 +2,8 @@
 
 namespace KHM\Membership\Admin;
 
+require_once __DIR__ . '/membership_cache.php';
+
 class AttributionReportService {
 	private string $tableName;
 	private string $postsTable;
@@ -25,6 +27,16 @@ class AttributionReportService {
 	 * @return array{items:array<int,array<string,mixed>>,total:int,page:int,per_page:int,total_pages:int}
 	 */
 	public function query( array $filters, int $page, int $per_page ): array {
+		$cacheContext = [
+			'filters' => $filters,
+			'page' => $page,
+			'per_page' => $per_page,
+		];
+		$cached = MembershipCache::get( 'report_query', $cacheContext );
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+
 		global $wpdb;
 
 		$page     = max( 1, $page );
@@ -84,13 +96,16 @@ class AttributionReportService {
 		$count_sql = "SELECT COUNT(*) FROM {$this->tableName} p {$where_sql}";
 		$total = (int) $wpdb->get_var( empty( $values ) ? $count_sql : $wpdb->prepare( $count_sql, $values ) );
 
-		return [
+		$result = [
 			'items' => $items ?: [],
 			'total' => $total,
 			'page' => $page,
 			'per_page' => $per_page,
 			'total_pages' => $per_page > 0 ? (int) ceil( $total / $per_page ) : 0,
 		];
+
+		MembershipCache::set( 'report_query', $cacheContext, $result, 90 );
+		return $result;
 	}
 
 	/**
@@ -98,6 +113,12 @@ class AttributionReportService {
 	 * @return array{total:int,paid:int,signup:int,no_consent:int,unique_users:int}
 	 */
 	public function get_kpis( array $filters ): array {
+		$cacheContext = [ 'filters' => $filters ];
+		$cached = MembershipCache::get( 'report_kpis', $cacheContext );
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+
 		global $wpdb;
 
 		$where = [];
@@ -117,13 +138,16 @@ class AttributionReportService {
 		$row = $wpdb->get_row( empty( $values ) ? $sql : $wpdb->prepare( $sql, $values ), ARRAY_A );
 		$row = is_array( $row ) ? $row : [];
 
-		return [
+		$result = [
 			'total' => (int) ( $row['total'] ?? 0 ),
 			'paid' => (int) ( $row['paid'] ?? 0 ),
 			'signup' => (int) ( $row['signup'] ?? 0 ),
 			'no_consent' => (int) ( $row['no_consent'] ?? 0 ),
 			'unique_users' => (int) ( $row['unique_users'] ?? 0 ),
 		];
+
+		MembershipCache::set( 'report_kpis', $cacheContext, $result, 60 );
+		return $result;
 	}
 
 	/**
