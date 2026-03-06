@@ -1,0 +1,11 @@
+{
+  "schedule_id": "sch_fixture_01",
+  "variant_id": "var_fixture_01",
+  "platform": "manual",
+  "post_text": "Launch your offer with a clear call to action.",
+  "estimated_spend": 120,
+  "estimated_ops": 1,
+  "compliance_status": "OK",
+  "approval_status": "approved",
+  "created_at": "2026-03-06T00:00:00Z"
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://khm.local/contracts/variant_edit.json",
+  "title": "Variant Edit Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["editor_user_id"],
+  "properties": {
+    "editor_user_id": {
+      "oneOf": [
+        { "type": "integer" },
+        { "type": "string", "minLength": 1 }
+      ]
+    },
+    "text": { "type": "string" },
+    "asset_hints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "asset_id"],
+        "properties": {
+          "type": { "type": "string" },
+          "asset_id": { "type": "string" }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

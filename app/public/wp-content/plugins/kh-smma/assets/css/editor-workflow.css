@@ -1,0 +1,122 @@
+.kh-smma-editor-workflow-entry p {
+  margin: 0 0 10px;
+}
+
+.kh-smma-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: rgba(19, 23, 31, 0.56);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 6vh 16px 24px;
+}
+
+.kh-smma-modal-card {
+  width: min(980px, 100%);
+  background: #fbfaf4;
+  border: 1px solid #c9c1b6;
+  border-radius: 10px;
+  box-shadow: 0 24px 54px rgba(19, 23, 31, 0.25);
+  padding: 18px;
+}
+
+.kh-smma-modal-card h3 {
+  margin: 0 0 12px;
+}
+
+.kh-smma-modal-card label {
+  display: block;
+  margin: 10px 0 4px;
+  font-weight: 600;
+}
+
+.kh-smma-modal-card input,
+.kh-smma-modal-card select,
+.kh-smma-modal-card textarea {
+  width: 100%;
+  max-width: 100%;
+}
+
+.kh-smma-modal-card textarea {
+  min-height: 120px;
+}
+
+.kh-smma-modal-actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 8px;
+}
+
+.kh-smma-grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.kh-smma-variant-card {
+  background: #fff;
+  border: 1px solid #d4cdc2;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.kh-smma-variant-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.kh-smma-variant-card h4 {
+  margin: 0;
+}
+
+.kh-smma-badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-weight: 700;
+}
+
+.kh-smma-badge-ok {
+  background: #ecf8ef;
+  color: #0c5c23;
+  border-color: #8ec89a;
+}
+
+.kh-smma-badge-warn {
+  background: #fff8e6;
+  color: #7e5800;
+  border-color: #e1b955;
+}
+
+.kh-smma-badge-fail {
+  background: #fdecec;
+  color: #8f1d1d;
+  border-color: #d98d8d;
+}
+
+.kh-smma-variant-text {
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+.kh-smma-variant-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.kh-smma-live-preview {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #d8d2c6;
+  border-radius: 6px;
+  background: #fff;
+}

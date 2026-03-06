@@ -1,0 +1,18 @@
+{
+  "variants": [
+    {
+      "variant_id": "var_gen_ok_1",
+      "text": "Discover practical growth tactics your team can apply this week.",
+      "rationale": "Awareness-focused copy with clear value proposition.",
+      "asset_hints": [
+        { "type": "image", "description": "Team workshop hero image" }
+      ],
+      "platform": "linkedin",
+      "compliance_notes": "OK"
+    }
+  ],
+  "google_ad_draft": {
+    "headlines": ["Practical Growth Tactics", "Apply This Week"],
+    "descriptions": ["Actionable ideas for your team.", "Start improving today."]
+  }
+}

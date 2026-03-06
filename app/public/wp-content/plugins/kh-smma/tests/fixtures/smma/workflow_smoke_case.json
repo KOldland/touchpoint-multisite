@@ -1,0 +1,12 @@
+{
+  "post_id": 808,
+  "blocks_summary": "Smoke flow fixture content for deterministic testing.",
+  "num_variants": 1,
+  "geo_targets": ["AU"],
+  "consent": true,
+  "editor_user_id": 7,
+  "edit_text": "Smoke test edited text for end-to-end workflow.",
+  "schedule_time": "2026-04-01T10:00:00Z",
+  "sponsor_id": "123",
+  "budget_cents": 10000
+}
