@@ -1,0 +1,23 @@
+name: Scope Guard
+
+on:
+  pull_request:
+
+jobs:
+  scope-guard:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+
+      - name: Run Scope Guard
+        env:
+          CONTRACT_CHANGE_APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'contract-change-approved') && '1' || '' }}
+        run: php scripts/scope_guard.php

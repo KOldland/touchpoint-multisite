@@ -1,0 +1,19 @@
+name: System Replay Test
+
+on:
+  pull_request:
+
+jobs:
+  replay-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+
+      - name: Run Replay Test
+        run: php scripts/replay_system_test.php
