@@ -1,0 +1,12 @@
+Test bootstrap loaded
+PHPUnit 9.6.34 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.1.33
+Configuration: /Users/krisoldland/Local Sites/touchpoint-template-remote/app/public/wp-content/plugins/khm-plugin/phpunit.xml
+
+.....KHM landing landing.submit {"session_id":"cs_test_dae2bc5a44178609","schedule_id":"sch_125","sponsor_id":"","consent":1,"source":"landing"}
+.                                                              6 / 6 (100%)
+
+Time: 00:00.119, Memory: 20.00 MB
+
+OK (6 tests, 24 assertions)
