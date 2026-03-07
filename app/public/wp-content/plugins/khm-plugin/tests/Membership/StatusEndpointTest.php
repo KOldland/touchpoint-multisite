@@ -12,13 +12,17 @@ class StatusEndpointTest extends TestCase {
     protected function setUp(): void {
         parent::setUp();
         $this->endpoint = new StatusEndpoint();
+        $GLOBALS['khm_test_current_user_id'] = 0;
+        $GLOBALS['khm_test_current_user_caps'] = [];
+    }
+
+    protected function tearDown(): void {
+        unset($GLOBALS['khm_test_current_user_id'], $GLOBALS['khm_test_current_user_caps']);
+        parent::tearDown();
     }
 
     public function test_requires_authentication() {
-        // Mock unauthenticated user
-        \WP_Mock::userFunction('get_current_user_id', [
-            'return' => 0
-        ]);
+        $GLOBALS['khm_test_current_user_id'] = 0;
 
         $request = new WP_REST_Request('GET');
         $request->set_param('user_id', 123);
@@ -31,16 +35,8 @@ class StatusEndpointTest extends TestCase {
     }
 
     public function test_user_can_only_access_own_status() {
-        // Mock authenticated user with ID 123
-        \WP_Mock::userFunction('get_current_user_id', [
-            'return' => 123
-        ]);
-
-        // Mock non-admin user
-        \WP_Mock::userFunction('current_user_can', [
-            'args' => ['manage_options'],
-            'return' => false
-        ]);
+        $GLOBALS['khm_test_current_user_id'] = 123;
+        $GLOBALS['khm_test_current_user_caps'] = ['manage_options' => false];
 
         $request = new WP_REST_Request('GET');
         $request->set_param('user_id', 456); // Different user
@@ -53,15 +49,8 @@ class StatusEndpointTest extends TestCase {
     }
 
     public function test_admin_can_access_any_user_status() {
-        // Mock authenticated admin
-        \WP_Mock::userFunction('get_current_user_id', [
-            'return' => 1
-        ]);
-
-        \WP_Mock::userFunction('current_user_can', [
-            'args' => ['manage_options'],
-            'return' => true
-        ]);
+        $GLOBALS['khm_test_current_user_id'] = 1;
+        $GLOBALS['khm_test_current_user_caps'] = ['manage_options' => true];
 
         $request = new WP_REST_Request('GET');
         $request->set_param('user_id', 456);

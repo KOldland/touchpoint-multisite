@@ -1,0 +1,45 @@
+[
+  {
+    "event": "membership.signup",
+    "user_id": 123,
+    "tier": 1,
+    "attribution_id": "",
+    "payment_type": "subscription"
+  },
+  {
+    "event": "landing.success",
+    "user_id": 123,
+    "schedule_id": 77,
+    "sponsor_id": 11,
+    "utm_source": "newsletter",
+    "utm_campaign": "spring",
+    "reference": "cs_optout_001"
+  },
+  {
+    "event": "membership.email.skipped",
+    "type": "welcome",
+    "user_id": 123,
+    "reason": "transactional_emails_disabled",
+    "reference": "cs_optout_001"
+  },
+  {
+    "event": "membership.email.skipped",
+    "type": "payment",
+    "user_id": 123,
+    "reason": "transactional_emails_disabled",
+    "reference": "session:cs_optout_001"
+  },
+  {
+    "event": "webhook.processed",
+    "event_id": "evt_optout_001",
+    "event_type": "checkout.session.completed",
+    "trace_id": "0533074b-8afe-4237-b5ee-5ebcb8195e85",
+    "latency_ms": 2
+  },
+  {
+    "event": "webhook.received",
+    "event_id": "evt_optout_001",
+    "event_type": "checkout.session.completed",
+    "latency_ms": 77
+  }
+]

@@ -57,6 +57,18 @@ class SignupEndpoint {
         $plan_id = (int) $plan->id;
         $tier_slug = sanitize_key( (string) ( $plan->slug ?? $tier_slug ) );
 
+        if ( ! empty( $attribution['promo_code'] ) || ! empty( $attribution['stripe_promotion_code'] ) ) {
+            $promoValidation = $this->validate_promo_code( [
+                'promo_code' => (string) ( $attribution['promo_code'] ?? '' ),
+                'stripe_promotion_code' => (string) ( $attribution['stripe_promotion_code'] ?? '' ),
+                'plan_id' => (string) $plan_id,
+            ] );
+            if ( is_wp_error( $promoValidation ) ) {
+                return $this->invalid_promo_response();
+            }
+            $attribution['validated_promo'] = $promoValidation;
+        }
+
         // --- User Creation or Retrieval ---
         $provided_user_id = isset($p['user_id']) ? intval($p['user_id']) : 0;
         $user_id = email_exists($email);
@@ -124,12 +136,7 @@ class SignupEndpoint {
         if ( ! empty( $payload['promo_code'] ) || ! empty( $payload['stripe_promotion_code'] ) ) {
             $promoValidation = $this->validate_promo_code( $payload );
             if ( is_wp_error( $promoValidation ) ) {
-                return $this->contract_error_response(
-                    'MBR_ERR_INVALID_PROMO',
-                    $promoValidation->get_error_message(),
-                    400,
-                    false
-                );
+                return $this->invalid_promo_response();
             }
             $payload['validated_promo'] = $promoValidation;
         }
@@ -288,6 +295,15 @@ class SignupEndpoint {
                 'allow_promotion_codes' => true,
                 'metadata' => $metadata,
             ];
+            $validatedPromo = is_array( $attribution['validated_promo'] ?? null ) ? $attribution['validated_promo'] : [];
+            $promoCodeObject = is_object( $validatedPromo['code'] ?? null ) ? $validatedPromo['code'] : null;
+            if ( $promoCodeObject && ! empty( $promoCodeObject->stripe_promotion_code ) ) {
+                $session_params['discounts'] = [
+                    [
+                        'promotion_code' => sanitize_text_field( (string) $promoCodeObject->stripe_promotion_code ),
+                    ],
+                ];
+            }
             if ( $trial_days > 0 ) {
                 $session_params['subscription_data'] = [
                     'trial_period_days' => $trial_days,
@@ -417,6 +433,7 @@ class SignupEndpoint {
 
     private function normalize_canonical_attribution_payload( array $params ): array {
         $consent = ! empty( $params['consent'] ) && in_array( strtolower( (string) $params['consent'] ), [ '1', 'true', 'yes', 'on' ], true );
+        $profileMarketingOptIn = $this->normalize_optional_bool( $params['profile_marketing_optin'] ?? null );
 
         $schedule_id = sanitize_text_field( (string) ( $params['schedule_id'] ?? '' ) );
         $sponsor_id = isset( $params['sponsor_id'] ) ? sanitize_text_field( (string) $params['sponsor_id'] ) : null;
@@ -439,6 +456,7 @@ class SignupEndpoint {
             'plan_id' => $this->nullable_text( $params['plan_id'] ?? null, 128 ),
             'promo_code' => $this->nullable_text( $params['promo_code'] ?? null, 128 ),
             'stripe_promotion_code' => $this->nullable_text( $params['stripe_promotion_code'] ?? null, 255 ),
+            'profile_marketing_optin' => $profileMarketingOptIn,
         ];
 
         if ( ! $consent ) {
@@ -449,6 +467,35 @@ class SignupEndpoint {
         }
 
         return $payload;
+    }
+
+    /**
+     * Normalize an optional bool input to true/false/null.
+     *
+     * @param mixed $value
+     */
+    private function normalize_optional_bool( $value ): ?bool {
+        if ( null === $value || '' === $value ) {
+            return null;
+        }
+
+        if ( is_bool( $value ) ) {
+            return $value;
+        }
+
+        if ( is_numeric( $value ) ) {
+            return (int) $value === 1;
+        }
+
+        $normalized = strtolower( trim( (string) $value ) );
+        if ( in_array( $normalized, [ '1', 'true', 'yes', 'on' ], true ) ) {
+            return true;
+        }
+        if ( in_array( $normalized, [ '0', 'false', 'no', 'off' ], true ) ) {
+            return false;
+        }
+
+        return null;
     }
 
     private function sanitize_contract_identifier( string $value ): string {
@@ -624,6 +671,10 @@ class SignupEndpoint {
             ],
         ];
 
+        if ( array_key_exists( 'profile_marketing_optin', $payload ) && null !== $payload['profile_marketing_optin'] ) {
+            $params['metadata']['profile_marketing_optin'] = ! empty( $payload['profile_marketing_optin'] ) ? '1' : '0';
+        }
+
         try {
             $session = \Stripe\Checkout\Session::create( $params, [
                 'idempotency_key' => (string) $payload['idempotency_key'],
@@ -765,6 +816,8 @@ class SignupEndpoint {
             'utm_content' => sanitize_text_field( (string) ( $params['utm_content'] ?? '' ) ),
             'phase_at_click' => sanitize_text_field( (string) ( $params['phase_at_click'] ?? '' ) ),
             'idempotency_key' => sanitize_text_field( (string) ( $params['idempotency_key'] ?? wp_generate_uuid4() ) ),
+            'promo_code' => sanitize_text_field( (string) ( $params['promo_code'] ?? '' ) ),
+            'stripe_promotion_code' => sanitize_text_field( (string) ( $params['stripe_promotion_code'] ?? '' ) ),
             'consent' => $consent,
         ];
 
@@ -802,6 +855,17 @@ class SignupEndpoint {
                 'support_code' => $support_code,
             ],
             $status
+        );
+    }
+
+    private function invalid_promo_response(): \WP_REST_Response {
+        return new \WP_REST_Response(
+            [
+                'code' => 'MBR_ERR_INVALID_PROMO',
+                'message' => 'Invalid promotion code.',
+                'retryable' => false,
+            ],
+            400
         );
     }
 }
