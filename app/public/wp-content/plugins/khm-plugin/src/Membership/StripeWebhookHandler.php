@@ -102,8 +102,9 @@ class StripeWebhookHandler {
             return;
         }
 
-        $event_id = isset( $job['event_id'] ) ? sanitize_text_field( (string) $job['event_id'] ) : '';
+        $event_id   = isset( $job['event_id'] )   ? sanitize_text_field( (string) $job['event_id'] )   : '';
         $event_type = isset( $job['event_type'] ) ? sanitize_text_field( (string) $job['event_type'] ) : '';
+        $trace_id   = isset( $job['trace_id'] )   ? sanitize_text_field( (string) $job['trace_id'] )   : wp_generate_uuid4();
         if ( '' === $event_id || '' === $event_type ) {
             return;
         }
@@ -113,9 +114,13 @@ class StripeWebhookHandler {
             return;
         }
 
+        $received_at = gmdate( 'Y-m-d\TH:i:s\Z' );
         ProcessedWebhook::mark_processing( $event_id, 'Queued worker started.' );
         $started_at = microtime( true );
-        MembershipWebhookAuditLogger::log( $event_id, $event_type, 'processing', null, null, 'Worker started.' );
+        MembershipWebhookAuditLogger::log( $event_id, $event_type, 'processing', null, null, 'Worker started.', [
+            'trace_id'    => $trace_id,
+            'received_at' => $received_at,
+        ] );
 
         $object = null;
         try {
@@ -123,10 +128,14 @@ class StripeWebhookHandler {
             $this->route_event( $event_type, $object, $event_id, isset( $job['event_created'] ) ? (int) $job['event_created'] : 0 );
 
             ProcessedWebhook::mark_processed( $event_id, 'Processed successfully.' );
-            MembershipWebhookAuditLogger::log( $event_id, $event_type, 'success', null, null, 'Event processed successfully.' );
+            MembershipWebhookAuditLogger::log( $event_id, $event_type, 'success', null, null, 'Event processed successfully.', [
+                'trace_id'    => $trace_id,
+                'received_at' => $received_at,
+            ] );
             $this->emit_telemetry( 'webhook.processed', [
-                'event_id' => $event_id,
+                'event_id'   => $event_id,
                 'event_type' => $event_type,
+                'trace_id'   => $trace_id,
                 'latency_ms' => (int) round( ( microtime( true ) - $started_at ) * 1000 ),
             ] );
         } catch ( \Throwable $e ) {
@@ -142,12 +151,37 @@ class StripeWebhookHandler {
                 'processing_failed',
                 $e->getMessage()
             );
-            MembershipWebhookAuditLogger::log( $event_id, $event_type, 'failed', null, null, $e->getMessage() );
-            error_log( 'Stripe webhook processing failed for ' . $event_id . ': ' . $e->getMessage() );
+            MembershipWebhookAuditLogger::log(
+                $event_id,
+                $event_type,
+                'failed',
+                null,
+                null,
+                substr( $e->getMessage(), 0, 500 ),
+                [
+                    'event_id'    => $event_id,
+                    'type'        => $event_type,
+                    'outcome'     => 'failed',
+                    'notes'       => 'Exception during webhook processing.',
+                    'timestamp'   => gmdate( 'Y-m-d\TH:i:s\Z' ),
+                    'trace_id'    => $trace_id,
+                    'received_at' => $received_at,
+                    'error_class' => get_class( $e ),
+                    'context'     => [],
+                ]
+            );
+            error_log( sprintf(
+                'KHM webhook processing failed | event_id=%s | type=%s | trace_id=%s | error=%s',
+                $event_id,
+                $event_type,
+                $trace_id,
+                $e->getMessage()
+            ) );
             $this->emit_telemetry( 'webhook.failed', [
-                'event_id' => $event_id,
+                'event_id'   => $event_id,
                 'event_type' => $event_type,
-                'error' => $e->getMessage(),
+                'trace_id'   => $trace_id,
+                'error'      => $e->getMessage(),
             ] );
         }
     }
