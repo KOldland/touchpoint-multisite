@@ -128,6 +128,24 @@ class MembershipWebhookDeadLetterStore {
         return is_array( $row ) ? $row : null;
     }
 
+    public static function get_by_event_id( string $event_id ): ?array {
+        self::maybe_create_table();
+        global $wpdb;
+
+        $event_id = sanitize_text_field( $event_id );
+        if ( '' === $event_id ) {
+            return null;
+        }
+
+        $table = self::table_name();
+        $row = $wpdb->get_row(
+            $wpdb->prepare( "SELECT * FROM {$table} WHERE event_id = %s LIMIT 1", $event_id ),
+            ARRAY_A
+        );
+
+        return is_array( $row ) ? $row : null;
+    }
+
     public static function mark_resolved( int $id ): bool {
         self::maybe_create_table();
         global $wpdb;
@@ -142,6 +160,35 @@ class MembershipWebhookDeadLetterStore {
             [
                 'status' => 'resolved',
                 'resolved_at' => current_time( 'mysql', 1 ),
+                'updated_at' => current_time( 'mysql', 1 ),
+            ],
+            [ 'id' => $id ],
+            [ '%s', '%s', '%s' ],
+            [ '%d' ]
+        );
+    }
+
+    public static function mark_open_with_attempt( int $id, string $error_message = '' ): bool {
+        self::maybe_create_table();
+        global $wpdb;
+
+        if ( $id <= 0 ) {
+            return false;
+        }
+
+        $table = self::table_name();
+        $wpdb->query(
+            $wpdb->prepare(
+                "UPDATE {$table} SET attempts = attempts + 1 WHERE id = %d",
+                $id
+            )
+        );
+
+        return false !== $wpdb->update(
+            $table,
+            [
+                'status' => 'open',
+                'error_message' => $error_message !== '' ? substr( $error_message, 0, 2000 ) : null,
                 'updated_at' => current_time( 'mysql', 1 ),
             ],
             [ 'id' => $id ],
