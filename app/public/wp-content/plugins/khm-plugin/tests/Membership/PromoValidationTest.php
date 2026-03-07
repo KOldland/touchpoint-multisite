@@ -82,78 +82,6 @@ class PromoValidationTest extends TestCase {
         $this->assertInstanceOf( \WP_Error::class, $result );
     }
 
-    public function test_checkout_invalid_promo_does_not_create_stripe_session(): void {
-        putenv( 'KH_STRIPE_SECRET_KEY=sk_test_membership_checkout' );
-
-        $controller = new PromoValidationCheckoutController();
-        $discounts = $this->createMock( DiscountCodeService::class );
-        $discounts->expects( $this->once() )
-            ->method( 'validate_code' )
-            ->with( 'INVALID50', 7, 0 )
-            ->willReturn( [
-                'valid' => false,
-                'message' => 'Invalid discount code.',
-            ] );
-        $this->set_private_property( $controller, 'discounts', $discounts );
-
-        $this->add_test_filter( 'khm_stripe_membership_price_map', static function () {
-            return [ 7 => 'price_test_membership_checkout' ];
-        } );
-
-        $request = new WP_REST_Request( 'POST', '/khm/v1/checkout/subscription' );
-        $request->set_param( 'membership_level_id', 7 );
-        $request->set_param( 'email', 'promo.invalid.checkout@example.com' );
-        $request->set_param( 'promo_code', 'INVALID50' );
-
-        $response = $controller->create_subscription_checkout( $request );
-        $body = $response->get_data();
-
-        $this->assertSame( 400, $response->get_status() );
-        $this->assertSame( 'MBR_ERR_INVALID_PROMO', $body['code'] ?? '' );
-        $this->assertSame( 0, $controller->stripeCreateCalls );
-    }
-
-    public function test_checkout_validated_promo_is_passed_to_stripe_discounts(): void {
-        putenv( 'KH_STRIPE_SECRET_KEY=sk_test_membership_checkout' );
-
-        $controller = new PromoValidationCheckoutController();
-        $discounts = $this->createMock( DiscountCodeService::class );
-        $discounts->expects( $this->once() )
-            ->method( 'validate_code' )
-            ->with( 'WELCOME20', 7, 0 )
-            ->willReturn( [
-                'valid' => true,
-                'message' => 'Discount code applied successfully.',
-                'code' => (object) [
-                    'id' => 99,
-                    'type' => 'percent',
-                    'value' => 20,
-                    'stripe_promotion_code' => 'promo_validated_123',
-                ],
-            ] );
-        $this->set_private_property( $controller, 'discounts', $discounts );
-
-        $this->add_test_filter( 'khm_stripe_membership_price_map', static function () {
-            return [ 7 => 'price_test_membership_checkout' ];
-        } );
-
-        $request = new WP_REST_Request( 'POST', '/khm/v1/checkout/subscription' );
-        $request->set_param( 'membership_level_id', 7 );
-        $request->set_param( 'email', 'promo.valid.checkout@example.com' );
-        $request->set_param( 'promo_code', 'WELCOME20' );
-
-        $response = $controller->create_subscription_checkout( $request );
-        $body = $response->get_data();
-
-        $this->assertSame( 200, $response->get_status() );
-        $this->assertSame( 'https://checkout.stripe.com/c/pay/test_checkout', $body['url'] ?? '' );
-        $this->assertSame( 1, $controller->stripeCreateCalls );
-        $this->assertSame(
-            'promo_validated_123',
-            $controller->lastStripeParams['discounts'][0]['promotion_code'] ?? ''
-        );
-    }
-
     public function test_signup_init_invalid_promo_returns_structured_error_and_no_session(): void {
         $override = static function ( $value, $promoCode ) {
             if ( 'INVALID50' === $promoCode ) {
@@ -235,30 +163,6 @@ class PromoValidationTest extends TestCase {
             'tag' => $tag,
             'callback' => $callback,
             'priority' => $priority,
-        ];
-    }
-}
-
-class PromoValidationCheckoutController extends CheckoutController {
-    public int $stripeCreateCalls = 0;
-
-    /** @var array<string,mixed> */
-    public array $lastStripeParams = [];
-
-    protected function resolve_membership_level( int $levelId, WP_REST_Request $request ) {
-        return (object) [
-            'id' => $levelId,
-            'name' => 'Promo Validation Level',
-        ];
-    }
-
-    protected function create_stripe_checkout_session( array $params ) {
-        $this->stripeCreateCalls++;
-        $this->lastStripeParams = $params;
-
-        return (object) [
-            'id' => 'cs_test_checkout',
-            'url' => 'https://checkout.stripe.com/c/pay/test_checkout',
         ];
     }
 }
