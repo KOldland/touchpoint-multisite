@@ -33,13 +33,13 @@
     "event": "webhook.processed",
     "event_id": "evt_optout_001",
     "event_type": "checkout.session.completed",
-    "trace_id": "f797ec88-1e0e-48e6-9fc9-f0835cb67130",
+    "trace_id": "0533074b-8afe-4237-b5ee-5ebcb8195e85",
     "latency_ms": 2
   },
   {
     "event": "webhook.received",
     "event_id": "evt_optout_001",
     "event_type": "checkout.session.completed",
-    "latency_ms": 76
+    "latency_ms": 77
   }
 ]
