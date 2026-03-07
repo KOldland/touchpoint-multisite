@@ -278,18 +278,4 @@ class CheckoutController {
     protected function create_stripe_checkout_session( array $params ) {
         return \Stripe\Checkout\Session::create( $params );
     }
-
-    /**
-     * @param mixed $value
-     */
-    private function normalize_bool_metadata( $value ): string {
-        if ( is_bool( $value ) ) {
-            return $value ? '1' : '0';
-        }
-        if ( is_numeric( $value ) ) {
-            return (int) $value === 1 ? '1' : '0';
-        }
-        $normalized = strtolower( trim( (string) $value ) );
-        return in_array( $normalized, [ '1', 'true', 'yes', 'on' ], true ) ? '1' : '0';
-    }
 }
