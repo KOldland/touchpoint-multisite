@@ -1,11 +1,23 @@
 Evidence: validated promo is only passed to Stripe discounts when validation succeeds.
 
-Test: tests/Membership/PromoValidationTest.php::test_checkout_validated_promo_is_passed_to_stripe_discounts
-- Mocks DiscountCodeService::validate_code() to return valid=true and stripe_promotion_code=promo_validated_123.
-- Spies on CheckoutController Stripe session call.
-- Asserts lastStripeParams['discounts'][0]['promotion_code'] === 'promo_validated_123'.
+Source test:
+- tests/Membership/PromoValidationTest.php::test_checkout_validated_promo_is_passed_to_stripe_discounts
+	- Mocks DiscountCodeService::validate_code() => valid=true, stripe_promotion_code=promo_validated_123
+	- Asserts CheckoutController spy captured discounts[0].promotion_code === promo_validated_123
+	- Asserts Stripe checkout create call count === 1
 
-Guard Test: tests/Membership/PromoValidationTest.php::test_checkout_invalid_promo_does_not_create_stripe_session
-- Mocks validate_code() to return valid=false.
-- Asserts HTTP 400 MBR_ERR_INVALID_PROMO.
-- Asserts stripeCreateCalls === 0.
+Guard behavior:
+- tests/Membership/PromoValidationTest.php::test_checkout_invalid_promo_does_not_create_stripe_session
+	- Mocks validate_code() => valid=false
+	- Asserts HTTP 400 with code MBR_ERR_INVALID_PROMO
+	- Asserts Stripe checkout create call count === 0
+
+Signup endpoint behavior:
+- tests/Membership/PromoValidationTest.php::test_signup_rejects_invalid_promo_before_checkout_creation
+	- Invalid promo returns 400 MBR_ERR_INVALID_PROMO before checkout creation
+- tests/Membership/PromoValidationTest.php::test_signup_init_valid_promo_creates_checkout_session
+	- Valid promo returns 201 with session_id + checkout_url
+
+Verification run:
+- Command: vendor/bin/phpunit tests/Membership/PromoValidationTest.php -v
+- Result: OK (6 tests, 24 assertions)

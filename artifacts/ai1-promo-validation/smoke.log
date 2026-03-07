@@ -4,9 +4,15 @@ PHPUnit 9.6.34 by Sebastian Bergmann and contributors.
 Runtime:       PHP 8.1.33
 Configuration: /Users/krisoldland/Local Sites/touchpoint-template-remote/app/public/wp-content/plugins/khm-plugin/phpunit.xml
 
-.....KHM landing landing.submit {"session_id":"cs_test_dae2bc5a44178609","schedule_id":"sch_125","sponsor_id":"","consent":1,"source":"landing"}
-.                                                              6 / 6 (100%)
+Promo Validation (KHM\Tests\Membership\PromoValidation)
+ ✔ Signup rejects invalid promo before checkout creation [27.70 ms]
+ ✔ Checkout controller rejects invalid promo in resolver [55.74 ms]
+ ✔ Checkout invalid promo does not create stripe session [2.47 ms]
+ ✔ Checkout validated promo is passed to stripe discounts [1.85 ms]
+ ✔ Signup init invalid promo returns structured error and no session [3.07 ms]
+KHM landing landing.submit {"session_id":"cs_test_dae2bc5a44178609","schedule_id":"sch_125","sponsor_id":"","consent":1,"source":"landing"}
+ ✔ Signup init valid promo creates checkout session [22.74 ms]
 
-Time: 00:00.129, Memory: 20.00 MB
+Time: 00:00.119, Memory: 20.00 MB
 
 OK (6 tests, 24 assertions)
