@@ -5,15 +5,18 @@ Runtime:       PHP 8.1.33
 Configuration: /Users/krisoldland/Local Sites/touchpoint-template-remote/app/public/wp-content/plugins/khm-plugin/phpunit.xml
 
 KHM landing landing.submit {"session_id":"cs_test_df439ce7bb2256e6","schedule_id":"sch_optout_001","sponsor_id":"","consent":1,"source":"landing"}
-..KHM webhook membership.attribution.confirmed {"user_id":123,"schedule_id":77,"reference":"cs_optout_001","consent":0}
+Opt Out And Email Precedence (KHM\Tests\Membership\OptOutAndEmailPrecedence)
+ ✔ Signup init persists explicit marketing opt out [86.61 ms]
+ ✔ Webhook prefers session customer email over guest email [1.48 ms]
+KHM webhook membership.attribution.confirmed {"user_id":123,"schedule_id":77,"reference":"cs_optout_001","consent":0}
 KHM webhook membership.signup {"user_id":123,"tier":1,"attribution_id":"","payment_type":"subscription"}
 KHM webhook landing.success {"user_id":123,"schedule_id":77,"sponsor_id":11,"utm_source":"newsletter","utm_campaign":"spring","reference":"cs_optout_001"}
 KHM webhook membership.email.skipped {"type":"welcome","user_id":123,"reason":"transactional_emails_disabled","reference":"cs_optout_001"}
 KHM webhook membership.email.skipped {"type":"payment","user_id":123,"reason":"transactional_emails_disabled","reference":"session:cs_optout_001"}
-KHM webhook webhook.processed {"event_id":"evt_optout_001","event_type":"checkout.session.completed","trace_id":"355282fd-315c-4fb6-9cc2-cbade85c61db","latency_ms":2}
-KHM webhook webhook.received {"event_id":"evt_optout_001","event_type":"checkout.session.completed","latency_ms":73}
-.                                                                 3 / 3 (100%)
+KHM webhook webhook.processed {"event_id":"evt_optout_001","event_type":"checkout.session.completed","trace_id":"77485e67-b15d-450a-b3a4-820967102896","latency_ms":2}
+KHM webhook webhook.received {"event_id":"evt_optout_001","event_type":"checkout.session.completed","latency_ms":77}
+ ✔ Webhook no consent redacts attribution fields [80.09 ms]
 
-Time: 00:00.163, Memory: 18.00 MB
+Time: 00:00.173, Memory: 20.00 MB
 
 OK (3 tests, 10 assertions)
