@@ -1,0 +1,9 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "{\"variants\":[{\"variant_id\":\"var_fixture_1\",\"text\":\"Launch your Q2 campaign with confidence.\",\"rationale\":\"Concise CTA for busy decision-makers.\",\"asset_hints\":[{\"type\":\"image\",\"description\":\"Product hero image with headline overlay\"}],\"platform\":\"linkedin\",\"compliance_status\":\"PASS\",\"compliance_reason\":\"\"}]}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "cases": [
+    {
+      "variant_id": "var_ok_01",
+      "compliance_status": "OK",
+      "expected_schedule_state": "queued"
+    },
+    {
+      "variant_id": "var_warn_01",
+      "compliance_status": "WARN",
+      "expected_schedule_state": "pending_approval"
+    },
+    {
+      "variant_id": "var_fail_01",
+      "compliance_status": "FAIL",
+      "expected_schedule_state": "blocked"
+    }
+  ]
+}
