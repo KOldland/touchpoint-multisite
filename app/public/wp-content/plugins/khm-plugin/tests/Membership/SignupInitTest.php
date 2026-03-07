@@ -153,7 +153,7 @@ class SignupInitTest extends TestCase {
         $this->assertEquals( 400, $response->get_status() );
 
         $body = $response->get_data();
-        $this->assertEquals( 'MBR_ERR_INVALID_PROMO', $body['error']['code'] );
+        $this->assertEquals( 'MBR_ERR_INVALID_PROMO', $body['code'] );
     }
 
     public function test_signup_init_accepts_validated_promo_code(): void {
