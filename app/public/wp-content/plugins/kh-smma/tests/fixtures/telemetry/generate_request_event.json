@@ -1,0 +1,10 @@
+{
+  "_comment": "OBS-CARD-01 — canonical generate.request event fixture",
+  "event_name": "generate.request",
+  "trace_id": "{{UUID}}",
+  "timestamp": "{{UNIX_TS}}",
+  "service": "smma",
+  "session_id": "req_abc123",
+  "prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "variant_count_requested": 2
+}

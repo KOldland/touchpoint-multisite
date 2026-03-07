@@ -1,0 +1,29 @@
+{
+  "_comment": "OBS-CARD-02 — integration test fixture. Feed this stream into AnalyticsFeedbackService and assert expected_metrics.",
+  "trace_id": "d4e8f2a0-0002-4abc-8def-000000000002",
+  "events": [
+    { "event_name": "generate.request",  "service": "smma", "payload": {} },
+    { "event_name": "generate.response", "service": "smma", "payload": { "variant_count_generated": 2, "latency_ms": 320 } },
+    { "event_name": "compliance.check",  "service": "smma", "payload": { "variant_id": "v-001", "outcome": "OK",   "rules_matched": [], "ai_review_summary": "" } },
+    { "event_name": "compliance.check",  "service": "smma", "payload": { "variant_id": "v-002", "outcome": "WARN", "rules_matched": ["soft_claim"], "ai_review_summary": "May require sponsor review" } },
+    { "event_name": "variant.edit",      "service": "smma", "payload": { "variant_id": "v-002", "editor_id": "1", "revision_id": "rev-01", "deltas": {} } },
+    { "event_name": "compliance.check",  "service": "smma", "payload": { "variant_id": "v-002", "outcome": "OK",   "rules_matched": [], "ai_review_summary": "" } },
+    { "event_name": "schedule.create",   "service": "smma", "payload": { "schedule_id": "sched-001", "sponsor_id": "sp-1", "approval_required": false } },
+    { "event_name": "schedule.dispatch", "service": "smma", "payload": { "schedule_id": "sched-001", "adapter": "manual", "result": "dispatched" } },
+    { "event_name": "membership.signup", "service": "mem",  "payload": { "user_id": 99, "tier": "standard", "payment_status": "paid", "attribution_id": "promo-1" } },
+    { "event_name": "promotion_attribution", "service": "mem", "payload": { "schedule_id": "sched-001", "sponsor_id": "sp-1", "utm_source": "linkedin", "utm_campaign": "q1", "confidence_score": 0.88 } }
+  ],
+  "expected_metrics": {
+    "generate_requests":      1,
+    "variants_created":       2,
+    "variant_edits":          1,
+    "compliance_ok":          2,
+    "compliance_warn":        1,
+    "compliance_fail":        0,
+    "schedule_created":       1,
+    "schedule_dispatched":    1,
+    "membership_signups":     1,
+    "promotion_attributions": 1,
+    "avg_generate_latency_ms": 320.0
+  }
+}
