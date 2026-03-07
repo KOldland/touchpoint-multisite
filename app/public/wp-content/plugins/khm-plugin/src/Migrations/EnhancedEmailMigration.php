@@ -91,6 +91,7 @@ class EnhancedEmailMigration {
         $sql = "CREATE TABLE {$table_name} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             email_log_id bigint(20) unsigned NOT NULL,
+            idempotency_key varchar(255) NULL,
             template_key varchar(100) NOT NULL,
             recipient varchar(255) NOT NULL,
             subject text NOT NULL,
@@ -113,6 +114,7 @@ class EnhancedEmailMigration {
             KEY scheduled_at (scheduled_at),
             KEY priority (priority),
             KEY template_key (template_key),
+            UNIQUE KEY uniq_email_idempotency (idempotency_key),
             FOREIGN KEY (email_log_id) REFERENCES {$wpdb->prefix}khm_email_logs(id) ON DELETE CASCADE
         ) {$charset_collate};";
         

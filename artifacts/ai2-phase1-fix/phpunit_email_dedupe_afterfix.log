@@ -1,0 +1,11 @@
+Test bootstrap loaded
+PHPUnit 9.6.34 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.1.33
+Configuration: app/public/wp-content/plugins/khm-plugin/phpunit.xml
+
+..                                                                  2 / 2 (100%)
+
+Time: 00:00.032, Memory: 14.00 MB
+
+OK (2 tests, 6 assertions)

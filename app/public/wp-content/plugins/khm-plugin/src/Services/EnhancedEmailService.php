@@ -309,9 +309,15 @@ class EnhancedEmailService implements EmailServiceInterface {
         if ( ! $this->table_exists( $table ) ) {
             return false;
         }
-        
+
+        $idempotency_key = $this->build_queue_idempotency_key( $template, $recipient, $data );
+        if ( $idempotency_key !== '' && $this->queue_entry_exists( $idempotency_key ) ) {
+            return true;
+        }
+
         $result = $wpdb->insert( $table, [
             'email_log_id' => $email_id,
+            'idempotency_key' => $idempotency_key !== '' ? $idempotency_key : null,
             'template_key' => $template,
             'recipient' => $recipient,
             'subject' => $this->subject,
@@ -324,8 +330,12 @@ class EnhancedEmailService implements EmailServiceInterface {
             'scheduled_at' => \current_time( 'mysql' ),
             'created_at' => \current_time( 'mysql' )
         ] );
-        
-        return $result !== false;
+
+        if ( false !== $result ) {
+            return true;
+        }
+
+        return $idempotency_key !== '' && $this->queue_entry_exists( $idempotency_key );
     }
 
     /**
@@ -385,11 +395,18 @@ class EnhancedEmailService implements EmailServiceInterface {
             return;
         }
         
-        // Mark as processing
-        $wpdb->update( $table, 
+        if ( isset( $email->status ) && (string) $email->status !== self::STATUS_PENDING ) {
+            return;
+        }
+
+        $claimed = $wpdb->update(
+            $table,
             [ 'status' => self::STATUS_PROCESSING, 'processed_at' => \current_time( 'mysql' ) ],
-            [ 'id' => $email->id ]
+            [ 'id' => $email->id, 'status' => self::STATUS_PENDING ]
         );
+        if ( false === $claimed || 0 === (int) $claimed ) {
+            return;
+        }
         
         // Restore email properties
         $this->subject = $email->subject;
@@ -664,6 +681,55 @@ class EnhancedEmailService implements EmailServiceInterface {
         global $wpdb;
 
         return $wpdb->prefix . 'khm_email_queue';
+    }
+
+    private function build_queue_idempotency_key( string $template, string $recipient, array $data ): string {
+        if ( isset( $data['idempotency_key'] ) && $data['idempotency_key'] !== '' ) {
+            return substr( sanitize_text_field( (string) $data['idempotency_key'] ), 0, 255 );
+        }
+
+        $reference = '';
+        foreach ( [ 'event_id', 'reference', 'id_reference' ] as $key ) {
+            if ( isset( $data[ $key ] ) && $data[ $key ] !== '' ) {
+                $reference = sanitize_key( str_replace( ':', '_', (string) $data[ $key ] ) );
+                break;
+            }
+        }
+
+        if ( $reference === '' && isset( $data['schedule_id'] ) && $data['schedule_id'] !== '' ) {
+            $reference = 'schedule_' . absint( $data['schedule_id'] );
+        }
+
+        if ( $reference === '' ) {
+            $reference = substr( sha1( $recipient . '|' . $template . '|' . wp_json_encode( $data ) ), 0, 40 );
+        }
+
+        return substr( sprintf( '%s:%s', sanitize_key( $template ), $reference ), 0, 255 );
+    }
+
+    private function queue_entry_exists( string $idempotency_key ): bool {
+        if ( $idempotency_key === '' ) {
+            return false;
+        }
+
+        global $wpdb;
+        $table = $this->get_queue_table();
+        if ( ! $this->table_exists( $table ) ) {
+            return false;
+        }
+
+        $rows = $wpdb->get_results( "SELECT * FROM {$table} LIMIT 1000", ARRAY_A );
+        if ( ! is_array( $rows ) ) {
+            return false;
+        }
+
+        foreach ( $rows as $row ) {
+            if ( (string) ( $row['idempotency_key'] ?? '' ) === $idempotency_key ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function get_logs_table(): string {
