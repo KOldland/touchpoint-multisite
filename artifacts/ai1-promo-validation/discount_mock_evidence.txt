@@ -1,0 +1,11 @@
+Evidence: validated promo is only passed to Stripe discounts when validation succeeds.
+
+Test: tests/Membership/PromoValidationTest.php::test_checkout_validated_promo_is_passed_to_stripe_discounts
+- Mocks DiscountCodeService::validate_code() to return valid=true and stripe_promotion_code=promo_validated_123.
+- Spies on CheckoutController Stripe session call.
+- Asserts lastStripeParams['discounts'][0]['promotion_code'] === 'promo_validated_123'.
+
+Guard Test: tests/Membership/PromoValidationTest.php::test_checkout_invalid_promo_does_not_create_stripe_session
+- Mocks validate_code() to return valid=false.
+- Asserts HTTP 400 MBR_ERR_INVALID_PROMO.
+- Asserts stripeCreateCalls === 0.
