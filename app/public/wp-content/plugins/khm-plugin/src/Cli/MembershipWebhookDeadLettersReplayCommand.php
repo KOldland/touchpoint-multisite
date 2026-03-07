@@ -3,6 +3,7 @@
 namespace KHM\CLI;
 
 use KHM\Membership\MembershipWebhookDeadLetterStore;
+use KHM\Services\WebhookService;
 use WP_CLI;
 
 if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
@@ -10,6 +11,12 @@ if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
 }
 
 class MembershipWebhookDeadLettersReplayCommand {
+    private WebhookService $service;
+
+    public function __construct( ?WebhookService $service = null ) {
+        $this->service = $service ?: new WebhookService();
+    }
+
     /**
      * Replay membership webhook dead-letter events.
      *
@@ -17,6 +24,9 @@ class MembershipWebhookDeadLettersReplayCommand {
      *
      * [--id=<id>]
      * : Replay a specific dead-letter row ID.
+     *
+     * [--event-id=<event_id>]
+     * : Replay a specific dead-letter event ID.
      *
      * [--all-open]
      * : Replay all open dead-letter rows.
@@ -31,12 +41,30 @@ class MembershipWebhookDeadLettersReplayCommand {
      */
     public function __invoke( array $args, array $assoc_args ): void {
         $id = isset( $assoc_args['id'] ) ? (int) $assoc_args['id'] : 0;
+        $event_id = isset( $assoc_args['event-id'] ) ? sanitize_text_field( (string) $assoc_args['event-id'] ) : '';
         $all_open = \WP_CLI\Utils\get_flag_value( $assoc_args, 'all-open', false );
         $limit = isset( $assoc_args['limit'] ) ? (int) $assoc_args['limit'] : 20;
         $limit = max( 1, min( 200, $limit ) );
 
-        if ( $id <= 0 && ! $all_open ) {
-            WP_CLI::error( 'Specify either --id=<id> or --all-open.' );
+        if ( $id <= 0 && '' === $event_id && ! $all_open ) {
+            WP_CLI::error( 'Specify either --id=<id>, --event-id=<event_id> or --all-open.' );
+        }
+
+        if ( '' !== $event_id ) {
+            $result = $this->service->requeueWebhookEvent( $event_id );
+            WP_CLI::line( wp_json_encode( $result ) ?: '' );
+            if ( ( $result['status'] ?? '' ) === 'success' ) {
+                WP_CLI::success( sprintf( 'Requeued dead-letter event_id=%s', $event_id ) );
+                return;
+            }
+
+            if ( ( $result['status'] ?? '' ) === 'require_human_secret' ) {
+                WP_CLI::warning( sprintf( 'Replay blocked event_id=%s reason=%s', $event_id, (string) ( $result['reason'] ?? '' ) ) );
+                return;
+            }
+
+            WP_CLI::warning( sprintf( 'Replay failed event_id=%s reason=%s', $event_id, (string) ( $result['reason'] ?? '' ) ) );
+            return;
         }
 
         $rows = [];

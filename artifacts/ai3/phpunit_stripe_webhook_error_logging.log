@@ -1,0 +1,42 @@
+Test bootstrap loaded
+PHPUnit 9.6.34 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.1.33
+Configuration: /Users/krisoldland/Local Sites/touchpoint-template-remote/app/public/wp-content/plugins/khm-plugin/phpunit.xml
+
+KHM webhook processing failed | event_id=evt_err_null_obj | type=invoice.paid | trace_id=4f1c4473-b8e7-4d18-b288-6d52d1715a13 | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_err_null_obj","event_type":"invoice.paid","trace_id":"4f1c4473-b8e7-4d18-b288-6d52d1715a13","error":"invoice.paid unable to resolve user"}
+KHM webhook webhook.received {"event_id":"evt_err_null_obj","event_type":"invoice.paid","latency_ms":1}
+KHM webhook processing failed | event_id=evt_err_null_obj | type=invoice.paid | trace_id=trace-null-obj | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_err_null_obj","event_type":"invoice.paid","trace_id":"trace-null-obj","error":"invoice.paid unable to resolve user"}
+.KHM webhook processing failed | event_id=evt_err_ctx | type=invoice.paid | trace_id=00e453f6-3768-4359-b9c5-05460cf6eb5a | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_err_ctx","event_type":"invoice.paid","trace_id":"00e453f6-3768-4359-b9c5-05460cf6eb5a","error":"invoice.paid unable to resolve user"}
+KHM webhook webhook.received {"event_id":"evt_err_ctx","event_type":"invoice.paid","latency_ms":0}
+KHM webhook processing failed | event_id=evt_err_ctx | type=invoice.paid | trace_id=trace-ctx-001 | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_err_ctx","event_type":"invoice.paid","trace_id":"trace-ctx-001","error":"invoice.paid unable to resolve user"}
+.KHM webhook processing failed | event_id=evt_err_mark | type=invoice.paid | trace_id=51d0a4b7-23c5-4e95-9d2d-fadf99b1432c | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_err_mark","event_type":"invoice.paid","trace_id":"51d0a4b7-23c5-4e95-9d2d-fadf99b1432c","error":"invoice.paid unable to resolve user"}
+KHM webhook webhook.received {"event_id":"evt_err_mark","event_type":"invoice.paid","latency_ms":0}
+KHM webhook processing failed | event_id=evt_err_mark | type=invoice.paid | trace_id=trace-mark | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_err_mark","event_type":"invoice.paid","trace_id":"trace-mark","error":"invoice.paid unable to resolve user"}
+.KHM webhook processing failed | event_id=evt_err_dl | type=invoice.paid | trace_id=92299ed5-4dfd-499e-946f-75c47934ed54 | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_err_dl","event_type":"invoice.paid","trace_id":"92299ed5-4dfd-499e-946f-75c47934ed54","error":"invoice.paid unable to resolve user"}
+KHM webhook webhook.received {"event_id":"evt_err_dl","event_type":"invoice.paid","latency_ms":0}
+KHM webhook processing failed | event_id=evt_err_dl | type=invoice.paid | trace_id=trace-dl-001 | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_err_dl","event_type":"invoice.paid","trace_id":"trace-dl-001","error":"invoice.paid unable to resolve user"}
+.KHM webhook processing failed | event_id=evt_err_both | type=invoice.paid | trace_id=556f1511-ac4a-49a5-855e-c43c508d1a4a | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_err_both","event_type":"invoice.paid","trace_id":"556f1511-ac4a-49a5-855e-c43c508d1a4a","error":"invoice.paid unable to resolve user"}
+KHM webhook webhook.received {"event_id":"evt_err_both","event_type":"invoice.paid","latency_ms":0}
+KHM webhook processing failed | event_id=evt_err_both | type=invoice.paid | trace_id=trace-both-999 | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_err_both","event_type":"invoice.paid","trace_id":"trace-both-999","error":"invoice.paid unable to resolve user"}
+.KHM webhook webhook.invalid_signature {"code":"khm_invalid_signature","message":"No signatures found matching the expected signature for payload"}
+.KHM webhook processing failed | event_id=evt_signed_exc_001 | type=invoice.paid | trace_id=3c1a6e6b-8f39-41a8-8015-f5033d0394f8 | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_signed_exc_001","event_type":"invoice.paid","trace_id":"3c1a6e6b-8f39-41a8-8015-f5033d0394f8","error":"invoice.paid unable to resolve user"}
+KHM webhook webhook.received {"event_id":"evt_signed_exc_001","event_type":"invoice.paid","latency_ms":75}
+KHM webhook processing failed | event_id=evt_signed_exc_001 | type=invoice.paid | trace_id=trace-signed-exc-001 | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_signed_exc_001","event_type":"invoice.paid","trace_id":"trace-signed-exc-001","error":"invoice.paid unable to resolve user"}
+.                                                             7 / 7 (100%)
+
+Time: 00:00.140, Memory: 18.00 MB
+
+OK (7 tests, 30 assertions)

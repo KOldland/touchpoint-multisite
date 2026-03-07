@@ -1,0 +1,21 @@
+#!/usr/bin/env php
+<?php
+
+if ( PHP_SAPI !== 'cli' ) {
+    fwrite( STDERR, "CLI only\n" );
+    exit( 1 );
+}
+
+$argv = $_SERVER['argv'] ?? [];
+$command = $argv[1] ?? '';
+$eventId = $argv[2] ?? '';
+
+if ( $command !== 'requeue:webhook' || $eventId === '' ) {
+    fwrite( STDERR, "Usage: php bin/khm requeue:webhook <event_id>\n" );
+    exit( 1 );
+}
+
+$escapedEventId = escapeshellarg( (string) $eventId );
+$wpCommand = sprintf( 'wp khm membership:dlq:replay --event-id=%s', $escapedEventId );
+passthru( $wpCommand, $exitCode );
+exit( (int) $exitCode );
