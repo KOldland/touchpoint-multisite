@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "prompt_hash": "aa23ecedab189c115f1d88028bba5c3521357026ff319450679a99d342173aab",
+  "prompt_version": "paid-03",
+  "created_at": "2026-03-04T00:00:00Z",
+  "author": "@paid-adapter-team",
+  "checksum": "aa23ecedab189c115f1d88028bba5c3521357026ff319450679a99d342173aab",
+  "notes": "PAID-03: Google sandbox dry-run input manifest. Same as paid_adapter_dry_run_manifest.json but channel=google. Used for GoogleSandboxAdapter tests."
+}

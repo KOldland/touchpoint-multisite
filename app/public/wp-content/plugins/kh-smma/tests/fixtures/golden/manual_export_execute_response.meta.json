@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "prompt_hash": "5324e7ca57200c742803fcdec4874cbeb9a2a49479bb12f578adfd7913ae484f",
+  "prompt_version": "paid-07",
+  "created_at": "2026-03-04T00:00:00Z",
+  "author": "@paid-adapter-team",
+  "checksum": "5324e7ca57200c742803fcdec4874cbeb9a2a49479bb12f578adfd7913ae484f",
+  "labels": ["golden-owner-approved"],
+  "notes": "PAID-07: ManualExportAdapter execute response. manifest_id=man_20260303_001, status=awaiting_manual_export. Bundle stored to WP option for manual ops pickup."
+}
