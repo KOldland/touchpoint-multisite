@@ -83,7 +83,16 @@ class StripeWebhookHandler {
         if ( ! $this->enqueue_event_job( $job ) ) {
             ProcessedWebhook::mark_failed( $event_id, 'Failed to enqueue webhook job.' );
             MembershipWebhookDeadLetterStore::store( $event_id, $event_type, (string) $payload, 'enqueue_failed' );
-            $this->emit_telemetry( 'webhook.queue_failed', [ 'event_id' => $event_id, 'event_type' => $event_type ] );
+            MembershipWebhookAuditLogger::log( $event_id, $event_type, 'failed', null, null, 'Failed to enqueue webhook job.', [
+                'event_id'  => $event_id,
+                'type'      => $event_type,
+                'outcome'   => 'failed',
+                'notes'     => 'Enqueue failure; Stripe will retry.',
+                'timestamp' => gmdate( 'Y-m-d\TH:i:s\Z' ),
+                'trace_id'  => (string) $job['trace_id'],
+                'context'   => [],
+            ] );
+            $this->emit_telemetry( 'webhook.queue_failed', [ 'event_id' => $event_id, 'event_type' => $event_type, 'trace_id' => (string) $job['trace_id'] ] );
             return new \WP_REST_Response( [ 'error' => 'Failed to queue event' ], 500 );
         }
 
@@ -151,6 +160,7 @@ class StripeWebhookHandler {
                 'processing_failed',
                 $e->getMessage()
             );
+            // Structured audit entry on error — no raw PII, includes trace/timestamp for observability.
             MembershipWebhookAuditLogger::log(
                 $event_id,
                 $event_type,
@@ -159,15 +169,15 @@ class StripeWebhookHandler {
                 null,
                 substr( $e->getMessage(), 0, 500 ),
                 [
-                    'event_id'    => $event_id,
-                    'type'        => $event_type,
-                    'outcome'     => 'failed',
-                    'notes'       => 'Exception during webhook processing.',
-                    'timestamp'   => gmdate( 'Y-m-d\TH:i:s\Z' ),
-                    'trace_id'    => $trace_id,
-                    'received_at' => $received_at,
-                    'error_class' => get_class( $e ),
-                    'context'     => [],
+                    'event_id'      => $event_id,
+                    'type'          => $event_type,
+                    'outcome'       => 'failed',
+                    'notes'         => 'Exception during webhook processing.',
+                    'timestamp'     => gmdate( 'Y-m-d\TH:i:s\Z' ),
+                    'trace_id'      => $trace_id,
+                    'received_at'   => $received_at,
+                    'error_class'   => get_class( $e ),
+                    'context'       => [],
                 ]
             );
             error_log( sprintf(
@@ -253,6 +263,10 @@ class StripeWebhookHandler {
         }
 
         $metadata = isset($session->metadata) ? (array) $session->metadata : [];
+        $temp_attribution_payload = $this->get_temp_attribution_payload( $session_id );
+        if ( ! empty( $temp_attribution_payload ) ) {
+            $metadata = array_merge( $temp_attribution_payload, $metadata );
+        }
         $user_id = isset($metadata['user_id']) ? intval($metadata['user_id']) : 0;
         $plan_id = isset($metadata['membership_level_id']) ? intval($metadata['membership_level_id']) : 0;
         $user_id = $this->resolve_or_create_user_from_session( $session, $metadata, $user_id );
@@ -261,16 +275,26 @@ class StripeWebhookHandler {
             throw new \RuntimeException( 'checkout.session.completed unable to resolve user' );
         }
 
-        update_user_meta( $user_id, 'khm_last_schedule_id', isset( $metadata['schedule_id'] ) ? absint( $metadata['schedule_id'] ) : 0 );
-        update_user_meta( $user_id, 'khm_last_sponsor_id', isset( $metadata['sponsor_id'] ) ? absint( $metadata['sponsor_id'] ) : 0 );
-        update_user_meta( $user_id, 'khm_last_utm_source', isset( $metadata['utm_source'] ) ? sanitize_text_field( (string) $metadata['utm_source'] ) : '' );
-        update_user_meta( $user_id, 'khm_last_utm_medium', isset( $metadata['utm_medium'] ) ? sanitize_text_field( (string) $metadata['utm_medium'] ) : '' );
-        update_user_meta( $user_id, 'khm_last_utm_campaign', isset( $metadata['utm_campaign'] ) ? sanitize_text_field( (string) $metadata['utm_campaign'] ) : '' );
-        update_user_meta( $user_id, 'khm_last_phase_at_click', isset( $metadata['phase_at_click'] ) ? sanitize_text_field( (string) $metadata['phase_at_click'] ) : '' );
+        $this->persist_checkout_profile_meta( $user_id, $metadata );
+
+        $consent_given = $this->is_truthy_flag( $metadata['consent'] ?? null );
+        $schedule_meta = $consent_given ? ( isset( $metadata['schedule_id'] ) ? absint( $metadata['schedule_id'] ) : 0 ) : 0;
+        $sponsor_meta = $consent_given ? ( isset( $metadata['sponsor_id'] ) ? absint( $metadata['sponsor_id'] ) : 0 ) : 0;
+        $utm_source_meta = $consent_given ? ( isset( $metadata['utm_source'] ) ? sanitize_text_field( (string) $metadata['utm_source'] ) : '' ) : '';
+        $utm_medium_meta = $consent_given ? ( isset( $metadata['utm_medium'] ) ? sanitize_text_field( (string) $metadata['utm_medium'] ) : '' ) : '';
+        $utm_campaign_meta = $consent_given ? ( isset( $metadata['utm_campaign'] ) ? sanitize_text_field( (string) $metadata['utm_campaign'] ) : '' ) : '';
+        $phase_at_click_meta = $consent_given ? ( isset( $metadata['phase_at_click'] ) ? sanitize_text_field( (string) $metadata['phase_at_click'] ) : '' ) : '';
+
+        update_user_meta( $user_id, 'khm_last_schedule_id', $schedule_meta );
+        update_user_meta( $user_id, 'khm_last_sponsor_id', $sponsor_meta );
+        update_user_meta( $user_id, 'khm_last_utm_source', $utm_source_meta );
+        update_user_meta( $user_id, 'khm_last_utm_medium', $utm_medium_meta );
+        update_user_meta( $user_id, 'khm_last_utm_campaign', $utm_campaign_meta );
+        update_user_meta( $user_id, 'khm_last_phase_at_click', $phase_at_click_meta );
         update_user_meta(
             $user_id,
             'khm_last_attribution_consent',
-            isset( $metadata['consent'] ) && in_array( strtolower( (string) $metadata['consent'] ), [ '1', 'true', 'yes', 'on' ], true ) ? 1 : 0
+            $consent_given ? 1 : 0
         );
 
         if ( 'subscription' === $mode ) {
@@ -1228,6 +1252,8 @@ class StripeWebhookHandler {
         $email = '';
         if ( isset( $session->customer_details ) && isset( $session->customer_details->email ) && is_email( $session->customer_details->email ) ) {
             $email = sanitize_email( (string) $session->customer_details->email );
+        } elseif ( isset( $session->customer ) && is_object( $session->customer ) && isset( $session->customer->email ) && is_email( $session->customer->email ) ) {
+            $email = sanitize_email( (string) $session->customer->email );
         } elseif ( isset( $session->customer_email ) && is_email( $session->customer_email ) ) {
             $email = sanitize_email( (string) $session->customer_email );
         } elseif ( isset( $metadata['guest_email'] ) && is_email( $metadata['guest_email'] ) ) {
@@ -1271,6 +1297,47 @@ class StripeWebhookHandler {
         update_user_meta( $new_user_id, 'khm_guest_created_at', current_time( 'mysql', 1 ) );
 
         return $new_user_id;
+    }
+
+    private function persist_checkout_profile_meta( int $user_id, array $metadata ): void {
+        if ( $user_id <= 0 || empty( $metadata ) ) {
+            return;
+        }
+
+        if ( class_exists( '\\KHM\\Services\\MembershipRepository' ) ) {
+            try {
+                $repository = new \KHM\Services\MembershipRepository();
+                $repository->persistCheckoutProfileMeta( $user_id, $metadata );
+                return;
+            } catch ( \Throwable $e ) {
+                // Fall through to local-safe persistence behavior.
+            }
+        }
+
+        $first_name = sanitize_text_field( (string) ( $metadata['profile_first_name'] ?? '' ) );
+        $last_name = sanitize_text_field( (string) ( $metadata['profile_last_name'] ?? '' ) );
+        if ( $first_name !== '' ) {
+            update_user_meta( $user_id, 'first_name', $first_name );
+        }
+        if ( $last_name !== '' ) {
+            update_user_meta( $user_id, 'last_name', $last_name );
+        }
+        if ( array_key_exists( 'profile_marketing_optin', $metadata ) ) {
+            update_user_meta( $user_id, 'marketing_opt_in', $this->is_truthy_flag( $metadata['profile_marketing_optin'] ?? null ) ? 1 : 0 );
+        }
+    }
+
+    private function is_truthy_flag( $value ): bool {
+        if ( is_bool( $value ) ) {
+            return $value;
+        }
+
+        if ( is_numeric( $value ) ) {
+            return (int) $value === 1;
+        }
+
+        $normalized = strtolower( trim( (string) $value ) );
+        return in_array( $normalized, [ '1', 'true', 'yes', 'on' ], true );
     }
 
     private function resolve_checkout_credits_amount( array $metadata ): int {

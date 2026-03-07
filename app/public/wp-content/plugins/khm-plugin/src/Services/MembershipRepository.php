@@ -142,6 +142,63 @@ class MembershipRepository implements MembershipRepositoryInterface {
         return $record;
     }
 
+    /**
+     * Persist checkout profile metadata onto user meta.
+     *
+     * @param int $userId User ID.
+     * @param array<string,mixed> $metadata Checkout metadata payload.
+     */
+    public function persistCheckoutProfileMeta( int $userId, array $metadata ): void {
+        if ( $userId <= 0 || empty( $metadata ) ) {
+            return;
+        }
+
+        $firstName = sanitize_text_field( (string) ( $metadata['profile_first_name'] ?? '' ) );
+        $lastName = sanitize_text_field( (string) ( $metadata['profile_last_name'] ?? '' ) );
+        $mobile = sanitize_text_field( (string) ( $metadata['profile_mobile'] ?? '' ) );
+        $jobTitle = sanitize_text_field( (string) ( $metadata['profile_job_title'] ?? '' ) );
+        $company = sanitize_text_field( (string) ( $metadata['profile_company'] ?? '' ) );
+        $marketingOptInProvided = array_key_exists( 'profile_marketing_optin', $metadata );
+        $marketingOptIn = $this->toBoolFlag( $metadata['profile_marketing_optin'] ?? null );
+
+        if ( $firstName !== '' ) {
+            update_user_meta( $userId, 'first_name', $firstName );
+        }
+        if ( $lastName !== '' ) {
+            update_user_meta( $userId, 'last_name', $lastName );
+        }
+        if ( $mobile !== '' ) {
+            update_user_meta( $userId, 'mobile', $mobile );
+        }
+        if ( $jobTitle !== '' ) {
+            update_user_meta( $userId, 'job_title', $jobTitle );
+        }
+        if ( $company !== '' ) {
+            update_user_meta( $userId, 'company', $company );
+        }
+        if ( $marketingOptInProvided ) {
+            update_user_meta( $userId, 'marketing_opt_in', $marketingOptIn ? 1 : 0 );
+        }
+    }
+
+    /**
+     * Normalize common bool-like values to bool.
+     *
+     * @param mixed $value
+     */
+    private function toBoolFlag( $value ): bool {
+        if ( is_bool( $value ) ) {
+            return $value;
+        }
+
+        if ( is_numeric( $value ) ) {
+            return (int) $value === 1;
+        }
+
+        $normalized = strtolower( trim( (string) $value ) );
+        return in_array( $normalized, [ '1', 'true', 'yes', 'on' ], true );
+    }
+
     public function resolveLandingSchedule( string $scheduleId ): array {
         $scheduleId = sanitize_text_field( $scheduleId );
         $scheduleId = substr( preg_replace( '/[^A-Za-z0-9_-]/', '', $scheduleId ), 0, 128 );
