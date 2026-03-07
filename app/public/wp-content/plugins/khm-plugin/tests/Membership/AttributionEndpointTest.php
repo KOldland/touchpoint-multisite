@@ -45,6 +45,7 @@ class AttributionEndpointTest extends TestCase {
         $request = new WP_REST_Request('POST');
         $request->set_body(json_encode([
             'conversion_type' => 'signup',
+            'consent' => true,
             'user_id' => 123,
             'user_email' => 'test@example.com',
             'schedule_id' => 99,
@@ -76,6 +77,7 @@ class AttributionEndpointTest extends TestCase {
     public function test_idempotency_prevents_duplicates() {
         $payload = [
             'conversion_type' => 'signup',
+            'consent' => true,
             'user_id' => 123,
             'schedule_id' => 99
         ];
@@ -105,6 +107,7 @@ class AttributionEndpointTest extends TestCase {
     public function test_idempotency_user_email_alternative() {
         $payload = [
             'conversion_type' => 'signup',
+            'consent' => true,
             'user_email' => 'test@example.com',
             'schedule_id' => 99
         ];

@@ -160,6 +160,42 @@ if (!isset($wpdb)) {
 
         public function get_row($query, $output = OBJECT, $offset = 0) {
             $query = trim((string) $query);
+            if (preg_match('/SELECT\s+um\.user_id,\s*um\.tier_id,\s*um\.status,\s*um\.trial_ends_at,\s*um\.started_at,\s*um\.cancelled_at,\s*mt\.slug\s+as\s+tier_slug,\s*mt\.name\s+as\s+tier_name\s+FROM\s+([a-zA-Z0-9_`]+)\s+um\s+LEFT\s+JOIN\s+([a-zA-Z0-9_`]+)\s+mt\s+ON\s+um\.tier_id\s*=\s*mt\.id\s+WHERE\s+um\.user_id\s*=\s*([0-9]+)/is', $query, $m)) {
+                $membershipTable = $this->normalize_table($m[1]);
+                $tierTable = $this->normalize_table($m[2]);
+                $userId = (int) $m[3];
+
+                foreach ($this->data[$membershipTable] ?? [] as $membershipRow) {
+                    if ((int) ($membershipRow['user_id'] ?? 0) !== $userId) {
+                        continue;
+                    }
+
+                    $tier = null;
+                    $tierId = (int) ($membershipRow['tier_id'] ?? 0);
+                    foreach ($this->data[$tierTable] ?? [] as $tierRow) {
+                        if ((int) ($tierRow['id'] ?? 0) === $tierId) {
+                            $tier = $tierRow;
+                            break;
+                        }
+                    }
+
+                    $result = [
+                        'user_id' => (int) ($membershipRow['user_id'] ?? 0),
+                        'tier_id' => $tierId,
+                        'status' => (string) ($membershipRow['status'] ?? ''),
+                        'trial_ends_at' => $membershipRow['trial_ends_at'] ?? null,
+                        'started_at' => $membershipRow['started_at'] ?? null,
+                        'cancelled_at' => $membershipRow['cancelled_at'] ?? null,
+                        'tier_slug' => $tier['slug'] ?? null,
+                        'tier_name' => $tier['name'] ?? null,
+                    ];
+
+                    return $output === ARRAY_A ? $result : (object) $result;
+                }
+
+                return null;
+            }
+
             if (preg_match('/SELECT\s+status\s+FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+event_id\s*=\s*[\'"]?([^\'"\s]+)[\'"]?/i', $query, $m)) {
                 $table = $this->normalize_table($m[1]);
                 $event_id = $m[2];
@@ -329,6 +365,49 @@ if (!isset($wpdb)) {
 
         public function get_results($query, $output = OBJECT) {
             $query = trim((string) $query);
+            if (preg_match('/SELECT\s+id\s+FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+id\s*>\s*([0-9]+)\s+AND\s+created_at\s*<\s*[\'"]?([^\'"\s]+\s+[^\'"\s]+)[\'"]?\s+AND\s+anonymized_at\s+IS\s+NULL\s+AND\s+\(legal_hold_until\s+IS\s+NULL\s+OR\s+legal_hold_until\s*<\s*[\'"]?([^\'"\s]+\s+[^\'"\s]+)[\'"]?\)\s+ORDER\s+BY\s+id\s+ASC\s+LIMIT\s+([0-9]+)/is', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $afterId = (int) $m[2];
+                $cutoffTime = strtotime((string) $m[3]);
+                $nowTime = strtotime((string) $m[4]);
+                $limit = (int) $m[5];
+
+                $rows = [];
+                foreach ($this->data[$table] ?? [] as $row) {
+                    $id = (int) ($row['id'] ?? 0);
+                    if ($id <= $afterId) {
+                        continue;
+                    }
+
+                    $createdAt = isset($row['created_at']) ? strtotime((string) $row['created_at']) : false;
+                    if ($createdAt === false || ($cutoffTime !== false && $createdAt >= $cutoffTime)) {
+                        continue;
+                    }
+
+                    if (!empty($row['anonymized_at'])) {
+                        continue;
+                    }
+
+                    if (!empty($row['legal_hold_until'])) {
+                        $legalHoldUntil = strtotime((string) $row['legal_hold_until']);
+                        if ($legalHoldUntil !== false && $nowTime !== false && $legalHoldUntil >= $nowTime) {
+                            continue;
+                        }
+                    }
+
+                    $rows[] = ['id' => $id];
+                }
+
+                usort($rows, static fn($a, $b) => ((int) $a['id']) <=> ((int) $b['id']));
+                $rows = array_slice($rows, 0, max(0, $limit));
+
+                if ($output === ARRAY_A) {
+                    return $rows;
+                }
+
+                return array_map(static fn($row) => (object) $row, $rows);
+            }
+
             if (preg_match('/SELECT .* FROM\s+([a-zA-Z0-9_`]+).*LIMIT\s+([0-9]+)/is', $query, $m)) {
                 $table = $this->normalize_table($m[1]);
                 $limit = (int) $m[2];
