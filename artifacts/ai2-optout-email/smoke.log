@@ -1,0 +1,50 @@
+Test bootstrap loaded
+PHPUnit 9.6.34 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.1.33
+Configuration: /Users/krisoldland/Local Sites/touchpoint-template-remote/app/public/wp-content/plugins/khm-plugin/phpunit.xml
+
+KHM landing landing.submit {"session_id":"cs_test_df439ce7bb2256e6","schedule_id":"sch_optout_001","sponsor_id":"","consent":1,"source":"landing"}
+..KHM webhook membership.attribution.confirmed {"user_id":123,"schedule_id":77,"reference":"cs_optout_001","consent":0}
+KHM webhook membership.signup {"user_id":123,"tier":1,"attribution_id":"","payment_type":"subscription"}
+KHM webhook landing.success {"user_id":123,"schedule_id":77,"sponsor_id":11,"utm_source":"newsletter","utm_campaign":"spring","reference":"cs_optout_001"}
+KHM webhook membership.email.skipped {"type":"welcome","user_id":123,"reason":"transactional_emails_disabled","reference":"cs_optout_001"}
+KHM webhook membership.email.skipped {"type":"payment","user_id":123,"reason":"transactional_emails_disabled","reference":"session:cs_optout_001"}
+KHM webhook webhook.processed {"event_id":"evt_optout_001","event_type":"checkout.session.completed","trace_id":"ea8585f3-08a1-4ec4-9857-b7c4885a49df","latency_ms":2}
+KHM webhook webhook.received {"event_id":"evt_optout_001","event_type":"checkout.session.completed","latency_ms":75}
+.                                                                 3 / 3 (100%)
+
+Time: 00:00.177, Memory: 18.00 MB
+
+OK (3 tests, 10 assertions)
+Test bootstrap loaded
+PHPUnit 9.6.34 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.1.33
+Configuration: /Users/krisoldland/Local Sites/touchpoint-template-remote/app/public/wp-content/plugins/khm-plugin/phpunit.xml
+
+KHM webhook membership.attribution.created {"user_id":101,"schedule_id":10,"sponsor_id":20,"reference":"cs_fixture_signed_001"}
+KHM webhook membership.attribution.confirmed {"user_id":101,"schedule_id":10,"reference":"cs_fixture_signed_001","consent":1}
+KHM webhook membership.signup {"user_id":101,"tier":1,"attribution_id":"","payment_type":"subscription"}
+KHM webhook landing.success {"user_id":101,"schedule_id":10,"sponsor_id":20,"utm_source":"newsletter","utm_campaign":"spring_launch","reference":"cs_fixture_signed_001"}
+KHM webhook membership.email.skipped {"type":"welcome","user_id":101,"reason":"transactional_emails_disabled","reference":"cs_fixture_signed_001"}
+KHM webhook membership.email.skipped {"type":"payment","user_id":101,"reason":"transactional_emails_disabled","reference":"session:cs_fixture_signed_001"}
+KHM webhook webhook.processed {"event_id":"evt_checkout_signed_001","event_type":"checkout.session.completed","trace_id":"4c90d1a6-d5de-4e74-b399-4fb762eab1a3","latency_ms":26}
+KHM webhook webhook.received {"event_id":"evt_checkout_signed_001","event_type":"checkout.session.completed","latency_ms":99}
+.KHM webhook membership.renewal {"user_id":202,"invoice_id":"in_fixture_001","subscription_id":"sub_fixture_001"}
+KHM webhook membership.email.skipped {"type":"payment","user_id":202,"reason":"transactional_emails_disabled","reference":"invoice:in_fixture_001"}
+KHM webhook webhook.processed {"event_id":"evt_invoice_signed_001","event_type":"invoice.paid","trace_id":"73e5fecd-3af2-4ed9-b143-5b5369679b34","latency_ms":0}
+KHM webhook webhook.received {"event_id":"evt_invoice_signed_001","event_type":"invoice.paid","latency_ms":0}
+.KHM webhook membership.attribution.created {"user_id":101,"schedule_id":777,"sponsor_id":0,"reference":"cs_temp_fallback_001"}
+KHM webhook membership.attribution.confirmed {"user_id":101,"schedule_id":777,"reference":"cs_temp_fallback_001","consent":1}
+KHM webhook membership.signup {"user_id":101,"tier":18,"attribution_id":"","payment_type":"subscription"}
+KHM webhook landing.success {"user_id":101,"schedule_id":777,"sponsor_id":0,"utm_source":"","utm_campaign":"spring_launch","reference":"cs_temp_fallback_001"}
+KHM webhook membership.email.skipped {"type":"welcome","user_id":101,"reason":"transactional_emails_disabled","reference":"cs_temp_fallback_001"}
+KHM webhook membership.email.skipped {"type":"payment","user_id":101,"reason":"transactional_emails_disabled","reference":"session:cs_temp_fallback_001"}
+KHM webhook webhook.processed {"event_id":"evt_checkout_temp_fallback_001","event_type":"checkout.session.completed","trace_id":"f727099d-29de-43ab-9c0c-0f693c59234a","latency_ms":0}
+KHM webhook webhook.received {"event_id":"evt_checkout_temp_fallback_001","event_type":"checkout.session.completed","latency_ms":0}
+.                                                                 3 / 3 (100%)
+
+Time: 00:00.152, Memory: 22.00 MB
+
+OK (3 tests, 19 assertions)
