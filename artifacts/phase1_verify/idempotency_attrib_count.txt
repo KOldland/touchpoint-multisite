@@ -1,0 +1,10 @@
+Phase-1 idempotency verification: attribution flow
+
+Source: artifacts/phase1_verify/phpunit_membership_full.xml
+
+Verified passing testcases in the post-merge suite:
+- KHM\Tests\Membership\AttributionEndpointTest::test_idempotency_prevents_duplicates
+- KHM\Tests\Membership\AttributionEndpointTest::test_idempotency_user_email_alternative
+
+Result:
+- Attribution idempotency checks are present in the post-merge suite and passed.
