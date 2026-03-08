@@ -1,0 +1,33 @@
+[
+  {
+    "layout_id": "layout_grid_2x2",
+    "thumbnail": "https://example.test/uploads/smma/layouts/layout_grid_2x2.png",
+    "intent": "5",
+    "score": 0.96,
+    "canvas": {
+      "width": 1080,
+      "height": 1527
+    },
+    "slots": [
+      { "slot_index": 0, "x": 48, "y": 48, "w": 468, "h": 680 },
+      { "slot_index": 1, "x": 564, "y": 48, "w": 468, "h": 680 },
+      { "slot_index": 2, "x": 48, "y": 799, "w": 468, "h": 680 },
+      { "slot_index": 3, "x": 564, "y": 799, "w": 468, "h": 680 }
+    ]
+  },
+  {
+    "layout_id": "layout_story_stack",
+    "thumbnail": "https://example.test/uploads/smma/layouts/layout_story_stack.png",
+    "intent": "5",
+    "score": 0.84,
+    "canvas": {
+      "width": 1080,
+      "height": 1527
+    },
+    "slots": [
+      { "slot_index": 0, "x": 72, "y": 72, "w": 936, "h": 430 },
+      { "slot_index": 1, "x": 72, "y": 548, "w": 936, "h": 430 },
+      { "slot_index": 2, "x": 72, "y": 1024, "w": 936, "h": 430 }
+    ]
+  }
+]

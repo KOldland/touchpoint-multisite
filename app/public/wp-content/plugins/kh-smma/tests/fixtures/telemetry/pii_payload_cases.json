@@ -1,0 +1,152 @@
+{
+  "_meta": {
+    "label": "golden-owner-approved",
+    "obs_card": "OBS-07",
+    "description": "PII masking and field validation cases for TelemetryPayloadSanitizer",
+    "generated": "2026-03-06",
+    "owner": "telemetry"
+  },
+  "cases": {
+    "email_field_case": {
+      "description": "Payload containing email fields — all must be redacted",
+      "input": {
+        "event_name": "generate.request",
+        "trace_id": "trace-pii-001",
+        "user_id": 42,
+        "user_email": "user@example.com",
+        "email": "admin@example.com",
+        "email_address": "other@example.com",
+        "latency_ms": 300
+      },
+      "expected": {
+        "user_email": "[REDACTED]",
+        "email": "[REDACTED]",
+        "email_address": "[REDACTED]",
+        "user_id": 42,
+        "latency_ms": 300,
+        "trace_id": "trace-pii-001",
+        "event_name": "generate.request"
+      },
+      "stripped_fields": []
+    },
+    "address_field_case": {
+      "description": "Payload containing address and phone fields — must be redacted",
+      "input": {
+        "event_name": "membership.signup",
+        "trace_id": "trace-pii-002",
+        "user_id": 10,
+        "billing_address": "123 Main St",
+        "address": "456 Oak Ave",
+        "phone_number": "+1-555-0100",
+        "phone": "555-0101",
+        "tier": "premium",
+        "payment_status": "paid"
+      },
+      "expected": {
+        "billing_address": "[REDACTED]",
+        "address": "[REDACTED]",
+        "phone_number": "[REDACTED]",
+        "phone": "[REDACTED]",
+        "user_id": 10,
+        "tier": "premium",
+        "payment_status": "paid",
+        "trace_id": "trace-pii-002",
+        "event_name": "membership.signup"
+      },
+      "stripped_fields": []
+    },
+    "name_field_case": {
+      "description": "Explicit name PII fields must be redacted; event_name must be preserved",
+      "input": {
+        "event_name": "schedule.create",
+        "trace_id": "trace-pii-003",
+        "first_name": "Alice",
+        "last_name": "Smith",
+        "display_name": "alice",
+        "schedule_id": "sch-77",
+        "sponsor_id": "sp-1",
+        "channel": "linkedin",
+        "approval_required": true
+      },
+      "expected": {
+        "first_name": "[REDACTED]",
+        "last_name": "[REDACTED]",
+        "display_name": "[REDACTED]",
+        "schedule_id": "sch-77",
+        "sponsor_id": "sp-1",
+        "channel": "linkedin",
+        "approval_required": true,
+        "event_name": "schedule.create",
+        "trace_id": "trace-pii-003"
+      },
+      "stripped_fields": []
+    },
+    "allowed_fields_case": {
+      "description": "Payload with only allowed canonical fields — all preserved unchanged",
+      "input": {
+        "event_name": "compliance.check",
+        "trace_id": "trace-pii-004",
+        "timestamp": 1741219200,
+        "service": "smma",
+        "variant_id": "v-abc",
+        "outcome": "OK",
+        "rules_matched": ["rule-1"],
+        "violations": 0,
+        "passed": true
+      },
+      "expected": {
+        "event_name": "compliance.check",
+        "trace_id": "trace-pii-004",
+        "timestamp": 1741219200,
+        "service": "smma",
+        "variant_id": "v-abc",
+        "outcome": "OK",
+        "rules_matched": ["rule-1"],
+        "violations": 0,
+        "passed": true
+      },
+      "stripped_fields": []
+    },
+    "unknown_fields_case": {
+      "description": "Unknown fields not in the allow-list are stripped silently",
+      "input": {
+        "event_name": "generate.request",
+        "trace_id": "trace-pii-005",
+        "user_id": 1,
+        "unknown_field": "should-be-stripped",
+        "raw_text": "some draft content",
+        "internal_notes": "debug info",
+        "latency_ms": 250
+      },
+      "expected": {
+        "event_name": "generate.request",
+        "trace_id": "trace-pii-005",
+        "user_id": 1,
+        "latency_ms": 250
+      },
+      "stripped_fields": ["unknown_field", "raw_text", "internal_notes"]
+    },
+    "token_secret_case": {
+      "description": "Token and secret fields must be redacted",
+      "input": {
+        "event_name": "telemetry.config.updated",
+        "trace_id": "trace-pii-006",
+        "user_id": 5,
+        "change_type": "api_key_rotated",
+        "api_key": "sk-live-abc123",
+        "access_token": "bearer-xyz",
+        "secret": "my-secret-value"
+      },
+      "expected": {
+        "event_name": "telemetry.config.updated",
+        "trace_id": "trace-pii-006",
+        "user_id": 5,
+        "change_type": "api_key_rotated",
+        "api_key": "[REDACTED]",
+        "access_token": "[REDACTED]",
+        "secret": "[REDACTED]"
+      },
+      "stripped_fields": []
+    }
+  }
+}

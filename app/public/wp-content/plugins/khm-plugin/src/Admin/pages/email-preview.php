@@ -9,7 +9,14 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-if ( ! current_user_can( 'manage_khm' ) ) {
+if ( ! current_user_can( 'manage_options' ) ) {
+    error_log(
+        sprintf(
+            'unauthorized_admin_access user_id=%d resource=%s',
+            (int) get_current_user_id(),
+            'khm-email-preview'
+        )
+    );
     wp_die( __( 'You do not have permission to access this page.', 'khm-membership' ) );
 }
 
@@ -26,7 +33,7 @@ if ( is_dir( $email_dir ) ) {
 }
 
 // Provide a stable preferred ordering
-$preferred_order = array( 'checkout_paid', 'invoice', 'invoice_admin', 'renewal', 'renewal_admin', 'membership_expiring', 'membership_expired', 'default' );
+$preferred_order = array( 'welcome', 'payment_confirmation', 'checkout_paid', 'invoice', 'invoice_admin', 'renewal', 'renewal_admin', 'membership_expiring', 'membership_expired', 'default' );
 usort( $templates, function ( $a, $b ) use ( $preferred_order ) {
     $pa = array_search( $a, $preferred_order, true );
     $pb = array_search( $b, $preferred_order, true );
@@ -57,6 +64,32 @@ if ( ! function_exists( 'khm_get_most_recent_order_id' ) ) {
 
 // Default sample data by template
 $sample_data = array(
+    'welcome' => array(
+        'user_name' => wp_get_current_user()->display_name,
+        'membership_tier' => 'Gold Plan',
+        'start_date' => gmdate( 'Y-m-d' ),
+        'trial_end' => gmdate( 'Y-m-d', strtotime( '+14 days' ) ),
+        'schedule_id' => '42',
+        'sponsor_name' => 'Acme Sponsor',
+        'utm_source' => 'newsletter',
+        'reference' => 'cs_test_welcome_123',
+        'support_contact' => get_option( 'admin_email' ),
+        'account_url' => home_url( '/account/' ),
+        'preferences_url' => home_url( '/account/' ),
+    ),
+    'payment_confirmation' => array(
+        'user_name' => wp_get_current_user()->display_name,
+        'membership_tier' => 'Gold Plan',
+        'amount' => '49.00',
+        'currency' => 'GBP',
+        'schedule_id' => '42',
+        'sponsor_name' => 'Acme Sponsor',
+        'utm_source' => 'newsletter',
+        'reference' => 'in_test_payment_123',
+        'support_contact' => get_option( 'admin_email' ),
+        'account_url' => home_url( '/account/' ),
+        'preferences_url' => home_url( '/account/' ),
+    ),
     'checkout_paid' => array(
         'name' => wp_get_current_user()->display_name,
         'membership_level' => 'Gold Plan',

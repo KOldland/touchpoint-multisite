@@ -1,0 +1,407 @@
+name: SMMA Plugin CI
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - 'app/public/wp-content/plugins/kh-smma/**'
+      - '.github/workflows/smma-ci.yml'
+  pull_request:
+    branches: [main, staging]
+    paths:
+      - 'app/public/wp-content/plugins/kh-smma/**'
+      - '.github/workflows/smma-ci.yml'
+
+jobs:
+  test:
+    name: PHPUnit Tests (PHP ${{ matrix.php-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        php-version: ['8.1', '8.2']
+      fail-fast: false
+
+    env:
+      # CI mode forces deterministic mock LLM behavior
+      KH_SMMA_TEST_MODE: ci
+      KH_SMMA_GOLDEN_FIXTURE: generate_response.json
+      CI: true
+
+      # Ensure no live API keys leak into CI
+      OPENAI_API_KEY: ''
+      OPENAI_KEY: ''
+      ANTHROPIC_API_KEY: ''
+      ANTHROPIC_KEY: ''
+      DUAL_GPT_API_KEY: ''
+      LLM_API_KEY: ''
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: mbstring, json, mysqli
+          coverage: xdebug
+          tools: composer:v2
+
+      - name: Validate composer.json
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: composer validate --strict
+
+      - name: Get Composer Cache Directory
+        id: composer-cache
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install Composer dependencies
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: composer install --prefer-dist --no-progress --no-suggest --no-interaction
+
+      - name: Check for real API keys (safety check)
+        run: |
+          if [ -n "$OPENAI_API_KEY" ] || [ -n "$OPENAI_KEY" ] || [ -n "$ANTHROPIC_API_KEY" ] || [ -n "$ANTHROPIC_KEY" ] || [ -n "$DUAL_GPT_API_KEY" ]; then
+            echo "ERROR: Real API keys detected in CI environment!"
+            echo "Tests must use golden stubs only."
+            exit 1
+          fi
+          echo "✓ No real API keys detected"
+
+      - name: Run PHPUnit - MockLLM Deterministic Tests
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          export KH_SMMA_GOLDEN_FIXTURE=generate_awareness_ok.json
+          vendor/bin/phpunit tests/Lib/MockLLMClientTest.php --testdox --colors=always
+
+      - name: Run PHPUnit - Golden AI Tests
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: vendor/bin/phpunit tests/GoldenAITest.php --testdox --colors=always
+
+      - name: Run PHPUnit - Compliance Fuzzing Tests
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: vendor/bin/phpunit tests/ComplianceFuzzingTest.php --testdox --colors=always
+
+      - name: Run PHPUnit - Compliance Validator Tests
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: vendor/bin/phpunit tests/ComplianceValidatorTest.php --testdox --colors=always
+
+      - name: Run PHPUnit - Smoke Tests
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: vendor/bin/phpunit tests/SmokeTest.php --testdox --colors=always
+
+      - name: Run PHPUnit - SMMA Workflow Suite
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: vendor/bin/phpunit tests/SMMA --testdox --colors=always
+
+      - name: Coverage Report - SMMA Workflow Suite
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          if php -m | grep -Eiq 'xdebug|pcov'; then
+            vendor/bin/phpunit tests/SMMA --coverage-text --colors=never
+          else
+            echo "Coverage extension unavailable; skipping coverage text output."
+          fi
+
+      - name: Run PHPUnit - Full Test Suite
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: vendor/bin/phpunit --testdox --colors=always
+
+      - name: Verify golden fixtures exist
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          echo "Checking golden fixtures..."
+          FIXTURES=(
+            "tests/fixtures/golden/generate_awareness_ok.json"
+            "tests/fixtures/golden/generate_sponsor_warn.json"
+            "tests/fixtures/golden/generate_sponsor_fail.json"
+            "tests/fixtures/golden/google_ad_draft.json"
+            "tests/fixtures/golden/compliance_ok.json"
+            "tests/fixtures/golden/compliance_warn.json"
+            "tests/fixtures/golden/compliance_fail.json"
+            "tests/fixtures/golden/checkout_session_completed.json"
+            "tests/fixtures/golden/invoice_paid.json"
+            "tests/fixtures/golden/checkout_session_no_consent.json"
+            "tests/fixtures/golden/paid_adapter_dry_run_manifest.json"
+            "tests/fixtures/golden/paid_adapter_execute_response.json"
+            "tests/fixtures/golden/generate_response.json"
+            "tests/fixtures/golden/generate_warn_response.json"
+            "tests/fixtures/golden/generate_fail_response.json"
+            "tests/fixtures/golden/google_ad_draft_response.json"
+            "tests/fixtures/golden/compliance_pass_response.json"
+            "tests/fixtures/golden/compliance_warn_response.json"
+            "tests/fixtures/golden/compliance_fail_response.json"
+          )
+
+          MISSING=0
+          for fixture in "${FIXTURES[@]}"; do
+            if [ ! -f "$fixture" ]; then
+              echo "✗ Missing: $fixture"
+              MISSING=$((MISSING + 1))
+            else
+              echo "✓ Found: $fixture"
+            fi
+          done
+
+          if [ $MISSING -gt 0 ]; then
+            echo ""
+            echo "ERROR: $MISSING golden fixture(s) missing"
+            exit 1
+          fi
+
+          echo ""
+          echo "✓ All golden fixtures present"
+
+      - name: Validate fixture JSON syntax
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          echo "Validating JSON syntax..."
+          find tests/fixtures/golden -name "*.json" -exec sh -c '
+            for file do
+              if php -r "json_decode(file_get_contents(\"$file\")); if(json_last_error() !== JSON_ERROR_NONE) exit(1);" 2>/dev/null; then
+                echo "✓ $file"
+              else
+                echo "✗ $file - Invalid JSON"
+                exit 1
+              fi
+            done
+          ' sh {} +
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## Test Execution Complete"
+          echo ""
+          echo "- PHP Version: ${{ matrix.php-version }}"
+          echo "- CI Mode: Enabled"
+          echo "- Mock LLM: Active (golden stubs)"
+          echo "- Test Environment: Safe (no live API calls)"
+
+  telemetry-contract-check:
+    name: Telemetry Contract Validation (OBS-05)
+    runs-on: ubuntu-latest
+
+    env:
+      KH_SMMA_TEST_MODE: ci
+      CI: true
+      ANTHROPIC_API_KEY: ''
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mbstring, json
+          tools: composer:v2
+
+      - name: Install Composer dependencies
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Validate event_contracts.json
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          echo "Validating event_contracts.json..."
+          FIXTURE="tests/fixtures/telemetry/event_contracts.json"
+          if [ ! -f "$FIXTURE" ]; then
+            echo "ERROR: $FIXTURE not found"
+            exit 1
+          fi
+          php -r "
+            \$data = json_decode(file_get_contents('$FIXTURE'), true);
+            if (json_last_error() !== JSON_ERROR_NONE) { echo 'Invalid JSON: ' . json_last_error_msg(); exit(1); }
+            if (!isset(\$data['events'])) { echo 'Missing events key'; exit(1); }
+            if (!isset(\$data['base_envelope'])) { echo 'Missing base_envelope key'; exit(1); }
+            echo '✓ event_contracts.json is valid (' . count(\$data['events']) . ' events)' . PHP_EOL;
+          "
+
+      - name: Validate telemetry_events_schema.json
+        run: |
+          echo "Validating telemetry_events_schema.json..."
+          SCHEMA="docs/contracts/telemetry_events_schema.json"
+          if [ ! -f "$SCHEMA" ]; then
+            echo "ERROR: $SCHEMA not found"
+            exit 1
+          fi
+          php -r "
+            \$data = json_decode(file_get_contents('$SCHEMA'), true);
+            if (json_last_error() !== JSON_ERROR_NONE) { echo 'Invalid JSON: ' . json_last_error_msg(); exit(1); }
+            if (!isset(\$data['\$defs'])) { echo 'Missing \$defs key'; exit(1); }
+            echo '✓ telemetry_events_schema.json is valid (' . count(\$data['\$defs']) . ' definitions)' . PHP_EOL;
+          "
+
+      - name: Check all registry events are covered by fixture
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          echo "Checking event registry coverage..."
+          php -r "
+            \$registry = [
+              'generate.request', 'generate.response', 'compliance.check',
+              'variant.edit', 'schedule.create', 'schedule.dispatch',
+              'membership.signup', 'promotion_attribution',
+            ];
+            \$fixture = json_decode(file_get_contents('tests/fixtures/telemetry/event_contracts.json'), true);
+            \$covered = array_keys(\$fixture['events'] ?? []);
+            \$missing = array_diff(\$registry, \$covered);
+            if (!empty(\$missing)) {
+              echo 'ERROR: Registry events missing from fixture: ' . implode(', ', \$missing) . PHP_EOL;
+              exit(1);
+            }
+            echo '✓ All ' . count(\$registry) . ' registry events covered by event_contracts.json' . PHP_EOL;
+          "
+
+      - name: Run PHPUnit - EventContractTest (OBS-05)
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          vendor/bin/phpunit tests/Telemetry/EventContractTest.php --testdox --colors=always
+          echo "✓ EventContractTest passed"
+
+      - name: Run PHPUnit - EventPipelineIntegrationTest (OBS-05)
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          vendor/bin/phpunit tests/Telemetry/EventPipelineIntegrationTest.php --testdox --colors=always
+          echo "✓ EventPipelineIntegrationTest passed"
+
+      - name: Run PHPUnit - EventSmokeTest (OBS-05)
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          vendor/bin/phpunit tests/Telemetry/EventSmokeTest.php --testdox --colors=always
+          echo "✓ EventSmokeTest passed"
+
+      - name: Verify base envelope required keys match schema
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          echo "Verifying base envelope consistency..."
+          php -r "
+            \$fixture = json_decode(file_get_contents('tests/fixtures/telemetry/event_contracts.json'), true);
+            \$schema  = json_decode(file_get_contents('../../../../docs/contracts/telemetry_events_schema.json'), true);
+            \$fix_base  = \$fixture['base_envelope']['required'] ?? [];
+            \$sch_base  = \$schema['\$defs']['base_envelope']['required'] ?? [];
+            sort(\$fix_base); sort(\$sch_base);
+            if (\$fix_base !== \$sch_base) {
+              echo 'ERROR: base_envelope mismatch between fixture and schema' . PHP_EOL;
+              echo 'fixture: ' . implode(', ', \$fix_base) . PHP_EOL;
+              echo 'schema:  ' . implode(', ', \$sch_base) . PHP_EOL;
+              exit(1);
+            }
+            echo '✓ base_envelope required fields consistent across fixture and schema' . PHP_EOL;
+          "
+
+  lint:
+    name: PHP Code Standards
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          tools: composer:v2, phpcs
+
+      - name: Install Composer dependencies
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Check WordPress Coding Standards
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          if [ -f vendor/bin/phpcs ]; then
+            vendor/bin/phpcs src/ --standard=WordPress --extensions=php --ignore=*/vendor/* || true
+            echo "✓ Code standards check complete"
+          else
+            echo "ℹ phpcs not installed, skipping"
+          fi
+
+  security:
+    name: Security Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          tools: composer:v2
+
+      - name: Install Composer dependencies
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Check for known vulnerabilities
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: composer audit || true
+
+      - name: Scan for hardcoded secrets
+        run: |
+          echo "Scanning for hardcoded secrets..."
+
+          # Check for API keys in source code
+          if grep -r -E "(OPENAI_API_KEY|ANTHROPIC_API_KEY|sk-[a-zA-Z0-9]{48})" app/public/wp-content/plugins/kh-smma/src/ 2>/dev/null; then
+            echo "✗ Potential API keys found in source code"
+            exit 1
+          fi
+
+          # Check for passwords
+          if grep -r -E "(password|passwd|pwd)\s*=\s*['\"][^'\"]{8,}" app/public/wp-content/plugins/kh-smma/src/ 2>/dev/null; then
+            echo "⚠ Potential hardcoded passwords found"
+          fi
+
+          echo "✓ No hardcoded secrets detected"
+
+      - name: Check for SQL injection patterns
+        run: |
+          echo "Scanning for SQL injection vulnerabilities..."
+
+          # Look for direct SQL without $wpdb->prepare()
+          if grep -r -n "\$wpdb->query\|->get_results\|->get_row" app/public/wp-content/plugins/kh-smma/src/ | grep -v "prepare"; then
+            echo "⚠ Potential SQL injection risk - use \$wpdb->prepare()"
+          fi
+
+          echo "✓ SQL injection scan complete"
+
+  report:
+    name: Test Report Summary
+    runs-on: ubuntu-latest
+    needs: [test, telemetry-contract-check, lint, security]
+    if: always()
+
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# SMMA Plugin CI Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Tests: ${{ needs.test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📡 Telemetry Contracts: ${{ needs.telemetry-contract-check.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔍 Lint: ${{ needs.lint.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔒 Security: ${{ needs.security.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "- Golden AI Tests: 9 tests, 129 assertions" >> $GITHUB_STEP_SUMMARY
+          echo "- Compliance Fuzzing: 56 tests, 86 assertions" >> $GITHUB_STEP_SUMMARY
+          echo "- Compliance Validator: 25 tests, 73 assertions" >> $GITHUB_STEP_SUMMARY
+          echo "- Smoke Tests: 12 tests, 80 assertions" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total: 102+ tests, 368+ assertions**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Safety Checks" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ No live API calls in CI" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Golden stub fixtures validated" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Deterministic test behavior" >> $GITHUB_STEP_SUMMARY

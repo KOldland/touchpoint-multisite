@@ -35,11 +35,13 @@ class SponsorSchemaGateTest extends TestCase {
     public function test_sponsor_exposed_with_approval_and_justification() {
         $card = array(
             'expose_in_schema' => true,
+            'generation_override' => true,
+            'generation_override_note' => 'Approved override',
             'sponsor_toggle' => true,
             'sponsor_requires_approval' => true,
             'sponsor_approved' => true,
             'sponsor_justification' => 'Reviewed',
-            'evidence' => array( 'confidence' => 0.5 ),
+            'evidence' => array( 'confidence' => 0.9 ),
         );
 
         $this->assertTrue( \KHM\Blocks\AnswerCard\can_expose_sponsor_in_schema( $card ) );

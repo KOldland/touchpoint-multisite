@@ -1,0 +1,66 @@
+name: KHM Plugin Webhooks CI
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - 'app/public/wp-content/plugins/khm-plugin/**'
+      - '.github/workflows/khm-plugin-webhooks-ci.yml'
+  pull_request:
+    branches: [main, staging]
+    paths:
+      - 'app/public/wp-content/plugins/khm-plugin/**'
+      - '.github/workflows/khm-plugin-webhooks-ci.yml'
+
+jobs:
+  webhook-tests:
+    name: Webhook Idempotency and Processing (PHP 8.2)
+    runs-on: ubuntu-latest
+    env:
+      KH_STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_KEY }}
+      KH_STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, json
+          coverage: none
+          tools: composer:v2
+
+      - name: Validate composer.json
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: composer validate --strict
+
+      - name: Install dependencies (with dev)
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Secret leak scan (Stripe patterns)
+        run: |
+          ! grep -REn --exclude-dir=.git --exclude-dir=vendor --exclude-dir=node_modules "sk_test_[A-Za-z0-9]\{16,\}\|sk_live_[A-Za-z0-9]\{16,\}\|whsec_[A-Za-z0-9]\{16,\}" app/public/wp-content/plugins/khm-plugin
+
+      - name: Run webhook handler tests
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: vendor/bin/phpunit tests/Membership/StripeWebhookHandlerTest.php --testdox --colors=always
+
+      - name: Run webhook rest tests
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: |
+          vendor/bin/phpunit tests/Rest/WebhooksCheckoutAssignTest.php --testdox --colors=always
+          vendor/bin/phpunit tests/Rest/WebhooksProductImportTest.php --testdox --colors=always
+          vendor/bin/phpunit tests/Rest/WebhooksProductImportQueueTest.php --testdox --colors=always
+          vendor/bin/phpunit tests/Rest/WebhooksRateLimitTest.php --testdox --colors=always
+          vendor/bin/phpunit tests/Rest/FourAIngestionPermissionTest.php --testdox --colors=always
+          vendor/bin/phpunit tests/Lib/StripeEnvTest.php --testdox --colors=always
+          vendor/bin/phpunit tests/Lib/StripeSignatureHelperTest.php --testdox --colors=always
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "KHM webhook CI completed."
+          echo "Make this workflow required in branch protection for merge blocking."

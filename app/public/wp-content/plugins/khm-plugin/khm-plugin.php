@@ -14,6 +14,30 @@ if ( file_exists(__DIR__ . '/vendor/autoload.php') ) {
 } else {
     define('KHM_VENDOR_LOADED', false);
 
+    // Fallback autoloader for core plugin classes when Composer is unavailable.
+    if ( function_exists( 'spl_autoload_register' ) ) {
+        spl_autoload_register( function ( $class ) {
+            $prefix = 'KHM\\';
+            if ( strpos( $class, $prefix ) !== 0 ) {
+                return;
+            }
+
+            $relative_class = substr( $class, strlen( $prefix ) );
+            if ( $relative_class === false || $relative_class === '' ) {
+                return;
+            }
+
+            $relative_path = str_replace( '\\', '/', $relative_class ) . '.php';
+            $file = __DIR__ . '/src/' . $relative_path;
+            $real_file = realpath( $file );
+            $real_src = realpath( __DIR__ . '/src/' );
+
+            if ( $real_file && $real_src && strpos( $real_file, $real_src ) === 0 && file_exists( $real_file ) ) {
+                require_once $real_file;
+            }
+        } );
+    }
+
     // Warn admins in wp-admin that composer deps are missing.
     add_action('admin_notices', function () {
         if (! current_user_can('manage_options')) {
@@ -26,6 +50,11 @@ if ( file_exists(__DIR__ . '/vendor/autoload.php') ) {
 
     // Avoid fatal logging in frontend; still allow plugin to load best-effort.
     error_log('KHM Plugin vendor/autoload.php not found. Composer dependencies are missing.');
+}
+
+$khm_stripe_env_helper = __DIR__ . '/src/Lib/StripeEnv.php';
+if ( file_exists( $khm_stripe_env_helper ) ) {
+    require_once $khm_stripe_env_helper;
 }
 
 function khm_elementor_feature_flags() {
@@ -60,6 +89,58 @@ function khm_elementor_feature_enabled( $feature ) {
     return ! empty( $flags[ $feature ] );
 }
 
+/**
+ * Feature flag for full Stripe -> level mirror importer.
+ *
+ * Enable via:
+ * - option: khm_stripe_level_mirror_enabled = 1
+ * - constant: KHM_STRIPE_LEVEL_MIRROR_ENABLED
+ * - filter: khm_use_stripe_level_mirror_importer
+ */
+function khm_use_stripe_level_mirror_importer(): bool {
+    $enabled = false;
+
+    if ( defined( 'KHM_STRIPE_LEVEL_MIRROR_ENABLED' ) ) {
+        $enabled = (bool) KHM_STRIPE_LEVEL_MIRROR_ENABLED;
+    } else {
+        $enabled = (bool) get_option( 'khm_stripe_level_mirror_enabled', false );
+    }
+
+    /**
+     * Filter whether to use StripeLevelMirrorImporter instead of StripeMarketingImporter.
+     *
+     * @param bool $enabled
+     */
+    return (bool) apply_filters( 'khm_use_stripe_level_mirror_importer', $enabled );
+}
+
+function khm_register_cron_schedules( $schedules ) {
+    if ( ! isset( $schedules['khm_five_minutes'] ) ) {
+        $schedules['khm_five_minutes'] = array(
+            'interval' => 300,
+            'display'  => 'Every 5 Minutes',
+        );
+    }
+
+    if ( ! isset( $schedules['khm_thirty_seconds'] ) ) {
+        $schedules['khm_thirty_seconds'] = array(
+            'interval' => 30,
+            'display'  => 'Every 30 Seconds',
+        );
+    }
+
+    if ( ! isset( $schedules['every_five_minutes'] ) ) {
+        $schedules['every_five_minutes'] = array(
+            'interval' => 300,
+            'display'  => 'Every 5 Minutes',
+        );
+    }
+
+    return $schedules;
+}
+
+add_filter( 'cron_schedules', 'khm_register_cron_schedules' );
+
 // Load marketing suite integration functions
 require_once __DIR__ . '/includes/marketing-suite-functions.php';
 
@@ -82,14 +163,22 @@ require_once __DIR__ . '/src/Sponsors/SponsorMigration.php';
 require_once __DIR__ . '/src/Sponsors/SponsorAudit.php';
 require_once __DIR__ . '/src/Sponsors/SponsorController.php';
 require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
+require_once __DIR__ . '/src/Admin/PriceValidationAjax.php';
 require_once __DIR__ . '/src/Membership/MembershipMigration.php';
 require_once __DIR__ . '/src/Membership/AttributionEndpoint.php';
+require_once __DIR__ . '/src/Membership/TierRegistry.php';
 require_once __DIR__ . '/src/Membership/SignupEndpoint.php';
+require_once __DIR__ . '/src/Membership/LandingSuccessEndpoint.php';
+require_once __DIR__ . '/src/Membership/PriceOverrideEndpoint.php';
+require_once __DIR__ . '/src/Membership/DsarController.php';
+require_once __DIR__ . '/src/Membership/RetentionWorker.php';
 require_once __DIR__ . '/src/Membership/StatusEndpoint.php';
+require_once __DIR__ . '/src/Membership/CustomerPortalEndpoint.php';
 require_once __DIR__ . '/src/Membership/StripeWebhookHandler.php';
 require_once __DIR__ . '/src/Membership/LandingPageShortcode.php';
 require_once __DIR__ . '/src/Membership/DashboardShortcode.php';
 require_once __DIR__ . '/src/Membership/Admin/ReportsPage.php';
+require_once __DIR__ . '/src/Services/LevelPriceResolver.php';
 
 // Register GEO Suggestion Endpoint at rest_api_init
 add_action( 'rest_api_init', function() {
@@ -116,18 +205,45 @@ add_action( 'rest_api_init', function() {
         $controller->register_routes();
     }
     if ( class_exists( 'KHM\\Membership\\AttributionEndpoint' ) ) {
-        new KHM\Membership\AttributionEndpoint();
+        $endpoint = new KHM\Membership\AttributionEndpoint();
+        $endpoint->register_routes();
     }
     if ( class_exists( 'KHM\\Membership\\SignupEndpoint' ) ) {
-        new KHM\Membership\SignupEndpoint();
+        $endpoint = new KHM\Membership\SignupEndpoint();
+        $endpoint->register_routes();
+    }
+    if ( class_exists( 'KHM\\Membership\\LandingSuccessEndpoint' ) ) {
+        $endpoint = new KHM\Membership\LandingSuccessEndpoint();
+        $endpoint->register_routes();
+    }
+    if ( class_exists( 'KHM\\Membership\\PriceOverrideEndpoint' ) ) {
+        $endpoint = new KHM\Membership\PriceOverrideEndpoint();
+        $endpoint->register_routes();
+    }
+    if ( class_exists( 'KHM\\Membership\\DsarController' ) ) {
+        $endpoint = new KHM\Membership\DsarController();
+        $endpoint->register_routes();
     }
     if ( class_exists( 'KHM\\Membership\\StatusEndpoint' ) ) {
-        new KHM\Membership\StatusEndpoint();
+        $endpoint = new KHM\Membership\StatusEndpoint();
+        $endpoint->register_routes();
+    }
+    if ( class_exists( 'KHM\\Membership\\CustomerPortalEndpoint' ) ) {
+        $endpoint = new KHM\Membership\CustomerPortalEndpoint();
+        $endpoint->register_routes();
     }
     if ( class_exists( 'KHM\\Membership\\StripeWebhookHandler' ) ) {
-        new KHM\Membership\StripeWebhookHandler();
+        $endpoint = new KHM\Membership\StripeWebhookHandler();
+        $endpoint->register_routes();
     }
 } );
+
+add_action( 'init', function() {
+    if ( class_exists( 'KHM\\Membership\\RetentionWorker' ) ) {
+        $worker = new KHM\Membership\RetentionWorker();
+        $worker->register();
+    }
+}, 5 );
 
 // Register planner_session post type
 add_action('init', function() {
@@ -167,6 +283,9 @@ if (is_admin()) {
     if ( class_exists( 'KHM\\Sponsors\\SponsorAdminUI' ) ) {
         $sponsor_admin = new KHM\Sponsors\SponsorAdminUI();
         $sponsor_admin->register();
+    }
+    if ( class_exists( 'KHM\\Admin\\PriceValidationAjax' ) ) {
+        ( new KHM\Admin\PriceValidationAjax() )->register();
     }
 }
 
@@ -319,6 +438,8 @@ function khm_register_elementor_widgets( $widgets_manager ) {
         'PortalAccount_Widget.php',
         'PortalVoucher_Widget.php',
         'TestPortalDashboard_Widget.php',
+        'MembershipCheckoutButton_Widget.php',
+        'CommerceCheckoutButton_Widget.php',
     ];
 
     foreach ( $widget_files as $file ) {
@@ -442,6 +563,24 @@ function khm_register_elementor_widgets( $widgets_manager ) {
         }
     }
 
+    // Membership Checkout Button Widget
+    if ( class_exists( '\KHM\Elementor\Widgets\MembershipCheckoutButton_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\MembershipCheckoutButton_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\MembershipCheckoutButton_Widget() );
+        }
+    }
+
+    // Commerce Checkout Button Widget
+    if ( class_exists( '\KHM\Elementor\Widgets\CommerceCheckoutButton_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\CommerceCheckoutButton_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\CommerceCheckoutButton_Widget() );
+        }
+    }
+
     if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
         $registered = method_exists( $widgets_manager, 'get_widget_types' )
             ? count( $widgets_manager->get_widget_types() )
@@ -454,6 +593,15 @@ function khm_register_elementor_widgets( $widgets_manager ) {
 if ( khm_elementor_feature_enabled( 'register_widgets' ) ) {
     add_action( 'elementor/widgets/register', 'khm_register_elementor_widgets', 50 );
 }
+
+add_action( 'elementor/init', function() {
+    if ( ! class_exists( '\\Elementor\\Modules\\DynamicTags\\Module' ) || ! class_exists( '\\Elementor\\Modules\\DynamicTags\\Tag' ) ) {
+        return;
+    }
+    if ( class_exists( '\\KHM\\Elementor\\Tags\\KhmDynamicTags' ) ) {
+        ( new \KHM\Elementor\Tags\KhmDynamicTags() )->register();
+    }
+} );
 
 // Ensure core Elementor Pro theme builder widgets are available on early widget init.
 if ( khm_elementor_feature_enabled( 'pro_theme_widgets' ) ) {
@@ -1028,6 +1176,24 @@ register_activation_hook(__FILE__, function () {
         }
     }
 
+    if ( class_exists('KHM\\Services\\StripeMarketingImportAuditLogger') ) {
+        try {
+            KHM\Services\StripeMarketingImportAuditLogger::createTable();
+        } catch (\Exception $e) {
+            error_log('Failed to create Stripe marketing audit table: ' . $e->getMessage());
+            $activation_errors[] = 'Stripe marketing audit table failed: ' . $e->getMessage();
+        }
+    }
+
+    if ( class_exists('KHM\\Services\\StripeMarketingImportDeadLetterStore') ) {
+        try {
+            KHM\Services\StripeMarketingImportDeadLetterStore::createTable();
+        } catch (\Exception $e) {
+            error_log('Failed to create Stripe marketing dead-letter table: ' . $e->getMessage());
+            $activation_errors[] = 'Stripe marketing dead-letter table failed: ' . $e->getMessage();
+        }
+    }
+
     // Schedule cron tasks
     if ( class_exists('KHM\\Scheduled\\Scheduler') ) {
         KHM\Scheduled\Scheduler::activate();
@@ -1217,11 +1383,72 @@ add_action('rest_api_init', function () {
     if ( class_exists('KHM\\Rest\\MemberPortalController') ) {
         ( new KHM\Rest\MemberPortalController() )->register();
     }
+    // Register checkout routes
+    if ( class_exists('KHM\\Rest\\CheckoutController') ) {
+        ( new KHM\Rest\CheckoutController() )->register();
+    }
     // Register 4A ingestion routes
     if ( class_exists('KHM\\Rest\\FourAIngestionController') ) {
         ( new KHM\Rest\FourAIngestionController() )->register();
     }
 });
+
+// Queue worker: Stripe product.updated marketing sync.
+add_action( 'khm_import_stripe_marketing_product_updated', function( $product_id, $level_id = 0, $attempt = 0 ) {
+    if ( ! class_exists( 'KHM\\Services\\StripeMarketingWebhookImportProcessor' ) ) {
+        return;
+    }
+
+    $product_id = sanitize_text_field( (string) $product_id );
+    $level_id = (int) $level_id;
+    $attempt = max( 0, (int) $attempt );
+    if ( $product_id === '' ) {
+        return;
+    }
+
+    $processor = new KHM\Services\StripeMarketingWebhookImportProcessor();
+    $processor->process( $product_id, $level_id, $attempt );
+}, 10, 3 );
+
+// Daily cleanup for Stripe marketing import audit table.
+add_action( 'init', function () {
+    if ( ! wp_next_scheduled( 'khm_stripe_marketing_audit_cleanup' ) ) {
+        wp_schedule_event( time(), 'daily', 'khm_stripe_marketing_audit_cleanup' );
+    }
+    if ( ! wp_next_scheduled( 'khm_stripe_marketing_dead_letter_cleanup' ) ) {
+        wp_schedule_event( time(), 'daily', 'khm_stripe_marketing_dead_letter_cleanup' );
+    }
+} );
+
+add_action( 'khm_stripe_marketing_audit_cleanup', function () {
+    if ( ! class_exists( 'KHM\\Services\\StripeMarketingImportAuditLogger' ) ) {
+        return;
+    }
+
+    $days = (int) get_option( 'khm_stripe_marketing_audit_retention_days', 90 );
+    $days = $days > 0 ? $days : 90;
+
+    try {
+        ( new KHM\Services\StripeMarketingImportAuditLogger() )->cleanup( $days );
+    } catch ( \Throwable $e ) {
+        error_log( 'Stripe marketing audit cleanup failed: ' . $e->getMessage() );
+    }
+} );
+
+add_action( 'khm_stripe_marketing_dead_letter_cleanup', function () {
+    if ( ! class_exists( 'KHM\\Services\\StripeMarketingImportDeadLetterStore' ) ) {
+        return;
+    }
+
+    $days = (int) get_option( 'khm_stripe_marketing_dead_letter_retention_days', 90 );
+    $days = $days > 0 ? $days : 90;
+
+    try {
+        ( new KHM\Services\StripeMarketingImportDeadLetterStore() )->cleanup( $days );
+    } catch ( \Throwable $e ) {
+        error_log( 'Stripe marketing dead-letter cleanup failed: ' . $e->getMessage() );
+    }
+} );
 
 // Schedule hourly 4A scoring cron.
 add_action('init', function () {
@@ -1239,6 +1466,30 @@ add_action('khm_4a_hourly_recompute', function () {
 // CLI command.
 if ( defined('WP_CLI') && WP_CLI && class_exists('KHM\\Cli\\FourAScoreCommand') ) {
     WP_CLI::add_command('khm-4a', 'KHM\\Cli\\FourAScoreCommand');
+}
+
+// Register WP-CLI command for migrating Stripe prices
+if ( defined('WP_CLI') && WP_CLI ) {
+    $cli_dir = is_dir( __DIR__ . '/src/CLI' ) ? '/src/CLI/' : '/src/Cli/';
+    require_once __DIR__ . $cli_dir . 'MigratePricesCommand.php';
+    require_once __DIR__ . $cli_dir . 'ImportStripeMarketingCommand.php';
+    require_once __DIR__ . $cli_dir . 'ImportStripeLevelMirrorCommand.php';
+    require_once __DIR__ . $cli_dir . 'StripeMarketingAuditCommand.php';
+    require_once __DIR__ . $cli_dir . 'StripeMarketingDeadLettersCommand.php';
+    require_once __DIR__ . $cli_dir . 'StripeMarketingDeadLettersReplayCommand.php';
+    require_once __DIR__ . $cli_dir . 'StripeMarketingHealthCommand.php';
+    require_once __DIR__ . $cli_dir . 'MembershipWebhookDeadLettersCommand.php';
+    require_once __DIR__ . $cli_dir . 'MembershipWebhookDeadLettersReplayCommand.php';
+    require_once __DIR__ . $cli_dir . 'AnonymizeAttributionCommand.php';
+    require_once __DIR__ . $cli_dir . 'RetentionRunCommand.php';
+    require_once __DIR__ . $cli_dir . 'MembershipEmailControlCommand.php';
+
+    // Register CLI commands
+    WP_CLI::add_command( 'khm membership:dlq', 'KHM\\CLI\\MembershipWebhookDeadLettersCommand' );
+    WP_CLI::add_command( 'khm membership:dlq:replay', 'KHM\\CLI\\MembershipWebhookDeadLettersReplayCommand' );
+    WP_CLI::add_command( 'khm anonymize_attribution', 'KHM\\CLI\\AnonymizeAttributionCommand' );
+    WP_CLI::add_command( 'khm retention:run', 'KHM\\CLI\\RetentionRunCommand' );
+    WP_CLI::add_command( 'khm membership:email-control', 'KHM\\CLI\\MembershipEmailControlCommand' );
 }
 
 // Register webhook email notifications
@@ -1266,11 +1517,20 @@ add_action('init', function () {
         );
         $checkout->register();
     }
+    if ( class_exists('KHM\\Public\\MembershipCheckoutButtonShortcode') ) {
+        ( new KHM\Public\MembershipCheckoutButtonShortcode() )->register();
+    }
+    if ( class_exists('KHM\\Public\\CommerceCheckoutButtonShortcode') ) {
+        ( new KHM\Public\CommerceCheckoutButtonShortcode() )->register();
+    }
     if ( class_exists('KHM\\Membership\\LandingPageShortcode') ) {
         new KHM\Membership\LandingPageShortcode();
     }
     if ( class_exists('KHM\\Membership\\DashboardShortcode') ) {
         new KHM\Membership\DashboardShortcode();
+    }
+    if ( class_exists('KHM\\Blocks\\CommerceCheckoutButtonBlock') ) {
+        ( new KHM\Blocks\CommerceCheckoutButtonBlock() )->register();
     }
 });
 
@@ -1315,6 +1575,11 @@ add_action('init', function () {
         // Register commerce frontend (unified modal for cart/checkout)
         if ( class_exists('KHM\\Frontend\\CommerceFrontend') ) {
             $commerce_frontend = new KHM\Frontend\CommerceFrontend();
+        }
+
+        // Register membership checkout handler (modal for membership signup)
+        if ( class_exists('KHM\\Frontend\\MembershipCheckoutHandler') ) {
+            $membership_checkout_handler = new KHM\Frontend\MembershipCheckoutHandler();
         }
 
         // Register member portal shortcode
@@ -1363,6 +1628,11 @@ add_action('init', function () {
         $reports_page->register();
     }
 
+    // Register membership webhook operations page.
+    if ( is_admin() && class_exists( 'KHM\\Membership\\Admin\\WebhookEventsPage' ) ) {
+        ( new KHM\Membership\Admin\WebhookEventsPage() )->register();
+    }
+
     // Register members page
     if ( is_admin() && class_exists('KHM\\Admin\\MembersPage') ) {
         $members_page = new KHM\Admin\MembersPage();
@@ -1389,6 +1659,11 @@ add_action('init', function () {
     if ( is_admin() && class_exists('KHM\\Admin\\DiscountCodesPage') ) {
         $discount_codes_page = new KHM\Admin\DiscountCodesPage();
         $discount_codes_page->register();
+    }
+
+    // Warn if legacy shortcode checkout is still published.
+    if ( is_admin() && class_exists('KHM\\Admin\\LegacyCheckoutNotice') ) {
+        ( new KHM\Admin\LegacyCheckoutNotice() )->register();
     }
 
     // Register discount code hooks for checkout integration

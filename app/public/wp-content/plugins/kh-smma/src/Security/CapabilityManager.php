@@ -17,6 +17,11 @@ class CapabilityManager {
     const CAP_SCHEDULE = 'kh_smma_schedule_posts';
     const CAP_MANAGE   = 'kh_smma_manage_accounts';
     const CAP_APPROVE_SPONSOR = 'approve_sponsor_posts';
+    const CAP_FINANCE              = 'kh_paid_finance';
+    const CAP_MANAGE_PAID_ADAPTERS = 'manage_paid_adapters';
+    // OBS-08: Observability access controls.
+    const CAP_VIEW_OBSERVABILITY   = 'view_observability';
+    const CAP_MANAGE_OBSERVABILITY = 'manage_observability';
 
     public function register() {
         add_action( 'init', array( $this, 'ensure_capabilities' ) );
@@ -24,8 +29,8 @@ class CapabilityManager {
 
     public function ensure_capabilities() {
         $role_caps = array(
-            'administrator' => array( self::CAP_VIEW, self::CAP_SCHEDULE, self::CAP_MANAGE, self::CAP_APPROVE_SPONSOR ),
-            'editor'        => array( self::CAP_VIEW, self::CAP_SCHEDULE, self::CAP_APPROVE_SPONSOR ),
+            'administrator' => array( self::CAP_VIEW, self::CAP_SCHEDULE, self::CAP_MANAGE, self::CAP_APPROVE_SPONSOR, self::CAP_FINANCE, self::CAP_MANAGE_PAID_ADAPTERS, self::CAP_VIEW_OBSERVABILITY, self::CAP_MANAGE_OBSERVABILITY ),
+            'editor'        => array( self::CAP_VIEW, self::CAP_SCHEDULE, self::CAP_APPROVE_SPONSOR, self::CAP_MANAGE_PAID_ADAPTERS, self::CAP_VIEW_OBSERVABILITY ),
             'author'        => array( self::CAP_VIEW ),
         );
 
@@ -56,5 +61,21 @@ class CapabilityManager {
 
     public static function can_approve_sponsor_content() {
         return current_user_can( self::CAP_APPROVE_SPONSOR ) || current_user_can( 'manage_options' );
+    }
+
+    public static function can_manage_finance(): bool {
+        return current_user_can( self::CAP_FINANCE ) || current_user_can( 'manage_options' );
+    }
+
+    public static function can_manage_paid_adapters(): bool {
+        return current_user_can( self::CAP_MANAGE_PAID_ADAPTERS ) || current_user_can( 'manage_options' );
+    }
+
+    public static function can_view_observability(): bool {
+        return current_user_can( self::CAP_VIEW_OBSERVABILITY ) || current_user_can( 'manage_options' );
+    }
+
+    public static function can_manage_observability(): bool {
+        return current_user_can( self::CAP_MANAGE_OBSERVABILITY ) || current_user_can( 'manage_options' );
     }
 }

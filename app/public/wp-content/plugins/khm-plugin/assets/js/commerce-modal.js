@@ -74,6 +74,15 @@
                                 <div class="khm-billing-fields">
                                     <input type="text" id="khm-billing-name" placeholder="Full Name" required>
                                 </div>
+
+                                <div class="khm-promo-fields">
+                                    <div class="khm-promo-row">
+                                        <input type="text" id="khm-commerce-promo-code" placeholder="Promo code">
+                                        <button type="button" id="khm-commerce-apply-promo" class="khm-btn-secondary">Apply</button>
+                                        <button type="button" id="khm-commerce-remove-promo" class="khm-btn-link" style="display:none">Remove</button>
+                                    </div>
+                                    <div id="khm-commerce-promo-message" class="khm-messages"></div>
+                                </div>
                                 
                                 <div class="khm-card-field">
                                     <div id="khm-payment-element"></div>
@@ -129,6 +138,22 @@
                 this.openQuickBuy(postId);
             });
 
+            // Generic trigger for widget/shortcode/block buttons.
+            $(document).on('click', '.khm-commerce-checkout-trigger', (e) => {
+                e.preventDefault();
+                const $button = $(e.currentTarget);
+                const postId = parseInt($button.data('post-id'), 10);
+                if (!postId) {
+                    return;
+                }
+
+                const fallbackMeta = {
+                    title: ($button.data('title') || '').toString(),
+                    image_url: ($button.data('image-url') || '').toString()
+                };
+                this.openQuickBuy(postId, fallbackMeta);
+            });
+
             // Modal close
             $(document).on('click', '.khm-modal-close, .khm-modal-overlay', (e) => {
                 if (e.target === e.currentTarget) {
@@ -140,6 +165,16 @@
             $(document).on('click', '#khm-complete-purchase', (e) => {
                 e.preventDefault();
                 this.processPurchase();
+            });
+
+            $(document).on('click', '#khm-commerce-apply-promo', (e) => {
+                e.preventDefault();
+                this.applyPromoCode();
+            });
+
+            $(document).on('click', '#khm-commerce-remove-promo', (e) => {
+                e.preventDefault();
+                this.removePromoCode();
             });
 
             // Success modal actions
@@ -179,6 +214,7 @@
             if (this.fallbackArticle) {
                 this.populateArticleData(this.fallbackArticle);
             }
+            this.refreshPromoState();
             this.loadArticleData(postId);
             this.createPaymentIntent(postId);
             this.showModal();
@@ -354,6 +390,94 @@
                 purchaseBtn.prop('disabled', false).text('Complete Purchase');
             }
         },
+        applyPromoCode: function() {
+            const code = ($('#khm-commerce-promo-code').val() || '').trim();
+            if (!code) {
+                this.showPromoMessage('Please enter a promo code.', 'error');
+                return;
+            }
+
+            const config = window.khmCommerce || {};
+            $.ajax({
+                url: config.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'khm_apply_promo_code',
+                    promo_code: code,
+                    nonce: config.nonce
+                },
+                success: (response) => {
+                    if (response.success) {
+                        const applied = response.data && response.data.promo_code ? response.data.promo_code : code;
+                        $('#khm-commerce-promo-code').val(applied);
+                        $('#khm-commerce-remove-promo').show();
+                        this.showPromoMessage('Promo code applied.', 'success');
+                        if (this.currentPostId) {
+                            this.createPaymentIntent(this.currentPostId);
+                        }
+                    } else {
+                        const message = typeof response.data === 'string' ? response.data : 'Invalid promo code.';
+                        this.showPromoMessage(message, 'error');
+                    }
+                },
+                error: () => {
+                    this.showPromoMessage('Could not apply promo code. Please try again.', 'error');
+                }
+            });
+        },
+        removePromoCode: function() {
+            const config = window.khmCommerce || {};
+            $.ajax({
+                url: config.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'khm_remove_promo_code',
+                    nonce: config.nonce
+                },
+                success: (response) => {
+                    if (response.success) {
+                        $('#khm-commerce-promo-code').val('');
+                        $('#khm-commerce-remove-promo').hide();
+                        this.showPromoMessage('Promo code removed.', 'success');
+                        if (this.currentPostId) {
+                            this.createPaymentIntent(this.currentPostId);
+                        }
+                    } else {
+                        this.showPromoMessage('Could not remove promo code.', 'error');
+                    }
+                },
+                error: () => {
+                    this.showPromoMessage('Could not remove promo code.', 'error');
+                }
+            });
+        },
+        refreshPromoState: function() {
+            const config = window.khmCommerce || {};
+            $.ajax({
+                url: config.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'khm_get_cart_data',
+                    nonce: config.nonce
+                },
+                success: (response) => {
+                    if (!response.success || !response.data) {
+                        return;
+                    }
+                    const code = response.data.promo_code || '';
+                    $('#khm-commerce-promo-code').val(code);
+                    if (code) {
+                        $('#khm-commerce-remove-promo').show();
+                    } else {
+                        $('#khm-commerce-remove-promo').hide();
+                    }
+                }
+            });
+        },
+        showPromoMessage: function(message, type) {
+            const css = type === 'success' ? 'success' : 'error';
+            $('#khm-commerce-promo-message').html(`<div class="${css}">${message}</div>`);
+        },
         finalizePurchase: async function(paymentIntentId) {
             const config = window.khmCommerce || {};
             console.log('[KHM Commerce] Finalize purchase request', {
@@ -416,6 +540,7 @@
         clearMessages: function() {
             $('#khm-purchase-messages').empty();
             $('#khm-card-errors').text('').hide();
+            $('#khm-commerce-promo-message').empty();
         }
     };
 

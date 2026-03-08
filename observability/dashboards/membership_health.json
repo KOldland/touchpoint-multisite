@@ -1,0 +1,132 @@
+{
+  "dashboard_id": "membership_health",
+  "title": "Membership Health",
+  "owner": "membership-ops",
+  "version": 1,
+  "description": "Post-release operational dashboard for MEM-08 rollout and steady-state monitoring.",
+  "panels": [
+    {
+      "id": "attr_created_rate",
+      "title": "membership.attribution.created rate",
+      "metric": "membership.attribution.created",
+      "aggregation": "count_per_5m",
+      "warning_threshold": {
+        "condition": "below_baseline_percent",
+        "value": 30
+      },
+      "critical_threshold": {
+        "condition": "below_baseline_percent",
+        "value": 50
+      },
+      "remediation": [
+        "Verify signup-init traffic and checkout completion volume.",
+        "Check webhook queue processing and delayed jobs.",
+        "Inspect landing-success status distribution for pending spikes."
+      ]
+    },
+    {
+      "id": "attr_missing",
+      "title": "membership.attribution.missing",
+      "metric": "membership.attribution.missing",
+      "aggregation": "count_per_5m",
+      "warning_threshold": {
+        "condition": "greater_than",
+        "value": 3
+      },
+      "critical_threshold": {
+        "condition": "greater_than",
+        "value": 10
+      },
+      "remediation": [
+        "Validate metadata mapping from checkout.session.completed.",
+        "Check temporary attribution lookup fallback.",
+        "Sample affected event_ids and replay if recoverable."
+      ]
+    },
+    {
+      "id": "email_failed_rate",
+      "title": "membership.email.failed",
+      "metric": "membership.email.failed",
+      "aggregation": "rate_per_hour",
+      "warning_threshold": {
+        "condition": "greater_than",
+        "value": 5
+      },
+      "critical_threshold": {
+        "condition": "percent_of_email_events_greater_than",
+        "value": 1
+      },
+      "remediation": [
+        "Check provider/SMTP health and queue retry status.",
+        "Optionally disable transactional emails: wp khm membership-email-control --mode=disable.",
+        "Re-enable after successful smoke revalidation."
+      ]
+    },
+    {
+      "id": "invalid_signature",
+      "title": "webhook.invalid_signature",
+      "metric": "webhook.invalid_signature",
+      "aggregation": "count_per_5m",
+      "warning_threshold": {
+        "condition": "greater_than",
+        "value": 1
+      },
+      "critical_threshold": {
+        "condition": "greater_than",
+        "value": 5
+      },
+      "remediation": [
+        "Confirm webhook secret rotation state and endpoint route.",
+        "Verify raw body signature verification path.",
+        "Replay valid dead-letter events after correction."
+      ]
+    },
+    {
+      "id": "dlq_growth",
+      "title": "Membership DLQ growth",
+      "metric": "khm_webhook_dead_letter.open_count",
+      "aggregation": "delta_per_15m",
+      "warning_threshold": {
+        "condition": "greater_than",
+        "value": 5
+      },
+      "critical_threshold": {
+        "condition": "greater_than",
+        "value": 20
+      },
+      "remediation": [
+        "Inspect dead-letter reasons and classify root cause.",
+        "Replay controlled batch: wp khm membership-webhook-dead-letters-replay --all-open --limit=20.",
+        "Confirm idempotency and flat growth after replay."
+      ]
+    }
+  ],
+  "alerts": [
+    {
+      "name": "membership-email-failed-high",
+      "panel_id": "email_failed_rate",
+      "severity": "high",
+      "notification_targets": [
+        "membership-ops",
+        "oncall-platform"
+      ]
+    },
+    {
+      "name": "membership-webhook-invalid-signature",
+      "panel_id": "invalid_signature",
+      "severity": "high",
+      "notification_targets": [
+        "membership-ops",
+        "oncall-platform"
+      ]
+    },
+    {
+      "name": "membership-dlq-growth",
+      "panel_id": "dlq_growth",
+      "severity": "medium",
+      "notification_targets": [
+        "membership-ops"
+      ]
+    }
+  ]
+}

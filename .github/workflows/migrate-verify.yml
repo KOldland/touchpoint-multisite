@@ -1,0 +1,38 @@
+name: phase4-migrate-verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run without contacting a database'
+        required: false
+        default: true
+        type: boolean
+  pull_request:
+    paths:
+      - 'migrations/**'
+      - 'scripts/migrate_verify.sh'
+      - 'docs/MIGRATION_RUNBOOK.md'
+      - '.github/workflows/migrate-verify.yml'
+
+jobs:
+  migrate-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify migration plan
+        env:
+          DB_HOST: ${{ secrets.STAGING_DB_HOST }}
+          DB_NAME: ${{ secrets.STAGING_DB_NAME }}
+          DB_USER: ${{ secrets.STAGING_DB_USER }}
+          DB_PASS: ${{ secrets.STAGING_DB_PASS }}
+        run: |
+          if [ "${{ github.event.inputs.dry_run || 'true' }}" = "true" ]; then
+            scripts/migrate_verify.sh --dry-run
+          else
+            scripts/migrate_verify.sh --host "$DB_HOST" --db "$DB_NAME" --user "$DB_USER" --pass "$DB_PASS"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase4-migrate-verify
+          path: artifacts/migrations/

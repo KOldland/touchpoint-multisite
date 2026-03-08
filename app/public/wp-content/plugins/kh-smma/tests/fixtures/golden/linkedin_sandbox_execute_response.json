@@ -1,0 +1,22 @@
+{
+  "manifest_id": "man_20260303_001",
+  "status": "success",
+  "operation_results": [
+    {
+      "operation_id": "op_1",
+      "operation_id_on_channel": "li_op_51a139aa874b",
+      "result": "created",
+      "actual_spend": 59.35,
+      "currency": "AUD",
+      "error": null
+    }
+  ],
+  "total_actual_spend": 59.35,
+  "currency": "AUD",
+  "errors": null,
+  "timestamp": "2026-03-04T00:00:00Z",
+  "adapter_meta": {
+    "adapter": "linkedin_sandbox",
+    "version": "1.0.0"
+  }
+}

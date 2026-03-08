@@ -1,0 +1,50 @@
+name: khm-webhook-rate-ci
+
+on:
+  pull_request:
+    paths:
+      - 'app/public/wp-content/plugins/khm-plugin/src/Membership/StripeWebhookHandler.php'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Services/RateLimitService.php'
+      - 'app/public/wp-content/plugins/khm-plugin/tests/Membership/StripeWebhookRateLimitTest.php'
+      - '.github/workflows/khm-webhook-rate-ci.yml'
+  push:
+    branches:
+      - integration/hardening
+    paths:
+      - 'app/public/wp-content/plugins/khm-plugin/src/Membership/StripeWebhookHandler.php'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Services/RateLimitService.php'
+      - 'app/public/wp-content/plugins/khm-plugin/tests/Membership/StripeWebhookRateLimitTest.php'
+      - '.github/workflows/khm-webhook-rate-ci.yml'
+
+jobs:
+  webhook-rate-tests:
+    runs-on: ubuntu-latest
+    env:
+      KHM_STRIPE_TEST_MODE: ci
+      KH_STRIPE_WEBHOOK_SECRET: whsec_test_ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          coverage: none
+
+      - name: Install plugin dependencies
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Run webhook rate-limit tests
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: |
+          mkdir -p artifacts/ai2-phase2
+          vendor/bin/phpunit -c phpunit.xml \
+            tests/Membership/StripeWebhookRateLimitTest.php \
+            --log-junit artifacts/ai2-phase2/phpunit_webhook_rate.xml \
+            > artifacts/ai2-phase2/webhook_rate_test.log 2>&1
+
+      - name: Upload webhook rate artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: khm-webhook-rate-artifacts
+          path: app/public/wp-content/plugins/khm-plugin/artifacts/ai2-phase2/

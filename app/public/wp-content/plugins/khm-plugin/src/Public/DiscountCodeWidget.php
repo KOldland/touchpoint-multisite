@@ -33,6 +33,11 @@ class DiscountCodeWidget {
 	 * Register hooks.
 	 */
 	public function register(): void {
+		$enabled = (bool) apply_filters( 'khm_enable_legacy_discount_widget_on_checkout', false );
+		if ( ! $enabled ) {
+			return;
+		}
+
 		// Render discount field on checkout page.
 		add_action( 'khm_checkout_after_billing_fields', array( $this, 'render' ), 10, 2 );
 

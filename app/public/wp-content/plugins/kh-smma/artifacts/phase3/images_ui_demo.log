@@ -1,0 +1,6 @@
+Phase 3 images UI demo
+Step 1 upload select: PASS - selected=2 primary=img_hero_001
+Step 2 layout recommend: PASS - layout=layout_grid_2x2 score=0.96
+Step 3 preview compose: PASS - preview=https://example.test/uploads/smma/previews/compose_001.jpg composed=cmp_001
+Step 4 save payload: PASS - mapping=2 reference=phase3-demo-post-1
+{"status":"ok","composed_preview":"https://example.test/uploads/smma/previews/compose_001.jpg","composed_image_id":"cmp_001"}

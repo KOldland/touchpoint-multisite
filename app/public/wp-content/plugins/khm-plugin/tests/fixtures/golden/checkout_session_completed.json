@@ -1,0 +1,26 @@
+{
+  "id": "evt_checkout_session_completed_fixture",
+  "type": "checkout.session.completed",
+  "created": 1767148800,
+  "data": {
+    "object": {
+      "id": "cs_fixture_001",
+      "mode": "subscription",
+      "customer": "cus_fixture_001",
+      "subscription": "sub_fixture_001",
+      "metadata": {
+        "user_id": "101",
+        "membership_level_id": "1",
+        "tier_slug": "premium",
+        "stripe_price_id": "price_premium_monthly",
+        "schedule_id": "10",
+        "sponsor_id": "20",
+        "utm_source": "newsletter",
+        "utm_medium": "email",
+        "utm_campaign": "spring_launch",
+        "consent": "1",
+        "idempotency_key": "idem_fixture_checkout_001"
+      }
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "_meta": {
+    "label": "golden-owner-approved",
+    "obs_card": "OBS-06",
+    "description": "Retry, backoff, and fallback buffer test cases for TelemetryRetryService",
+    "generated": "2026-03-06",
+    "owner": "telemetry"
+  },
+  "cases": {
+    "retry_success_case": {
+      "description": "Publisher succeeds on first attempt — no retries needed",
+      "input": {
+        "event": {
+          "event_name": "generate.request",
+          "trace_id": "trace-retry-001",
+          "timestamp": 1741219200,
+          "service": "smma",
+          "user_id": 1,
+          "post_type": "awareness"
+        },
+        "backoff_us": [0, 0, 0],
+        "publisher_fails_on_attempts": []
+      },
+      "expected": {
+        "published": true,
+        "attempts_made": 1,
+        "sleep_calls": 0,
+        "buffered": false
+      }
+    },
+    "retry_failure_case": {
+      "description": "Publisher fails on attempt 1, succeeds on attempt 2 — one retry with 250ms backoff",
+      "input": {
+        "event": {
+          "event_name": "schedule.create",
+          "trace_id": "trace-retry-002",
+          "timestamp": 1741219200,
+          "service": "smma",
+          "schedule_id": "42",
+          "channel": "linkedin"
+        },
+        "backoff_us": [0, 250000, 1000000],
+        "publisher_fails_on_attempts": [0]
+      },
+      "expected": {
+        "published": true,
+        "attempts_made": 2,
+        "sleep_calls": 1,
+        "sleep_delay_us": 250000,
+        "buffered": false
+      }
+    },
+    "fallback_buffer_case": {
+      "description": "Publisher fails on all 3 attempts — event persisted to fallback buffer",
+      "input": {
+        "event": {
+          "event_name": "variant.edit",
+          "trace_id": "trace-retry-003",
+          "timestamp": 1741219200,
+          "service": "smma",
+          "variant_id": "v-99",
+          "editor_id": 5,
+          "unified_diff": "@@ -1 +1 @@ -old +new"
+        },
+        "backoff_us": [0, 0, 0],
+        "publisher_fails_on_attempts": [0, 1, 2]
+      },
+      "expected": {
+        "published": false,
+        "attempts_made": 3,
+        "sleep_calls": 0,
+        "buffered": true,
+        "buffered_event_name": "variant.edit",
+        "buffered_trace_id": "trace-retry-003"
+      }
+    }
+  }
+}

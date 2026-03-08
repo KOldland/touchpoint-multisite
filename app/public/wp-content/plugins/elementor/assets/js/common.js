@@ -1913,7 +1913,11 @@ var eventsConfig = {
       createCancelled: 'component_creation_cancelled',
       created: 'component_created',
       instanceAdded: 'component_instance_added',
-      edited: 'component_edited'
+      edited: 'component_edited',
+      propertiesPanelOpened: 'component_properties_panel_opened',
+      propertiesGroupCreated: 'component_properties_group_created',
+      propertyExposed: 'component_property_exposed',
+      propertyRemoved: 'component_property_removed'
     },
     global_classes: {
       classApplied: 'class_applied',
@@ -1992,11 +1996,17 @@ var _default = exports["default"] = /*#__PURE__*/function (_elementorModules$Mod
   return (0, _createClass2.default)(_default, [{
     key: "onInit",
     value: function onInit() {
-      var _elementorCommon$conf;
       this.config = _eventsConfig.default;
       if (!this.canSendEvents()) {
         return;
       }
+      this.initializeMixpanel();
+      this.enableTracking();
+    }
+  }, {
+    key: "initializeMixpanel",
+    value: function initializeMixpanel() {
+      var _elementorCommon$conf;
       _mixpanelBrowser.default.init((_elementorCommon$conf = elementorCommon.config.editor_events) === null || _elementorCommon$conf === void 0 ? void 0 : _elementorCommon$conf.token, {
         persistence: 'localStorage',
         autocapture: false,
@@ -2009,7 +2019,6 @@ var _default = exports["default"] = /*#__PURE__*/function (_elementorModules$Mod
           flags: 'https://api-eu.mixpanel.com'
         }
       });
-      this.enableTracking();
     }
   }, {
     key: "enableTracking",

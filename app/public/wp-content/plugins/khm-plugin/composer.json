@@ -2,6 +2,7 @@
     "name": "khm/khm-plugin",
     "description": "KHM Membership plugin",
     "type": "wordpress-plugin",
+    "license": "proprietary",
     "autoload": {
         "psr-4": {
             "KHM\\": "src/",

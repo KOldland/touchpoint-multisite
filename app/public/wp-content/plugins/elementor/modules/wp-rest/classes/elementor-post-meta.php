@@ -118,10 +118,6 @@ class Elementor_Post_Meta {
 				'schema' => [
 					'description' => 'Elementor conditions',
 					'type' => 'array',
-					'items' => [
-						'type' => 'object',
-						'additionalProperties' => true,
-					],
 					'additionalProperties' => true,
 					'default' => [],
 					'context' => [ 'edit' ],

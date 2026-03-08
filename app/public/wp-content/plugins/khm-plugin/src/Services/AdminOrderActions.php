@@ -186,7 +186,9 @@ class AdminOrderActions {
 			return $filtered;
 		}
 
-		$secret = get_option( 'khm_stripe_secret_key', '' );
+		$secret = function_exists( 'khm_get_stripe_secret' )
+			? (string) ( khm_get_stripe_secret( 'KH_STRIPE_SECRET_KEY' ) ?? '' )
+			: '';
 		if ( empty( $secret ) ) {
 			return null;
 		}

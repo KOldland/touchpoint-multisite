@@ -1,0 +1,90 @@
+name: CIC Golden Gate
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - 'app/public/wp-content/plugins/kh-smma/tests/fixtures/golden/**'
+      - 'app/public/wp-content/plugins/kh-smma/tests/MockLLMClient.php'
+      - 'app/public/wp-content/plugins/kh-smma/tests/Lib/MockLLMClientTest.php'
+      - 'scripts/regenerate_fixture.php'
+      - 'scripts/verify_golden_fixtures.php'
+      - 'docs/contracts/**'
+      - '.github/workflows/cic-golden-gate.yml'
+  pull_request:
+    branches: [main, staging]
+    paths:
+      - 'app/public/wp-content/plugins/kh-smma/tests/fixtures/golden/**'
+      - 'app/public/wp-content/plugins/kh-smma/tests/MockLLMClient.php'
+      - 'app/public/wp-content/plugins/kh-smma/tests/Lib/MockLLMClientTest.php'
+      - 'scripts/regenerate_fixture.php'
+      - 'scripts/verify_golden_fixtures.php'
+      - 'docs/contracts/**'
+      - '.github/workflows/cic-golden-gate.yml'
+
+jobs:
+  golden-check:
+    name: golden-check
+    runs-on: ubuntu-latest
+    env:
+      KH_SMMA_TEST_MODE: ci
+      KH_SMMA_GOLDEN_FIXTURE: generate_awareness_ok.json
+      CI: true
+      OPENAI_API_KEY: ''
+      OPENAI_KEY: ''
+      ANTHROPIC_API_KEY: ''
+      ANTHROPIC_KEY: ''
+      DUAL_GPT_API_KEY: ''
+      LLM_API_KEY: ''
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+
+      - name: Install SMMA test dependencies
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Verify fixture metadata + checksums
+        run: php scripts/verify_golden_fixtures.php
+
+      - name: Enforce owner label for fixture changes
+        if: github.event_name == 'pull_request'
+        run: |
+          CHANGED="$(git diff --name-only origin/${{ github.base_ref }}...HEAD)"
+          if echo "$CHANGED" | grep -q '^app/public/wp-content/plugins/kh-smma/tests/fixtures/golden/'; then
+            LABELS="${{ join(github.event.pull_request.labels.*.name, ' ') }}"
+            echo "Fixture files changed; PR labels: $LABELS"
+            if [[ "$LABELS" != *"golden-owner-approved"* ]]; then
+              echo "ERROR: fixture changes require golden-owner-approved label"
+              exit 1
+            fi
+          else
+            echo "No golden fixture changes detected."
+          fi
+
+      - name: Run MockLLM deterministic unit tests
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: vendor/bin/phpunit tests/Lib/MockLLMClientTest.php --testdox --colors=always
+
+  secret-scan:
+    name: secret-scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Scan fixtures and scripts for obvious secret patterns
+        run: |
+          ! grep -REn --exclude-dir=.git --exclude-dir=vendor --exclude-dir=node_modules \
+            "sk_(live|test)_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{16,}|-----BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY-----|AKIA[0-9A-Z]{16}" \
+            app/public/wp-content/plugins/kh-smma/tests/fixtures/golden scripts docs/contracts

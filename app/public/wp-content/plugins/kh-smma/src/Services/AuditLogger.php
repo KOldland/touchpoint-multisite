@@ -75,4 +75,97 @@ class AuditLogger {
             ) ),
         ) );
     }
+
+    /**
+     * Persist a structured telemetry event to the audit log.
+     *
+     * Called by EventEmitter as the audit-first fallback so events remain
+     * queryable even if the telemetry backend is unavailable.
+     *
+     * @param string $trace_id   Correlation ID shared across related events.
+     * @param string $event_name Canonical event name (e.g. "generate.request").
+     * @param int    $timestamp  Unix timestamp of the event.
+     * @param array  $payload    Full event envelope (must be PII-safe before calling).
+     */
+    public function record_event( string $trace_id, string $event_name, int $timestamp, array $payload ): void {
+        $this->log( 'telemetry_event', array(
+            'object_type' => 'telemetry',
+            'details'     => array(
+                'trace_id'   => $trace_id,
+                'event_name' => $event_name,
+                'timestamp'  => $timestamp,
+                'payload'    => $payload,
+            ),
+        ) );
+    }
+
+    /**
+     * Return the most recent telemetry_event audit rows decoded for display.
+     *
+     * @param int $limit Maximum rows (1–100, default 10).
+     * @return array  Rows with ->decoded_details populated.
+     */
+    public function get_recent_telemetry_events( int $limit = 10 ): array {
+        $limit = max( 1, min( 100, $limit ) );
+        $rows  = $this->db->get_results(
+            $this->db->prepare(
+                "SELECT * FROM {$this->table} WHERE action = 'telemetry_event' ORDER BY id DESC LIMIT %d",
+                $limit
+            )
+        );
+
+        if ( empty( $rows ) ) {
+            return array();
+        }
+
+        foreach ( $rows as $row ) {
+            $row->decoded_details = maybe_unserialize( $row->details );
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Return all telemetry_event rows for a trace_id, ordered ascending so
+     * the workflow can be read top-to-bottom.
+     *
+     * @param string $trace_id UUID v4 correlation identifier.
+     * @return array  Decoded event rows.
+     */
+    public function get_events_by_trace( string $trace_id ): array {
+        if ( '' === $trace_id ) {
+            return array();
+        }
+
+        $safe_like = '%' . $this->db->esc_like( $trace_id ) . '%';
+        $rows      = $this->db->get_results(
+            $this->db->prepare(
+                "SELECT * FROM {$this->table}
+                  WHERE action = 'telemetry_event'
+                    AND details LIKE %s
+                  ORDER BY id ASC",
+                $safe_like
+            )
+        );
+
+        if ( empty( $rows ) ) {
+            return array();
+        }
+
+        $events = array();
+        foreach ( $rows as $row ) {
+            $decoded = maybe_unserialize( $row->details );
+            if ( ! is_array( $decoded ) ) {
+                continue;
+            }
+            // Guard: only include rows whose trace_id exactly matches.
+            if ( ( $decoded['trace_id'] ?? '' ) !== $trace_id ) {
+                continue;
+            }
+            $row->decoded_details = $decoded;
+            $events[]             = $row;
+        }
+
+        return $events;
+    }
 }

@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Landing Success Payload",
+  "type": "object",
+  "required": ["session_id", "status", "membership_status", "schedule", "consent", "ctas"],
+  "properties": {
+    "session_id": { "type": "string" },
+    "status": { "type": "string", "enum": ["pending", "complete", "failed"] },
+    "membership_status": { "type": "string", "enum": ["active", "trialing", "pending", "none"] },
+    "schedule": {
+      "type": "object",
+      "required": ["id", "title"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "recommended_post_time": { "type": "string", "format": "date-time" },
+        "boost_copy": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "sponsor": {
+      "type": ["object", "null"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "logo_url": { "type": "string", "format": "uri" },
+        "accent_color": { "type": "string" },
+        "blurb": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "consent": { "type": "boolean" },
+    "attribution": {
+      "type": ["object", "null"],
+      "properties": {
+        "schedule_id": { "type": "string" },
+        "sponsor_id": { "type": ["string", "null"] },
+        "utm_source": { "type": ["string", "null"] },
+        "utm_medium": { "type": ["string", "null"] },
+        "utm_campaign": { "type": ["string", "null"] },
+        "phase_at_click": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "ctas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "action"],
+        "properties": {
+          "name": { "type": "string" },
+          "action": { "type": "string", "enum": ["account_url", "download", "invite", "manage", "external"] },
+          "url": { "type": ["string", "null"], "format": "uri" }
+        }
+      }
+    },
+    "message": { "type": ["string", "null"] },
+    "reference": { "type": "string" }
+  },
+  "additionalProperties": false
+}

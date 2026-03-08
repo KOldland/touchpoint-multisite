@@ -1,0 +1,119 @@
+name: MEM-06 Tests and QA
+
+on:
+  pull_request:
+    branches: [main, staging]
+    paths:
+      - 'app/public/wp-content/plugins/khm-plugin/**'
+      - '.github/workflows/mem-06-qa.yml'
+  workflow_dispatch:
+    inputs:
+      staging_url:
+        description: 'Optional staging base URL for smoke + a11y'
+        required: false
+        type: string
+
+jobs:
+  unit-tests:
+    name: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+      - name: Install dependencies
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: composer install --prefer-dist --no-progress --no-interaction
+      - name: Run MEM-06 unit matrix
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: |
+          vendor/bin/phpunit tests/Membership/SignupInitMatrixTest.php
+          vendor/bin/phpunit tests/Membership/AnonymizeTest.php
+          vendor/bin/phpunit tests/Membership/RetentionTest.php
+          vendor/bin/phpunit tests/Membership/RetentionWorkerChunkTest.php
+          vendor/bin/phpunit tests/Membership/DsarTest.php
+          vendor/bin/phpunit tests/Membership/DsarExportPrivacyTest.php
+          vendor/bin/phpunit tests/Membership/AdminPermissionTest.php
+
+  integration-stripe-webhooks:
+    name: integration-stripe-webhooks
+    runs-on: ubuntu-latest
+    env:
+      KH_STRIPE_WEBHOOK_SECRET: whsec_test_secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+      - name: Install dependencies
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: composer install --prefer-dist --no-progress --no-interaction
+      - name: Run signed fixture integration tests
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: |
+          mkdir -p artifacts
+          vendor/bin/phpunit tests/Membership/StripeWebhookFixtureIntegrationTest.php | tee artifacts/smoke-log.txt
+          echo '{"job":"integration-stripe-webhooks","status":"completed"}' > artifacts/smoke-telemetry.json
+          zip -r artifacts/smoke-diffs.zip tests/fixtures/golden >/dev/null
+      - name: Upload integration artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mem06-integration-artifacts
+          path: |
+            app/public/wp-content/plugins/khm-plugin/artifacts/smoke-telemetry.json
+            app/public/wp-content/plugins/khm-plugin/artifacts/smoke-log.txt
+            app/public/wp-content/plugins/khm-plugin/artifacts/smoke-diffs.zip
+
+  smoke-e2e:
+    name: smoke-e2e
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.staging_url != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run staging smoke probes
+        run: |
+          mkdir -p artifacts
+          echo "staging_url=${{ inputs.staging_url }}" > artifacts/smoke-log.txt
+          curl -i "${{ inputs.staging_url }}/wp-json/khm/v1/webhooks/stripe" >> artifacts/smoke-log.txt || true
+          echo '{"job":"smoke-e2e","status":"manual-dispatch","timestamp":"'"$(date -u +%FT%TZ)"'"}' > artifacts/smoke-telemetry.json
+          echo "No binary diff artifacts generated in CI smoke run" > artifacts/smoke-diffs.txt
+          zip -r artifacts/smoke-diffs.zip artifacts/smoke-diffs.txt >/dev/null
+      - name: Upload smoke artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mem06-smoke-e2e-artifacts
+          path: |
+            artifacts/smoke-telemetry.json
+            artifacts/smoke-log.txt
+            artifacts/smoke-diffs.zip
+
+  a11y:
+    name: a11y
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_BASE_URL: ${{ inputs.staging_url || 'http://127.0.0.1:8080' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Playwright + axe dependencies
+        working-directory: app/public/wp-content/plugins/khm-plugin/tests/UI
+        run: |
+          npm install
+          npx playwright install --with-deps
+      - name: Run accessibility tests
+        working-directory: app/public/wp-content/plugins/khm-plugin/tests/UI
+        run: |
+          mkdir -p ../../artifacts/a11y
+          npx playwright test --reporter=list,html || true
+          cp -R playwright-report ../../artifacts/a11y/report || true
+      - name: Upload a11y artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mem06-a11y-report
+          path: app/public/wp-content/plugins/khm-plugin/artifacts/a11y

@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kh-smma:telemetry_events",
+  "title": "KH SMMA Telemetry Event Schema",
+  "description": "JSON Schema definitions for all canonical telemetry events emitted by EventEmitter. Used by CI contract validation (OBS-05).",
+
+  "$defs": {
+    "base_envelope": {
+      "type": "object",
+      "required": ["event_name", "trace_id", "timestamp", "service"],
+      "properties": {
+        "event_name": { "type": "string", "minLength": 1 },
+        "trace_id":   { "type": "string", "minLength": 8 },
+        "timestamp":  { "type": "integer", "minimum": 1 },
+        "service":    { "type": "string", "enum": ["smma", "mem", "obs"] }
+      }
+    },
+
+    "generate_request": {
+      "allOf": [
+        { "$ref": "#/$defs/base_envelope" },
+        {
+          "type": "object",
+          "required": ["session_id", "prompt_hash", "variant_count_requested"],
+          "properties": {
+            "event_name":               { "const": "generate.request" },
+            "service":                  { "const": "smma" },
+            "session_id":               { "type": "string", "minLength": 1 },
+            "prompt_hash":              { "type": "string", "minLength": 8 },
+            "variant_count_requested":  { "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
+    },
+
+    "generate_response": {
+      "allOf": [
+        { "$ref": "#/$defs/base_envelope" },
+        {
+          "type": "object",
+          "required": ["variant_count_generated", "latency_ms"],
+          "properties": {
+            "event_name":              { "const": "generate.response" },
+            "service":                 { "const": "smma" },
+            "variant_count_generated": { "type": "integer", "minimum": 0 },
+            "latency_ms":              { "type": "integer", "minimum": 0 }
+          }
+        }
+      ]
+    },
+
+    "compliance_check": {
+      "allOf": [
+        { "$ref": "#/$defs/base_envelope" },
+        {
+          "type": "object",
+          "required": ["variant_id", "outcome", "rules_matched"],
+          "properties": {
+            "event_name":    { "const": "compliance.check" },
+            "service":       { "const": "smma" },
+            "variant_id":    { "type": "string", "minLength": 1 },
+            "outcome":       { "type": "string", "enum": ["OK", "WARN", "FAIL"] },
+            "rules_matched": { "type": "array" }
+          }
+        }
+      ]
+    },
+
+    "variant_edit": {
+      "allOf": [
+        { "$ref": "#/$defs/base_envelope" },
+        {
+          "type": "object",
+          "required": ["variant_id", "editor_id", "revision_id"],
+          "properties": {
+            "event_name":  { "const": "variant.edit" },
+            "service":     { "const": "smma" },
+            "variant_id":  { "type": "string", "minLength": 1 },
+            "editor_id":   { "type": "string", "minLength": 1 },
+            "revision_id": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+
+    "schedule_create": {
+      "allOf": [
+        { "$ref": "#/$defs/base_envelope" },
+        {
+          "type": "object",
+          "required": ["schedule_id", "sponsor_id", "approval_required"],
+          "properties": {
+            "event_name":        { "const": "schedule.create" },
+            "service":           { "const": "smma" },
+            "schedule_id":       { "type": "string", "minLength": 1 },
+            "sponsor_id":        { "type": "string", "minLength": 1 },
+            "approval_required": { "type": "boolean" }
+          }
+        }
+      ]
+    },
+
+    "schedule_dispatch": {
+      "allOf": [
+        { "$ref": "#/$defs/base_envelope" },
+        {
+          "type": "object",
+          "required": ["schedule_id", "adapter", "result"],
+          "properties": {
+            "event_name":  { "const": "schedule.dispatch" },
+            "service":     { "const": "smma" },
+            "schedule_id": { "type": "string", "minLength": 1 },
+            "adapter":     { "type": "string", "minLength": 1 },
+            "result":      { "type": "string", "enum": ["dispatched", "exported", "failed"] }
+          }
+        }
+      ]
+    },
+
+    "membership_signup": {
+      "allOf": [
+        { "$ref": "#/$defs/base_envelope" },
+        {
+          "type": "object",
+          "required": ["user_id", "tier", "payment_status", "attribution_id"],
+          "properties": {
+            "event_name":     { "const": "membership.signup" },
+            "service":        { "const": "mem" },
+            "user_id":        { "type": "integer", "minimum": 1 },
+            "tier":           { "type": "string", "minLength": 1 },
+            "payment_status": { "type": "string", "minLength": 1 },
+            "attribution_id": { "type": "string" }
+          }
+        }
+      ]
+    },
+
+    "promotion_attribution": {
+      "allOf": [
+        { "$ref": "#/$defs/base_envelope" },
+        {
+          "type": "object",
+          "required": ["schedule_id", "sponsor_id", "utm_source", "confidence_score"],
+          "properties": {
+            "event_name":       { "const": "promotion_attribution" },
+            "service":          { "const": "mem" },
+            "schedule_id":      { "type": "string", "minLength": 1 },
+            "sponsor_id":       { "type": "string", "minLength": 1 },
+            "utm_source":       { "type": "string", "minLength": 1 },
+            "confidence_score": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        }
+      ]
+    },
+
+    "alert_triggered": {
+      "allOf": [
+        { "$ref": "#/$defs/base_envelope" },
+        {
+          "type": "object",
+          "required": ["alert_type", "severity"],
+          "properties": {
+            "event_name": { "const": "alert.triggered" },
+            "service":    { "const": "obs" },
+            "alert_type": { "type": "string", "minLength": 1 },
+            "severity":   { "type": "string", "enum": ["warning", "critical"] }
+          }
+        }
+      ]
+    }
+  },
+
+  "type": "object",
+  "description": "Top-level wrapper: discriminate by event_name",
+  "required": ["event_name", "trace_id", "timestamp", "service"],
+  "properties": {
+    "event_name": { "type": "string" },
+    "trace_id":   { "type": "string" },
+    "timestamp":  { "type": "integer" },
+    "service":    { "type": "string" }
+  }
+}

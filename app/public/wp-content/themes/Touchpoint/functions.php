@@ -1355,7 +1355,7 @@ add_action( 'elementor/widgets/register', function( $widgets_manager ) {
 			'ticker',
 			'slide_in',
 		];
-		
+
 		foreach ($slots as $slot) {
 			echo "<div style='border:1px dashed #ccc;margin:10px;padding:10px;'>";
 			echo "<h4>Slot: $slot</h4>";
@@ -1364,3 +1364,30 @@ add_action( 'elementor/widgets/register', function( $widgets_manager ) {
 		}
 		return ob_get_clean();
 	});
+
+/**
+ * Membership Stripe Price ID Mapping
+ *
+ * Maps membership level IDs to Stripe Price IDs for checkout.
+ *
+ * To get your Stripe Price IDs:
+ * 1. Go to Stripe Dashboard → Products
+ * 2. Click on a product
+ * 3. Copy the Price ID (starts with "price_")
+ *
+ * To find your membership level IDs:
+ * Run this query: SELECT id, name FROM wp_khm_membership_levels;
+ * Or check the Elementor widget dropdown when editing a page
+ */
+add_filter( 'khm_stripe_membership_price_map', function( $map, $level_id ) {
+	// Map membership level IDs to Stripe Price IDs
+	$price_map = [
+		// Format: level_id => 'stripe_price_id'
+		// 1 => 'price_1ABC123...', // Free tier (usually doesn't need payment)
+		// 2 => 'price_2XYZ456...', // Pro tier
+		// 3 => 'price_3LMN789...', // Premium tier
+	];
+
+	// Return the entire map for bulk lookups
+	return $price_map;
+}, 10, 2 );

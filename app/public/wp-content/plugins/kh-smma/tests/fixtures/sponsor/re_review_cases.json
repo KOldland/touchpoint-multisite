@@ -1,0 +1,36 @@
+{
+  "compliance_change_case": {
+    "schedule": {
+      "schedule_id": "801",
+      "sponsor_id": "sp_1",
+      "approval_status": "approved",
+      "compliance_status": "WARN",
+      "last_approved_compliance_status": "OK",
+      "ruleset_version": "v3",
+      "last_approved_ruleset_version": "v2"
+    }
+  },
+  "claim_change_case": {
+    "sponsor_id": "sp_1",
+    "previous_allowed_claims": ["claim_a", "claim_b"],
+    "current_allowed_claims": ["claim_a"],
+    "schedules": [
+      {
+        "schedule_id": "802",
+        "sponsor_id": "sp_1",
+        "variant_id": "var_123",
+        "approval_status": "approved",
+        "compliance_status": "OK",
+        "claims_used": ["claim_b"]
+      }
+    ]
+  },
+  "fail_approval_case": {
+    "schedule": {
+      "schedule_id": "803",
+      "sponsor_id": "sp_1",
+      "approval_status": "pending",
+      "compliance_status": "FAIL"
+    }
+  }
+}

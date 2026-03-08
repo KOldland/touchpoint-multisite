@@ -1,0 +1,7 @@
+-- Phase-1 DB snapshot fallback
+-- Source branch: origin/ai1/promo-validation
+-- Original capture result recorded by the workflow:
+-- Error: Failed to get current SQL modes. Reason: env: mysql: No such file or directory
+--
+-- This fallback file is committed so the verification report can link to the exact
+-- snapshot capture outcome that existed in the repository at report time.

@@ -1,0 +1,53 @@
+name: phase4-release-rc
+
+on:
+  workflow_dispatch:
+    inputs:
+      rc_tag:
+        description: 'Release candidate tag suffix'
+        required: false
+        default: ''
+        type: string
+  push:
+    branches:
+      - release/**
+
+jobs:
+  build-rc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+
+      - name: Install plugin dependencies
+        run: |
+          cd app/public/wp-content/plugins/khm-plugin && composer install --prefer-dist --no-interaction --no-progress
+          cd "${GITHUB_WORKSPACE}/app/public/wp-content/plugins/kh-smma" && composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Import release GPG key
+        if: ${{ secrets.RELEASE_GPG_PRIVATE_KEY != '' }}
+        env:
+          RELEASE_GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
+        run: |
+          echo "$RELEASE_GPG_PRIVATE_KEY" | gpg --batch --import
+
+      - name: Create release candidate
+        env:
+          RELEASE_GPG_KEY_ID: ${{ secrets.RELEASE_GPG_KEY_ID }}
+          RELEASE_GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+        run: |
+          RC_TAG="${{ github.event.inputs.rc_tag }}"
+          if [ -z "$RC_TAG" ]; then
+            RC_TAG="$(date +%Y%m%d-%H%M%S)"
+          fi
+          tools/release/create_rc.sh "$RC_TAG"
+
+      - name: Upload release candidate artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-release-rc
+          path: artifacts/release-rc/

@@ -16,27 +16,47 @@ class SmmaGenerator {
         'no risk',
     );
 
+    /** @var SchemaValidator */
+    private $schema_validator;
+
+    public function __construct( SchemaValidator $schema_validator = null ) {
+        $this->schema_validator = $schema_validator ?? new SchemaValidator();
+    }
+
     public function generate( array $input ) {
         $input = $this->hydrate_input( $input );
         $input = $this->hydrate_phase_context( $input );
-        
+
         // Generate LinkedIn variants
         $linkedin_result = $this->generate_linkedin_variants( $input );
-        
+
         // Generate Google Ads draft if enabled
         $google_ad_draft = array();
         $generate_google_ads = $input['generate_google_ads'] ?? true;
-        
+
         if ( $generate_google_ads ) {
             $google_ad_draft = $this->generate_google_ad_draft( $input );
         }
 
-        return array(
+        $response = array(
             'variants'          => $linkedin_result['variants'],
             'linkedin_variants' => $linkedin_result['variants'],
             'google_ad_draft'   => $google_ad_draft,
             'model'             => $linkedin_result['model'],
         );
+
+        // Validate response schema
+        $validation = $this->schema_validator->validate_generation_response( $response );
+        if ( is_wp_error( $validation ) ) {
+            // Log validation error but don't fail - return response with error metadata
+            $error_message = method_exists( $validation, 'get_error_message' ) ? $validation->get_error_message() : 'Schema validation failed';
+            if ( function_exists( 'error_log' ) ) {
+                error_log( 'SMMA Schema Validation Error: ' . $error_message );
+            }
+            $response['schema_validation_error'] = $error_message;
+        }
+
+        return $response;
     }
 
     /**
@@ -72,6 +92,7 @@ class SmmaGenerator {
             $variants = $this->build_fallback_variants( $input );
         }
 
+        $variants = $this->limit_variant_count( $variants, $input );
         $variants = $this->apply_compliance( $variants, $input, $model );
 
         return array(
@@ -87,14 +108,9 @@ class SmmaGenerator {
      * @return array
      */
     private function generate_google_ad_draft( array $input ): array {
-        $google_service = new GoogleAdDraftService();
-        $draft = $google_service->generate( $input );
-
-        if ( is_wp_error( $draft ) ) {
-            return array();
-        }
-
-        return $draft;
+        // Backward-compatible contract: this draft is filter-driven and empty by default.
+        $draft = apply_filters( 'kh_smma_google_ad_draft', array(), $input );
+        return is_array( $draft ) ? $draft : array();
     }
 
     private function hydrate_input( array $input ): array {
@@ -232,6 +248,7 @@ class SmmaGenerator {
         return wp_json_encode( array(
             'post_id' => $input['post_id'] ?? 0,
             'blocks_json' => $input['blocks_json'] ?? array(),
+            'blocks_summary' => $input['blocks_summary'] ?? '',
             'phase_tag' => $input['phase_tag'] ?? 'Attention',
             'phase_context' => $input['phase_context'] ?? array(),
             'keywords' => $input['keywords'] ?? array(),
@@ -289,6 +306,7 @@ class SmmaGenerator {
                 'sponsor_mode' => $input['sponsor_context']['policy'] ?? '',
                 'sponsor_asset' => $input['sponsor_context']['sponsor_assets'][0] ?? array(),
                 'compliance_notes' => 'OK: fallback variant generated',
+                'approval_required' => false,
                 'explainability' => 'Matches requested phase with a soft CTA and professional tone.',
                 'audit' => array(
                     'source_post_id' => $post_id,
@@ -327,6 +345,16 @@ class SmmaGenerator {
                 $notes = $this->check_allowed_claims( $text, $allowed_claims );
             }
 
+            $compliance_notes = $notes ?: ( $variant['compliance_notes'] ?? 'OK' );
+
+            // Compute approval_required based on compliance level
+            // WARN or FAIL compliance requires approval before paid promotion
+            $approval_required = false;
+            $notes_upper = strtoupper( $compliance_notes );
+            if ( strpos( $notes_upper, 'FAIL' ) !== false || strpos( $notes_upper, 'WARN' ) !== false ) {
+                $approval_required = true;
+            }
+
             $variants[ $index ] = array_merge( array(
                 'variant_id' => $variant['variant_id'] ?? 'v-' . wp_generate_uuid4(),
                 'channel' => $variant['channel'] ?? 'linkedin',
@@ -340,7 +368,8 @@ class SmmaGenerator {
                 'sponsor_flag' => (bool) ( $variant['sponsor_flag'] ?? ! empty( $input['sponsor_context'] ) ),
                 'sponsor_mode' => $variant['sponsor_mode'] ?? ( $input['sponsor_context']['policy'] ?? '' ),
                 'sponsor_asset' => $variant['sponsor_asset'] ?? array(),
-                'compliance_notes' => $notes ?: ( $variant['compliance_notes'] ?? 'OK' ),
+                'compliance_notes' => $compliance_notes,
+                'approval_required' => $approval_required,
                 'explainability' => $variant['explainability'] ?? 'Aligned with phase and tone requirements.',
                 'audit' => $variant['audit'] ?? array(
                     'source_post_id' => $post_id,
@@ -403,5 +432,12 @@ class SmmaGenerator {
         }
 
         return 'WARN: no allowed sponsor claims detected.';
+    }
+
+    private function limit_variant_count( array $variants, array $input ): array {
+        $requested = (int) ( $input['num_variants'] ?? ( $input['user_controls']['num_variants'] ?? 1 ) );
+        $requested = max( 1, min( 5, $requested ) );
+
+        return array_slice( $variants, 0, $requested );
     }
 }

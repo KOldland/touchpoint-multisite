@@ -1,5 +1,10 @@
 {
+    "name": "khm/kh-smma",
+    "description": "KHM SMMA plugin",
+    "type": "wordpress-plugin",
+    "license": "proprietary",
     "require-dev": {
-        "phpunit/phpunit": "^9.5"
+        "phpunit/phpunit": "^9.5",
+        "justinrainbow/json-schema": "^5.2"
     }
 }

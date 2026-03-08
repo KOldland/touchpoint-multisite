@@ -1,0 +1,445 @@
+/**
+ * Membership Checkout Modal Styles
+ *
+ * Styles for the membership tier modal and checkout button.
+ * Follows the same design patterns as the commerce modal.
+ */
+
+/* ========================================
+   Checkout Button (Widget Output)
+   ======================================== */
+
+.khm-checkout-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.5;
+    text-align: center;
+    text-decoration: none;
+    color: #ffffff;
+    background-color: #6b0b0b;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.khm-checkout-trigger:hover {
+    background-color: #4a0808;
+    transform: translateY(-1px);
+}
+
+.khm-checkout-trigger:active {
+    transform: translateY(0);
+}
+
+.khm-checkout-trigger:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Icon inside button */
+.khm-checkout-trigger i,
+.khm-checkout-trigger svg {
+    width: 18px;
+    height: 18px;
+}
+
+
+/* ========================================
+   Modal Overlay & Container
+   ======================================== */
+
+.khm-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: 999999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.khm-modal-container {
+    position: relative;
+    width: 100%;
+    max-width: 500px;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    margin: auto;
+}
+
+.khm-membership-container {
+    max-width: 600px;
+}
+
+/* Body no-scroll when modal is open */
+body.khm-modal-open {
+    overflow: hidden;
+}
+
+
+/* ========================================
+   Modal Header
+   ======================================== */
+
+.khm-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 24px 16px;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.khm-modal-header h3 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: #1a1a1a;
+}
+
+.khm-modal-close {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    line-height: 1;
+    color: #666;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.khm-modal-close:hover {
+    background-color: #f5f5f5;
+    color: #1a1a1a;
+}
+
+
+/* ========================================
+   Modal Content
+   ======================================== */
+
+.khm-modal-content {
+    padding: 24px;
+}
+
+
+/* ========================================
+   Membership Tier Summary
+   ======================================== */
+
+.khm-membership-summary {
+    margin-bottom: 24px;
+}
+
+.khm-tier-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.khm-tier-name {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: #1a1a1a;
+}
+
+.khm-tier-price {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.khm-price-amount {
+    font-size: 28px;
+    font-weight: 700;
+    color: #6b0b0b;
+}
+
+.khm-price-interval {
+    font-size: 16px;
+    font-weight: 500;
+    color: #666;
+}
+
+.khm-tier-description {
+    margin-bottom: 16px;
+    font-size: 15px;
+    line-height: 1.6;
+    color: #555;
+}
+
+.khm-tier-description p {
+    margin: 0 0 12px;
+}
+
+.khm-tier-description p:last-child {
+    margin-bottom: 0;
+}
+
+
+/* ========================================
+   Tier Features List
+   ======================================== */
+
+.khm-tier-features {
+    margin-bottom: 24px;
+}
+
+.khm-tier-features ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.khm-tier-features li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    font-size: 15px;
+    line-height: 1.5;
+    color: #333;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+/* ========================================
+   Membership Promo Section
+   ======================================== */
+
+.khm-membership-promo-section {
+    margin: 0 0 18px;
+    padding: 12px;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    background: #fcfcfc;
+}
+
+.khm-membership-promo-section > label {
+    display: block;
+    margin: 0 0 7px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+}
+
+.khm-membership-promo-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.khm-membership-promo-row input[type="text"] {
+    flex: 1;
+    min-height: 36px;
+    padding: 8px 10px;
+    border: 1px solid #d6d6d6;
+    border-radius: 4px;
+}
+
+.khm-btn-link {
+    background: none;
+    border: 0;
+    color: #6b0b0b;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0 2px;
+}
+
+/* ========================================
+   Optional Guest Account Section
+   ======================================== */
+
+.khm-create-account-section {
+    border: 1px solid #e7e7e7;
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    background: #fafafa;
+}
+
+.khm-create-account-toggle-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.khm-create-account-details {
+    margin-top: 12px;
+}
+
+.khm-create-account-description {
+    margin: 0 0 12px;
+    color: #555;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.khm-field-group {
+    margin: 0 0 10px;
+}
+
+.khm-field-group label {
+    display: block;
+    margin: 0 0 5px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+}
+
+.khm-field-group input[type="text"],
+.khm-field-group input[type="tel"] {
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 10px;
+    border: 1px solid #d6d6d6;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.khm-tier-features li:last-child {
+    border-bottom: none;
+}
+
+.khm-feature-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+
+/* ========================================
+   Modal Actions (Buttons)
+   ======================================== */
+
+.khm-modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.khm-btn-primary,
+.khm-btn-secondary {
+    flex: 1;
+    padding: 14px 24px;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.5;
+    text-align: center;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.khm-btn-primary {
+    color: #ffffff;
+    background-color: #6b0b0b;
+}
+
+.khm-btn-primary:hover {
+    background-color: #4a0808;
+}
+
+.khm-btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.khm-btn-secondary {
+    color: #333;
+    background-color: #f0f0f0;
+}
+
+.khm-btn-secondary:hover {
+    background-color: #e0e0e0;
+}
+
+
+/* ========================================
+   Messages (Errors & Success)
+   ======================================== */
+
+.khm-messages {
+    margin-top: 16px;
+}
+
+.khm-message {
+    padding: 12px 16px;
+    font-size: 14px;
+    line-height: 1.5;
+    border-radius: 4px;
+    margin-bottom: 12px;
+}
+
+.khm-message:last-child {
+    margin-bottom: 0;
+}
+
+.khm-error {
+    color: #d8000c;
+    background-color: #ffd2d2;
+    border: 1px solid #d8000c;
+}
+
+.khm-success {
+    color: #4f8a10;
+    background-color: #dff2bf;
+    border: 1px solid #4f8a10;
+}
+
+
+/* ========================================
+   Responsive Design
+   ======================================== */
+
+@media (max-width: 640px) {
+    .khm-modal-container {
+        max-width: 100%;
+        margin: 0;
+        border-radius: 0;
+    }
+
+    .khm-modal-header h3 {
+        font-size: 20px;
+    }
+
+    .khm-tier-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .khm-price-amount {
+        font-size: 24px;
+    }
+
+    .khm-modal-actions {
+        flex-direction: column;
+    }
+
+    .khm-btn-primary,
+    .khm-btn-secondary {
+        width: 100%;
+    }
+}

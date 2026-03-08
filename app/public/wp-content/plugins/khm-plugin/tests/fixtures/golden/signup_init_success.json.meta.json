@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "prompt_hash": "mem-01-signup-init-success",
+  "prompt_version": "mem-01",
+  "created_at": "2026-03-03T00:00:00Z",
+  "author": "MEM/KHM",
+  "checksum": "sha256:placeholder-update-in-ci",
+  "notes": "Minimal golden response fixture for MEM-01 signup-init contract. Contains no PII or secrets."
+}

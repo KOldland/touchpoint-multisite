@@ -514,7 +514,7 @@ class CheckoutShortcode {
      */
     private function get_gateway(): StripeGateway {
         return new StripeGateway([
-            'secret_key' => get_option('khm_stripe_secret_key', ''),
+            'secret_key' => '',
             'publishable_key' => get_option('khm_stripe_publishable_key', ''),
             'environment' => get_option('khm_stripe_environment', 'sandbox'),
         ]);

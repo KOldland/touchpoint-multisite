@@ -12,6 +12,7 @@ use KHM\Services\ECommerceService;
 use KHM\Services\MembershipRepository;
 use KHM\Services\OrderRepository;
 use KHM\Services\EmailService;
+use KHM\Services\DiscountCodeService;
 use KHM\Public\CheckoutShortcode;
 use KHM\Gateways\StripeGateway;
 
@@ -23,6 +24,7 @@ class CommerceFrontend {
     private MembershipRepository $memberships;
     private OrderRepository $orders;
     private EmailService $email;
+    private DiscountCodeService $discounts;
     private CheckoutShortcode $checkout;
 
     public function __construct() {
@@ -34,6 +36,7 @@ class CommerceFrontend {
         $this->memberships = new MembershipRepository();
         $this->orders = new OrderRepository();
         $this->email = new EmailService(__DIR__ . '/../../');
+        $this->discounts = new DiscountCodeService();
         $this->ecommerce = new ECommerceService($this->memberships, $this->orders);
         $this->checkout = new CheckoutShortcode($this->memberships, $this->orders, $this->email);
         
@@ -53,6 +56,8 @@ class CommerceFrontend {
         add_action('wp_ajax_khm_create_commerce_intent', [$this, 'ajax_create_intent']);
         add_action('wp_ajax_khm_process_commerce_purchase', [$this, 'ajax_process_purchase']);
         add_action('wp_ajax_khm_finalize_commerce_purchase', [$this, 'ajax_finalize_purchase']);
+        add_action('wp_ajax_khm_apply_promo_code', [$this, 'ajax_apply_promo_code']);
+        add_action('wp_ajax_khm_remove_promo_code', [$this, 'ajax_remove_promo_code']);
         add_action('wp_ajax_kss_remove_from_cart', [$this, 'ajax_remove_from_cart']);
         
         // Auto-download hook
@@ -176,11 +181,72 @@ class CommerceFrontend {
             'items' => $formatted_items,
             'count' => $cart['item_count'],
             'subtotal' => $cart['member_subtotal'],
+            'discount' => 0.0,
+            'total' => $cart['member_subtotal'],
             'total_formatted' => '£' . number_format($cart['member_subtotal'], 2),
             'currency' => 'GBP'
         ];
 
+        $totals = $this->resolve_discounted_totals($user_id, (float) $cart['member_subtotal']);
+        $data['discount'] = $totals['discount_amount'];
+        $data['total'] = $totals['total'];
+        $data['total_formatted'] = '£' . number_format($totals['total'], 2);
+        if (!empty($totals['code'])) {
+            $data['promo_code'] = $totals['code'];
+        }
+
         wp_send_json_success($data);
+    }
+
+    /**
+     * Apply a transactional promo code to commerce cart purchases.
+     */
+    public function ajax_apply_promo_code(): void {
+        if (!$this->verify_commerce_nonce()) {
+            wp_send_json_error('Invalid security token');
+        }
+
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('User not logged in');
+        }
+
+        $promo_code = sanitize_text_field($_POST['promo_code'] ?? '');
+        if ($promo_code === '') {
+            wp_send_json_error('Promo code is required');
+        }
+
+        $cart = $this->ecommerce->get_cart($user_id);
+        if (empty($cart['items'])) {
+            wp_send_json_error('Cart is empty');
+        }
+
+        // Transactional promo codes should be global (no level restrictions).
+        $validation = $this->discounts->validate_code($promo_code, 0, $user_id);
+        if (empty($validation['valid'])) {
+            wp_send_json_error($validation['message'] ?? 'Invalid promo code');
+        }
+
+        $this->set_applied_promo_code($user_id, $promo_code);
+        wp_send_json_success($this->build_promo_cart_response($user_id, $cart));
+    }
+
+    /**
+     * Remove applied promo code for transactional purchases.
+     */
+    public function ajax_remove_promo_code(): void {
+        if (!$this->verify_commerce_nonce()) {
+            wp_send_json_error('Invalid security token');
+        }
+
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('User not logged in');
+        }
+
+        $this->clear_applied_promo_code($user_id);
+        $cart = $this->ecommerce->get_cart($user_id);
+        wp_send_json_success($this->build_promo_cart_response($user_id, $cart));
     }
 
     /**
@@ -221,12 +287,18 @@ class CommerceFrontend {
                 wp_send_json_error('Cart is empty');
             }
 
-            $total = (float) ($cart['member_subtotal'] ?? 0);
+            $subtotal = (float) ($cart['member_subtotal'] ?? 0);
+            $totals = $this->resolve_discounted_totals($user_id, $subtotal);
+            $total = $totals['total'];
             if ($total <= 0) {
                 $result = $this->ecommerce->process_purchase($user_id, [
                     'payment_method' => 'free',
                     'billing_name' => $billing_name,
                     'billing_email' => $billing_email,
+                    'discount_code' => $totals['code'],
+                    'discount_amount' => $totals['discount_amount'],
+                    'subtotal' => $subtotal,
+                    'total' => $total,
                     'auto_download_pdf' => true,
                     'auto_save_to_library' => true,
                 ]);
@@ -235,10 +307,11 @@ class CommerceFrontend {
                     wp_send_json_error($result['error'] ?? 'Purchase failed');
                 }
 
+                $this->track_and_clear_promo_after_purchase($user_id, $totals['code'], $result['order_id'] ?? 0);
                 wp_send_json_success($this->build_purchase_response($user_id, $result));
             }
 
-            if (empty(get_option('khm_stripe_secret_key', ''))) {
+            if ($this->get_stripe_secret() === '') {
                 wp_send_json_error('Stripe is not configured.');
             }
 
@@ -276,6 +349,10 @@ class CommerceFrontend {
                 'transaction_id' => $charge->get('transaction_id'),
                 'billing_name' => $billing_name,
                 'billing_email' => $billing_email,
+                'discount_code' => $totals['code'],
+                'discount_amount' => $totals['discount_amount'],
+                'subtotal' => $subtotal,
+                'total' => $total,
                 'auto_download_pdf' => true,
                 'auto_save_to_library' => true,
             ]);
@@ -284,6 +361,7 @@ class CommerceFrontend {
                 wp_send_json_error($result['error'] ?? 'Purchase failed');
             }
 
+            $this->track_and_clear_promo_after_purchase($user_id, $totals['code'], $result['order_id'] ?? 0);
             wp_send_json_success($this->build_purchase_response($user_id, $result));
 
         } catch (\Exception $e) {
@@ -307,7 +385,7 @@ class CommerceFrontend {
             wp_send_json_error('Invalid security token. Please refresh and try again.');
         }
 
-        if (empty(get_option('khm_stripe_secret_key', ''))) {
+        if ($this->get_stripe_secret() === '') {
             wp_send_json_error('Stripe is not configured.');
         }
 
@@ -324,7 +402,9 @@ class CommerceFrontend {
             wp_send_json_error('Cart is empty');
         }
 
-        $total = (float) ($cart['member_subtotal'] ?? 0);
+        $subtotal = (float) ($cart['member_subtotal'] ?? 0);
+        $totals = $this->resolve_discounted_totals($user_id, $subtotal);
+        $total = $totals['total'];
         if ($total <= 0) {
             error_log('KHM Commerce create intent: zero total for user=' . $user_id . ' post=' . $post_id);
             wp_send_json_error('Unable to process free purchases here.');
@@ -379,7 +459,7 @@ class CommerceFrontend {
         }
 
         try {
-            if (empty(get_option('khm_stripe_secret_key', ''))) {
+            if ($this->get_stripe_secret() === '') {
                 error_log('KHM Commerce finalize: Stripe not configured');
                 wp_send_json_error('Stripe is not configured.');
             }
@@ -390,6 +470,14 @@ class CommerceFrontend {
                 error_log('KHM Commerce finalize: add_to_cart failed for user=' . $user_id . ' post=' . $post_id);
                 wp_send_json_error('Unable to prepare purchase for this article.');
             }
+
+            $cart = $this->ecommerce->get_cart($user_id);
+            if (empty($cart['items'])) {
+                wp_send_json_error('Cart is empty');
+            }
+            $subtotal = (float) ($cart['member_subtotal'] ?? 0);
+            $totals = $this->resolve_discounted_totals($user_id, $subtotal);
+            $total = $totals['total'];
 
             $gateway = $this->get_gateway();
             $intent = $gateway->retrievePaymentIntent($payment_intent_id);
@@ -405,6 +493,10 @@ class CommerceFrontend {
                 'transaction_id' => $payment_intent_id,
                 'billing_name' => $billing_name,
                 'billing_email' => $billing_email,
+                'discount_code' => $totals['code'],
+                'discount_amount' => $totals['discount_amount'],
+                'subtotal' => $subtotal,
+                'total' => $total,
                 'auto_download_pdf' => true,
                 'auto_save_to_library' => true,
             ]);
@@ -414,6 +506,7 @@ class CommerceFrontend {
                 wp_send_json_error($result['error'] ?? 'Purchase failed');
             }
 
+            $this->track_and_clear_promo_after_purchase($user_id, $totals['code'], $result['order_id'] ?? 0);
             wp_send_json_success($this->build_purchase_response($user_id, $result));
         } catch (\Exception $e) {
             error_log('Commerce finalize error: ' . $e->getMessage());
@@ -509,9 +602,87 @@ class CommerceFrontend {
 
     private function get_gateway(): StripeGateway {
         return new StripeGateway([
-            'secret_key' => get_option('khm_stripe_secret_key', ''),
+            'secret_key' => $this->get_stripe_secret(),
             'publishable_key' => get_option('khm_stripe_publishable_key', ''),
             'environment' => get_option('khm_stripe_environment', 'sandbox'),
         ]);
+    }
+
+    private function get_stripe_secret(): string {
+        if (!function_exists('khm_get_stripe_secret')) {
+            return '';
+        }
+
+        return (string) (khm_get_stripe_secret('KH_STRIPE_SECRET_KEY') ?? '');
+    }
+
+    private function build_promo_cart_response(int $user_id, array $cart): array {
+        $subtotal = (float) ($cart['member_subtotal'] ?? 0);
+        $totals = $this->resolve_discounted_totals($user_id, $subtotal);
+        return [
+            'items' => $cart['items'] ?? [],
+            'subtotal' => $subtotal,
+            'tax' => 0.0,
+            'shipping' => 0.0,
+            'discount' => $totals['discount_amount'],
+            'total' => $totals['total'],
+            'promo_code' => $totals['code'],
+        ];
+    }
+
+    private function resolve_discounted_totals(int $user_id, float $subtotal): array {
+        $subtotal = max(0.0, $subtotal);
+        $code = $this->get_applied_promo_code($user_id);
+        if ($code === '') {
+            return ['code' => '', 'discount_amount' => 0.0, 'total' => $subtotal];
+        }
+
+        $validation = $this->discounts->validate_code($code, 0, $user_id);
+        if (empty($validation['valid']) || empty($validation['code'])) {
+            $this->clear_applied_promo_code($user_id);
+            return ['code' => '', 'discount_amount' => 0.0, 'total' => $subtotal];
+        }
+
+        $breakdown = $this->discounts->get_discount_breakdown($subtotal, $validation['code']);
+        $discount = max(0.0, (float) ($breakdown['discount'] ?? 0.0));
+        $total = max(0.0, (float) ($breakdown['final'] ?? $subtotal));
+        return ['code' => $code, 'discount_amount' => $discount, 'total' => $total];
+    }
+
+    private function track_and_clear_promo_after_purchase(int $user_id, string $code, int $order_id): void {
+        if ($code === '' || $order_id <= 0) {
+            return;
+        }
+
+        $validation = $this->discounts->validate_code($code, 0, $user_id);
+        if (!empty($validation['valid']) && !empty($validation['code']->id)) {
+            $this->discounts->track_usage((int) $validation['code']->id, $user_id, $order_id);
+        }
+        $this->clear_applied_promo_code($user_id);
+    }
+
+    private function get_applied_promo_code(int $user_id): string {
+        $code = get_user_meta($user_id, 'khm_commerce_promo_code', true);
+        return is_string($code) ? sanitize_text_field($code) : '';
+    }
+
+    private function set_applied_promo_code(int $user_id, string $code): void {
+        update_user_meta($user_id, 'khm_commerce_promo_code', sanitize_text_field($code));
+    }
+
+    private function clear_applied_promo_code(int $user_id): void {
+        delete_user_meta($user_id, 'khm_commerce_promo_code');
+    }
+
+    private function verify_commerce_nonce(): bool {
+        $nonce = sanitize_text_field((string) ($_POST['nonce'] ?? ''));
+        if ($nonce === '') {
+            return false;
+        }
+
+        return (bool) (
+            wp_verify_nonce($nonce, 'khm_commerce') ||
+            wp_verify_nonce($nonce, 'kss_khm_integration')
+        );
     }
 }

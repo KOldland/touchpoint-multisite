@@ -1,0 +1,11 @@
+[live-wp-runtime]
+SHOW COLUMNS FROM wp_usermeta LIKE 'marketing_opt_in';
+ERROR: Error establishing a database connection (local DB unavailable in this session).
+SELECT COUNT(*) FROM khm_processed_webhook_events LIMIT 1;
+count=UNAVAILABLE
+
+[test-bootstrap-mock]
+SHOW COLUMNS FROM wp_usermeta LIKE 'marketing_opt_in';
+NO_ROWS
+SELECT COUNT(*) FROM wp_khm_processed_webhook_events LIMIT 1;
+count=NULL

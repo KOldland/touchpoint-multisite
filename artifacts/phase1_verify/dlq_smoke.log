@@ -1,0 +1,17 @@
+Phase-1 DLQ verification
+
+Source:
+- artifacts/phase1_verify/phpunit_membership_full.log
+- artifacts/phase1_verify/phpunit_membership_full.xml
+
+Observed dead-letter failure path in post-merge log:
+- event_id=evt_dead_letter_1
+- event_type=invoice.paid
+- trace_id=trace-dead-letter
+- error=invoice.paid unable to resolve user
+
+Supporting passing testcase in post-merge suite:
+- KHM\Tests\Membership\StripeWebhookHandlerTest::test_processing_failure_creates_dead_letter_record
+
+Result:
+- DLQ failure path was exercised and logged in the post-merge suite.

@@ -1,0 +1,10 @@
+{
+  "passed": false,
+  "level": "WARN",
+  "message": "Sponsor-facing claim should be validated before paid distribution.",
+  "confidence_score": 0.85,
+  "flags": [
+    "unverified_claim",
+    "sponsor_approval_required"
+  ]
+}

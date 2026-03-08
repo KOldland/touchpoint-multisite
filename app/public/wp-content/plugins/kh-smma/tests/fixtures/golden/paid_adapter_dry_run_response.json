@@ -1,0 +1,15 @@
+{
+  "manifest_id": "man_20260303_001",
+  "operations": [
+    {
+      "operation_id": "op_1",
+      "estimated_ops": ["create_campaign", "create_adgroup", "create_ads"],
+      "estimated_spend": 120.00,
+      "currency": "AUD",
+      "confidence": 0.86
+    }
+  ],
+  "total_estimated_spend": 120.00,
+  "currency": "AUD",
+  "timestamp": "2026-03-03T12:00:00Z"
+}

@@ -1,0 +1,198 @@
+{
+  "_comment": "OBS-05 — Machine-readable telemetry event contracts. Every key listed under 'required' must be present in the canonical event envelope emitted by EventEmitter.",
+
+  "base_envelope": {
+    "required": ["event_name", "trace_id", "timestamp", "service"],
+    "types": {
+      "event_name": "string",
+      "trace_id":   "string",
+      "timestamp":  "integer",
+      "service":    "string"
+    }
+  },
+
+  "events": {
+    "generate.request": {
+      "service": "smma",
+      "required": ["event_name", "trace_id", "timestamp", "service", "session_id", "prompt_hash", "variant_count_requested"],
+      "types": {
+        "session_id":               "string",
+        "prompt_hash":              "string",
+        "variant_count_requested":  "integer"
+      },
+      "example": {
+        "event_name": "generate.request",
+        "trace_id":   "d4e8f2a0-1234-4abc-8def-000000000001",
+        "timestamp":  1741228800,
+        "service":    "smma",
+        "session_id": "req_abc123",
+        "prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "variant_count_requested": 2
+      }
+    },
+
+    "generate.response": {
+      "service": "smma",
+      "required": ["event_name", "trace_id", "timestamp", "service", "variant_count_generated", "latency_ms"],
+      "types": {
+        "variant_count_generated": "integer",
+        "latency_ms":              "integer"
+      },
+      "example": {
+        "event_name": "generate.response",
+        "trace_id":   "d4e8f2a0-1234-4abc-8def-000000000001",
+        "timestamp":  1741228803,
+        "service":    "smma",
+        "variant_count_generated": 2,
+        "latency_ms": 320
+      }
+    },
+
+    "compliance.check": {
+      "service": "smma",
+      "required": ["event_name", "trace_id", "timestamp", "service", "variant_id", "outcome", "rules_matched"],
+      "types": {
+        "variant_id":    "string",
+        "outcome":       "string",
+        "rules_matched": "array"
+      },
+      "enum": {
+        "outcome": ["OK", "WARN", "FAIL"]
+      },
+      "example": {
+        "event_name":    "compliance.check",
+        "trace_id":      "d4e8f2a0-1234-4abc-8def-000000000001",
+        "timestamp":     1741228803,
+        "service":       "smma",
+        "variant_id":    "v-abc123",
+        "outcome":       "OK",
+        "rules_matched": []
+      }
+    },
+
+    "variant.edit": {
+      "service": "smma",
+      "required": ["event_name", "trace_id", "timestamp", "service", "variant_id", "editor_id", "revision_id"],
+      "types": {
+        "variant_id":  "string",
+        "editor_id":   "string",
+        "revision_id": "string"
+      },
+      "example": {
+        "event_name":  "variant.edit",
+        "trace_id":    "d4e8f2a0-1234-4abc-8def-000000000001",
+        "timestamp":   1741228810,
+        "service":     "smma",
+        "variant_id":  "v-abc123",
+        "editor_id":   "1",
+        "revision_id": "rev-01"
+      }
+    },
+
+    "schedule.create": {
+      "service": "smma",
+      "required": ["event_name", "trace_id", "timestamp", "service", "schedule_id", "sponsor_id", "approval_required"],
+      "types": {
+        "schedule_id":       "string",
+        "sponsor_id":        "string",
+        "approval_required": "boolean"
+      },
+      "example": {
+        "event_name":        "schedule.create",
+        "trace_id":          "d4e8f2a0-1234-4abc-8def-000000000001",
+        "timestamp":         1741228815,
+        "service":           "smma",
+        "schedule_id":       "sched-001",
+        "sponsor_id":        "sp-1",
+        "approval_required": false
+      }
+    },
+
+    "schedule.dispatch": {
+      "service": "smma",
+      "required": ["event_name", "trace_id", "timestamp", "service", "schedule_id", "adapter", "result"],
+      "types": {
+        "schedule_id": "string",
+        "adapter":     "string",
+        "result":      "string"
+      },
+      "enum": {
+        "result": ["dispatched", "exported", "failed"]
+      },
+      "example": {
+        "event_name":  "schedule.dispatch",
+        "trace_id":    "d4e8f2a0-1234-4abc-8def-000000000001",
+        "timestamp":   1741228820,
+        "service":     "smma",
+        "schedule_id": "sched-001",
+        "adapter":     "manual",
+        "result":      "dispatched"
+      }
+    },
+
+    "membership.signup": {
+      "service": "mem",
+      "required": ["event_name", "trace_id", "timestamp", "service", "user_id", "tier", "payment_status", "attribution_id"],
+      "types": {
+        "user_id":        "integer",
+        "tier":           "string",
+        "payment_status": "string",
+        "attribution_id": "string"
+      },
+      "pii_note": "user_id is an opaque integer. No email, name, or credentials.",
+      "example": {
+        "event_name":     "membership.signup",
+        "trace_id":       "d4e8f2a0-1234-4abc-8def-000000000002",
+        "timestamp":      1741228825,
+        "service":        "mem",
+        "user_id":        99,
+        "tier":           "standard",
+        "payment_status": "paid",
+        "attribution_id": "promo-1"
+      }
+    },
+
+    "promotion_attribution": {
+      "service": "mem",
+      "required": ["event_name", "trace_id", "timestamp", "service", "schedule_id", "sponsor_id", "utm_source", "confidence_score"],
+      "types": {
+        "schedule_id":      "string",
+        "sponsor_id":       "string",
+        "utm_source":       "string",
+        "confidence_score": "double"
+      },
+      "example": {
+        "event_name":       "promotion_attribution",
+        "trace_id":         "d4e8f2a0-1234-4abc-8def-000000000002",
+        "timestamp":        1741228830,
+        "service":          "mem",
+        "schedule_id":      "sched-001",
+        "sponsor_id":       "sp-1",
+        "utm_source":       "linkedin",
+        "utm_campaign":     "q1",
+        "confidence_score": 0.88
+      }
+    },
+
+    "alert.triggered": {
+      "service": "obs",
+      "required": ["event_name", "trace_id", "timestamp", "service", "alert_type", "severity"],
+      "types": {
+        "alert_type": "string",
+        "severity":   "string"
+      },
+      "enum": {
+        "severity": ["warning", "critical"]
+      },
+      "example": {
+        "event_name": "alert.triggered",
+        "trace_id":   "d4e8f2a0-1234-4abc-8def-000000000003",
+        "timestamp":  1741228835,
+        "service":    "obs",
+        "alert_type": "compliance_fail_rate",
+        "severity":   "warning",
+        "fail_rate":  12.5
+      }
+    }
+  }
+}

@@ -75,7 +75,33 @@ class WebhooksController {
 			'/webhooks/stripe',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'handle_stripe' ),
+				'callback'            => function( $request ) {
+					return $this->handle_stripe( $request, 'all' );
+				},
+				'permission_callback' => '__return_true',
+			)
+		);
+
+		register_rest_route(
+			'khm/v1',
+			'/webhooks/stripe/marketing',
+			array(
+				'methods'             => 'POST',
+				'callback'            => function( $request ) {
+					return $this->handle_stripe( $request, 'marketing' );
+				},
+				'permission_callback' => '__return_true',
+			)
+		);
+
+		register_rest_route(
+			'khm/v1',
+			'/webhooks/stripe/billing',
+			array(
+				'methods'             => 'POST',
+				'callback'            => function( $request ) {
+					return $this->handle_stripe( $request, 'billing' );
+				},
 				'permission_callback' => '__return_true',
 			)
 		);
@@ -87,20 +113,56 @@ class WebhooksController {
 	 * @param \WP_REST_Request $request Full request instance.
 	 * @return \WP_REST_Response|\WP_Error REST response or error if validation fails.
 	 */
-	public function handle_stripe( $request ) {
-		// Get webhook secret from options.
-		$secret = get_option( 'khm_stripe_webhook_secret', '' );
+	public function handle_stripe( $request, string $scope = 'all' ) {
+		$ip = $this->get_request_ip( $request );
+
+		$secret = $this->resolveWebhookSecret( $scope );
 		if ( empty( $secret ) ) {
 			return new \WP_Error( 'khm_missing_secret', 'Stripe webhook is not configured (missing secret).', array( 'status' => 500 ) );
 		}
 
 		$payload = $request->get_body();
+		$this->emit_webhook_telemetry(
+			'webhook.received',
+			array(
+				'ip'    => $ip,
+				'path'  => '/wp-json/khm/v1/webhooks/stripe',
+				'scope' => $scope,
+			)
+		);
+
+		$block = $this->get_active_ip_block( $ip );
+		if ( $block['blocked'] ) {
+			$this->emit_webhook_telemetry(
+				'webhook.rate_limit.blocked',
+				array(
+					'ip'    => $ip,
+					'scope' => $scope,
+					'path'  => '/wp-json/khm/v1/webhooks/stripe',
+					'code'  => 429,
+					'reason'=> (string) $block['reason'],
+				)
+			);
+			return $this->build_rate_limited_response( (int) $block['retry_after'], (string) $block['reason'] );
+		}
+
 		// Collect all headers for signature extraction; normalize in verifier.
-		$headers = $request->get_headers();
+		$headers = method_exists( $request, 'get_headers' ) ? (array) $request->get_headers() : array();
 
 		// Verify signature.
 		$verified_event = $this->verifier->verify( $payload, $headers, $secret );
 		if ( ! $verified_event ) {
+			$badsig = $this->increment_badsig_counter( $ip );
+			$this->emit_webhook_telemetry(
+				'webhook.invalid_signature',
+				array(
+					'ip'    => $ip,
+					'scope' => $scope,
+					'path'  => '/wp-json/khm/v1/webhooks/stripe',
+					'count' => $badsig,
+					'code'  => 400,
+				)
+			);
 			return new \WP_Error( 'khm_invalid_signature', 'Invalid Stripe webhook signature.', array( 'status' => 400 ) );
 		}
 
@@ -118,9 +180,59 @@ class WebhooksController {
 			return new \WP_Error( 'khm_missing_event_id', 'Missing event id in payload.', array( 'status' => 400 ) );
 		}
 
+		$throttle = $this->increment_ip_rate_counter( $ip );
+		if ( $throttle['limited'] ) {
+			$this->emit_webhook_telemetry(
+				'webhook.rate_limit.exceeded',
+				array(
+					'ip'         => $ip,
+					'scope'      => $scope,
+					'path'       => '/wp-json/khm/v1/webhooks/stripe',
+					'event_type' => $eventType,
+					'count'      => (int) $throttle['count'],
+					'limit'      => (int) $throttle['limit'],
+					'code'       => 429,
+				)
+			);
+			return $this->build_rate_limited_response( (int) $throttle['retry_after'], 'rate_limit_exceeded' );
+		}
+
+		if ( ! $this->isEventAllowedForScope( $eventType, $scope ) ) {
+			$this->emit_webhook_telemetry(
+				'webhook.processed',
+				array(
+					'ip'         => $ip,
+					'path'       => '/wp-json/khm/v1/webhooks/stripe',
+					'event_type' => $eventType,
+					'code'       => 200,
+					'status'     => 'ignored',
+				)
+			);
+			return new \WP_REST_Response(
+				array(
+					'ok'     => true,
+					'status' => 'ignored',
+					'id'     => $eventId,
+					'type'   => $eventType,
+					'scope'  => $scope,
+				),
+				200
+			);
+		}
+
 		// Idempotency check.
 		if ( $this->idempotency->hasProcessed( $eventId ) ) {
 			// Already processed; respond 200 to avoid retries.
+			$this->emit_webhook_telemetry(
+				'webhook.processed',
+				array(
+					'ip'         => $ip,
+					'path'       => '/wp-json/khm/v1/webhooks/stripe',
+					'event_type' => $eventType,
+					'code'       => 200,
+					'status'     => 'duplicate',
+				)
+			);
 			return new \WP_REST_Response(
 				array(
 					'ok'     => true,
@@ -164,6 +276,17 @@ class WebhooksController {
 			return new \WP_Error( 'khm_webhook_error', 'Webhook handling failed. Retry will occur.', array( 'status' => 500 ) );
 		}
 
+		$this->emit_webhook_telemetry(
+			'webhook.processed',
+			array(
+				'ip'         => $ip,
+				'path'       => '/wp-json/khm/v1/webhooks/stripe',
+				'event_type' => $eventType,
+				'code'       => 200,
+				'status'     => 'processed',
+			)
+		);
+
 		return new \WP_REST_Response(
 			array(
 				'ok'     => true,
@@ -173,6 +296,256 @@ class WebhooksController {
 			),
 			200
 		);
+	}
+
+	private function resolveWebhookSecret( string $scope ): string {
+		$scope = strtolower( trim( $scope ) );
+		if ( $scope === 'marketing' ) {
+			return $this->resolve_secret_value(
+				array( 'KH_STRIPE_WEBHOOK_SECRET_MARKETING', 'KH_STRIPE_WEBHOOK_SECRET' )
+			);
+		}
+
+		if ( $scope === 'billing' ) {
+			return $this->resolve_secret_value(
+				array( 'KH_STRIPE_WEBHOOK_SECRET_BILLING', 'KH_STRIPE_WEBHOOK_SECRET' )
+			);
+		}
+
+		return $this->resolve_secret_value( array( 'KH_STRIPE_WEBHOOK_SECRET' ) );
+	}
+
+	private function isEventAllowedForScope( string $eventType, string $scope ): bool {
+		$eventType = strtolower( $eventType );
+		if ( $scope === 'marketing' ) {
+			return in_array( $eventType, [ 'product.updated', 'product.created' ], true );
+		}
+
+		if ( $scope === 'billing' ) {
+			return ! in_array( $eventType, [ 'product.updated', 'product.created' ], true );
+		}
+
+		return true;
+	}
+
+	private function resolve_secret_value( array $keys ): string {
+		foreach ( $keys as $key ) {
+			if ( function_exists( 'khm_get_stripe_secret' ) ) {
+				$secret = (string) ( khm_get_stripe_secret( $key ) ?? '' );
+				if ( $secret !== '' ) {
+					return $secret;
+				}
+			}
+		}
+
+		return '';
+	}
+
+	private function get_request_ip( $request ): string {
+		$ipHeaders = array(
+			'x-forwarded-for',
+			'cf-connecting-ip',
+			'x-real-ip',
+			'client-ip',
+		);
+
+		foreach ( $ipHeaders as $header ) {
+			$value = $this->request_header( $request, $header );
+			if ( $value === '' ) {
+				continue;
+			}
+
+			$candidate = trim( explode( ',', $value )[0] ?? '' );
+			if ( filter_var( $candidate, FILTER_VALIDATE_IP ) ) {
+				return $candidate;
+			}
+		}
+
+		if ( isset( $_SERVER['REMOTE_ADDR'] ) && filter_var( (string) $_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP ) ) {
+			return (string) $_SERVER['REMOTE_ADDR'];
+		}
+
+		return 'unknown';
+	}
+
+	private function request_header( $request, string $name ): string {
+		if ( method_exists( $request, 'get_header' ) ) {
+			$value = (string) $request->get_header( $name );
+			if ( $value !== '' ) {
+				return $value;
+			}
+		}
+
+		if ( method_exists( $request, 'get_headers' ) ) {
+			$headers = (array) $request->get_headers();
+			$lower   = strtolower( $name );
+			foreach ( $headers as $k => $v ) {
+				if ( strtolower( (string) $k ) !== $lower ) {
+					continue;
+				}
+				if ( is_array( $v ) ) {
+					return isset( $v[0] ) ? (string) $v[0] : '';
+				}
+				return (string) $v;
+			}
+		}
+
+		return '';
+	}
+
+	private function should_enable_rate_limit_test_mode(): bool {
+		$raw = function_exists( 'khm_get_stripe_secret' )
+			? (string) ( khm_get_stripe_secret( 'KHM_WEBHOOK_RATE_LIMIT_TEST_MODE' ) ?? '' )
+			: '';
+		return in_array( strtolower( $raw ), array( '1', 'true', 'yes', 'on' ), true );
+	}
+
+	private function get_rate_limit_config(): array {
+		$testMode = $this->should_enable_rate_limit_test_mode();
+
+		$defaults = array(
+			'requests_per_minute' => 60,
+			'badsig_threshold'    => 10,
+			'badsig_window'       => 60,
+			'block_base_ttl'      => 60,
+			'block_max_ttl'       => 3600,
+		);
+
+		if ( $testMode ) {
+			$defaults['requests_per_minute'] = 5;
+			$defaults['badsig_threshold']    = 3;
+			$defaults['block_base_ttl']      = 15;
+			$defaults['block_max_ttl']       = 120;
+		}
+
+		$config = array(
+			'requests_per_minute' => (int) get_option( 'khm_webhook_rate_limit_per_minute', $defaults['requests_per_minute'] ),
+			'badsig_threshold'    => (int) get_option( 'khm_webhook_badsig_threshold', $defaults['badsig_threshold'] ),
+			'badsig_window'       => (int) get_option( 'khm_webhook_badsig_window', $defaults['badsig_window'] ),
+			'block_base_ttl'      => (int) get_option( 'khm_webhook_block_base_ttl', $defaults['block_base_ttl'] ),
+			'block_max_ttl'       => (int) get_option( 'khm_webhook_block_max_ttl', $defaults['block_max_ttl'] ),
+		);
+
+		foreach ( $config as $key => $value ) {
+			$config[ $key ] = max( 1, (int) $value );
+		}
+
+		return $config;
+	}
+
+	private function get_active_ip_block( string $ip ): array {
+		$blockKey   = 'khm_webhook_block:' . md5( $ip );
+		$blockUntil = (int) get_transient( $blockKey );
+		$now        = time();
+
+		if ( $blockUntil > $now ) {
+			return array(
+				'blocked'     => true,
+				'retry_after' => max( 1, $blockUntil - $now ),
+				'reason'      => 'ip_blocked',
+			);
+		}
+
+		return array(
+			'blocked'     => false,
+			'retry_after' => 0,
+			'reason'      => '',
+		);
+	}
+
+	private function increment_badsig_counter( string $ip ): int {
+		$config     = $this->get_rate_limit_config();
+		$window     = max( 1, (int) $config['badsig_window'] );
+		$counterKey = 'khm_webhook_badsig:' . md5( $ip );
+		$count      = (int) get_transient( $counterKey );
+		$count++;
+		set_transient( $counterKey, $count, $window );
+
+		$total = (int) get_transient( 'khm_webhook_badsig_total' );
+		set_transient( 'khm_webhook_badsig_total', $total + 1, 3600 );
+
+		if ( $count > (int) $config['badsig_threshold'] ) {
+			$this->apply_progressive_block( $ip, 'invalid_signature' );
+		}
+
+		return $count;
+	}
+
+	private function increment_ip_rate_counter( string $ip ): array {
+		$config   = $this->get_rate_limit_config();
+		$limit    = max( 1, (int) $config['requests_per_minute'] );
+		$window   = 60;
+		$bucketTs = (int) floor( time() / $window ) * $window;
+		$key      = 'khm_webhook_rate:' . md5( $ip ) . ':' . $bucketTs;
+		$count    = (int) get_transient( $key );
+		$count++;
+		set_transient( $key, $count, $window + 5 );
+
+		if ( $count > $limit ) {
+			$retryAfter = max( 1, ( $bucketTs + $window ) - time() );
+			$this->apply_progressive_block( $ip, 'rate_limit_exceeded' );
+			return array(
+				'limited'     => true,
+				'count'       => $count,
+				'limit'       => $limit,
+				'retry_after' => $retryAfter,
+			);
+		}
+
+		return array(
+			'limited'     => false,
+			'count'       => $count,
+			'limit'       => $limit,
+			'retry_after' => 0,
+		);
+	}
+
+	private function apply_progressive_block( string $ip, string $reason ): void {
+		$config    = $this->get_rate_limit_config();
+		$levelKey  = 'khm_webhook_block_level:' . md5( $ip );
+		$level     = (int) get_transient( $levelKey );
+		$level     = max( 1, $level + 1 );
+		$base      = max( 1, (int) $config['block_base_ttl'] );
+		$max       = max( $base, (int) $config['block_max_ttl'] );
+		$ttl       = min( $max, (int) ( $base * ( 5 ** ( $level - 1 ) ) ) );
+		$blockTill = time() + $ttl;
+
+		set_transient( $levelKey, $level, $max );
+		set_transient( 'khm_webhook_block:' . md5( $ip ), $blockTill, $ttl );
+
+		$this->emit_webhook_telemetry(
+			'webhook.rate_limit.blocked',
+			array(
+				'ip'          => $ip,
+				'path'        => '/wp-json/khm/v1/webhooks/stripe',
+				'reason'      => $reason,
+				'block_level' => $level,
+				'block_ttl'   => $ttl,
+				'code'        => 429,
+			)
+		);
+	}
+
+	private function build_rate_limited_response( int $retryAfter, string $reason ): \WP_REST_Response {
+		$response = new \WP_REST_Response(
+			array(
+				'ok'          => false,
+				'error'       => 'rate_limited',
+				'reason'      => $reason,
+				'retry_after' => max( 1, $retryAfter ),
+			),
+			429
+		);
+
+		if ( method_exists( $response, 'header' ) ) {
+			$response->header( 'Retry-After', (string) max( 1, $retryAfter ) );
+		}
+
+		return $response;
+	}
+
+	private function emit_webhook_telemetry( string $metric, array $context = array() ): void {
+		do_action( 'khm_membership_webhook_telemetry', $metric, $context );
 	}
 
 	/**
@@ -220,6 +593,14 @@ class WebhooksController {
 
 			case 'charge.failed':
 				$this->handle_charge_failed( $obj );
+				break;
+
+			case 'checkout.session.completed':
+				$this->handle_checkout_session_completed( $obj );
+				break;
+
+			case 'product.updated':
+				$this->handle_product_updated( $obj );
 				break;
 
 			default:
@@ -751,5 +1132,355 @@ class WebhooksController {
 		}
 
 		return array( $userId ? $userId : null, $levelId ? $levelId : null );
+	}
+
+	/**
+	 * Handle Stripe Checkout Session completed events for subscriptions.
+	 *
+	 * @param object $session Stripe Checkout Session object.
+	 * @return void
+	 */
+	protected function handle_checkout_session_completed( object $session ): void {
+		if ( isset( $session->mode ) && strtolower( (string) $session->mode ) !== 'subscription' ) {
+			return;
+		}
+
+		$meta    = isset( $session->metadata ) ? (array) $session->metadata : array();
+		$levelId = (int) ( $meta['membership_level_id'] ?? $meta['membership_id'] ?? 0 );
+		$userId  = (int) ( $meta['user_id'] ?? 0 );
+		$guestEmail = $this->extract_checkout_session_email( $session, $meta );
+		$createAccount = ! empty( $meta['create_account'] ) && in_array( (string) $meta['create_account'], array( '1', 'true', 'yes' ), true );
+
+		if ( ! $levelId ) {
+			do_action( 'khm_stripe_unresolved_context', 'checkout.session.completed', $session );
+			return;
+		}
+
+		if ( function_exists( 'khm_get_membership_level' ) ) {
+			$level = khm_get_membership_level( $levelId );
+			if ( ! $level ) {
+				do_action( 'khm_stripe_unresolved_context', 'checkout.session.completed', $session );
+				return;
+			}
+		}
+
+		if ( ! $userId && $guestEmail ) {
+			$user = get_user_by( 'email', $guestEmail );
+			if ( $user && isset( $user->ID ) ) {
+				$userId = (int) $user->ID;
+			}
+		}
+
+		if ( ! $userId && $guestEmail ) {
+			$userId = $this->create_user_from_email( $guestEmail, $meta, $createAccount );
+		}
+
+		if ( ! $userId ) {
+			do_action( 'khm_stripe_unresolved_context', 'checkout.session.completed', $session );
+			return;
+		}
+
+		$this->apply_checkout_profile_meta( (int) $userId, $meta );
+
+		$status = $this->resolve_subscription_status_from_session( $session );
+
+		// Extract Stripe IDs for storage
+		$customerId     = $session->customer ?? null;
+		$subscriptionId = $session->subscription ?? null;
+
+		$assignOptions = array(
+			'status' => $status,
+		);
+
+		$appliedPromo = isset( $meta['khm_applied_promo'] ) ? sanitize_text_field( (string) $meta['khm_applied_promo'] ) : '';
+		$appliedPromoCode = isset( $meta['khm_applied_promo_code'] ) ? sanitize_text_field( (string) $meta['khm_applied_promo_code'] ) : '';
+		$stripePromotionCode = isset( $meta['khm_stripe_promotion_code'] ) ? sanitize_text_field( (string) $meta['khm_stripe_promotion_code'] ) : '';
+		$appliedPromoType = isset( $meta['khm_applied_promo_type'] ) ? sanitize_text_field( (string) $meta['khm_applied_promo_type'] ) : '';
+		$appliedPromoAmount = isset( $meta['khm_applied_promo_amount'] ) ? (float) $meta['khm_applied_promo_amount'] : 0.0;
+		if ( $appliedPromo !== '' ) {
+			$assignOptions['applied_promo'] = $appliedPromo;
+		}
+		if ( $appliedPromoCode !== '' ) {
+			$assignOptions['applied_promo_code'] = $appliedPromoCode;
+		}
+		if ( $stripePromotionCode !== '' ) {
+			$assignOptions['stripe_promotion_code'] = $stripePromotionCode;
+		}
+		if ( $appliedPromoType !== '' ) {
+			$assignOptions['applied_promo_type'] = $appliedPromoType;
+		}
+		if ( $appliedPromoAmount > 0 ) {
+			$assignOptions['applied_promo_amount'] = $appliedPromoAmount;
+		}
+
+		// Add Stripe IDs if available (will be stored via user meta in persist_stripe_ids)
+		if ( $customerId ) {
+			$assignOptions['stripe_customer_id'] = (string) $customerId;
+		}
+		if ( $subscriptionId ) {
+			$assignOptions['stripe_subscription_id'] = (string) $subscriptionId;
+		}
+
+		$this->memberships->assign(
+			(int) $userId,
+			(int) $levelId,
+			$assignOptions
+		);
+
+		$this->persist_stripe_ids( (int) $userId, $session );
+
+		do_action( 'khm_stripe_checkout_session_completed_handled', $session, (int) $userId, (int) $levelId, $status );
+	}
+
+	/**
+	 * Handle Stripe product.updated events by syncing marketing copy into level metadata.
+	 *
+	 * @param object $product Stripe Product object.
+	 * @return void
+	 */
+	protected function handle_product_updated( object $product ): void {
+		$productId = isset( $product->id ) ? trim( (string) $product->id ) : '';
+		if ( $productId === '' ) {
+			return;
+		}
+		if ( ! \KHM\Services\StripeMarketingImporter::isValidProductId( $productId ) ) {
+			error_log( 'Stripe product.updated ignored due to invalid product id format: ' . $productId );
+			return;
+		}
+
+		$meta = isset( $product->metadata ) ? $product->metadata : null;
+		$levelId = null;
+		if ( is_object( $meta ) && isset( $meta->wp_level_id ) ) {
+			$levelId = (int) $meta->wp_level_id;
+		} elseif ( is_array( $meta ) && isset( $meta['wp_level_id'] ) ) {
+			$levelId = (int) $meta['wp_level_id'];
+		}
+
+		$args = [ $productId, (int) ( $levelId ?? 0 ) ];
+		$hook = 'khm_import_stripe_marketing_product_updated';
+		$queueKey = 'khm_stripe_marketing_queue_lock_' . md5( $productId );
+		$recentlyQueued = function_exists( 'get_transient' ) ? (int) get_transient( $queueKey ) : 0;
+		if ( $recentlyQueued > 0 && ( time() - $recentlyQueued ) < 10 ) {
+			return;
+		}
+
+		if ( ! function_exists( 'wp_next_scheduled' ) || ! function_exists( 'wp_schedule_single_event' ) ) {
+			return;
+		}
+
+		if ( ! wp_next_scheduled( $hook, $args ) ) {
+			wp_schedule_single_event( time() + 5, $hook, $args );
+		}
+		if ( function_exists( 'set_transient' ) ) {
+			set_transient( $queueKey, time(), 15 );
+		}
+		do_action( 'khm_stripe_product_updated_import_queued', $productId, $levelId );
+	}
+
+	/**
+	 * Extract customer email from a checkout session.
+	 *
+	 * @param object $session Stripe Checkout Session object.
+	 * @param array<string,mixed> $metadata Session metadata.
+	 * @return string
+	 */
+	private function extract_checkout_session_email( object $session, array $metadata = array() ): string {
+		if ( isset( $metadata['guest_email'] ) ) {
+			$email = sanitize_email( (string) $metadata['guest_email'] );
+			if ( $email && is_email( $email ) ) {
+				return $email;
+			}
+		}
+		if ( isset( $session->customer_details ) && isset( $session->customer_details->email ) ) {
+			return (string) $session->customer_details->email;
+		}
+		if ( isset( $session->customer_email ) ) {
+			return (string) $session->customer_email;
+		}
+		return '';
+	}
+
+	/**
+	 * Create a WordPress user for a checkout session email.
+	 *
+	 * @param string $email
+	 * @param array<string,mixed> $metadata
+	 * @param bool $createAccount
+	 * @return int|null
+	 */
+	private function create_user_from_email( string $email, array $metadata = array(), bool $createAccount = false ): ?int {
+		$email = sanitize_email( $email );
+		if ( ! $email || ! is_email( $email ) ) {
+			return null;
+		}
+
+		$existing = email_exists( $email );
+		if ( $existing ) {
+			return (int) $existing;
+		}
+
+		$password = wp_generate_password();
+		$userId   = wp_create_user( $email, $password, $email );
+		if ( is_wp_error( $userId ) ) {
+			error_log( 'Stripe checkout user create error: ' . $userId->get_error_message() );
+			return null;
+		}
+		$wpUser = new \WP_User( (int) $userId );
+		if ( $wpUser->exists() && empty( $wpUser->roles ) ) {
+			$wpUser->set_role( get_option( 'default_role', 'subscriber' ) );
+		}
+
+		$this->apply_checkout_profile_meta( (int) $userId, $metadata );
+		if ( $createAccount ) {
+			update_user_meta( (int) $userId, 'khm_guest_account', 1 );
+			update_user_meta( (int) $userId, 'khm_guest_created_at', time() );
+			update_user_meta( (int) $userId, 'khm_guest_origin', 'stripe_checkout' );
+			$this->send_password_set_email( (int) $userId, $email );
+		}
+
+		return (int) $userId;
+	}
+
+	/**
+	 * Apply profile fields from checkout metadata into user meta.
+	 *
+	 * @param int $userId
+	 * @param array<string,mixed> $metadata
+	 * @return void
+	 */
+	private function apply_checkout_profile_meta( int $userId, array $metadata ): void {
+		$firstName = sanitize_text_field( (string) ( $metadata['profile_first_name'] ?? '' ) );
+		$lastName = sanitize_text_field( (string) ( $metadata['profile_last_name'] ?? '' ) );
+		$mobile = sanitize_text_field( (string) ( $metadata['profile_mobile'] ?? '' ) );
+		$jobTitle = sanitize_text_field( (string) ( $metadata['profile_job_title'] ?? '' ) );
+		$company = sanitize_text_field( (string) ( $metadata['profile_company'] ?? '' ) );
+		$marketingOptInProvided = array_key_exists( 'profile_marketing_optin', $metadata );
+		$marketingOptIn = ! empty( $metadata['profile_marketing_optin'] );
+
+		if ( $firstName !== '' ) {
+			update_user_meta( $userId, 'first_name', $firstName );
+		}
+		if ( $lastName !== '' ) {
+			update_user_meta( $userId, 'last_name', $lastName );
+		}
+		if ( $mobile !== '' ) {
+			update_user_meta( $userId, 'mobile', $mobile );
+		}
+		if ( $jobTitle !== '' ) {
+			update_user_meta( $userId, 'job_title', $jobTitle );
+		}
+		if ( $company !== '' ) {
+			update_user_meta( $userId, 'company', $company );
+		}
+		if ( $marketingOptInProvided ) {
+			update_user_meta( $userId, 'marketing_opt_in', $marketingOptIn ? 1 : 0 );
+		}
+	}
+
+	/**
+	 * Send secure password set email for account claim.
+	 *
+	 * @param int $userId
+	 * @param string $email
+	 * @return void
+	 */
+	private function send_password_set_email( int $userId, string $email ): void {
+		$user = get_user_by( 'id', $userId );
+		if ( ! $user || ! isset( $user->user_login ) ) {
+			return;
+		}
+
+		$key = get_password_reset_key( $user );
+		if ( is_wp_error( $key ) ) {
+			wp_new_user_notification( $userId, null, 'user' );
+			return;
+		}
+
+		$resetLink = network_site_url(
+			'wp-login.php?action=rp&key=' . rawurlencode( (string) $key ) . '&login=' . rawurlencode( (string) $user->user_login ),
+			'login'
+		);
+
+		$subject = __( 'Set your password', 'khm-membership' );
+		$message = sprintf(
+			/* translators: %s password setup URL */
+			__( "Thanks for your purchase. We've created an account for you.\nSet your password here: %s", 'khm-membership' ),
+			$resetLink
+		);
+
+		wp_mail( $email, $subject, $message );
+	}
+
+	/**
+	 * Determine subscription status for membership assignment.
+	 *
+	 * @param object $session Stripe Checkout Session object.
+	 * @return string
+	 */
+	private function resolve_subscription_status_from_session( object $session ): string {
+		$subscriptionId = $session->subscription ?? '';
+		if ( ! $subscriptionId ) {
+			return 'active';
+		}
+
+		$subscription = $this->retrieve_stripe_subscription( (string) $subscriptionId );
+		if ( $subscription && isset( $subscription->status ) ) {
+			$status = (string) $subscription->status;
+			if ( $status === 'trialing' ) {
+				return 'trialing';
+			}
+			if ( $status === 'active' ) {
+				return 'active';
+			}
+		}
+
+		return 'active';
+	}
+
+	/**
+	 * Retrieve subscription details from Stripe.
+	 *
+	 * @param string $subscriptionId
+	 * @return object|null
+	 */
+	private function retrieve_stripe_subscription( string $subscriptionId ): ?object {
+		$secret = function_exists( 'khm_get_stripe_secret' )
+			? (string) ( khm_get_stripe_secret( 'KH_STRIPE_SECRET_KEY' ) ?? '' )
+			: '';
+		if ( empty( $secret ) ) {
+			return null;
+		}
+
+		if ( ! class_exists( '\\Stripe\\Stripe' ) ) {
+			require_once dirname( __DIR__, 2 ) . '/vendor/stripe/stripe-php/init.php';
+		}
+
+		try {
+			\Stripe\Stripe::setApiKey( $secret );
+			\Stripe\Stripe::setApiVersion( '2023-10-16' );
+			return \Stripe\Subscription::retrieve( $subscriptionId );
+		} catch ( \Throwable $e ) {
+			error_log( 'Stripe subscription retrieve error: ' . $e->getMessage() );
+			return null;
+		}
+	}
+
+	/**
+	 * Persist Stripe customer and subscription ids for the user.
+	 *
+	 * @param int    $userId
+	 * @param object $session
+	 * @return void
+	 */
+	private function persist_stripe_ids( int $userId, object $session ): void {
+		$customerId     = $session->customer ?? null;
+		$subscriptionId = $session->subscription ?? null;
+
+		if ( $customerId ) {
+			update_user_meta( $userId, 'stripe_customer_id', (string) $customerId );
+		}
+		if ( $subscriptionId ) {
+			update_user_meta( $userId, 'stripe_subscription_id', (string) $subscriptionId );
+		}
 	}
 }

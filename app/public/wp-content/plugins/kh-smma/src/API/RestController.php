@@ -7,6 +7,13 @@ use KH_SMMA\Services\AuditLogger;
 use KH_SMMA\Services\PhaseEngine;
 use KH_SMMA\Services\ScheduleQueueProcessor;
 use KH_SMMA\Services\ComplianceValidator;
+use KH_SMMA\Services\Card1StateStore;
+use KH_SMMA\Generator\VariantGenerator;
+use KH_SMMA\Compliance\ComplianceService;
+use KH_SMMA\Variants\VariantRepository;
+use KH_SMMA\Variants\VariantRevisionRepository;
+use KH_SMMA\Telemetry\EventEmitter;
+use KH_SMMA\Telemetry\TraceContext;
 use WP_Error;
 use WP_REST_Request;
 
@@ -20,13 +27,29 @@ class RestController {
     private AuditLogger $logger;
     private ?PhaseEngine $phase_engine;
     private ?ComplianceValidator $compliance_validator;
+    private Card1StateStore $card1_store;
+    private VariantGenerator $variant_generator;
+    private VariantEditController $variant_edit_controller;
+    private ComplianceService $compliance_service;
+    private ScheduleController $schedule_controller;
+    private ?EventEmitter $emitter;
 
-    public function __construct( FeatureFlags $flags, SmmaGenerator $generator, AuditLogger $logger, PhaseEngine $phase_engine = null, ComplianceValidator $compliance_validator = null ) {
+    public function __construct( FeatureFlags $flags, SmmaGenerator $generator, AuditLogger $logger, PhaseEngine $phase_engine = null, ComplianceValidator $compliance_validator = null, Card1StateStore $card1_store = null, EventEmitter $emitter = null ) {
+        global $wpdb;
+        $db = ( $wpdb instanceof \wpdb ) ? $wpdb : ( class_exists( 'wpdb' ) ? new \wpdb() : null );
         $this->flags = $flags;
         $this->generator = $generator;
         $this->logger = $logger;
         $this->phase_engine = $phase_engine;
         $this->compliance_validator = $compliance_validator ?? new ComplianceValidator();
+        $this->card1_store = $card1_store ?? new Card1StateStore();
+        $this->variant_generator = new VariantGenerator();
+        $variant_repo = new VariantRepository( $db );
+        $revision_repo = new VariantRevisionRepository( $db );
+        $this->variant_edit_controller = new VariantEditController( $variant_repo, $revision_repo, $logger );
+        $this->compliance_service = new ComplianceService();
+        $this->schedule_controller = new ScheduleController( $this->card1_store );
+        $this->emitter = $emitter;
     }
 
     public function register(): void {
@@ -88,10 +111,35 @@ class RestController {
             'permission_callback' => array( $this, 'check_permissions' ),
         ) );
 
+        register_rest_route( 'kh-smma/v1', '/variant/(?P<variant_id>[A-Za-z0-9_\\-]+)/edit', array(
+            'methods' => 'POST',
+            'callback' => array( $this, 'handle_variant_edit_v2' ),
+            'permission_callback' => array( $this, 'check_permissions' ),
+        ) );
+
         register_rest_route( 'kh-smma/v1', '/reject', array(
             'methods' => 'POST',
             'callback' => array( $this, 'handle_reject' ),
             'permission_callback' => array( $this, 'check_permissions' ),
+        ) );
+
+        register_rest_route( 'kh-smma/v1', '/compliance/check', array(
+            'methods' => 'POST',
+            'callback' => array( $this, 'handle_compliance_check' ),
+            'permission_callback' => array( $this, 'check_permissions' ),
+        ) );
+
+        register_rest_route( 'kh-smma/v1', '/demo/compose', array(
+            array(
+                'methods' => 'GET',
+                'callback' => array( $this, 'handle_demo_compose_get' ),
+                'permission_callback' => array( $this, 'check_permissions' ),
+            ),
+            array(
+                'methods' => 'POST',
+                'callback' => array( $this, 'handle_demo_compose_post' ),
+                'permission_callback' => array( $this, 'check_permissions' ),
+            ),
         ) );
     }
 
@@ -139,6 +187,9 @@ class RestController {
         if ( empty( $payload['post_id'] ) ) {
             return new WP_Error( 'kh_smma_missing_post', __( 'post_id is required.', 'kh-smma' ), array( 'status' => 400 ) );
         }
+        if ( empty( $payload['blocks_summary'] ) ) {
+            return new WP_Error( 'SMMA_ERR_SCHEMA_INVALID', 'blocks_summary is required.', array( 'status' => 400 ) );
+        }
 
         $phase_context = $payload['phase_context'] ?? array();
         if ( empty( $phase_context ) ) {
@@ -158,13 +209,24 @@ class RestController {
             'post_id'   => (int) $payload['post_id'],
             'phase_tag' => $phase_tag,
             'tone'      => $payload['tone'] ?? 'Authority',
+            'blocks_summary' => (string) ( $payload['blocks_summary'] ?? '' ),
+            'geo_targets' => $payload['geo_targets'] ?? array(),
         ) ) );
+        $request_id = sanitize_text_field( $request->get_header( 'X-Request-Id' ) ?: ( 'req_' . wp_generate_uuid4() ) );
+
+        // Initialise trace context — use caller-supplied X-Trace-Id when present,
+        // otherwise use the request_id as the correlation anchor.
+        $caller_trace = sanitize_text_field( (string) $request->get_header( 'X-Trace-Id' ) );
+        TraceContext::init( '' !== $caller_trace ? $caller_trace : $request_id );
+
+        $start = microtime( true );
 
         $this->logger->log_generate_request(
             (int) $payload['post_id'],
             get_current_user_id(),
             $prompt_hash,
             array(
+                'request_id'          => $request_id,
                 'num_variants'        => $payload['num_variants'] ?? 1,
                 'tone'                => $payload['tone'] ?? 'Authority',
                 'geo_targets'         => $payload['geo_targets'] ?? array(),
@@ -192,13 +254,80 @@ class RestController {
             'title'               => $payload['title'] ?? '',
             'canonical_url'       => $payload['canonical_url'] ?? '',
             'blocks_summary'      => $payload['blocks_summary'] ?? '',
+            'strict_llm_json'     => true,
         ) );
+        if ( is_wp_error( $result ) ) {
+            $error_code = method_exists( $result, 'get_error_code' ) ? $result->get_error_code() : 'SMMA_ERR_INVALID_LLM';
+            $error_message = method_exists( $result, 'get_error_message' ) ? $result->get_error_message() : 'Invalid LLM output.';
+            $this->logger->log( 'smma_generate_failed', array(
+                'object_type' => 'post',
+                'object_id' => (int) $payload['post_id'],
+                'details' => array(
+                    'request_id' => $request_id,
+                    'error_code' => $error_code,
+                    'error_message' => $error_message,
+                ),
+                'user_id' => get_current_user_id(),
+            ) );
+
+            return new WP_Error( 'SMMA_ERR_INVALID_LLM', 'LLM returned invalid JSON.', array( 'status' => 400 ) );
+        }
+
+        $llm_content_variants = array();
+        foreach ( $result['linkedin_variants'] ?? array() as $raw_variant ) {
+            $hints = $this->normalize_asset_hints( $raw_variant['asset_hints'] ?? array() );
+            foreach ( $hints as $hint_index => $hint ) {
+                if ( empty( $hint['type'] ) ) {
+                    $hints[ $hint_index ]['type'] = 'image';
+                }
+                if ( empty( $hint['description'] ) ) {
+                    $hints[ $hint_index ]['description'] = (string) ( $hint['alt_text'] ?? 'Suggested creative asset' );
+                }
+            }
+            $llm_content_variants[] = array(
+                'variant_id' => $raw_variant['variant_id'] ?? '',
+                'text' => $raw_variant['text'] ?? '',
+                'rationale' => $raw_variant['rationale'] ?? $raw_variant['explainability'] ?? '',
+                'asset_hints' => $hints,
+                'platform' => $raw_variant['platform'] ?? 'linkedin',
+                'compliance_notes' => $raw_variant['compliance_notes'] ?? 'OK',
+            );
+        }
+
+        $parsed_generated = $this->variant_generator->generate_from_response(
+            array(
+                'choices' => array(
+                    array(
+                        'message' => array(
+                            'content' => wp_json_encode(
+                                array(
+                                    'variants' => $llm_content_variants,
+                                    'google_ad_draft' => $result['google_ad_draft'] ?? array(),
+                                )
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            $request_id,
+            'linkedin'
+        );
+        if ( is_wp_error( $parsed_generated ) ) {
+            return new WP_Error(
+                'SMMA_ERR_INVALID_LLM',
+                'Invalid generator response',
+                array_merge(
+                    array( 'status' => 400 ),
+                    (array) ( method_exists( $parsed_generated, 'get_error_data' ) ? $parsed_generated->get_error_data() : array() )
+                )
+            );
+        }
 
         $this->logger->log( 'smma_generate', array(
             'object_type' => 'post',
             'object_id' => (int) $payload['post_id'],
             'details' => array(
-                'variants' => is_array( $result['variants'] ) ? count( $result['variants'] ) : 0,
+                'variants' => count( $parsed_generated['variants'] ),
                 'phase_tag' => $phase_tag,
                 'tone' => $payload['tone'] ?? 'Authority',
             ),
@@ -242,18 +371,85 @@ class RestController {
             $response_hash,
             $variant_ids,
             array(
+                'request_id'        => $request_id,
                 'model'            => $result['model'] ?? 'unknown',
                 'google_ad_draft'  => ! empty( $result['google_ad_draft'] ),
             )
         );
+        $variants = array();
+        foreach ( $parsed_generated['variants'] as $variant ) {
+            $variant_id = (string) ( $variant['variant_id'] ?? ( 'var_' . wp_generate_uuid4() ) );
+            $compliance_meta = $this->compliance_service->evaluate_variant( $variant_id, (string) ( $variant['text'] ?? '' ) );
+            $linked_in = array(
+                'variant_id' => $variant_id,
+                'text' => (string) ( $variant['text'] ?? '' ),
+                'rationale' => (string) ( $variant['rationale'] ?? 'Generated from source post.' ),
+                'asset_hints' => $this->normalize_asset_hints( $variant['asset_hints'] ?? array() ),
+                'platform' => (string) ( $variant['platform'] ?? 'linkedin' ),
+                'compliance_status' => (string) ( $compliance_meta['compliance_status'] ?? 'OK' ),
+                'compliance_reason' => (string) ( $compliance_meta['compliance_reason'] ?? '' ),
+                'matched_rules' => $compliance_meta['matched_rules'] ?? array(),
+                'ai_review_summary' => (string) ( $compliance_meta['ai_review_summary'] ?? '' ),
+                'checked_at' => (string) ( $compliance_meta['checked_at'] ?? gmdate( 'c' ) ),
+                'compliance' => array(
+                    'status' => (string) ( $compliance_meta['compliance_status'] ?? 'OK' ),
+                    'reasons' => '' === (string) ( $compliance_meta['compliance_reason'] ?? '' ) ? array() : array( (string) ( $compliance_meta['compliance_reason'] ?? '' ) ),
+                ),
+            );
+            $variant_id = $this->card1_store->upsert_variant( $request_id, $linked_in, $parsed_generated['google_ad_draft'] ?? array() );
+            $linked_in['variant_id'] = $variant_id;
+            $this->emit_telemetry( 'compliance.check', array(
+                'variant_id'        => $variant_id,
+                'outcome'           => $linked_in['compliance_status'],
+                'rules_matched'     => $linked_in['matched_rules'],
+                'ai_review_summary' => $linked_in['ai_review_summary'] ?? '',
+                'service'           => 'smma',
+            ) );
+            $variants[] = array(
+                'variant_id' => $variant_id,
+                'linkedIn' => $linked_in,
+                'google' => $parsed_generated['google_ad_draft'] ?? array(),
+            );
+        }
 
-        return rest_ensure_response( array(
-            'variants'                => $result['linkedin_variants'] ?? array(),
-            'linkedin_variants'       => $result['linkedin_variants'] ?? array(),
-            'google_ad_draft'         => $result['google_ad_draft'] ?? array(),
-            'google_ad_compliance'    => $google_ad_compliance,
-            'model'                   => $result['model'] ?? 'unknown',
+        $this->card1_store->create_generate_request( array(
+            'request_id' => $request_id,
+            'post_id' => (string) $payload['post_id'],
+            'user_id' => get_current_user_id(),
+            'prompt_hash' => $prompt_hash,
+            'model' => $result['model'] ?? 'unknown',
+            'status' => 'success',
+            'created_at' => gmdate( 'c' ),
         ) );
+
+        $latency_ms = (int) round( ( microtime( true ) - $start ) * 1000 );
+        $this->emit_telemetry( 'generate.request', array(
+            'session_id'              => $request_id,
+            'prompt_hash'             => $prompt_hash,
+            'variant_count_requested' => (int) ( $payload['num_variants'] ?? 1 ),
+            'service'                 => 'smma',
+        ) );
+        $this->emit_telemetry( 'generate.response', array(
+            'session_id'             => $request_id,
+            'variant_count_generated' => count( $variants ),
+            'latency_ms'             => $latency_ms,
+            'service'                => 'smma',
+        ) );
+
+        $response = rest_ensure_response( array(
+            'request_id' => $request_id,
+            'variants' => $variants,
+            'provenance' => array(
+                'prompt_hash' => $prompt_hash,
+                'fixture' => sanitize_text_field( (string) getenv( 'KH_SMMA_GOLDEN_FIXTURE' ) ),
+                'model' => $result['model'] ?? 'unknown',
+            ),
+            'google_ad_compliance' => $google_ad_compliance,
+        ) );
+        if ( is_object( $response ) && method_exists( $response, 'header' ) ) {
+            $response->header( 'X-Request-Id', $request_id );
+        }
+        return $response;
     }
 
     public function handle_record_event( WP_REST_Request $request ) {
@@ -305,108 +501,195 @@ class RestController {
     }
 
     public function handle_schedule( WP_REST_Request $request ) {
+        $caller_trace = sanitize_text_field( (string) $request->get_header( 'X-Trace-Id' ) );
+        TraceContext::init( '' !== $caller_trace ? $caller_trace : null );
+
         $payload = $request->get_json_params();
-        $post_id = (int) ( $payload['post_id'] ?? 0 );
-        $schedule = $payload['schedule'] ?? array();
-
-        if ( ! $post_id || empty( $schedule ) || ! is_array( $schedule ) ) {
-            return new WP_Error( 'kh_smma_invalid_schedule', __( 'post_id and schedule are required.', 'kh-smma' ), array( 'status' => 400 ) );
+        $idempotency_key = sanitize_text_field( $request->get_header( 'Idempotency-Key' ) );
+        if ( '' === $idempotency_key ) {
+            return new WP_Error( 'SMMA_ERR_IDEMPOTENCY_CONFLICT', 'Idempotency-Key header is required.', array( 'status' => 409 ) );
         }
 
-        $boost = ! empty( $payload['boost'] );
-        $boost_settings = $payload['boost_settings'] ?? array();
-        $sponsor_context = $payload['sponsor_context'] ?? array();
-
-        // Determine if approval is required based on sponsor or boost settings
-        $approval_required = false;
-        if ( ! empty( $sponsor_context['approval_required'] ) ) {
-            $approval_required = true;
-        } elseif ( $boost && ! empty( $boost_settings['requires_approval'] ) ) {
-            $approval_required = true;
+        $variant_id = sanitize_text_field( (string) ( $payload['variant_id'] ?? '' ) );
+        if ( '' === $variant_id ) {
+            return new WP_Error( 'SMMA_ERR_SCHEMA_INVALID', 'variant_id is required.', array( 'status' => 400 ) );
+        }
+        if ( ! current_user_can( 'kh_smma_schedule_posts' ) && ! current_user_can( 'edit_posts' ) ) {
+            return new WP_Error( 'SMMA_ERR_FORBIDDEN', 'Insufficient permissions for schedule creation.', array( 'status' => 403 ) );
         }
 
-        $created = array();
-        foreach ( $schedule as $item ) {
-            // Timezone handling: Convert ISO 8601 datetime to UTC timestamp
-            $scheduled_at_input = $item['scheduled_at'] ?? time();
-            $scheduled_at_utc = $this->parse_datetime_to_utc( $scheduled_at_input );
-            $original_timezone = $this->extract_timezone( $scheduled_at_input );
+        $variant = $this->card1_store->get_variant( $variant_id );
+        if ( empty( $variant ) ) {
+            return new WP_Error( 'SMMA_ERR_SCHEMA_INVALID', 'variant_id does not exist.', array( 'status' => 400 ) );
+        }
+        $sponsor_id = (string) ( $payload['sponsor_id'] ?? '' );
+        if ( '' === $sponsor_id ) {
+            return new WP_Error( 'SMMA_ERR_SCHEMA_INVALID', 'sponsor_id is required.', array( 'status' => 400 ) );
+        }
+        if ( function_exists( 'kh_ad_manager_get_sponsor_meta' ) ) {
+            $sponsor_meta = kh_ad_manager_get_sponsor_meta( (int) $sponsor_id );
+            if ( empty( $sponsor_meta ) ) {
+                return new WP_Error( 'SMMA_ERR_SCHEMA_INVALID', 'Unknown sponsor_id.', array( 'status' => 400 ) );
+            }
+        }
 
-            $variant_id   = sanitize_text_field( $item['variant_id'] ?? '' );
-            $geo          = sanitize_text_field( $item['geo'] ?? '' );
-            $variant_text = $item['text'] ?? '';
-
-            $variant_payload = array(
-                'post_id' => $post_id,
+        $gate = $this->schedule_controller->enforce_compliance_gate( $request );
+        if ( is_wp_error( $gate ) ) {
+            $this->emit_telemetry( 'compliance.check', array(
+                'trace_id' => TraceContext::require_current(),
                 'variant_id' => $variant_id,
-                'channel' => 'linkedin',
-                'geo' => $geo,
-                'text' => $variant_text,
-                'meta' => array(
-                    'source' => 'smma_rest',
-                    'generated_by' => 'smma-ai-v1',
-                    'original_timezone' => $original_timezone,
-                    'scheduled_at_input' => $scheduled_at_input,
-                ),
-            );
-
-            $schedule_id = wp_insert_post( array(
-                'post_type' => 'kh_smma_schedule',
-                'post_title' => sprintf( __( 'SMMA Schedule – %d', 'kh-smma' ), $post_id ),
-                'post_status' => 'publish',
-            ), true );
-
-            if ( is_wp_error( $schedule_id ) ) {
-                return $schedule_id;
-            }
-
-            // Determine initial approval and schedule status
-            $approval_status = $approval_required ? 'pending' : 'auto_approved';
-            $schedule_status = $approval_required ? 'awaiting_approval' : 'pending';
-
-            update_post_meta( $schedule_id, '_kh_smma_payload', $variant_payload );
-            update_post_meta( $schedule_id, '_kh_smma_scheduled_at', $scheduled_at_utc );
-            update_post_meta( $schedule_id, '_kh_smma_original_timezone', $original_timezone );
-            update_post_meta( $schedule_id, '_kh_smma_schedule_status', $schedule_status );
-            update_post_meta( $schedule_id, '_kh_smma_delivery_mode', 'manual_export' );
-            update_post_meta( $schedule_id, '_kh_smma_sponsor_id', isset( $sponsor_context['sponsor_id'] ) ? (int) $sponsor_context['sponsor_id'] : 0 );
-            update_post_meta( $schedule_id, '_kh_smma_sponsor_mode', sanitize_text_field( $sponsor_context['policy'] ?? '' ) );
-            update_post_meta( $schedule_id, '_kh_smma_sponsor_assets', $sponsor_context['sponsor_assets'] ?? array() );
-            update_post_meta( $schedule_id, '_kh_smma_boost_mode', $boost ? 'linkedin' : 'none' );
-            update_post_meta( $schedule_id, '_kh_smma_boost_settings', $boost_settings );
-            update_post_meta( $schedule_id, '_kh_smma_approval_status', $approval_status );
-            update_post_meta( $schedule_id, '_kh_smma_approval_required', $approval_required );
-
-            if ( ! $approval_required ) {
-                update_post_meta( $schedule_id, '_kh_smma_approved_by', 'system' );
-                update_post_meta( $schedule_id, '_kh_smma_approved_at', time() );
-            }
-
-            ScheduleQueueProcessor::log_telemetry( $schedule_id, array(
-                'mode' => 'schedule',
-                'provider' => 'smma',
-                'payload_preview' => $variant_payload,
+                'schedule_attempt' => true,
+                'compliance_status' => 'FAIL',
+                'matched_rules' => (array) ( $variant['linkedIn']['matched_rules'] ?? array() ),
             ) );
-
-            $created[] = array(
-                'schedule_id' => $schedule_id,
-                'schedule_status' => $schedule_status,
-                'approval_status' => $approval_status,
-                'approval_required' => $approval_required,
-            );
+            $this->emit_telemetry( 'schedule.blocked', array(
+                'trace_id' => TraceContext::require_current(),
+                'variant_id' => $variant_id,
+                'reason' => 'compliance_fail',
+            ) );
+            return $gate;
         }
+
+        $approval_required = ! empty( $gate['approval_required'] );
+        $approval_status = (string) ( $gate['approval_status'] ?? 'approved' );
+        $compliance_status = (string) ( $gate['compliance_status'] ?? 'OK' );
+        $compliance_reason = (string) ( $gate['compliance_reason'] ?? '' );
+        $matched_rules = (array) ( $gate['matched_rules'] ?? array() );
+        $status = $approval_required ? 'pending_approval' : 'queued';
+
+        $this->emit_telemetry( 'compliance.check', array(
+            'trace_id' => TraceContext::require_current(),
+            'variant_id' => $variant_id,
+            'schedule_attempt' => true,
+            'compliance_status' => $compliance_status,
+            'matched_rules' => $matched_rules,
+        ) );
+
+        $manifest = array(
+            'manifest_id' => 'man_' . gmdate( 'Ymd' ) . '_' . wp_generate_uuid4(),
+            'campaign' => array(
+                'campaign_id' => 'camp_' . $variant_id,
+                'title' => 'SMMA Schedule ' . $variant_id,
+            ),
+            'operations' => array(
+                array(
+                    'operation_id' => 'op_' . wp_generate_uuid4(),
+                    'type' => 'CREATE_AD',
+                    'channel' => sanitize_text_field( $payload['boost_options']['channels'][0] ?? 'linkedin' ),
+                    'creative' => array(
+                        'headline' => mb_substr( (string) ( $variant['linkedIn']['text'] ?? 'Boost campaign' ), 0, 30 ),
+                        'body' => (string) ( $variant['linkedIn']['text'] ?? '' ),
+                    ),
+                    'bid' => array(
+                        'type' => 'CPM',
+                        'amount' => (float) ( (int) ( $payload['boost_options']['budget_cents'] ?? 0 ) / 100 ),
+                        'currency' => strtoupper( (string) ( $payload['boost_options']['currency'] ?? 'AUD' ) ),
+                    ),
+                    'start_time' => (string) ( $payload['schedule_time'] ?? gmdate( 'c' ) ),
+                    'end_time' => (string) ( $payload['schedule_time'] ?? gmdate( 'c' ) ),
+                ),
+            ),
+            'meta' => array(
+                'sponsor_id' => (string) ( $payload['sponsor_id'] ?? '' ),
+                'schedule_id' => '',
+                'idempotency_key' => $idempotency_key,
+            ),
+        );
+
+        $row = $this->card1_store->create_schedule(
+            $idempotency_key,
+            get_current_user_id(),
+            array(
+                'variant_id' => $variant_id,
+                'sponsor_id' => $sponsor_id,
+                'schedule_time' => (string) ( $payload['schedule_time'] ?? '' ),
+                'boost_options' => $payload['boost_options'] ?? array(),
+                'status' => $status,
+                'approval_required' => $approval_required,
+                'approval_status' => $approval_status,
+                'compliance_status' => $compliance_status,
+                'compliance_reason' => $compliance_reason,
+                'mode' => sanitize_text_field( (string) ( $payload['mode'] ?? 'sandbox' ) ),
+                'manifest' => $manifest,
+            )
+        );
+        $schedule = $row['schedule'] ?? array();
+        if ( empty( $schedule ) ) {
+            return new WP_Error( 'SMMA_ERR_INTERNAL', 'Failed to create schedule.', array( 'status' => 500 ) );
+        }
+
+        $manifest['meta']['schedule_id'] = $schedule['schedule_id'];
+        $this->logger->log( 'smma_schedule_create', array(
+            'object_type' => 'schedule',
+            'object_id' => 0,
+            'details' => array(
+                'schedule_id' => $schedule['schedule_id'],
+                'variant_id' => $variant_id,
+                'sponsor_id' => (string) ( $payload['sponsor_id'] ?? '' ),
+                'status' => $schedule['status'],
+                'idempotent' => (bool) ( $row['idempotent'] ?? false ),
+            ),
+            'user_id' => get_current_user_id(),
+        ) );
+        $this->emit_telemetry( 'schedule.create', array(
+            'schedule_id'      => $schedule['schedule_id'],
+            'sponsor_id'       => (string) ( $payload['sponsor_id'] ?? '' ),
+            'variant_id'       => $variant_id,
+            'approval_required' => $approval_required,
+            'approval_status'  => $approval_status,
+            'compliance_status' => $compliance_status,
+            'service'          => 'smma',
+        ) );
 
         return rest_ensure_response( array(
-            'created' => $created,
+            'schedule_id' => $schedule['schedule_id'],
+            'status' => $schedule['status'],
+            'approval_required' => (bool) ( $schedule['approval_required'] ?? $approval_required ),
+            'approval_status' => (string) ( $schedule['approval_status'] ?? $approval_status ),
+            'compliance_status' => (string) ( $schedule['compliance_status'] ?? $compliance_status ),
+            'compliance_reason' => (string) ( $schedule['compliance_reason'] ?? $compliance_reason ),
+            'enqueued' => true,
+            'manifest' => $manifest,
+            'idempotent' => (bool) ( $row['idempotent'] ?? false ),
         ) );
     }
 
     public function handle_boost_prepare( WP_REST_Request $request ) {
+        $caller_trace = sanitize_text_field( (string) $request->get_header( 'X-Trace-Id' ) );
+        TraceContext::init( '' !== $caller_trace ? $caller_trace : null );
+
         $payload = $request->get_json_params();
         $schedule_id = (int) ( $payload['schedule_id'] ?? 0 );
 
         if ( ! $schedule_id ) {
             return new WP_Error( 'kh_smma_missing_schedule', __( 'schedule_id is required.', 'kh-smma' ), array( 'status' => 400 ) );
+        }
+
+        $approval_required = (bool) get_post_meta( $schedule_id, '_kh_smma_approval_required', true );
+        $approval_status = strtolower( (string) get_post_meta( $schedule_id, '_kh_smma_approval_status', true ) );
+        if ( '' === $approval_status ) {
+            $approval_status = 'pending';
+        }
+        if ( 'auto_approved' === $approval_status ) {
+            $approval_status = 'approved';
+        }
+        if ( 'denied' === $approval_status ) {
+            $approval_status = 'rejected';
+        }
+
+        if ( 'rejected' === $approval_status || ( $approval_required && 'approved' !== $approval_status ) ) {
+            $this->emit_telemetry( 'schedule.blocked', array(
+                'trace_id' => TraceContext::require_current(),
+                'schedule_id' => (string) $schedule_id,
+                'reason' => 'approval_required',
+                'approval_status' => $approval_status,
+                'timestamp' => gmdate( 'Y-m-d\TH:i:s\Z' ),
+            ) );
+            return rest_ensure_response( array(
+                'status' => 'blocked',
+                'reason' => 'approval_required',
+                'approval_status' => $approval_status,
+            ) );
         }
 
         $schedule_payload = get_post_meta( $schedule_id, '_kh_smma_payload', true );
@@ -618,6 +901,121 @@ class RestController {
         ) );
     }
 
+    public function handle_variant_edit_v2( WP_REST_Request $request ) {
+        $caller_trace = sanitize_text_field( (string) $request->get_header( 'X-Trace-Id' ) );
+        TraceContext::init( '' !== $caller_trace ? $caller_trace : null );
+
+        $variant_id = sanitize_text_field( (string) $request->get_param( 'variant_id' ) );
+        $payload = $request->get_json_params();
+        $idempotency_key = sanitize_text_field( $request->get_header( 'Idempotency-Key' ) );
+
+        if ( '' === $idempotency_key ) {
+            return new WP_Error( 'SMMA_ERR_IDEMPOTENCY_CONFLICT', 'Idempotency-Key header is required.', array( 'status' => 409 ) );
+        }
+        if ( '' === $variant_id ) {
+            return new WP_Error( 'SMMA_ERR_SCHEMA_INVALID', 'variant_id is required.', array( 'status' => 400 ) );
+        }
+
+        $variant = $this->card1_store->get_variant( $variant_id );
+        if ( empty( $variant ) ) {
+            return new WP_Error( 'SMMA_ERR_SCHEMA_INVALID', 'Variant not found.', array( 'status' => 400 ) );
+        }
+
+        $text = (string) ( $payload['text'] ?? ( $variant['linkedIn']['text'] ?? '' ) );
+        $compliance_meta = $this->compliance_service->evaluate_variant( $variant_id, $text );
+        $status = (string) ( $compliance_meta['compliance_status'] ?? 'WARN' );
+        $reasons = (array) ( $compliance_meta['matched_rules'] ?? array() );
+        if ( '' !== (string) ( $compliance_meta['compliance_reason'] ?? '' ) ) {
+            $reasons[] = (string) $compliance_meta['compliance_reason'];
+        }
+
+        $compliance = array(
+            'status' => $status,
+            'reasons' => array_values( array_filter( $reasons ) ),
+        );
+
+        $edit_result = $this->card1_store->apply_variant_edit(
+            $variant_id,
+            $idempotency_key,
+            array(
+                'editor_user_id' => (string) ( $payload['editor_user_id'] ?? get_current_user_id() ),
+                'text' => $text,
+                'asset_hints' => $payload['asset_hints'] ?? array(),
+                'metadata' => $payload['metadata'] ?? array(),
+                'edit_reason' => (string) ( $payload['edit_reason'] ?? '' ),
+            ),
+            $compliance
+        );
+        if ( empty( $edit_result ) ) {
+            return new WP_Error( 'SMMA_ERR_INTERNAL', 'Failed to persist variant revision.', array( 'status' => 500 ) );
+        }
+
+        $revision = $edit_result['revision'] ?? array();
+        $this->logger->log( 'smma_variant_edit', array(
+            'object_type' => 'variant',
+            'object_id' => 0,
+            'details' => array(
+                'variant_id' => $variant_id,
+                'revision_id' => $revision['revision_id'] ?? '',
+                'status' => $status,
+                'idempotent' => (bool) ( $edit_result['idempotent'] ?? false ),
+            ),
+            'user_id' => get_current_user_id(),
+        ) );
+        $this->emit_telemetry( 'variant.edit', array(
+            'variant_id'  => $variant_id,
+            'editor_id'   => (string) ( $payload['editor_user_id'] ?? get_current_user_id() ),
+            'revision_id' => $revision['revision_id'] ?? '',
+            'deltas'      => array( 'edit_reason' => (string) ( $payload['edit_reason'] ?? '' ) ),
+            'service'     => 'smma',
+        ) );
+        $this->emit_telemetry( 'compliance.check', array(
+            'variant_id'        => $variant_id,
+            'outcome'           => $status,
+            'rules_matched'     => $compliance['reasons'],
+            'ai_review_summary' => (string) ( $compliance_meta['ai_review_summary'] ?? '' ),
+            'service'           => 'smma',
+        ) );
+        $this->logger->log( 'smma_compliance_check', array(
+            'object_type' => 'variant',
+            'object_id' => 0,
+            'details' => array(
+                'variant_id' => $variant_id,
+                'revision_id' => $revision['revision_id'] ?? '',
+                'status' => $status,
+                'reasons' => $compliance['reasons'],
+            ),
+            'user_id' => get_current_user_id(),
+        ) );
+
+        if ( 'FAIL' === $status ) {
+            return new WP_Error( 'SMMA_ERR_COMPLIANCE_FAIL', 'Compliance FAIL blocks this variant.', array(
+                'status' => 409,
+                'reasons' => $compliance['reasons'],
+                'revision_id' => $revision['revision_id'] ?? '',
+            ) );
+        }
+
+        $approval_status = 'OK' === $status ? 'approved' : 'pending_approval';
+        $revision_payload = array(
+            'variant_id' => $variant_id,
+            'revision_id' => $revision['revision_id'] ?? '',
+            'editor_user_id' => (string) ( $payload['editor_user_id'] ?? get_current_user_id() ),
+            'edited_at' => $revision['created_at'] ?? gmdate( 'c' ),
+            'previous_text' => (string) ( $revision['diff']['previous_text'] ?? '' ),
+            'updated_text' => (string) ( $revision['diff']['updated_text'] ?? $text ),
+            'edit_reason' => (string) ( $revision['diff']['edit_reason'] ?? ( $payload['edit_reason'] ?? '' ) ),
+        );
+        return rest_ensure_response( array(
+            'variant_id' => $variant_id,
+            'revision_id' => $revision['revision_id'] ?? '',
+            'revision' => $revision_payload,
+            'approval_status' => $approval_status,
+            'compliance' => $compliance,
+            'idempotent' => (bool) ( $edit_result['idempotent'] ?? false ),
+        ) );
+    }
+
     public function handle_reject( WP_REST_Request $request ) {
         $payload = $request->get_json_params();
         $schedule_id = (int) ( $payload['schedule_id'] ?? 0 );
@@ -681,6 +1079,129 @@ class RestController {
             'schedule_id' => $schedule_id,
             'rejected_by' => get_current_user_id(),
             'rejected_at' => time(),
+        ) );
+    }
+
+    /**
+     * Handle compliance check request.
+     *
+     * POST /wp-json/kh-smma/v1/compliance/check
+     *
+     * Request body:
+     * {
+     *   "variant_id": "v-123",
+     *   "text": "variant text to check",
+     *   "channel": "linkedin",
+     *   "sponsor_context": {
+     *     "sponsor_id": 123,
+     *     "allowed_claims": ["claim1", "claim2"]
+     *   },
+     *   "metadata": {...}
+     * }
+     *
+     * Response:
+     * {
+     *   "pass": true|false,
+     *   "level": "OK"|"WARN"|"FAIL",
+     *   "flags": [...],
+     *   "suggested_edits": [...],
+     *   "confidence": 0.95
+     * }
+     *
+     * @param WP_REST_Request $request Request object.
+     * @return WP_REST_Response|WP_Error Response or error.
+     */
+    public function handle_compliance_check( WP_REST_Request $request ) {
+        $payload = $request->get_json_params();
+
+        // Required fields
+        if ( empty( $payload['text'] ) ) {
+            return new WP_Error( 'kh_smma_missing_text', __( 'text is required.', 'kh-smma' ), array( 'status' => 400 ) );
+        }
+
+        $text = sanitize_textarea_field( $payload['text'] );
+        $variant_id = sanitize_text_field( $payload['variant_id'] ?? '' );
+        $channel = sanitize_text_field( $payload['channel'] ?? 'linkedin' );
+        $sponsor_context = $payload['sponsor_context'] ?? array();
+        $metadata = $payload['metadata'] ?? array();
+
+        // Build validation context
+        $context = array(
+            'channel' => $channel,
+            'phase_tag' => sanitize_text_field( $metadata['phase_tag'] ?? 'Attention' ),
+        );
+
+        // Add sponsor context if present
+        if ( ! empty( $sponsor_context['sponsor_id'] ) ) {
+            $context['sponsor_id'] = (int) $sponsor_context['sponsor_id'];
+            $context['sponsor_policy'] = sanitize_text_field( $sponsor_context['sponsor_policy'] ?? '' );
+            $context['allowed_claims'] = (array) ( $sponsor_context['allowed_claims'] ?? array() );
+        }
+
+        // Perform compliance check
+        $result = $this->compliance_validator->validate( $text, $context );
+
+        // Map to API response format (OK|WARN|FAIL)
+        $level = 'OK';
+        if ( ! $result['passed'] ) {
+            // Determine severity from violation type or notes
+            $violation_type = $result['violation_type'] ?? '';
+            $notes = $result['notes'] ?? '';
+
+            if ( in_array( $violation_type, array( 'blacklist', 'length' ), true ) ||
+                 stripos( $notes, 'FAIL' ) !== false ) {
+                $level = 'FAIL';
+            } else {
+                $level = 'WARN';
+            }
+        }
+
+        // Build suggested edits
+        $suggested_edits = array();
+        if ( ! empty( $result['message'] ) ) {
+            $suggested_edits[] = $result['message'];
+        }
+
+        // Extract flags from result
+        $flags = $result['flags'] ?? array();
+        if ( ! empty( $result['violation_type'] ) && ! in_array( $result['violation_type'], $flags, true ) ) {
+            $flags[] = $result['violation_type'];
+        }
+
+        // Log compliance check
+        $this->logger->log( 'compliance.check', array(
+            'object_type' => 'variant',
+            'object_id' => $variant_id,
+            'details' => array(
+                'level' => $level,
+                'passed' => $result['passed'],
+                'channel' => $channel,
+                'sponsor_id' => $context['sponsor_id'] ?? null,
+            ),
+            'user_id' => get_current_user_id(),
+        ) );
+
+        // Telemetry
+        ScheduleQueueProcessor::log_telemetry( 0, array(
+            'mode' => 'compliance_check',
+            'provider' => 'smma',
+            'variant_id' => $variant_id,
+            'level' => $level,
+            'passed' => $result['passed'],
+            'latency_ms' => 0, // Could track actual latency if needed
+        ) );
+
+        // Return API response
+        return rest_ensure_response( array(
+            'pass' => $result['passed'],
+            'level' => $level,
+            'flags' => $flags,
+            'suggested_edits' => $suggested_edits,
+            'confidence' => (float) ( $result['confidence_score'] ?? 0.9 ),
+            'details' => array(
+                'message' => $result['message'] ?? '',
+                'notes' => $result['notes'] ?? '',
+            ),
         ) );
     }
 
@@ -771,6 +1292,31 @@ class RestController {
         }
 
         return implode( "\n", $diff );
+    }
+
+    private function normalize_asset_hints( $asset_hints ): array {
+        if ( ! is_array( $asset_hints ) ) {
+            return array();
+        }
+        if ( array_keys( $asset_hints ) !== range( 0, count( $asset_hints ) - 1 ) ) {
+            return array( $asset_hints );
+        }
+        return $asset_hints;
+    }
+
+    private function emit_telemetry( string $event_name, array $payload ): void {
+        if ( null !== $this->emitter ) {
+            $this->emitter->emit( $event_name, $payload );
+            return;
+        }
+
+        // Fallback: legacy behaviour when EventEmitter is not injected.
+        do_action( 'kh_smma_telemetry_event', $event_name, $payload );
+        ScheduleQueueProcessor::log_telemetry( 0, array(
+            'mode'     => $event_name,
+            'provider' => 'smma',
+            'payload'  => $payload,
+        ) );
     }
 
     /**
@@ -874,6 +1420,90 @@ class RestController {
             'manifest'     => $manifest,
             'expires_at'   => gmdate( 'Y-m-d\\TH:i:s\\Z', strtotime( '+7 days' ) ),
         ) );
+    }
+
+    public function handle_demo_compose_get( WP_REST_Request $request ) {
+        $reference_id = sanitize_text_field( (string) $request->get_param( 'reference_id' ) );
+        $post_id      = absint( $request->get_param( 'post_id' ) );
+        $saved        = $this->load_demo_compose_mapping( $reference_id, $post_id );
+
+        return rest_ensure_response( array(
+            'status'       => 'ok',
+            'reference_id' => $reference_id,
+            'post_id'      => $post_id,
+            'mapping'      => $saved['mapping'],
+            'preview_url'  => $saved['preview_url'],
+            'saved_at'     => $saved['saved_at'],
+        ) );
+    }
+
+    public function handle_demo_compose_post( WP_REST_Request $request ) {
+        $payload      = $request->get_json_params();
+        $reference_id = sanitize_text_field( (string) ( $payload['reference_id'] ?? '' ) );
+        $post_id      = absint( $payload['post_id'] ?? 0 );
+        $mapping      = is_array( $payload['mapping'] ?? null ) ? $payload['mapping'] : array();
+        $layout_id    = sanitize_text_field( (string) ( $payload['layout_id'] ?? '' ) );
+        $preview_url  = esc_url_raw( (string) ( $payload['preview_url'] ?? '' ) );
+
+        if ( '' === $reference_id && 0 === $post_id ) {
+            return new WP_Error( 'kh_smma_missing_reference', __( 'reference_id or post_id is required.', 'kh-smma' ), array( 'status' => 400 ) );
+        }
+
+        if ( '' === $layout_id ) {
+            return new WP_Error( 'kh_smma_missing_layout', __( 'layout_id is required.', 'kh-smma' ), array( 'status' => 400 ) );
+        }
+
+        $record = array(
+            'reference_id' => $reference_id,
+            'post_id'      => $post_id,
+            'layout_id'    => $layout_id,
+            'mapping'      => $mapping,
+            'preview_url'  => $preview_url,
+            'saved_at'     => current_time( 'mysql' ),
+        );
+
+        if ( $post_id > 0 ) {
+            update_post_meta( $post_id, '_khm_image_compose', wp_json_encode( $record ) );
+        } else {
+            update_option( 'kh_smma_image_compose_' . md5( $reference_id ), $record );
+        }
+
+        return rest_ensure_response( array(
+            'status'            => 'ok',
+            'reference_id'      => $reference_id,
+            'post_id'           => $post_id,
+            'layout_id'         => $layout_id,
+            'mapping'           => $mapping,
+            'preview_url'       => $preview_url,
+            'composed_image_id' => sanitize_text_field( (string) ( $payload['composed_image_id'] ?? '' ) ),
+            'saved_at'          => $record['saved_at'],
+        ) );
+    }
+
+    private function load_demo_compose_mapping( string $reference_id, int $post_id ): array {
+        $stored = array();
+
+        if ( $post_id > 0 ) {
+            $raw = get_post_meta( $post_id, '_khm_image_compose', true );
+            if ( is_string( $raw ) && '' !== $raw ) {
+                $decoded = json_decode( $raw, true );
+                if ( is_array( $decoded ) ) {
+                    $stored = $decoded;
+                }
+            } elseif ( is_array( $raw ) ) {
+                $stored = $raw;
+            }
+        }
+
+        if ( empty( $stored ) && '' !== $reference_id ) {
+            $stored = get_option( 'kh_smma_image_compose_' . md5( $reference_id ), array() );
+        }
+
+        return array(
+            'mapping'     => is_array( $stored['mapping'] ?? null ) ? $stored['mapping'] : array(),
+            'preview_url' => sanitize_text_field( (string) ( $stored['preview_url'] ?? '' ) ),
+            'saved_at'    => sanitize_text_field( (string) ( $stored['saved_at'] ?? '' ) ),
+        );
     }
 
 }

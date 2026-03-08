@@ -1,0 +1,9 @@
+{
+  "settlement_id": "sett_xyz789abc012",
+  "adapter": "sftp",
+  "valid": true,
+  "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "payload_size_bytes": 189,
+  "estimated_ops": ["generate_csv", "compute_checksum", "sftp_connect", "sftp_upload"],
+  "timestamp": "2026-03-04T00:00:00Z"
+}

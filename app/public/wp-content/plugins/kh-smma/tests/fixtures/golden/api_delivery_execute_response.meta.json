@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "prompt_hash": "fc11a4108d9605d7dcb0f26b5122adbb918b1a479da5f1505f4e76a755e0151f",
+  "prompt_version": "paid-06",
+  "created_at": "2026-03-04T00:00:00Z",
+  "author": "@paid-adapter-team",
+  "checksum": "fc11a4108d9605d7dcb0f26b5122adbb918b1a479da5f1505f4e76a755e0151f",
+  "labels": ["golden-owner-approved"],
+  "notes": "PAID-06: AccountingApiAdapter deterministic execute response. settlement_id=sett_xyz789abc012, adapter=accounting_api, status=delivered. Sandbox simulation — no real HTTP call."
+}

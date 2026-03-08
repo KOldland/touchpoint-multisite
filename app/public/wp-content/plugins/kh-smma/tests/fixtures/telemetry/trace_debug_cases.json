@@ -1,0 +1,204 @@
+{
+  "_meta": {
+    "label": "golden-owner-approved",
+    "obs_card": "OBS-08",
+    "description": "Trace debug timeline cases for TelemetryTraceService and TelemetryDebugPage",
+    "generated": "2026-03-06",
+    "owner": "telemetry"
+  },
+  "cases": {
+    "complete_trace_case": {
+      "description": "A complete workflow trace: generate.request → compliance.check → schedule.create → schedule.dispatch",
+      "trace_id": "trace-obs08-complete-001",
+      "audit_rows": [
+        {
+          "id": 101,
+          "action": "telemetry_event",
+          "created_at": "2026-03-06 10:00:01",
+          "details": {
+            "trace_id": "trace-obs08-complete-001",
+            "event_name": "generate.request",
+            "timestamp": 1741262401,
+            "payload": {
+              "user_id": 7,
+              "variant_count_requested": 3,
+              "latency_ms": 0,
+              "service": "smma"
+            }
+          }
+        },
+        {
+          "id": 102,
+          "action": "telemetry_event",
+          "created_at": "2026-03-06 10:00:02",
+          "details": {
+            "trace_id": "trace-obs08-complete-001",
+            "event_name": "generate.response",
+            "timestamp": 1741262402,
+            "payload": {
+              "user_id": 7,
+              "variant_count_generated": 3,
+              "latency_ms": 820,
+              "outcome": "ok",
+              "service": "smma"
+            }
+          }
+        },
+        {
+          "id": 103,
+          "action": "telemetry_event",
+          "created_at": "2026-03-06 10:00:03",
+          "details": {
+            "trace_id": "trace-obs08-complete-001",
+            "event_name": "compliance.check",
+            "timestamp": 1741262403,
+            "payload": {
+              "variant_id": "var-a1b2",
+              "outcome": "OK",
+              "violations": 0,
+              "passed": true,
+              "rules_matched": ["rule-001"],
+              "service": "smma"
+            }
+          }
+        },
+        {
+          "id": 104,
+          "action": "telemetry_event",
+          "created_at": "2026-03-06 10:00:04",
+          "details": {
+            "trace_id": "trace-obs08-complete-001",
+            "event_name": "schedule.create",
+            "timestamp": 1741262404,
+            "payload": {
+              "schedule_id": "sch-c3d4",
+              "variant_id": "var-a1b2",
+              "channel": "linkedin",
+              "service": "smma"
+            }
+          }
+        },
+        {
+          "id": 105,
+          "action": "telemetry_event",
+          "created_at": "2026-03-06 10:00:10",
+          "details": {
+            "trace_id": "trace-obs08-complete-001",
+            "event_name": "schedule.dispatch",
+            "timestamp": 1741262410,
+            "payload": {
+              "schedule_id": "sch-c3d4",
+              "adapter": "linkedin",
+              "result": "delivered",
+              "service": "smma"
+            }
+          }
+        }
+      ],
+      "expected_timeline": [
+        {"event_name": "generate.request",  "trace_id": "trace-obs08-complete-001"},
+        {"event_name": "generate.response", "trace_id": "trace-obs08-complete-001"},
+        {"event_name": "compliance.check",  "trace_id": "trace-obs08-complete-001"},
+        {"event_name": "schedule.create",   "trace_id": "trace-obs08-complete-001"},
+        {"event_name": "schedule.dispatch", "trace_id": "trace-obs08-complete-001"}
+      ],
+      "expected_key_fields_on_dispatch": {
+        "schedule_id": "sch-c3d4",
+        "adapter": "linkedin",
+        "result": "delivered"
+      }
+    },
+    "missing_event_case": {
+      "description": "Trace with only partial events — compliance.check missing. Timeline should still return available events in order.",
+      "trace_id": "trace-obs08-partial-002",
+      "audit_rows": [
+        {
+          "id": 201,
+          "action": "telemetry_event",
+          "created_at": "2026-03-06 11:00:01",
+          "details": {
+            "trace_id": "trace-obs08-partial-002",
+            "event_name": "generate.request",
+            "timestamp": 1741266001,
+            "payload": {
+              "user_id": 12,
+              "service": "smma"
+            }
+          }
+        },
+        {
+          "id": 202,
+          "action": "telemetry_event",
+          "created_at": "2026-03-06 11:00:05",
+          "details": {
+            "trace_id": "trace-obs08-partial-002",
+            "event_name": "variant.edit",
+            "timestamp": 1741266005,
+            "payload": {
+              "variant_id": "var-e5f6",
+              "editor_id": 12,
+              "outcome": "saved",
+              "service": "smma"
+            }
+          }
+        }
+      ],
+      "expected_timeline": [
+        {"event_name": "generate.request", "trace_id": "trace-obs08-partial-002"},
+        {"event_name": "variant.edit",     "trace_id": "trace-obs08-partial-002"}
+      ],
+      "expected_event_count": 2,
+      "missing_events": ["compliance.check", "schedule.create", "schedule.dispatch"]
+    },
+    "dispatch_failure_case": {
+      "description": "Trace where schedule.dispatch failed — result field should show failure state for debugging.",
+      "trace_id": "trace-obs08-failure-003",
+      "audit_rows": [
+        {
+          "id": 301,
+          "action": "telemetry_event",
+          "created_at": "2026-03-06 12:00:01",
+          "details": {
+            "trace_id": "trace-obs08-failure-003",
+            "event_name": "schedule.create",
+            "timestamp": 1741269601,
+            "payload": {
+              "schedule_id": "sch-g7h8",
+              "variant_id": "var-i9j0",
+              "channel": "google",
+              "service": "smma"
+            }
+          }
+        },
+        {
+          "id": 302,
+          "action": "telemetry_event",
+          "created_at": "2026-03-06 12:00:05",
+          "details": {
+            "trace_id": "trace-obs08-failure-003",
+            "event_name": "schedule.dispatch",
+            "timestamp": 1741269605,
+            "payload": {
+              "schedule_id": "sch-g7h8",
+              "adapter": "google",
+              "result": "failed",
+              "confidence_score": 0.0,
+              "service": "smma"
+            }
+          }
+        }
+      ],
+      "expected_timeline": [
+        {"event_name": "schedule.create",   "trace_id": "trace-obs08-failure-003"},
+        {"event_name": "schedule.dispatch", "trace_id": "trace-obs08-failure-003"}
+      ],
+      "expected_key_fields_on_dispatch": {
+        "schedule_id": "sch-g7h8",
+        "adapter": "google",
+        "result": "failed",
+        "confidence_score": 0.0
+      },
+      "diagnostic_note": "result=failed indicates adapter-level rejection; check adapter logs for sch-g7h8"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "id": "evt_{{EVENT_ID}}",
+  "type": "checkout.session.completed",
+  "created": "{{UNIX_TS}}",
+  "data": {
+    "object": {
+      "id": "cs_{{CHECKOUT_SESSION_ID}}",
+      "mode": "subscription",
+      "customer": "cus_{{CUSTOMER_ID}}",
+      "subscription": "sub_{{SUBSCRIPTION_ID}}",
+      "metadata": {
+        "user_id": "123",
+        "tier_slug": "premium",
+        "stripe_price_id": "price_{{PRICE_ID}}",
+        "consent": "true"
+      }
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://khm.local/contracts/signup-init.json",
+  "title": "MEM Signup Init Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request", "response_success", "response_error"],
+  "properties": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schedule_id",
+        "sponsor_id",
+        "utm_source",
+        "utm_medium",
+        "utm_campaign",
+        "phase_at_click",
+        "idempotency_key",
+        "consent",
+        "client_reference",
+        "plan_id"
+      ],
+      "properties": {
+        "schedule_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "sponsor_id": { "type": ["string", "null"], "maxLength": 128 },
+        "utm_source": { "type": ["string", "null"], "maxLength": 128 },
+        "utm_medium": { "type": ["string", "null"], "maxLength": 128 },
+        "utm_campaign": { "type": ["string", "null"], "maxLength": 256 },
+        "phase_at_click": { "type": ["string", "null"], "maxLength": 64 },
+        "idempotency_key": { "type": "string", "format": "uuid" },
+        "consent": { "type": "boolean" },
+        "client_reference": { "type": ["string", "null"], "maxLength": 255 },
+        "plan_id": { "type": ["string", "null"], "maxLength": 128 }
+      }
+    },
+    "response_success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["checkout_url", "session_id", "message", "temp_store_ttl_seconds"],
+      "properties": {
+        "checkout_url": { "type": "string", "format": "uri" },
+        "session_id": { "type": "string", "minLength": 3, "maxLength": 255 },
+        "message": { "type": "string", "const": "checkout_created" },
+        "temp_store_ttl_seconds": { "type": "integer", "const": 86400 }
+      }
+    },
+    "response_error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message", "retryable", "help_url"],
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": ["MBR_ERR_INVALID_ATTR", "MBR_ERR_NO_CONSENT", "MBR_ERR_INVALID_SPONSOR"]
+            },
+            "message": { "type": "string", "minLength": 1 },
+            "retryable": { "type": "boolean" },
+            "help_url": { "type": "string", "format": "uri" }
+          }
+        }
+      }
+    }
+  }
+}

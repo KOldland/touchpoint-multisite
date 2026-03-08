@@ -194,7 +194,8 @@ var AppsEventTracking = exports.AppsEventTracking = /*#__PURE__*/function () {
   return (0, _createClass2.default)(AppsEventTracking, null, [{
     key: "dispatchEvent",
     value: function dispatchEvent(eventName, payload) {
-      return elementorCommon.eventsManager.dispatchEvent(eventName, payload);
+      var _window$elementorComm, _window$elementorComm2;
+      return (_window$elementorComm = window.elementorCommon) === null || _window$elementorComm === void 0 || (_window$elementorComm = _window$elementorComm.eventsManager) === null || _window$elementorComm === void 0 || (_window$elementorComm2 = _window$elementorComm.dispatchEvent) === null || _window$elementorComm2 === void 0 ? void 0 : _window$elementorComm2.call(_window$elementorComm, eventName, payload);
     }
   }, {
     key: "sendPageViewsWebsiteTemplates",
@@ -751,7 +752,7 @@ function Header(props) {
   }, /*#__PURE__*/_react.default.createElement(TitleTag, (0, _extends2.default)({
     className: "eps-app__logo-title-wrapper"
   }, titleAttrs), /*#__PURE__*/_react.default.createElement("i", {
-    className: "eps-app__logo eicon-elementor"
+    className: "eps-app__logo eicon-elementor-circle"
   }), /*#__PURE__*/_react.default.createElement("h1", {
     className: "eps-app__title"
   }, props.title)), /*#__PURE__*/_react.default.createElement(_headerButtons.default, {
@@ -6773,6 +6774,10 @@ var importReducer = function importReducer(state, _ref) {
       return _objectSpread(_objectSpread({}, state), {}, {
         returnTo: payload
       });
+    case 'SET_NO_AUTOMATIC_REDIRECT':
+      return _objectSpread(_objectSpread({}, state), {}, {
+        noAutomaticRedirect: payload
+      });
     case 'SET_RUNNERS_STATE':
       return _objectSpread(_objectSpread({}, state), {}, {
         runnersState: _objectSpread(_objectSpread({}, state.runnersState), payload)
@@ -6815,6 +6820,7 @@ var initialState = {
   kitUploadParams: null,
   actionType: null,
   returnTo: null,
+  noAutomaticRedirect: false,
   plugins: [],
   includes: ['plugins'],
   importStatus: IMPORT_STATUS.PENDING,
@@ -7855,7 +7861,8 @@ function ImportKit() {
     fileUrl = _useQueryParams$getAl.file_url,
     actionType = _useQueryParams$getAl.action_type,
     nonce = _useQueryParams$getAl.nonce,
-    returnToParam = _useQueryParams$getAl.return_to;
+    returnToParam = _useQueryParams$getAl.return_to,
+    noAutomaticRedirectParam = _useQueryParams$getAl.no_automatic_redirect;
   var _useUploadKit = (0, _useUploadKit2.useUploadKit)(),
     uploading = _useUploadKit.uploading,
     error = _useUploadKit.error,
@@ -7960,12 +7967,18 @@ function ImportKit() {
           payload: returnToParam
         });
       }
+      if ('true' === noAutomaticRedirectParam) {
+        dispatch({
+          type: 'SET_NO_AUTOMATIC_REDIRECT',
+          payload: true
+        });
+      }
       dispatch({
         type: 'SET_IMPORT_STATUS',
         payload: _importContext.IMPORT_STATUS.UPLOADING
       });
     }
-  }, [id, referrer, fileUrl, actionType, nonce, returnToParam, dispatch]);
+  }, [id, referrer, fileUrl, actionType, nonce, returnToParam, noAutomaticRedirectParam, dispatch]);
   (0, _react.useEffect)(function () {
     _appsEventTracking.AppsEventTracking.sendPageViewsWebsiteTemplates(elementorCommon.eventsManager.config.secondaryLocations.kitLibrary.kitImportUploadBox);
   }, []);
@@ -8089,7 +8102,7 @@ function ImportProcess() {
     if (!error) {
       if (_useImportKit2.IMPORT_PROCESSING_STATUS.DONE === status) {
         _appsEventTracking.AppsEventTracking.sendKitImportStatus(null);
-        if (attemptRedirect()) {
+        if (!data.noAutomaticRedirect && attemptRedirect()) {
           return;
         }
         navigate('import-customization/complete');
@@ -8101,7 +8114,7 @@ function ImportProcess() {
     } else {
       _appsEventTracking.AppsEventTracking.sendKitImportStatus(error);
     }
-  }, [status, error, navigate, isProcessing, attemptRedirect]);
+  }, [status, error, navigate, isProcessing, attemptRedirect, data.noAutomaticRedirect]);
   var handleTryAgain = function handleTryAgain() {
     importKit();
   };
@@ -8127,9 +8140,9 @@ function ImportProcess() {
     size: 30
   }), /*#__PURE__*/_react.default.createElement(_ui.Typography, {
     variant: "h5"
-  }, (0, _i18n.__)('Settings up your website templates...', 'elementor')), /*#__PURE__*/_react.default.createElement(_ui.Stack, null, /*#__PURE__*/_react.default.createElement(_ui.Typography, {
+  }, (0, _i18n.__)('Setting up your website template...', 'elementor')), /*#__PURE__*/_react.default.createElement(_ui.Stack, null, /*#__PURE__*/_react.default.createElement(_ui.Typography, {
     variant: "subtitle1"
-  }, (0, _i18n.__)('This usually take a few moments.', 'elementor')), /*#__PURE__*/_react.default.createElement(_ui.Typography, {
+  }, (0, _i18n.__)('This usually takes a few moments.', 'elementor')), /*#__PURE__*/_react.default.createElement(_ui.Typography, {
     variant: "subtitle1"
   }, (0, _i18n.__)('Don\'t close this window until the process is finished.', 'elementor')))), /*#__PURE__*/_react.default.createElement(_pluginActivation.PluginActivation, {
     plugins: runnersState === null || runnersState === void 0 ? void 0 : runnersState.plugins
@@ -11368,6 +11381,9 @@ var _isValidRedirectUrl = _interopRequireDefault(__webpack_require__(/*! ./is-va
 function safeRedirect(url) {
   try {
     var decodedUrl = decodeURIComponent(url);
+    if (decodedUrl.startsWith('/')) {
+      decodedUrl = window.location.origin + decodedUrl;
+    }
     if ((0, _isValidRedirectUrl.default)(decodedUrl)) {
       window.location.href = decodedUrl;
       return true;
@@ -14378,7 +14394,7 @@ function ImportKit() {
     className: "e-app-import__drop-zone",
     heading: __('Choose a file to import', 'elementor'),
     text: __('Drag & drop the .zip file with your website template', 'elementor'),
-    secondaryText: 'Or',
+    secondaryText: __('Or', 'elementor'),
     filetypes: ['zip'],
     onFileChoose: function onFileChoose() {
       return eventTracking('kit-library/choose-file');
@@ -14388,7 +14404,7 @@ function ImportKit() {
       return setErrorType('general');
     },
     isLoading: isLoading,
-    buttonText: __('Import from files')
+    buttonText: __('Import from files', 'elementor')
   }), dialog.isOpen && /*#__PURE__*/_react.default.createElement(_dialog.default, {
     title: __('Warning: JSON or ZIP files may be unsafe', 'elementor'),
     text: __('Uploading JSON or ZIP files from unknown sources can be harmful and put your site at risk. For maximum safety, upload only JSON or ZIP files from trusted sources.', 'elementor'),
@@ -17408,6 +17424,9 @@ exports["default"] = safeRedirect;
 var _isValidRedirectUrl = _interopRequireDefault(__webpack_require__(/*! ./is-valid-redirect-url */ "../app/modules/import-export/assets/js/shared/utils/is-valid-redirect-url.js"));
 function safeRedirect(url) {
   try {
+    if (url.startsWith('/')) {
+      url = window.location.origin + url;
+    }
     var decodedUrl = decodeURIComponent(url);
     if ((0, _isValidRedirectUrl.default)(decodedUrl)) {
       window.location.href = decodedUrl;
@@ -18388,7 +18407,7 @@ var Onboarding = exports["default"] = /*#__PURE__*/(0, _createClass2.default)(fu
   _router.default.addRoute({
     path: '/onboarding/*',
     component: React.lazy(function () {
-      return Promise.all(/*! import() | onboarding */[__webpack_require__.e("app_modules_onboarding_assets_js_utils_modules_post-onboarding-tracker_js"), __webpack_require__.e("onboarding")]).then(__webpack_require__.bind(__webpack_require__, /*! ./app */ "../app/modules/onboarding/assets/js/app.js"));
+      return Promise.all(/*! import() | onboarding */[__webpack_require__.e("vendors-node_modules_mixpanel-browser_dist_mixpanel_module_js"), __webpack_require__.e("app_modules_onboarding_assets_js_utils_modules_post-onboarding-tracker_js"), __webpack_require__.e("onboarding")]).then(__webpack_require__.bind(__webpack_require__, /*! ./app */ "../app/modules/onboarding/assets/js/app.js"));
     })
   });
 });
@@ -18639,7 +18658,11 @@ var eventsConfig = {
       createCancelled: 'component_creation_cancelled',
       created: 'component_created',
       instanceAdded: 'component_instance_added',
-      edited: 'component_edited'
+      edited: 'component_edited',
+      propertiesPanelOpened: 'component_properties_panel_opened',
+      propertiesGroupCreated: 'component_properties_group_created',
+      propertyExposed: 'component_property_exposed',
+      propertyRemoved: 'component_property_removed'
     },
     global_classes: {
       classApplied: 'class_applied',
@@ -29216,9 +29239,10 @@ module.exports = ReactDOM;
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames not based on template
 /******/ 			if (chunkId === "vendors-node_modules_react-query_devtools_index_js") return "e459c6c89c0c0899c850.bundle.js";
-/******/ 			if (chunkId === "kit-library") return "" + chunkId + ".ab2ea8474ed4764e95c7.bundle.js";
-/******/ 			if (chunkId === "app_modules_onboarding_assets_js_utils_modules_post-onboarding-tracker_js") return "b2e8e6071c9bc14c04e4.bundle.js";
-/******/ 			if (chunkId === "onboarding") return "" + chunkId + ".8bbe239db42fe0d8d99f.bundle.js";
+/******/ 			if (chunkId === "kit-library") return "" + chunkId + ".9c4bbee79edf32c6fcb3.bundle.js";
+/******/ 			if (chunkId === "vendors-node_modules_mixpanel-browser_dist_mixpanel_module_js") return "e4d209bf3a704ff88e1a.bundle.js";
+/******/ 			if (chunkId === "app_modules_onboarding_assets_js_utils_modules_post-onboarding-tracker_js") return "29f5723514661bfdffd8.bundle.js";
+/******/ 			if (chunkId === "onboarding") return "" + chunkId + ".1dee18bcb9565fe7a98e.bundle.js";
 /******/ 			// return url for filenames based on template
 /******/ 			return undefined;
 /******/ 		};

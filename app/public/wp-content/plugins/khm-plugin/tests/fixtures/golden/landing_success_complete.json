@@ -1,0 +1,35 @@
+{
+  "session_id": "cs_test_success_001",
+  "status": "complete",
+  "membership_status": "active",
+  "schedule": {
+    "id": "sch_123",
+    "title": "Weekly Growth Post",
+    "recommended_post_time": "2026-03-03T10:00:00Z",
+    "boost_copy": "Publish this post to maximize engagement."
+  },
+  "sponsor": {
+    "id": "sp_456",
+    "name": "Acme Sponsor",
+    "logo_url": "https://example.com/logo.png",
+    "accent_color": "#005a9c",
+    "blurb": "<p>Thanks for joining through our partner.</p>"
+  },
+  "consent": true,
+  "attribution": {
+    "schedule_id": "sch_123",
+    "sponsor_id": "sp_456",
+    "utm_source": "newsletter",
+    "utm_medium": "email",
+    "utm_campaign": "spring",
+    "phase_at_click": "landing"
+  },
+  "ctas": [
+    { "name": "Go to account", "action": "account_url", "url": "https://example.com/account" },
+    { "name": "Download welcome pack", "action": "download", "url": "https://example.com/download/pack.pdf" },
+    { "name": "Invite a friend", "action": "invite", "url": "https://example.com/invite" },
+    { "name": "Manage membership", "action": "manage", "url": "https://example.com/account/membership" }
+  ],
+  "message": "Your membership is active. Welcome aboard!",
+  "reference": "LS-1234abcd"
+}

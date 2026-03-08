@@ -1,0 +1,39 @@
+name: phase4-load-test
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Target base URL'
+        required: true
+        type: string
+      vus:
+        description: 'Virtual users'
+        required: false
+        default: '50'
+        type: string
+      duration:
+        description: 'Test duration'
+        required: false
+        default: '2m'
+        type: string
+
+jobs:
+  k6-load:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: grafana/setup-k6-action@v1
+      - name: Run webhook throughput test
+        env:
+          K6_WEBHOOK_BASE_URL: ${{ github.event.inputs.base_url }}
+          K6_VUS: ${{ github.event.inputs.vus }}
+          K6_DURATION: ${{ github.event.inputs.duration }}
+          K6_STRIPE_SIGNATURE: ${{ secrets.K6_STRIPE_SIGNATURE }}
+        run: |
+          mkdir -p artifacts/phase4
+          k6 run tests/perf/k6/webhook_throughput.js | tee artifacts/phase4/k6_load_report.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase4-load-test
+          path: artifacts/phase4/k6_load_report.txt

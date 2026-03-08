@@ -1,0 +1,23 @@
+[
+  {
+    "schedule_id": "101",
+    "action": "approved",
+    "reviewer_id": "45",
+    "notes": "Sponsor policy confirmed.",
+    "timestamp": "2026-03-02T12:00:00Z"
+  },
+  {
+    "schedule_id": "101",
+    "action": "review_started",
+    "reviewer_id": "45",
+    "notes": "",
+    "timestamp": "2026-03-02T11:45:00Z"
+  },
+  {
+    "schedule_id": "101",
+    "action": "submitted",
+    "reviewer_id": "22",
+    "notes": "Awaiting sponsor approval.",
+    "timestamp": "2026-03-02T11:30:00Z"
+  }
+]

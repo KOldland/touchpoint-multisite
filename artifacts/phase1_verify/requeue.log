@@ -1,0 +1,9 @@
+Phase-1 requeue verification summary
+
+Direct committed smoke output for replay/requeue was not present in the repository at report time.
+
+Supporting source test coverage:
+- app/public/wp-content/plugins/khm-plugin/tests/CLI/StripeMarketingDeadLettersReplayCommandTest.php::test_replay_by_id_marks_dead_letter_resolved
+
+Result:
+- Requeue behavior is covered by source tests, but no committed standalone runtime smoke log was available.

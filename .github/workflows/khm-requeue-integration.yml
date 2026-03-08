@@ -1,0 +1,39 @@
+name: KHM Requeue Integration
+
+on:
+  pull_request:
+    branches: [main, staging, integration/hardening]
+    paths:
+      - 'app/public/wp-content/plugins/khm-plugin/src/Cli/MembershipWebhookDeadLettersReplayCommand.php'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Membership/MembershipWebhookDeadLetterStore.php'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Services/WebhookService.php'
+      - 'app/public/wp-content/plugins/khm-plugin/tests/Membership/WebhookRequeueServiceTest.php'
+      - 'app/public/wp-content/plugins/khm-plugin/tests/Membership/WebhookRequeueIntegrationTest.php'
+      - '.github/workflows/khm-requeue-integration.yml'
+
+jobs:
+  requeue-tests:
+    runs-on: ubuntu-latest
+    env:
+      KHM_STRIPE_TEST_MODE: ci
+      KH_STRIPE_WEBHOOK_SECRET: whsec_test_secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, json
+          coverage: none
+          tools: composer:v2
+
+      - name: Install plugin dependencies
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Run requeue tests
+        run: |
+          vendor/bin/phpunit -c app/public/wp-content/plugins/khm-plugin/phpunit.xml \
+            app/public/wp-content/plugins/khm-plugin/tests/Membership/WebhookRequeueServiceTest.php \
+            app/public/wp-content/plugins/khm-plugin/tests/Membership/WebhookRequeueIntegrationTest.php

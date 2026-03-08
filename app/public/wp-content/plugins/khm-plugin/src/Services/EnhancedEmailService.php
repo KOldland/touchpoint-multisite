@@ -32,6 +32,12 @@ class EnhancedEmailService implements EmailServiceInterface {
     const STATUS_SENT = 'sent';
     const STATUS_FAILED = 'failed';
     const STATUS_QUEUED = 'queued';
+    const STATUS_PROCESSING = 'processing';
+    private const DEFAULT_MAX_QUEUE_ATTEMPTS = 3;
+    private const DEFAULT_RETRY_BASE_SECONDS = 60;
+    private const DEFAULT_QUEUE_BATCH_SIZE = 10;
+    private const DEFAULT_QUEUE_MAX_RUNTIME_SECONDS = 20;
+    private const DEFAULT_FAILED_QUEUE_CAP = 5000;
 
     public function __construct( string $pluginDir ) {
         $this->pluginDir = $pluginDir;
@@ -50,7 +56,7 @@ class EnhancedEmailService implements EmailServiceInterface {
         }
         
         // Register cron job for email queue processing
-        if ( ! \wp_next_scheduled( 'khm_process_email_queue' ) ) {
+        if ( $this->table_exists( $this->get_queue_table() ) && ! \wp_next_scheduled( 'khm_process_email_queue' ) ) {
             \wp_schedule_event( \time(), 'every_five_minutes', 'khm_process_email_queue' );
         }
         
@@ -299,10 +305,19 @@ class EnhancedEmailService implements EmailServiceInterface {
     private function queue_email( int $email_id, string $template, string $recipient, string $body, array $data ): bool {
         global $wpdb;
         
-        $table = $wpdb->prefix . 'khm_email_queue';
-        
+        $table = $this->get_queue_table();
+        if ( ! $this->table_exists( $table ) ) {
+            return false;
+        }
+
+        $idempotency_key = $this->build_queue_idempotency_key( $template, $recipient, $data );
+        if ( $idempotency_key !== '' && $this->queue_entry_exists( $idempotency_key ) ) {
+            return true;
+        }
+
         $result = $wpdb->insert( $table, [
             'email_log_id' => $email_id,
+            'idempotency_key' => $idempotency_key !== '' ? $idempotency_key : null,
             'template_key' => $template,
             'recipient' => $recipient,
             'subject' => $this->subject,
@@ -311,11 +326,16 @@ class EnhancedEmailService implements EmailServiceInterface {
             'attachments' => \wp_json_encode( $this->attachments ),
             'data' => \wp_json_encode( $data ),
             'priority' => $this->get_email_priority( $template ),
+            'max_attempts' => $this->get_max_queue_attempts(),
             'scheduled_at' => \current_time( 'mysql' ),
             'created_at' => \current_time( 'mysql' )
         ] );
-        
-        return $result !== false;
+
+        if ( false !== $result ) {
+            return true;
+        }
+
+        return $idempotency_key !== '' && $this->queue_entry_exists( $idempotency_key );
     }
 
     /**
@@ -324,8 +344,14 @@ class EnhancedEmailService implements EmailServiceInterface {
     public function process_email_queue(): void {
         global $wpdb;
         
-        $table = $wpdb->prefix . 'khm_email_queue';
-        $batch_size = \apply_filters( 'khm_email_queue_batch_size', 10 );
+        $table = $this->get_queue_table();
+        if ( ! $this->table_exists( $table ) ) {
+            return;
+        }
+        $batch_size = $this->get_queue_batch_size();
+        $startedAt = \microtime( true );
+
+        $this->cleanup_failed_queue_if_needed();
         
         // Get pending emails ordered by priority and schedule time
         $emails = $wpdb->get_results( $wpdb->prepare(
@@ -339,8 +365,23 @@ class EnhancedEmailService implements EmailServiceInterface {
         ) );
         
         foreach ( $emails as $email ) {
+            if ( ( \microtime( true ) - $startedAt ) >= $this->get_queue_max_runtime_seconds() ) {
+                \do_action( 'khm_email_queue_runtime_guard_triggered', [
+                    'processed' => isset( $processed ) ? (int) $processed : 0,
+                    'batch_size' => $batch_size,
+                ] );
+                break;
+            }
+
             $this->process_queued_email( $email );
+            $processed = isset( $processed ) ? $processed + 1 : 1;
         }
+
+        \do_action( 'khm_email_queue_batch_completed', [
+            'batch_size' => $batch_size,
+            'processed' => isset( $processed ) ? (int) $processed : 0,
+            'duration_ms' => (int) round( ( \microtime( true ) - $startedAt ) * 1000 ),
+        ] );
     }
 
     /**
@@ -349,13 +390,23 @@ class EnhancedEmailService implements EmailServiceInterface {
     private function process_queued_email( $email ): void {
         global $wpdb;
         
-        $table = $wpdb->prefix . 'khm_email_queue';
+        $table = $this->get_queue_table();
+        if ( ! $this->table_exists( $table ) ) {
+            return;
+        }
         
-        // Mark as processing
-        $wpdb->update( $table, 
-            [ 'status' => 'processing', 'processed_at' => \current_time( 'mysql' ) ],
-            [ 'id' => $email->id ]
+        if ( isset( $email->status ) && (string) $email->status !== self::STATUS_PENDING ) {
+            return;
+        }
+
+        $claimed = $wpdb->update(
+            $table,
+            [ 'status' => self::STATUS_PROCESSING, 'processed_at' => \current_time( 'mysql' ) ],
+            [ 'id' => $email->id, 'status' => self::STATUS_PENDING ]
         );
+        if ( false === $claimed || 0 === (int) $claimed ) {
+            return;
+        }
         
         // Restore email properties
         $this->subject = $email->subject;
@@ -364,16 +415,153 @@ class EnhancedEmailService implements EmailServiceInterface {
         
         // Send email
         $success = $this->send_email_now( $email->email_log_id, $email->recipient, $email->body );
-        
-        // Update queue status
-        $wpdb->update( $table,
-            [ 
-                'status' => $success ? 'sent' : 'failed',
-                'sent_at' => $success ? \current_time( 'mysql' ) : null,
-                'error' => $success ? null : 'Failed to send email'
+        $attempts = isset( $email->attempts ) ? (int) $email->attempts : 0;
+        $max_attempts = isset( $email->max_attempts ) ? (int) $email->max_attempts : $this->get_max_queue_attempts();
+        $max_attempts = max( 1, $max_attempts );
+
+        if ( $success ) {
+            $wpdb->update(
+                $table,
+                [
+                    'status' => self::STATUS_SENT,
+                    'sent_at' => \current_time( 'mysql' ),
+                    'error' => null,
+                ],
+                [ 'id' => $email->id ]
+            );
+            return;
+        }
+
+        $attempts++;
+        if ( $attempts < $max_attempts ) {
+            $retry_delay = $this->calculate_retry_delay_seconds( $attempts );
+            $scheduled_at = \gmdate( 'Y-m-d H:i:s', \time() + $retry_delay );
+            $wpdb->update(
+                $table,
+                [
+                    'status' => self::STATUS_PENDING,
+                    'attempts' => $attempts,
+                    'scheduled_at' => $scheduled_at,
+                    'error' => 'Failed to send email (retry scheduled)',
+                ],
+                [ 'id' => $email->id ]
+            );
+            \do_action( 'khm_email_queue_retry_scheduled', (int) $email->id, $attempts, $retry_delay );
+            return;
+        }
+
+        $wpdb->update(
+            $table,
+            [
+                'status' => self::STATUS_FAILED,
+                'attempts' => $attempts,
+                'error' => 'Failed to send email (max retries reached)',
             ],
             [ 'id' => $email->id ]
         );
+        \do_action( 'khm_email_queue_permanent_failure', (int) $email->id, $attempts );
+    }
+
+    private function get_max_queue_attempts(): int {
+        $default = (int) \get_option( 'khm_email_queue_max_attempts', self::DEFAULT_MAX_QUEUE_ATTEMPTS );
+        $value = (int) \apply_filters( 'khm_email_queue_max_attempts', $default );
+        return max( 1, $value );
+    }
+
+    private function calculate_retry_delay_seconds( int $attempt_number ): int {
+        $base = (int) \get_option( 'khm_email_queue_retry_base_seconds', self::DEFAULT_RETRY_BASE_SECONDS );
+        $base = (int) \apply_filters( 'khm_email_queue_retry_base_seconds', $base );
+        $base = max( 1, $base );
+
+        // Exponential backoff with cap: base, base*2, base*4 ... up to 1 hour.
+        $delay = (int) ( $base * ( 2 ** max( 0, $attempt_number - 1 ) ) );
+        return min( 3600, $delay );
+    }
+
+    private function get_queue_batch_size(): int {
+        $default = (int) \get_option( 'khm_email_queue_batch_size', self::DEFAULT_QUEUE_BATCH_SIZE );
+        $default = max( 1, min( 200, $default ) );
+
+        $adaptive = (int) \apply_filters( 'khm_email_queue_batch_size', $default );
+        $adaptive = max( 1, min( 200, $adaptive ) );
+
+        // If recent queue pressure is high, reduce batch to avoid DB/SMTP storms.
+        $pending = $this->count_queue_rows_by_status( self::STATUS_PENDING );
+        if ( $pending > 2000 ) {
+            return max( 1, (int) floor( $adaptive / 2 ) );
+        }
+
+        return $adaptive;
+    }
+
+    private function get_queue_max_runtime_seconds(): int {
+        $value = (int) \get_option( 'khm_email_queue_max_runtime_seconds', self::DEFAULT_QUEUE_MAX_RUNTIME_SECONDS );
+        $value = (int) \apply_filters( 'khm_email_queue_max_runtime_seconds', $value );
+        return max( 5, min( 120, $value ) );
+    }
+
+    private function count_queue_rows_by_status( string $status ): int {
+        global $wpdb;
+
+        $table = $this->get_queue_table();
+        if ( ! $this->table_exists( $table ) ) {
+            return 0;
+        }
+
+        $sql = $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE status = %s", $status );
+        return (int) $wpdb->get_var( $sql );
+    }
+
+    private function cleanup_failed_queue_if_needed(): void {
+        global $wpdb;
+
+        $table = $this->get_queue_table();
+        if ( ! $this->table_exists( $table ) ) {
+            return;
+        }
+
+        $cap = (int) \get_option( 'khm_email_failed_queue_cap', self::DEFAULT_FAILED_QUEUE_CAP );
+        $cap = (int) \apply_filters( 'khm_email_failed_queue_cap', $cap );
+        $cap = max( 100, $cap );
+
+        $failedCount = $this->count_queue_rows_by_status( self::STATUS_FAILED );
+        if ( $failedCount <= $cap ) {
+            return;
+        }
+
+        $prune = $failedCount - $cap;
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id FROM {$table} WHERE status = %s ORDER BY updated_at ASC, id ASC LIMIT %d",
+                self::STATUS_FAILED,
+                $prune
+            ),
+            ARRAY_A
+        );
+
+        if ( ! is_array( $rows ) || empty( $rows ) ) {
+            return;
+        }
+
+        $deleted = 0;
+        foreach ( $rows as $row ) {
+            $id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+            if ( $id <= 0 ) {
+                continue;
+            }
+            $result = $wpdb->delete( $table, [ 'id' => $id ], [ '%d' ] );
+            if ( is_numeric( $result ) && (int) $result > 0 ) {
+                $deleted++;
+            }
+        }
+
+        if ( $deleted > 0 ) {
+            \do_action( 'khm_email_queue_dlq_capped', [
+                'deleted' => $deleted,
+                'failed_count_before' => $failedCount,
+                'cap' => $cap,
+            ] );
+        }
     }
 
     /**
@@ -394,7 +582,8 @@ class EnhancedEmailService implements EmailServiceInterface {
      * Check if emails should be queued
      */
     private function should_queue_email(): bool {
-        return \get_option( 'khm_email_use_queue', false );
+        return \get_option( 'khm_email_use_queue', false )
+            && $this->table_exists( $this->get_queue_table() );
     }
 
     /**
@@ -429,7 +618,10 @@ class EnhancedEmailService implements EmailServiceInterface {
     private function log_email_attempt( string $template, string $recipient, array $data, string $method ): int {
         global $wpdb;
         
-        $table = $wpdb->prefix . 'khm_email_logs';
+        $table = $this->get_logs_table();
+        if ( ! $this->table_exists( $table ) ) {
+            return 0;
+        }
         
         $wpdb->insert( $table, [
             'template_key' => $template,
@@ -450,7 +642,10 @@ class EnhancedEmailService implements EmailServiceInterface {
     private function update_email_status( int $email_id, string $status, string $error = null ): void {
         global $wpdb;
         
-        $table = $wpdb->prefix . 'khm_email_logs';
+        $table = $this->get_logs_table();
+        if ( ! $this->table_exists( $table ) ) {
+            return;
+        }
         
         $data = [
             'status' => $status,
@@ -480,6 +675,83 @@ class EnhancedEmailService implements EmailServiceInterface {
         ];
         
         return $priorities[ $template ] ?? 5;
+    }
+
+    private function get_queue_table(): string {
+        global $wpdb;
+
+        return $wpdb->prefix . 'khm_email_queue';
+    }
+
+    private function build_queue_idempotency_key( string $template, string $recipient, array $data ): string {
+        if ( isset( $data['idempotency_key'] ) && $data['idempotency_key'] !== '' ) {
+            return substr( sanitize_text_field( (string) $data['idempotency_key'] ), 0, 255 );
+        }
+
+        $reference = '';
+        foreach ( [ 'event_id', 'reference', 'id_reference' ] as $key ) {
+            if ( isset( $data[ $key ] ) && $data[ $key ] !== '' ) {
+                $reference = sanitize_key( str_replace( ':', '_', (string) $data[ $key ] ) );
+                break;
+            }
+        }
+
+        if ( $reference === '' && isset( $data['schedule_id'] ) && $data['schedule_id'] !== '' ) {
+            $reference = 'schedule_' . absint( $data['schedule_id'] );
+        }
+
+        if ( $reference === '' ) {
+            $reference = substr( sha1( $recipient . '|' . $template . '|' . wp_json_encode( $data ) ), 0, 40 );
+        }
+
+        return substr( sprintf( '%s:%s', sanitize_key( $template ), $reference ), 0, 255 );
+    }
+
+    private function queue_entry_exists( string $idempotency_key ): bool {
+        if ( $idempotency_key === '' ) {
+            return false;
+        }
+
+        global $wpdb;
+        $table = $this->get_queue_table();
+        if ( ! $this->table_exists( $table ) ) {
+            return false;
+        }
+
+        $rows = $wpdb->get_results( "SELECT * FROM {$table} LIMIT 1000", ARRAY_A );
+        if ( ! is_array( $rows ) ) {
+            return false;
+        }
+
+        foreach ( $rows as $row ) {
+            if ( (string) ( $row['idempotency_key'] ?? '' ) === $idempotency_key ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function get_logs_table(): string {
+        global $wpdb;
+
+        return $wpdb->prefix . 'khm_email_logs';
+    }
+
+    private function table_exists( string $table ): bool {
+        static $cache = array();
+
+        if ( isset( $cache[ $table ] ) ) {
+            return $cache[ $table ];
+        }
+
+        global $wpdb;
+        $found = $wpdb->get_var(
+            $wpdb->prepare( 'SHOW TABLES LIKE %s', $table )
+        );
+
+        $cache[ $table ] = ( $found === $table );
+        return $cache[ $table ];
     }
 
     // Fluent interface methods (matching EmailServiceInterface)
