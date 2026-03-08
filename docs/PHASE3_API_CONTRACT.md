@@ -225,8 +225,15 @@ This document is the frontend contract for Phase 3. It reflects the current repo
   "rows": [
     {
       "schedule_id": "sched_123",
+      "variant_id": "var_123",
+      "post_title": "March sponsor launch",
+      "variant_preview": "Short preview used in the pending approvals admin list.",
+      "sponsor_name": "Acme Sponsor",
+      "submitter": "editor@example.com",
+      "requested_schedule_date": "2026-03-11T09:00:00Z",
       "approval_status": "pending",
       "compliance_status": "WARN",
+      "compliance_reason": "Performance claim requires sponsor sign-off.",
       "can_approve": true,
       "permission_message": ""
     }
@@ -554,7 +561,8 @@ Frontend should emit or expect the following event names already present in the 
 - Current repo stack is WordPress + jQuery, not React/Vue.
 - Existing UI entry points worth extending rather than replacing:
   - `app/public/wp-content/plugins/kh-smma/assets/js/smma-admin.js`
-  - `app/public/wp-content/plugins/kh-smma/assets/js/sponsor-approval.js`
+  - `app/public/wp-content/plugins/kh-smma/assets/js/pending-approvals.js`
+  - `app/public/wp-content/plugins/kh-smma/assets/js/calendar-modal.js`
   - `app/public/wp-content/plugins/khm-plugin/assets/js/membership-modal.js`
   - `app/public/wp-content/plugins/khm-plugin/assets/js/landing.js`
 - Existing landing/signup UI already uses:

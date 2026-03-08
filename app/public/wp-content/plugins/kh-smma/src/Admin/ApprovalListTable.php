@@ -19,10 +19,13 @@ class ApprovalListTable {
                 <tr>
                     <th class="check-column"><input type="checkbox" id="kh-smma-select-all" /></th>
                     <th><?php esc_html_e( 'Schedule ID', 'kh-smma' ); ?></th>
+                    <th><?php esc_html_e( 'Post / Variant', 'kh-smma' ); ?></th>
                     <th><?php esc_html_e( 'Sponsor', 'kh-smma' ); ?></th>
+                    <th><?php esc_html_e( 'Submitter', 'kh-smma' ); ?></th>
+                    <th><?php esc_html_e( 'Requested', 'kh-smma' ); ?></th>
                     <th><?php esc_html_e( 'Approval Reason', 'kh-smma' ); ?></th>
-                    <th><?php esc_html_e( 'Last Approved By', 'kh-smma' ); ?></th>
-                    <th><?php esc_html_e( 'Last Approved At', 'kh-smma' ); ?></th>
+                    <th><?php esc_html_e( 'Compliance', 'kh-smma' ); ?></th>
+                    <th><?php esc_html_e( 'Last Review', 'kh-smma' ); ?></th>
                     <th><?php esc_html_e( 'Approval Status', 'kh-smma' ); ?></th>
                     <th><?php esc_html_e( 'Actions', 'kh-smma' ); ?></th>
                 </tr>
@@ -30,7 +33,7 @@ class ApprovalListTable {
             <tbody id="kh-smma-approval-rows">
                 <?php if ( empty( $rows ) ) : ?>
                     <tr>
-                        <td colspan="8"><?php esc_html_e( 'No schedules found.', 'kh-smma' ); ?></td>
+                        <td colspan="10"><?php esc_html_e( 'No schedules found.', 'kh-smma' ); ?></td>
                     </tr>
                 <?php else : ?>
                     <?php foreach ( $rows as $row ) : ?>
@@ -51,7 +54,16 @@ class ApprovalListTable {
                                 <?php endif; ?>
                             </td>
                             <td><?php echo esc_html( (string) $row['schedule_id'] ); ?></td>
+                            <td class="kh-smma-approval-post-cell">
+                                <strong><?php echo esc_html( (string) ( $row['post_title'] ?? '—' ) ); ?></strong>
+                                <div class="kh-smma-approval-variant-id"><?php echo esc_html( (string) ( $row['variant_id'] ?? '' ) ); ?></div>
+                                <?php if ( ! empty( $row['variant_preview'] ) ) : ?>
+                                    <div class="kh-smma-approval-variant-preview"><?php echo esc_html( (string) $row['variant_preview'] ); ?></div>
+                                <?php endif; ?>
+                            </td>
                             <td><?php echo esc_html( (string) $row['sponsor_name'] ); ?></td>
+                            <td><?php echo esc_html( (string) ( $row['submitter'] ?? '—' ) ); ?></td>
+                            <td><?php echo esc_html( (string) ( $row['requested_schedule_date'] ?? '—' ) ); ?></td>
                             <td>
                                 <?php if ( 'compliance_changed' === $approval_reason ) : ?>
                                     <span class="kh-smma-rereview-badge"><?php esc_html_e( 'Re-review: Compliance Change', 'kh-smma' ); ?></span>
@@ -61,8 +73,18 @@ class ApprovalListTable {
                                     <?php echo esc_html( '' !== $approval_reason ? $approval_reason : '—' ); ?>
                                 <?php endif; ?>
                             </td>
-                            <td><?php echo esc_html( (string) ( $row['last_approved_by'] ?? '—' ) ); ?></td>
-                            <td><?php echo esc_html( (string) ( $row['last_approved_at'] ?? '—' ) ); ?></td>
+                            <td>
+                                <span class="kh-smma-approval-badge kh-smma-approval-<?php echo esc_attr( strtolower( (string) ( $row['compliance_status'] ?? 'OK' ) ) ); ?>">
+                                    <?php echo esc_html( strtoupper( (string) ( $row['compliance_status'] ?? 'OK' ) ) ); ?>
+                                </span>
+                                <?php if ( ! empty( $row['compliance_reason'] ) ) : ?>
+                                    <div class="kh-smma-approval-compliance-reason"><?php echo esc_html( (string) $row['compliance_reason'] ); ?></div>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <div><?php echo esc_html( (string) ( $row['last_approved_by'] ?? '—' ) ); ?></div>
+                                <div class="kh-smma-approval-last-reviewed"><?php echo esc_html( (string) ( $row['last_approved_at'] ?? '—' ) ); ?></div>
+                            </td>
                             <td>
                                 <span class="kh-smma-approval-badge kh-smma-approval-<?php echo esc_attr( (string) $row['approval_status'] ); ?>">
                                     <?php echo esc_html( ucfirst( (string) $row['approval_status'] ) ); ?>

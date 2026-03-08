@@ -24,6 +24,7 @@ class AssetsManager {
         $version = '1.1.0';
 
         $variant_grid_js = $plugin_path . '/assets/js/smma-variant-grid.js';
+        $calendar_modal_js = $plugin_path . '/assets/js/calendar-modal.js';
         $admin_js = $plugin_path . '/assets/js/smma-admin.js';
         $admin_css = $plugin_path . '/assets/css/smma-admin.css';
 
@@ -36,9 +37,17 @@ class AssetsManager {
         );
 
         wp_enqueue_script(
+            'kh-smma-calendar-modal',
+            $plugin_url . 'assets/js/calendar-modal.js',
+            array(),
+            file_exists( $calendar_modal_js ) ? (string) filemtime( $calendar_modal_js ) : $version,
+            true
+        );
+
+        wp_enqueue_script(
             'kh-smma-admin',
             $plugin_url . 'assets/js/smma-admin.js',
-            array( 'jquery', 'kh-smma-variant-grid' ),
+            array( 'jquery', 'kh-smma-variant-grid', 'kh-smma-calendar-modal' ),
             file_exists( $admin_js ) ? (string) filemtime( $admin_js ) : $version,
             true
         );

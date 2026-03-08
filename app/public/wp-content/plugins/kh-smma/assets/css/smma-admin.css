@@ -247,6 +247,15 @@
     margin: 16px 0;
 }
 
+.khm-schedule-table td,
+.khm-schedule-table th {
+    vertical-align: top;
+}
+
+.khm-schedule-table input[type="datetime-local"] {
+    min-width: 220px;
+}
+
 .khm-variant-card details {
     margin-top: 10px;
 }

@@ -1,0 +1,65 @@
+name: smma-approval-ci
+
+on:
+  pull_request:
+    paths:
+      - 'app/public/wp-content/plugins/kh-smma/assets/js/calendar-modal.js'
+      - 'app/public/wp-content/plugins/kh-smma/assets/js/pending-approvals.js'
+      - 'app/public/wp-content/plugins/kh-smma/assets/js/smma-admin.js'
+      - 'app/public/wp-content/plugins/kh-smma/assets/css/smma-admin.css'
+      - 'app/public/wp-content/plugins/kh-smma/assets/css/sponsor-approval.css'
+      - 'app/public/wp-content/plugins/kh-smma/src/Admin/AssetsManager.php'
+      - 'app/public/wp-content/plugins/kh-smma/src/Admin/ApprovalListTable.php'
+      - 'app/public/wp-content/plugins/kh-smma/src/Admin/PendingApprovalsPage.php'
+      - 'app/public/wp-content/plugins/kh-smma/src/Notifications/ApprovalNotificationService.php'
+      - 'app/public/wp-content/plugins/kh-smma/src/Scheduling/ScheduleRepository.php'
+      - 'app/public/wp-content/plugins/kh-smma/tests/SponsorApprovalControllerTest.php'
+      - 'app/public/wp-content/plugins/kh-smma/tests/SA/**'
+      - 'app/public/wp-content/plugins/kh-smma/tests/frontend/**'
+      - 'app/public/wp-content/plugins/kh-smma/tests/fixtures/smma/**'
+      - '.github/workflows/smma-approval-ci.yml'
+      - 'docs/PHASE3_API_CONTRACT.md'
+  push:
+    branches:
+      - ai2/phase3-schedule-approval
+
+jobs:
+  approval-ui-and-flow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run approval frontend tests
+        run: |
+          node app/public/wp-content/plugins/kh-smma/tests/frontend/calendar-modal.test.js
+          node app/public/wp-content/plugins/kh-smma/tests/frontend/pending-approvals.test.js
+
+      - name: Run sponsor approval PHP tests
+        run: |
+          mkdir -p app/public/wp-content/plugins/kh-smma/artifacts/phase3
+          cd app/public/wp-content/plugins/kh-smma
+          vendor/bin/phpunit \
+            tests/SponsorApprovalControllerTest.php \
+            tests/SA/ApprovalWorkflowIntegrationTest.php \
+            tests/SA/ApprovalWorkflowSmokeTest.php \
+            > artifacts/phase3/pending_approval_phpunit.log
+          cat artifacts/phase3/pending_approval_phpunit.log
+
+      - name: Generate deterministic approval demo log
+        run: |
+          mkdir -p app/public/wp-content/plugins/kh-smma/artifacts/phase3
+          node app/public/wp-content/plugins/kh-smma/tests/frontend/pending_approval_demo.js \
+            > app/public/wp-content/plugins/kh-smma/artifacts/phase3/pending_approval_demo.log
+          cat app/public/wp-content/plugins/kh-smma/artifacts/phase3/pending_approval_demo.log
+
+      - name: Upload approval demo artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smma-phase3-schedule-approval
+          path: |
+            app/public/wp-content/plugins/kh-smma/artifacts/phase3/pending_approval_demo.log
+            app/public/wp-content/plugins/kh-smma/artifacts/phase3/pending_approval_phpunit.log

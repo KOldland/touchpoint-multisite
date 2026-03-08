@@ -313,6 +313,29 @@ class SponsorApprovalControllerTest extends TestCase {
         $this->assertSame( '101', $captured[0]['schedule_id'] );
     }
 
+    public function test_bulk_reject_persists_reviewer_notes_for_every_schedule(): void {
+        $GLOBALS['kh_test_post_meta'][101]['_kh_smma_approval_status'] = 'pending';
+        $GLOBALS['kh_test_post_meta'][104]['_kh_smma_approval_status'] = 'pending';
+
+        $logger = $this->getMockBuilder( AuditLogger::class )
+            ->disableOriginalConstructor()
+            ->onlyMethods( array( 'log' ) )
+            ->getMock();
+
+        $controller = new SponsorApprovalController( new ScheduleRepository( $logger ), $logger );
+        $response = $controller->reject_schedules( new WP_REST_Request(
+            array(
+                'schedule_ids' => array( '101', '104' ),
+                'reviewer_user_id' => 45,
+                'review_notes' => 'Bulk rejected for policy reasons',
+            )
+        ) );
+
+        $this->assertSame( 2, $response['count'] );
+        $this->assertSame( 'Bulk rejected for policy reasons', $GLOBALS['kh_test_post_meta'][101]['_kh_smma_review_notes'] );
+        $this->assertSame( 'Bulk rejected for policy reasons', $GLOBALS['kh_test_post_meta'][104]['_kh_smma_review_notes'] );
+    }
+
     public function test_admin_can_approve_any_schedule(): void {
         $GLOBALS['kh_test_post_meta'][101]['_kh_smma_approval_status'] = 'pending';
         $GLOBALS['kh_test_post_meta'][101]['_kh_smma_sponsor_id'] = 'sp_2';
