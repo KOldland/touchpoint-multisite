@@ -1,0 +1,20 @@
+{
+  "image_id": "cmp_001",
+  "optimized": [
+    {
+      "name": "feed",
+      "url": "https://example.test/uploads/smma/optimized/cmp_001-feed.jpg",
+      "width": 1080,
+      "height": 1527,
+      "format": "jpg"
+    },
+    {
+      "name": "thumb",
+      "url": "https://example.test/uploads/smma/optimized/cmp_001-thumb.webp",
+      "width": 540,
+      "height": 764,
+      "format": "webp"
+    }
+  ],
+  "request_id": "req_img_optimize_001"
+}

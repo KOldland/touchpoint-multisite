@@ -572,5 +572,5 @@ Frontend should emit or expect the following event names already present in the 
 
 ## Open constraints for later Phase 3 PRs
 
-- Image upload/layout preview endpoints are not formalized in the current backend contract yet. Frontend should not invent them; that needs a follow-up backend contract or explicit reuse of an existing media endpoint.
+- Image upload/layout preview endpoints are defined separately in `docs/PHASE3_IMAGE_UPLOAD_CONTRACT.md`. Frontend image work should follow that document rather than inventing request or response shapes.
 - Price Review spreadsheet write-back API is not yet formalized in current repo contracts. Treat that as a separate contract step before UI implementation.
