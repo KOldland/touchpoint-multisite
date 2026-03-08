@@ -20,6 +20,35 @@ class ComplianceValidator {
     );
 
     /**
+     * Deterministic first-line compliance check.
+     *
+     * @param string $text Variant content.
+     * @return array{status:string,reasons:array}
+     */
+    public function deterministic_check( string $text ): array {
+        $reasons = array();
+        $lower = strtolower( $text );
+
+        foreach ( $this->blacklist as $phrase ) {
+            if ( strpos( $lower, strtolower( $phrase ) ) !== false ) {
+                $reasons[] = 'Blocked phrase: ' . $phrase;
+            }
+        }
+
+        if ( ! empty( $reasons ) ) {
+            return array(
+                'status' => 'FAIL',
+                'reasons' => $reasons,
+            );
+        }
+
+        return array(
+            'status' => 'PASS',
+            'reasons' => array(),
+        );
+    }
+
+    /**
      * Validate variant text using both rule-based and AI-powered checks.
      *
      * @param string $text Variant text to validate

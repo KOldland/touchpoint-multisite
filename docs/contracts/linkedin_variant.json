@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://khm.local/contracts/linkedin_variant.json",
+  "title": "LinkedIn Variant",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["variant_id", "text", "rationale", "asset_hints", "compliance"],
+  "properties": {
+    "variant_id": { "type": "string", "minLength": 1 },
+    "text": { "type": "string", "minLength": 1, "maxLength": 3000 },
+    "rationale": { "type": "string" },
+    "asset_hints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "compliance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reasons"],
+      "properties": {
+        "status": { "type": "string", "enum": ["PASS", "WARN", "FAIL"] },
+        "reasons": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

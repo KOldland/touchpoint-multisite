@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://khm.local/contracts/google_ad_draft.json",
+  "title": "Google Ad Draft",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["headlines", "descriptions", "final_url"],
+  "properties": {
+    "headlines": {
+      "type": "array",
+      "minItems": 3,
+      "items": { "type": "string", "maxLength": 30 }
+    },
+    "descriptions": {
+      "type": "array",
+      "minItems": 2,
+      "items": { "type": "string", "maxLength": 90 }
+    },
+    "final_url": { "type": "string", "format": "uri" },
+    "path1": { "type": "string" },
+    "path2": { "type": "string" }
+  }
+}

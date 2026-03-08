@@ -29,6 +29,9 @@ class SmmaGenerator {
 
         // Generate LinkedIn variants
         $linkedin_result = $this->generate_linkedin_variants( $input );
+        if ( ! empty( $linkedin_result['error'] ) && is_wp_error( $linkedin_result['error'] ) ) {
+            return $linkedin_result['error'];
+        }
 
         // Generate Google Ads draft if enabled
         $google_ad_draft = array();
@@ -36,6 +39,9 @@ class SmmaGenerator {
 
         if ( $generate_google_ads ) {
             $google_ad_draft = $this->generate_google_ad_draft( $input );
+        }
+        if ( empty( $google_ad_draft ) && ! empty( $linkedin_result['google_ad_draft'] ) ) {
+            $google_ad_draft = $linkedin_result['google_ad_draft'];
         }
 
         $response = array(
@@ -68,6 +74,8 @@ class SmmaGenerator {
     private function generate_linkedin_variants( array $input ): array {
         $model = 'fallback';
         $variants = array();
+        $parsed_payload = null;
+        $strict_mode = ! empty( $input['strict_llm_json'] );
         $llm_available = class_exists( '\\Dual_GPT\\Dual_GPT_LLM_Client' );
 
         if ( $llm_available ) {
@@ -83,7 +91,21 @@ class SmmaGenerator {
 
                 if ( ! is_wp_error( $response ) ) {
                     $model = $client->get_model_name();
-                    $variants = $this->parse_response( $response );
+                    $parsed_payload = $this->parse_payload( $response );
+                    if ( isset( $parsed_payload['linkedin_variants'] ) && is_array( $parsed_payload['linkedin_variants'] ) ) {
+                        $variants = $parsed_payload['linkedin_variants'];
+                    } else {
+                        $variants = $this->parse_response( $response );
+                    }
+
+                    if ( $strict_mode && empty( $variants ) ) {
+                        return array(
+                            'variants' => array(),
+                            'model' => $model,
+                            'google_ad_draft' => array(),
+                            'error' => new WP_Error( 'SMMA_ERR_INVALID_LLM', 'LLM returned non-JSON or invalid JSON.' ),
+                        );
+                    }
                 }
             }
         }
@@ -98,6 +120,8 @@ class SmmaGenerator {
         return array(
             'variants' => $variants,
             'model'    => $model,
+            'google_ad_draft' => is_array( $parsed_payload['google_ad_draft'] ?? null ) ? $parsed_payload['google_ad_draft'] : array(),
+            'error' => null,
         );
     }
 
@@ -261,8 +285,7 @@ class SmmaGenerator {
     }
 
     private function parse_response( array $response ): array {
-        $body = $response['choices'][0]['message']['content'] ?? '';
-        $decoded = json_decode( $body, true );
+        $decoded = $this->parse_payload( $response );
         if ( ! is_array( $decoded ) ) {
             return array();
         }
@@ -271,11 +294,21 @@ class SmmaGenerator {
             return $decoded['variants'];
         }
 
+        if ( isset( $decoded['linkedin_variants'] ) && is_array( $decoded['linkedin_variants'] ) ) {
+            return $decoded['linkedin_variants'];
+        }
+
         if ( isset( $decoded[0] ) ) {
             return $decoded;
         }
 
         return array();
+    }
+
+    private function parse_payload( array $response ) {
+        $body = $response['choices'][0]['message']['content'] ?? '';
+        $decoded = json_decode( $body, true );
+        return is_array( $decoded ) ? $decoded : null;
     }
 
     private function build_fallback_variants( array $input ): array {

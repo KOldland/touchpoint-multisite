@@ -1,0 +1,20 @@
+{
+  "approval_decision": {
+    "status": "approved",
+    "schedule_id": "101",
+    "approved_by": "45",
+    "reviewer_id": 45,
+    "review_notes": "Approved from test",
+    "trace_id": "trace-notif-approve-001",
+    "timestamp": "2026-03-06 10:00:00"
+  },
+  "rejection_decision": {
+    "status": "rejected",
+    "schedule_id": "101",
+    "rejected_by": "45",
+    "reviewer_id": 45,
+    "review_notes": "Needs revision",
+    "trace_id": "trace-notif-reject-001",
+    "timestamp": "2026-03-06 11:00:00"
+  }
+}

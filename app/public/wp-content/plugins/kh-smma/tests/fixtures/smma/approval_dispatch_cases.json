@@ -1,0 +1,32 @@
+{
+  "cases": [
+    {
+      "schedule_id": "sch_pending_01",
+      "approval_required": true,
+      "approval_status": "pending",
+      "expected_dispatch": "blocked",
+      "expected_queue_label": "Awaiting Approval"
+    },
+    {
+      "schedule_id": "sch_approved_01",
+      "approval_required": true,
+      "approval_status": "approved",
+      "expected_dispatch": "allowed",
+      "expected_queue_label": "Ready"
+    },
+    {
+      "schedule_id": "sch_rejected_01",
+      "approval_required": true,
+      "approval_status": "rejected",
+      "expected_dispatch": "blocked",
+      "expected_queue_label": "Rejected"
+    },
+    {
+      "schedule_id": "sch_no_approval_01",
+      "approval_required": false,
+      "approval_status": "pending",
+      "expected_dispatch": "allowed",
+      "expected_queue_label": "Ready"
+    }
+  ]
+}

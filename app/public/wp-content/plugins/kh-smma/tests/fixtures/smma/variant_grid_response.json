@@ -1,0 +1,37 @@
+{
+  "request_id": "req_fixture_grid_01",
+  "variants": [
+    {
+      "variant_id": "var_grid_1",
+      "linkedIn": {
+        "text": "Announcing our latest capability update for operations teams.",
+        "rationale": "Professional update for awareness funnel.",
+        "asset_hints": [
+          { "type": "image", "description": "Product screenshot with KPI overlay" }
+        ],
+        "compliance_status": "OK",
+        "compliance_reason": "",
+        "ai_review_summary": "No risk terms detected"
+      },
+      "google": {
+        "headlines": ["Operations Update", "Improve Team Throughput"]
+      }
+    },
+    {
+      "variant_id": "var_grid_2",
+      "linkedIn": {
+        "text": "Potentially high-impact outcomes for teams that adopt this process.",
+        "rationale": "Engagement-focused copy with measurable framing.",
+        "asset_hints": [
+          { "type": "graphic", "description": "Before/after funnel chart" }
+        ],
+        "compliance_status": "WARN",
+        "compliance_reason": "Performance implication should be qualified.",
+        "ai_review_summary": "Claim language may need substantiation"
+      },
+      "google": {
+        "headlines": ["Process Upgrade", "Plan Your Next Campaign"]
+      }
+    }
+  ]
+}
