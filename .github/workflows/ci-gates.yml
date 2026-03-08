@@ -1,0 +1,93 @@
+name: phase4-ci-gates
+
+on:
+  pull_request:
+    branches:
+      - integration/hardening
+      - release/**
+    paths:
+      - 'app/public/wp-content/plugins/khm-plugin/**'
+      - 'app/public/wp-content/plugins/kh-smma/**'
+      - 'scripts/**'
+      - 'migrations/**'
+      - 'docs/**'
+      - 'runbooks/**'
+      - '.github/workflows/**'
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: |
+          cd app/public/wp-content/plugins/khm-plugin && composer install --prefer-dist --no-progress --no-interaction
+          cd "${GITHUB_WORKSPACE}/app/public/wp-content/plugins/kh-smma" && composer install --prefer-dist --no-progress --no-interaction
+      - name: Run focused unit suites
+        run: |
+          cd app/public/wp-content/plugins/khm-plugin && vendor/bin/phpunit tests/Membership/PromoValidationTest.php tests/Membership/OptOutAndEmailPrecedenceTest.php
+          cd "${GITHUB_WORKSPACE}/app/public/wp-content/plugins/kh-smma" && vendor/bin/phpunit tests/ImageComposeDemoControllerTest.php tests/SponsorApprovalControllerTest.php
+          cd "${GITHUB_WORKSPACE}" && node app/public/wp-content/plugins/kh-smma/tests/frontend/image_upload.test.js
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+      - name: Install membership dependencies
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: composer install --prefer-dist --no-progress --no-interaction
+      - name: Run release gate checks
+        run: php scripts/mem_release_gate_check.php --environment=staging
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run deterministic demo scripts
+        run: |
+          node app/public/wp-content/plugins/kh-smma/tests/frontend/post_publish_demo.js
+          node app/public/wp-content/plugins/kh-smma/tests/frontend/pending_approval_demo.js
+          node app/public/wp-content/plugins/kh-smma/tests/frontend/image_upload_demo.js
+          node app/public/wp-content/plugins/khm-plugin/tests/UI/price_review_demo.js
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+      - name: Secret scan
+        run: scripts/secret-scan.sh
+      - name: Composer audit
+        run: |
+          cd app/public/wp-content/plugins/khm-plugin && composer audit
+      - name: PHP lint
+        run: |
+          find app/public/wp-content/plugins/khm-plugin/src app/public/wp-content/plugins/kh-smma/src -name '*.php' -print0 | xargs -0 -n 1 php -l >/tmp/phase4_php_lint.log
+          cat /tmp/phase4_php_lint.log
+
+  golden-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - name: Verify golden fixtures
+        run: php scripts/verify_golden_fixtures.php

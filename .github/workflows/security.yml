@@ -1,0 +1,33 @@
+name: phase4-security
+
+on:
+  pull_request:
+    paths:
+      - 'app/public/wp-content/plugins/khm-plugin/**'
+      - 'app/public/wp-content/plugins/kh-smma/**'
+      - 'scripts/secret-scan.sh'
+      - '.github/workflows/security.yml'
+      - 'docs/STRIPE_SECRET_ROTATION.md'
+      - 'runbooks/**'
+  workflow_dispatch:
+
+jobs:
+  security-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+      - name: Secret scan
+        run: scripts/secret-scan.sh
+      - name: Composer audit (khm-plugin)
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: composer audit || true
+      - name: Composer validate (khm-plugin)
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: composer validate --strict
+      - name: PHP syntax check
+        run: |
+          find app/public/wp-content/plugins/khm-plugin/src app/public/wp-content/plugins/kh-smma/src -name '*.php' -print0 | xargs -0 -n 1 php -l

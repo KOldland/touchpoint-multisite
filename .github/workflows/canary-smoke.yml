@@ -1,0 +1,26 @@
+name: phase4-canary-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Canary base URL'
+        required: true
+        type: string
+
+jobs:
+  canary-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: grafana/setup-k6-action@v1
+      - name: Run canary smoke
+        env:
+          CANARY_BASE_URL: ${{ github.event.inputs.base_url }}
+        run: |
+          mkdir -p artifacts/phase4
+          k6 run tests/perf/k6/canary_smoke.js | tee artifacts/phase4/canary_smoke.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase4-canary-smoke
+          path: artifacts/phase4/canary_smoke.log
