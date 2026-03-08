@@ -1,0 +1,5 @@
+Phase 3 pending approval demo
+Step 1 schedule modal: PASS - variant_id=var_warn_001 sponsor=sp_demo_01
+Step 2 pending schedule: PASS - schedule_id=sched_warn_001 status=pending_approval
+Step 3 admin list render: PASS - row contains reviewer context
+Step 4 approve action: PASS - endpoint=/approve notes=Approved in demo

@@ -3,6 +3,7 @@
 
     var settings = window.khSMMASettings || {};
     var VariantGrid = window.KHSmmaVariantGrid || {};
+    var CalendarModal = window.KHSmmaCalendarModal || {};
 
     function uuidv4() {
         if (window.crypto && typeof window.crypto.randomUUID === 'function') {
@@ -425,22 +426,24 @@
             this.variants = variants || [];
             this.sponsorId = sponsorId || '';
 
-            var rows = this.variants.map(function(variant, index) {
-                var recommended = new Date(Date.now() + ((index + 1) * 3600 * 1000)).toISOString().slice(0, 16);
+            var rows = (CalendarModal.buildRows ? CalendarModal.buildRows(this.variants) : []).map(function(row) {
                 return '' +
                     '<tr>' +
-                        '<td>' + escapeHtml(variant.variantId) + '</td>' +
-                        '<td>' + escapeHtml(variant.text.slice(0, 90)) + '</td>' +
-                        '<td><input type="datetime-local" class="khm-schedule-time" data-variant-id="' + escapeHtml(variant.variantId) + '" value="' + escapeHtml(recommended) + '"></td>' +
+                        '<td>' + escapeHtml(row.variantId) + '</td>' +
+                        '<td>' + escapeHtml(row.preview) + '</td>' +
+                        '<td><input type="datetime-local" class="khm-schedule-time" data-variant-id="' + escapeHtml(row.variantId) + '" value="' + escapeHtml(row.recommended) + '"></td>' +
                     '</tr>';
             }).join('');
 
             var content = '' +
-                '<p class="description">Create sandbox schedules from generated variants.</p>' +
+                '<p class="description">Create sandbox schedules from generated variants. WARN variants will return <code>pending_approval</code>.</p>' +
                 '<table class="form-table khm-smma-form-table">' +
                     '<tr><th><label for="khm-schedule-sponsor-id">Sponsor ID</label></th><td><input type="text" id="khm-schedule-sponsor-id" class="regular-text" value="' + escapeHtml(this.sponsorId) + '" required></td></tr>' +
+                    '<tr><th><label for="khm-schedule-timezone">Timezone</label></th><td><input type="text" id="khm-schedule-timezone" class="regular-text" value="' + escapeHtml((Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')) + '"></td></tr>' +
+                    '<tr><th><label for="khm-schedule-geo-targets">Geo overrides</label></th><td><input type="text" id="khm-schedule-geo-targets" class="regular-text" placeholder="AU, US"></td></tr>' +
                     '<tr><th><label for="khm-schedule-budget">Budget (cents)</label></th><td><input type="number" id="khm-schedule-budget" class="regular-text" value="' + escapeHtml(settings.defaultBoostBudgetCents || 10000) + '" min="0"></td></tr>' +
                     '<tr><th><label for="khm-schedule-channel">Channel</label></th><td><select id="khm-schedule-channel"><option value="linkedin" selected>LinkedIn</option></select></td></tr>' +
+                    '<tr><th><label for="khm-schedule-prioritize">Goal</label></th><td><select id="khm-schedule-prioritize"><option value="reach" selected>Reach</option><option value="engagement">Engagement</option></select></td></tr>' +
                 '</table>' +
                 '<table class="widefat striped khm-schedule-table"><thead><tr><th>Variant</th><th>Preview</th><th>Schedule time</th></tr></thead><tbody>' + rows + '</tbody></table>' +
                 '<p><button type="button" id="khm-confirm-schedule-btn" class="button button-primary">Create schedule(s)</button><span class="spinner"></span></p>' +
@@ -460,6 +463,9 @@
             var sponsorId = $('#khm-schedule-sponsor-id').val();
             var budget = parseInt($('#khm-schedule-budget').val(), 10) || 0;
             var channel = $('#khm-schedule-channel').val() || 'linkedin';
+            var prioritize = $('#khm-schedule-prioritize').val() || 'reach';
+            var timezone = $('#khm-schedule-timezone').val() || 'UTC';
+            var geoTargets = parseGeoTargets($('#khm-schedule-geo-targets').val());
             var $feedback = $('.khm-smma-feedback-schedule');
             var $spinner = $('#khm-schedule-modal .spinner');
             var requests = [];
@@ -476,8 +482,18 @@
 
             this.variants.forEach(function(variant) {
                 var scheduleTime = $('.khm-schedule-time[data-variant-id="' + variant.variantId + '"]').val();
-                requests.push(
-                    SMMA_API.scheduleVariant({
+                var payload = CalendarModal.buildRequestPayload
+                    ? CalendarModal.buildRequestPayload(variant, {
+                        sponsorId: sponsorId,
+                        scheduleTime: scheduleTime,
+                        budgetCents: budget,
+                        channel: channel,
+                        prioritize: prioritize,
+                        timezone: timezone,
+                        geoTargets: geoTargets,
+                        mode: 'sandbox'
+                    }, settings)
+                    : {
                         variant_id: variant.variantId,
                         sponsor_id: String(sponsorId),
                         schedule_time: new Date(scheduleTime).toISOString(),
@@ -485,14 +501,24 @@
                             budget_cents: budget,
                             currency: settings.defaultCurrency || 'AUD',
                             channels: [channel],
-                            prioritize: 'reach'
+                            prioritize: prioritize
                         },
                         mode: 'sandbox'
-                    })
+                    };
+                requests.push(
+                    SMMA_API.scheduleVariant(payload)
                 );
             });
 
             $.when.apply($, requests).done(function() {
+                var responseArgs = Array.prototype.slice.call(arguments).map(function(entry) {
+                    return Array.isArray(entry) ? entry[0] : entry;
+                });
+                var summary = CalendarModal.summarizeResponses ? CalendarModal.summarizeResponses(responseArgs) : null;
+                if (summary && summary.pendingApprovalCount > 0) {
+                    PromoteModal.showFeedback($feedback, summary.pendingApprovalCount + ' schedule(s) are pending sponsor approval.', 'success');
+                    return;
+                }
                 PromoteModal.showFeedback($feedback, 'Schedule request(s) created successfully.', 'success');
             }).fail(function(xhr) {
                 PromoteModal.showFeedback($feedback, requestErrorMessage(xhr, 'Error creating schedules.'), 'error');

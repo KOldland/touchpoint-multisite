@@ -72,19 +72,22 @@ class PendingApprovalsPage {
         );
 
         wp_enqueue_script(
-            'kh-smma-sponsor-approval',
-            KH_SMMA_URL . 'assets/js/sponsor-approval.js',
+            'kh-smma-pending-approvals',
+            KH_SMMA_URL . 'assets/js/pending-approvals.js',
             array( 'jquery' ),
             KH_SMMA_VERSION,
             true
         );
 
-        wp_localize_script( 'kh-smma-sponsor-approval', 'khSmmaSponsorApproval', array(
+        wp_localize_script( 'kh-smma-pending-approvals', 'khSmmaSponsorApproval', array(
             'apiBase' => rest_url( 'kh-smma/v1/sponsor-approvals' ),
             'nonce'   => wp_create_nonce( 'wp_rest' ),
             'pageUrl' => admin_url( 'admin.php?page=smma-pending-approvals' ),
             'messages' => array(
                 'complianceFailBlocked' => 'Compliance failure detected. Variant must be edited and pass compliance before approval.',
+                'approveSuccess'        => 'Approval decision saved and submitter notified.',
+                'rejectSuccess'         => 'Rejection saved and submitter notified.',
+                'bulkReviewHint'        => 'Bulk actions apply the same reviewer note to every selected schedule.',
             ),
             'permissions' => array(
                 'can_manage_approvals' => $this->permissions->can_manage_approvals( get_current_user_id() ),
@@ -175,6 +178,7 @@ class PendingApprovalsPage {
                     <h2 id="kh-smma-review-title"><?php esc_html_e( 'Review Decision', 'kh-smma' ); ?></h2>
                     <p id="kh-smma-review-target"></p>
                     <textarea id="kh-smma-review-notes" rows="5" placeholder="<?php esc_attr_e( 'Reviewer notes', 'kh-smma' ); ?>"></textarea>
+                    <p id="kh-smma-review-hint"></p>
                     <div class="kh-smma-review-modal__actions">
                         <button type="button" class="button button-primary" id="kh-smma-review-confirm"><?php esc_html_e( 'Confirm', 'kh-smma' ); ?></button>
                         <button type="button" class="button" id="kh-smma-review-cancel"><?php esc_html_e( 'Cancel', 'kh-smma' ); ?></button>

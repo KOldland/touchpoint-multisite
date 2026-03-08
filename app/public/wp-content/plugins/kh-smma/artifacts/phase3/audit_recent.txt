@@ -1,0 +1,5 @@
+sponsor.approval.approved
+{"event_name":"sponsor.approval.approved","trace_id":"trace_phase3_approve","schedule_id":"1501","reviewer_id":45,"review_notes":"Approved in pending approval demo","timestamp":"{{MYSQL_TS}}"}
+
+sponsor.approval.rejected
+{"event_name":"sponsor.approval.rejected","trace_id":"trace_phase3_reject","schedule_id":"1502","reviewer_id":46,"review_notes":"Rejected in pending approval demo","timestamp":"{{MYSQL_TS}}"}

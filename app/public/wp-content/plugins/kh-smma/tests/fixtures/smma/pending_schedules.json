@@ -1,0 +1,38 @@
+[
+  {
+    "schedule_id": "101",
+    "variant_id": "var_101",
+    "post_title": "Launch campaign for sponsor approval",
+    "variant_preview": "Launch with careful sponsor-approved wording for the next campaign flight.",
+    "sponsor_id": "sp_1",
+    "sponsor_name": "Acme Sponsor",
+    "submitter": "Editor User",
+    "requested_schedule_date": "2026-03-11T09:00:00Z",
+    "approval_status": "pending",
+    "approval_required": true,
+    "approval_reason": "compliance_changed",
+    "compliance_status": "WARN",
+    "compliance_reason": "Performance claim requires sponsor sign-off.",
+    "last_approved_by": "",
+    "last_approved_at": "",
+    "queue_label": "Awaiting Approval"
+  },
+  {
+    "schedule_id": "104",
+    "variant_id": "var_104",
+    "post_title": "Retention campaign follow-up",
+    "variant_preview": "Follow-up creative requiring sponsor confirmation before dispatch.",
+    "sponsor_id": "sp_2",
+    "sponsor_name": "Northwind Sponsor",
+    "submitter": "Owner User",
+    "requested_schedule_date": "2026-03-12T10:30:00Z",
+    "approval_status": "pending",
+    "approval_required": true,
+    "approval_reason": "sponsor_claim_change",
+    "compliance_status": "WARN",
+    "compliance_reason": "Claims changed since last approval.",
+    "last_approved_by": "",
+    "last_approved_at": "",
+    "queue_label": "Awaiting Approval"
+  }
+]

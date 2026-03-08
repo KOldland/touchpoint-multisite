@@ -16,6 +16,7 @@
     margin: 12px 0;
     display: flex;
     gap: 8px;
+    align-items: center;
 }
 
 .kh-smma-approval-badge {
@@ -36,6 +37,19 @@
 }
 
 .kh-smma-approval-rejected {
+    background: #dc2626;
+}
+
+.kh-smma-approval-ok {
+    background: #16a34a;
+}
+
+.kh-smma-approval-warn {
+    background: #f59e0b;
+    color: #111827;
+}
+
+.kh-smma-approval-fail {
     background: #dc2626;
 }
 
@@ -70,6 +84,12 @@
     margin-top: 12px;
     display: flex;
     gap: 8px;
+}
+
+#kh-smma-review-hint {
+    margin-top: 8px;
+    color: #6b7280;
+    font-size: 12px;
 }
 
 .kh-smma-approval-history {
@@ -131,4 +151,23 @@
     font-weight: 600;
     padding: 2px 8px;
     border-radius: 4px;
+}
+
+.kh-smma-approval-post-cell {
+    min-width: 280px;
+}
+
+.kh-smma-approval-variant-id,
+.kh-smma-approval-last-reviewed {
+    color: #6b7280;
+    font-size: 12px;
+    margin-top: 4px;
+}
+
+.kh-smma-approval-variant-preview,
+.kh-smma-approval-compliance-reason {
+    margin-top: 6px;
+    color: #1f2937;
+    font-size: 12px;
+    line-height: 1.4;
 }
