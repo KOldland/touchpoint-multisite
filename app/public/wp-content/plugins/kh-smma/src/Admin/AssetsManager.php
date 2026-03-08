@@ -20,14 +20,26 @@ class AssetsManager {
         }
 
         $plugin_url = plugin_dir_url( dirname( dirname( __FILE__ ) ) );
-        $version = '1.0.0';
+        $plugin_path = dirname( dirname( __DIR__ ) );
+        $version = '1.1.0';
 
-        // Enqueue JavaScript
+        $variant_grid_js = $plugin_path . '/assets/js/smma-variant-grid.js';
+        $admin_js = $plugin_path . '/assets/js/smma-admin.js';
+        $admin_css = $plugin_path . '/assets/css/smma-admin.css';
+
+        wp_enqueue_script(
+            'kh-smma-variant-grid',
+            $plugin_url . 'assets/js/smma-variant-grid.js',
+            array(),
+            file_exists( $variant_grid_js ) ? (string) filemtime( $variant_grid_js ) : $version,
+            true
+        );
+
         wp_enqueue_script(
             'kh-smma-admin',
             $plugin_url . 'assets/js/smma-admin.js',
-            array( 'jquery' ),
-            $version,
+            array( 'jquery', 'kh-smma-variant-grid' ),
+            file_exists( $admin_js ) ? (string) filemtime( $admin_js ) : $version,
             true
         );
 
@@ -35,6 +47,10 @@ class AssetsManager {
         wp_localize_script( 'kh-smma-admin', 'khSMMASettings', array(
             'apiUrl' => rest_url( 'kh-smma/v1' ),
             'nonce' => wp_create_nonce( 'wp_rest' ),
+            'defaultSponsorId' => '',
+            'defaultBoostBudgetCents' => 10000,
+            'defaultCurrency' => 'AUD',
+            'defaultChannel' => 'linkedin',
         ) );
 
         // Enqueue admin styles
@@ -42,7 +58,7 @@ class AssetsManager {
             'kh-smma-admin',
             $plugin_url . 'assets/css/smma-admin.css',
             array(),
-            $version
+            file_exists( $admin_css ) ? (string) filemtime( $admin_css ) : $version
         );
     }
 }
