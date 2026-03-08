@@ -12,8 +12,6 @@ use KHM\GEO\AnswerCardSchemaValidator;
 use KHM\GEO\SuggestionCacheManager;
 use KHM\GEO\RateLimiter;
 use PHPUnit\Framework\TestCase;
-use Brain\Monkey;
-use Brain\Monkey\Functions;
 
 /**
  * SuggestionServiceTest class
@@ -22,19 +20,9 @@ class SuggestionServiceTest extends TestCase {
 
     protected function setUp(): void {
         parent::setUp();
-        Monkey\setUp();
-
-        // Mock WordPress functions
-        Functions\when('wp_json_encode')->returnArg();
-        Functions\when('wp_json_decode')->returnArg();
-        Functions\when('sanitize_text_field')->returnArg();
-        Functions\when('wp_kses_post')->returnArg();
-        Functions\when('get_current_user_id')->justReturn(1);
-        Functions\when('wp_get_current_user')->justReturn((object)['ID' => 1]);
     }
 
     protected function tearDown(): void {
-        Monkey\tearDown();
         parent::tearDown();
     }
 
@@ -99,8 +87,7 @@ class SuggestionServiceTest extends TestCase {
      * Test RateLimiter allows normal usage
      */
     public function test_rate_limiter_allows_normal_usage() {
-        Functions\when('get_transient')->justReturn(false); // No existing limits
-        Functions\when('set_transient')->justReturn(true);
+        $GLOBALS['khm_test_transients'] = [];
 
         $limiter = new RateLimiter();
 
@@ -111,27 +98,24 @@ class SuggestionServiceTest extends TestCase {
      * Test RateLimiter blocks excessive usage
      */
     public function test_rate_limiter_blocks_excessive_usage() {
-        // Mock existing high usage count
-        Functions\when('get_transient')->justReturn(5);
-        Functions\when('set_transient')->justReturn(true);
+        $GLOBALS['khm_test_transients'] = [
+            'khm_geo_rate_minute_1' => [
+                'value' => 5,
+                'expires' => time() + 60,
+            ],
+        ];
 
         $limiter = new RateLimiter();
 
-        $this->assertFalse($limiter->check_limit(1)); // Should block
+        $this->assertInstanceOf(\WP_Error::class, $limiter->check_limit(1)); // Should block
     }
 
     /**
      * Test SuggestionAuditLogger table creation
      */
     public function test_audit_logger_table_creation() {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-        $wpdb->shouldReceive('query')->andReturn(true);
-
         $logger = new SuggestionAuditLogger();
 
-        // This would normally create a table, but we're mocking
         $this->assertInstanceOf(SuggestionAuditLogger::class, $logger);
     }
 }
