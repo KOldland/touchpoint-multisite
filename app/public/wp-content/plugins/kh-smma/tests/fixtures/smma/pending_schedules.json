@@ -1,38 +1,38 @@
 [
   {
     "schedule_id": "101",
-    "variant_id": "var_101",
-    "post_title": "Launch campaign for sponsor approval",
-    "variant_preview": "Launch with careful sponsor-approved wording for the next campaign flight.",
+    "post_title": "Launch Sponsor Campaign",
     "sponsor_id": "sp_1",
-    "sponsor_name": "Acme Sponsor",
-    "submitter": "Editor User",
-    "requested_schedule_date": "2026-03-11T09:00:00Z",
-    "approval_status": "pending",
-    "approval_required": true,
-    "approval_reason": "compliance_changed",
-    "compliance_status": "WARN",
-    "compliance_reason": "Performance claim requires sponsor sign-off.",
-    "last_approved_by": "",
-    "last_approved_at": "",
-    "queue_label": "Awaiting Approval"
+    "sponsor_name": "Sponsor One",
+    "submitter": "Editor A",
+    "requested_schedule_date": "2026-03-05 10:00",
+    "approval_status": "pending"
+  },
+  {
+    "schedule_id": "102",
+    "post_title": "Already Approved Content",
+    "sponsor_id": "sp_2",
+    "sponsor_name": "Sponsor Two",
+    "submitter": "Editor B",
+    "requested_schedule_date": "2026-03-05 11:00",
+    "approval_status": "approved"
+  },
+  {
+    "schedule_id": "103",
+    "post_title": "Rejected Draft",
+    "sponsor_id": "sp_1",
+    "sponsor_name": "Sponsor One",
+    "submitter": "Editor C",
+    "requested_schedule_date": "2026-03-04 09:30",
+    "approval_status": "rejected"
   },
   {
     "schedule_id": "104",
-    "variant_id": "var_104",
-    "post_title": "Retention campaign follow-up",
-    "variant_preview": "Follow-up creative requiring sponsor confirmation before dispatch.",
+    "post_title": "Pending Promo A",
     "sponsor_id": "sp_2",
-    "sponsor_name": "Northwind Sponsor",
-    "submitter": "Owner User",
-    "requested_schedule_date": "2026-03-12T10:30:00Z",
-    "approval_status": "pending",
-    "approval_required": true,
-    "approval_reason": "sponsor_claim_change",
-    "compliance_status": "WARN",
-    "compliance_reason": "Claims changed since last approval.",
-    "last_approved_by": "",
-    "last_approved_at": "",
-    "queue_label": "Awaiting Approval"
+    "sponsor_name": "Sponsor Two",
+    "submitter": "Editor A",
+    "requested_schedule_date": "2026-03-06 09:00",
+    "approval_status": "pending"
   }
 ]
