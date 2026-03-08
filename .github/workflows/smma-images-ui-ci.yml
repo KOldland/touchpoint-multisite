@@ -1,0 +1,54 @@
+name: smma-images-ui-ci
+
+on:
+  pull_request:
+    paths:
+      - 'app/public/wp-content/plugins/kh-smma/admin/image-upload-page.php'
+      - 'app/public/wp-content/plugins/kh-smma/assets/js/image-upload.js'
+      - 'app/public/wp-content/plugins/kh-smma/assets/css/image-upload.css'
+      - 'app/public/wp-content/plugins/kh-smma/src/Admin/ImageUploadPage.php'
+      - 'app/public/wp-content/plugins/kh-smma/src/API/RestController.php'
+      - 'app/public/wp-content/plugins/kh-smma/src/Plugin.php'
+      - 'app/public/wp-content/plugins/kh-smma/tests/frontend/image_upload.test.js'
+      - 'app/public/wp-content/plugins/kh-smma/tests/frontend/image_upload_demo.js'
+      - '.github/workflows/smma-images-ui-ci.yml'
+      - 'docs/PHASE3_IMAGE_UPLOAD_CONTRACT.md'
+      - 'tests/fixtures/images/**'
+  push:
+    branches:
+      - ai2/phase3-images-ui
+
+jobs:
+  images-ui-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+
+      - name: Run image upload frontend unit test
+        run: node app/public/wp-content/plugins/kh-smma/tests/frontend/image_upload.test.js
+
+      - name: Lint image upload admin page
+        run: |
+          php -l app/public/wp-content/plugins/kh-smma/admin/image-upload-page.php
+          php -l app/public/wp-content/plugins/kh-smma/src/Admin/ImageUploadPage.php
+
+      - name: Generate deterministic demo log
+        run: |
+          mkdir -p app/public/wp-content/plugins/kh-smma/artifacts/phase3
+          node app/public/wp-content/plugins/kh-smma/tests/frontend/image_upload_demo.js \
+            > app/public/wp-content/plugins/kh-smma/artifacts/phase3/images_ui_demo.log
+          cat app/public/wp-content/plugins/kh-smma/artifacts/phase3/images_ui_demo.log
+
+      - name: Upload images UI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smma-phase3-images-ui
+          path: app/public/wp-content/plugins/kh-smma/artifacts/phase3/images_ui_demo.log
