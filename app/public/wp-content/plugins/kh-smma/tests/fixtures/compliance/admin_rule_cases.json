@@ -1,0 +1,25 @@
+{
+  "add_phrase_case": {
+    "phrase": "guaranteed results",
+    "severity": "FAIL",
+    "category": "marketing_claim"
+  },
+  "edit_phrase_case": {
+    "phrase": "risk-free returns",
+    "severity": "WARN",
+    "category": "performance_claim"
+  },
+  "update_allowed_claims_case": {
+    "sponsor_id": 22,
+    "allowed_claims": [
+      "eco friendly",
+      "ISO certified",
+      "energy efficient"
+    ]
+  },
+  "permission_denied_case": {
+    "user_id": 99,
+    "sponsor_id": 77,
+    "expected": "denied"
+  }
+}

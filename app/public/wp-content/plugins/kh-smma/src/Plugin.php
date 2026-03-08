@@ -9,6 +9,8 @@ use KH_SMMA\Admin\AdminInterface;
 use KH_SMMA\Admin\AuditLogPage;
 use KH_SMMA\Admin\CapabilitySettingsPage;
 use KH_SMMA\Admin\AssetsManager;
+use KH_SMMA\Admin\ComplianceCorpusPage;
+use KH_SMMA\Admin\SponsorClaimsPage;
 use KH_SMMA\Admin\ImageUploadPage;
 use KH_SMMA\Admin\PendingApprovalsPage;
 use KH_SMMA\Admin\ScheduleDetailPage;
@@ -277,6 +279,8 @@ class Plugin {
         ( new AuditLogPage( $wpdb ) )->register();
         ( new CapabilitySettingsPage() )->register();
         ( new AssetsManager() )->register();
+        ( new ComplianceCorpusPage() )->register();
+        ( new SponsorClaimsPage() )->register();
         ( new ImageUploadPage() )->register();
         if ( $this->has_reconciliation_support() ) {
             ( new PaidReconciliationPage( $this->recon_service, $this->audit_logger ) )->register();

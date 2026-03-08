@@ -16,7 +16,10 @@ class CapabilityManager {
     const CAP_VIEW     = 'kh_smma_view_queue';
     const CAP_SCHEDULE = 'kh_smma_schedule_posts';
     const CAP_MANAGE   = 'kh_smma_manage_accounts';
-    const CAP_APPROVE_SPONSOR = 'approve_sponsor_posts';
+    const CAP_APPROVE_SPONSOR      = 'approve_sponsor_posts';
+    const CAP_MANAGE_COMPLIANCE_RULES = 'kh_smma_manage_compliance_rules';
+    const CAP_MANAGE_SPONSOR_CLAIMS   = 'kh_smma_manage_sponsor_claims';
+    const CAP_VIEW_COMPLIANCE_AUDIT   = 'kh_smma_view_compliance_audit';
     const CAP_FINANCE              = 'kh_paid_finance';
     const CAP_MANAGE_PAID_ADAPTERS = 'manage_paid_adapters';
     // OBS-08: Observability access controls.
@@ -29,8 +32,8 @@ class CapabilityManager {
 
     public function ensure_capabilities() {
         $role_caps = array(
-            'administrator' => array( self::CAP_VIEW, self::CAP_SCHEDULE, self::CAP_MANAGE, self::CAP_APPROVE_SPONSOR, self::CAP_FINANCE, self::CAP_MANAGE_PAID_ADAPTERS, self::CAP_VIEW_OBSERVABILITY, self::CAP_MANAGE_OBSERVABILITY ),
-            'editor'        => array( self::CAP_VIEW, self::CAP_SCHEDULE, self::CAP_APPROVE_SPONSOR, self::CAP_MANAGE_PAID_ADAPTERS, self::CAP_VIEW_OBSERVABILITY ),
+            'administrator' => array( self::CAP_VIEW, self::CAP_SCHEDULE, self::CAP_MANAGE, self::CAP_APPROVE_SPONSOR, self::CAP_FINANCE, self::CAP_MANAGE_PAID_ADAPTERS, self::CAP_VIEW_OBSERVABILITY, self::CAP_MANAGE_OBSERVABILITY, self::CAP_MANAGE_COMPLIANCE_RULES, self::CAP_MANAGE_SPONSOR_CLAIMS, self::CAP_VIEW_COMPLIANCE_AUDIT ),
+            'editor'        => array( self::CAP_VIEW, self::CAP_SCHEDULE, self::CAP_APPROVE_SPONSOR, self::CAP_MANAGE_PAID_ADAPTERS, self::CAP_VIEW_OBSERVABILITY, self::CAP_MANAGE_SPONSOR_CLAIMS, self::CAP_VIEW_COMPLIANCE_AUDIT ),
             'author'        => array( self::CAP_VIEW ),
         );
 
@@ -77,5 +80,13 @@ class CapabilityManager {
 
     public static function can_manage_observability(): bool {
         return current_user_can( self::CAP_MANAGE_OBSERVABILITY ) || current_user_can( 'manage_options' );
+    }
+
+    public static function can_manage_compliance_rules(): bool {
+        return current_user_can( self::CAP_MANAGE_COMPLIANCE_RULES ) || current_user_can( 'manage_options' );
+    }
+
+    public static function can_manage_sponsor_claims(): bool {
+        return current_user_can( self::CAP_MANAGE_SPONSOR_CLAIMS ) || current_user_can( 'manage_options' );
     }
 }
