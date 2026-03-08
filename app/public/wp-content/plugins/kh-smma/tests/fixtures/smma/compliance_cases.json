@@ -1,0 +1,14 @@
+{
+  "ok_variant": {
+    "variant_id": "var_ok",
+    "text": "Explore practical campaign improvements for your next quarter."
+  },
+  "warn_variant": {
+    "variant_id": "var_warn",
+    "text": "This campaign could significantly improve your results."
+  },
+  "fail_variant": {
+    "variant_id": "var_fail",
+    "text": "Guaranteed results with unlimited growth and guaranteed leads."
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "variant_id": "var_edit_fixture_01",
+  "editor_user_id": "42",
+  "previous_text": "Original variant text",
+  "updated_text": "Updated variant text for deterministic persistence checks",
+  "edit_reason": "Improve clarity for audience",
+  "idempotency_key": "idem-variant-edit-fixture-01"
+}

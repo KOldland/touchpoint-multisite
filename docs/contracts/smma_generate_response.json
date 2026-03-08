@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://khm.local/contracts/smma_generate_response.json",
+  "title": "SMMA Generate Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request_id", "variants", "provenance"],
+  "properties": {
+    "request_id": { "type": "string", "minLength": 1 },
+    "variants": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["variant_id", "linkedIn", "google"],
+        "properties": {
+          "variant_id": { "type": "string" },
+          "linkedIn": { "$ref": "linkedin_variant.json" },
+          "google": { "$ref": "google_ad_draft.json" }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["prompt_hash"],
+      "properties": {
+        "prompt_hash": { "type": "string" },
+        "fixture": { "type": "string" },
+        "model": { "type": "string" }
+      }
+    }
+  }
+}
