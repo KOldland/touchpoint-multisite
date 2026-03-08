@@ -232,12 +232,14 @@ class Plugin {
         $this->analytics_feedback     = new AnalyticsFeedbackService();
         $this->lifecycle_simulator    = new LifecycleSimulator();
         $this->engagement_metrics     = new EngagementMetricsService();
-        $this->reconciliation_service = new PaidReconciliationService( $wpdb, $this->audit_logger );
-        $this->fx_service             = FxService::from_config();
-        $this->adjustment_service     = new PaidReconciliationAdjustmentService( $wpdb, $this->audit_logger );
-        $this->settlement_worker      = new SettlementWorker( $wpdb, $this->adjustment_service, $this->fx_service, $this->audit_logger );
-        $this->delivery_service       = new SettlementDeliveryService( $wpdb, $this->settlement_worker, $this->audit_logger, new DeliveryIdempotencyStore() );
-        $this->recon_service          = new ReconciliationService( $wpdb, $this->audit_logger, $this->reconciliation_service );
+        if ( $this->has_reconciliation_support() ) {
+            $this->reconciliation_service = new PaidReconciliationService( $wpdb, $this->audit_logger );
+            $this->fx_service             = FxService::from_config();
+            $this->adjustment_service     = new PaidReconciliationAdjustmentService( $wpdb, $this->audit_logger );
+            $this->settlement_worker      = new SettlementWorker( $wpdb, $this->adjustment_service, $this->fx_service, $this->audit_logger );
+            $this->delivery_service       = new SettlementDeliveryService( $wpdb, $this->settlement_worker, $this->audit_logger, new DeliveryIdempotencyStore() );
+            $this->recon_service          = new ReconciliationService( $wpdb, $this->audit_logger, $this->reconciliation_service );
+        }
         $this->retry_service          = new TelemetryRetryService( $wpdb );
         $this->event_queue            = new EventQueue( $this->retry_service );
         $this->payload_sanitizer      = new TelemetryPayloadSanitizer();
@@ -276,7 +278,9 @@ class Plugin {
         ( new CapabilitySettingsPage() )->register();
         ( new AssetsManager() )->register();
         ( new ImageUploadPage() )->register();
-        ( new PaidReconciliationPage( $this->recon_service, $this->audit_logger ) )->register();
+        if ( $this->has_reconciliation_support() ) {
+            ( new PaidReconciliationPage( $this->recon_service, $this->audit_logger ) )->register();
+        }
         ( new PendingApprovalsPage( new ScheduleRepository( $this->audit_logger ), new ApprovalPermissionService() ) )->register();
         ( new ScheduleDetailPage() )->register();
         ( new PostBoostPage() )->register();
@@ -332,15 +336,17 @@ class Plugin {
             ) );
         }, 10, 2 );
         ( new ManualExportAdapter() )->register();
-        ( new ReconciliationController(
-            $this->reconciliation_service,
-            $this->adjustment_service,
-            $this->settlement_worker,
-            $this->audit_logger
-        ) )->register();
-        $this->settlement_worker->register();
-        ( new SettlementAckController( $this->delivery_service, $this->audit_logger ) )->register();
-        ( new PaidReconciliationRunController( $this->recon_service, $this->audit_logger ) )->register();
+        if ( $this->has_reconciliation_support() ) {
+            ( new ReconciliationController(
+                $this->reconciliation_service,
+                $this->adjustment_service,
+                $this->settlement_worker,
+                $this->audit_logger
+            ) )->register();
+            $this->settlement_worker->register();
+            ( new SettlementAckController( $this->delivery_service, $this->audit_logger ) )->register();
+            ( new PaidReconciliationRunController( $this->recon_service, $this->audit_logger ) )->register();
+        }
         ( new ManualExportController( $this->audit_logger ) )->register();
         ( new SponsorApprovalController( new ScheduleRepository( $this->audit_logger ), $this->audit_logger, new ApprovalPermissionService() ) )->register();
         ( new ApprovalNotificationService( $this->audit_logger ) )->register();
@@ -363,9 +369,11 @@ class Plugin {
 
         ( new LifecycleSimulatorCommand( $this->lifecycle_simulator, $this->analytics_feedback ) )->register();
         ( new EventCatalogCommand( new PhaseEngine( $wpdb ) ) )->register();
-        ( new SettlementCommand( $this->settlement_worker ) )->register();
-        ( new SettlementDeliverCommand( $this->delivery_service, new SftpAccountingAdapter(), new AccountingApiAdapter() ) )->register();
-        ( new ReconcileCommand( $this->recon_service ) )->register();
+        if ( $this->has_reconciliation_support() ) {
+            ( new SettlementCommand( $this->settlement_worker ) )->register();
+            ( new SettlementDeliverCommand( $this->delivery_service, new SftpAccountingAdapter(), new AccountingApiAdapter() ) )->register();
+            ( new ReconcileCommand( $this->recon_service ) )->register();
+        }
     }
 
     /**
@@ -472,13 +480,15 @@ class Plugin {
         ( new PhaseEngine( $wpdb ) )->install();
         $audit = new AuditLogger( $wpdb );
         ( new Card1StateStore( $wpdb ) )->install();
-        ( new PaidReconciliationService( $wpdb, $audit ) )->install();
-        $adj_svc = new PaidReconciliationAdjustmentService( $wpdb, $audit );
-        $adj_svc->install();
-        $settlement_worker = new SettlementWorker( $wpdb, $adj_svc, FxService::from_config(), $audit );
-        $settlement_worker->install();
-        ( new SettlementDeliveryService( $wpdb, $settlement_worker, $audit, new DeliveryIdempotencyStore() ) )->install();
-        ( new ReconciliationService( $wpdb, $audit, new PaidReconciliationService( $wpdb, $audit ) ) )->install();
+        if ( $plugin->has_reconciliation_support() ) {
+            ( new PaidReconciliationService( $wpdb, $audit ) )->install();
+            $adj_svc = new PaidReconciliationAdjustmentService( $wpdb, $audit );
+            $adj_svc->install();
+            $settlement_worker = new SettlementWorker( $wpdb, $adj_svc, FxService::from_config(), $audit );
+            $settlement_worker->install();
+            ( new SettlementDeliveryService( $wpdb, $settlement_worker, $audit, new DeliveryIdempotencyStore() ) )->install();
+            ( new ReconciliationService( $wpdb, $audit, new PaidReconciliationService( $wpdb, $audit ) ) )->install();
+        }
         // OBS-02: analytics snapshots table.
         ( new MetricsSnapshotRepository( $wpdb ) )->install();
 
@@ -541,5 +551,37 @@ class Plugin {
         }
 
         flush_rewrite_rules();
+    }
+
+    /**
+     * Reconciliation is optional in this branch; skip wiring when the package is absent.
+     */
+    private function has_reconciliation_support() {
+        $required = array(
+            PaidReconciliationService::class,
+            PaidReconciliationAdjustmentService::class,
+            FxService::class,
+            SettlementWorker::class,
+            SettlementDeliveryService::class,
+            DeliveryIdempotencyStore::class,
+            SftpAccountingAdapter::class,
+            AccountingApiAdapter::class,
+            ReconciliationService::class,
+            ReconciliationController::class,
+            SettlementAckController::class,
+            PaidReconciliationRunController::class,
+            PaidReconciliationPage::class,
+            SettlementCommand::class,
+            SettlementDeliverCommand::class,
+            ReconcileCommand::class,
+        );
+
+        foreach ( $required as $class ) {
+            if ( ! class_exists( $class ) ) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
