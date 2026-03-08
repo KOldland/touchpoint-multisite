@@ -46,6 +46,38 @@ Verify:
 - `migrations/verify.sql` reports expected schema/index state
 - no lock warnings or connection errors in the log
 
+### WP Engine / SSH tunnel fallback
+
+If the database is only reachable from the staging host and exposes MySQL on `127.0.0.1:3306`, create a local tunnel first.
+
+Terminal 1:
+
+```bash
+ssh -p 2222 -N \
+  -L 3307:127.0.0.1:3306 \
+  touchpoint5stg-1@touchpoint5stg.sftp.wpengine.com
+```
+
+Terminal 2:
+
+```bash
+read -s STAGING_DB_PASS
+MYSQL_PWD="$STAGING_DB_PASS" \
+mysql --protocol=TCP \
+  -h 127.0.0.1 \
+  -P 3307 \
+  -u touchpoint5stg \
+  wp_touchpoint5stg \
+  < migrations/verify.sql \
+  > artifacts/phase4/migrate_verify_staging.log 2>&1
+```
+
+Notes:
+
+- this tunnel method is required because the current `scripts/migrate_verify.sh` accepts `--host` but does not yet expose a separate `--port` argument
+- if you prefer to use the script unchanged, bind the tunnel to local port `3306` instead of `3307`, but only if local `3306` is free
+- rotate the database password after use because it was exposed during coordination
+
 ## 4. Run staging load and canary smoke
 
 ```bash

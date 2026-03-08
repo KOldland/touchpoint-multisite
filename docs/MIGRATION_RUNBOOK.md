@@ -31,6 +31,32 @@ The verify phase runs `migrations/verify.sql` and writes:
 - `artifacts/migrations/staging_dryrun.log`
 - `artifacts/migrations/verify_output.txt`
 
+### SSH tunnel path for WP Engine-style hosts
+
+When the database only listens on the remote host loopback address, tunnel it locally first:
+
+```bash
+ssh -p 2222 -N \
+  -L 3307:127.0.0.1:3306 \
+  touchpoint5stg-1@touchpoint5stg.sftp.wpengine.com
+```
+
+Then run verification directly through the tunnel:
+
+```bash
+read -s STAGING_DB_PASS
+MYSQL_PWD="$STAGING_DB_PASS" \
+mysql --protocol=TCP \
+  -h 127.0.0.1 \
+  -P 3307 \
+  -u touchpoint5stg \
+  wp_touchpoint5stg \
+  < migrations/verify.sql \
+  > artifacts/phase4/migrate_verify_staging.log 2>&1
+```
+
+If you want to keep using `scripts/migrate_verify.sh` unchanged, bind the tunnel to local port `3306` and pass `--host 127.0.0.1`.
+
 ## Lock-sensitive migration guidance
 
 Use online DDL where supported:
