@@ -1,0 +1,51 @@
+name: khm-email-dedupe-ci
+
+on:
+  pull_request:
+    paths:
+      - 'app/public/wp-content/plugins/khm-plugin/src/Migrations/EnhancedEmailMigration.php'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Services/EnhancedEmailService.php'
+      - 'app/public/wp-content/plugins/khm-plugin/tests/Membership/EmailDedupeTest.php'
+      - 'app/public/wp-content/plugins/khm-plugin/tests/Services/EnhancedEmailServiceDedupeTest.php'
+      - 'migrations/20260307_add_email_idempotency_index.sql'
+      - '.github/workflows/khm-email-dedupe-ci.yml'
+  push:
+    branches:
+      - integration/hardening
+    paths:
+      - 'app/public/wp-content/plugins/khm-plugin/src/Migrations/EnhancedEmailMigration.php'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Services/EnhancedEmailService.php'
+      - 'app/public/wp-content/plugins/khm-plugin/tests/Membership/EmailDedupeTest.php'
+      - 'app/public/wp-content/plugins/khm-plugin/tests/Services/EnhancedEmailServiceDedupeTest.php'
+      - 'migrations/20260307_add_email_idempotency_index.sql'
+      - '.github/workflows/khm-email-dedupe-ci.yml'
+
+jobs:
+  email-dedupe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          coverage: none
+
+      - name: Install plugin dependencies
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Run email dedupe tests
+        run: |
+          mkdir -p artifacts/ai2-phase2
+          vendor/bin/phpunit -c app/public/wp-content/plugins/khm-plugin/phpunit.xml \
+            app/public/wp-content/plugins/khm-plugin/tests/Services/EnhancedEmailServiceDedupeTest.php \
+            app/public/wp-content/plugins/khm-plugin/tests/Membership/EmailDedupeTest.php \
+            --log-junit artifacts/ai2-phase2/phpunit_email_dedupe.xml \
+            > artifacts/ai2-phase2/email_dedupe_test.log 2>&1
+
+      - name: Upload email dedupe artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: khm-email-dedupe-artifacts
+          path: artifacts/ai2-phase2/
