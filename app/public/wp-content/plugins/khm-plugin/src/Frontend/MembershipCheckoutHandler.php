@@ -144,11 +144,24 @@ class MembershipCheckoutHandler {
 
         if ($user_id) {
             $metadata['user_id'] = (string) $user_id;
+            $metadata['wp_user_id'] = (string) $user_id;
+        }
+        if ( ! isset( $metadata['wp_user_id'] ) ) {
+            $metadata['wp_user_id'] = '';
         }
 
         $create_account = !empty($_POST['create_account']) ? '1' : '0';
         $profile = $this->sanitize_profile_payload($_POST['profile'] ?? null);
         $guest_email = sanitize_email((string) ($_POST['guest_email'] ?? ''));
+        $metadata['schedule_id'] = sanitize_text_field( (string) ( $_POST['schedule_id'] ?? '' ) );
+        $metadata['sponsor_id'] = sanitize_text_field( (string) ( $_POST['sponsor_id'] ?? '' ) );
+        $metadata['utm_source'] = sanitize_text_field( (string) ( $_POST['utm_source'] ?? '' ) );
+        $metadata['utm_medium'] = sanitize_text_field( (string) ( $_POST['utm_medium'] ?? '' ) );
+        $metadata['utm_campaign'] = sanitize_text_field( (string) ( $_POST['utm_campaign'] ?? '' ) );
+        $metadata['utm_term'] = sanitize_text_field( (string) ( $_POST['utm_term'] ?? '' ) );
+        $metadata['utm_content'] = sanitize_text_field( (string) ( $_POST['utm_content'] ?? '' ) );
+        $metadata['idempotency_key'] = sanitize_text_field( (string) ( $_POST['idempotency_key'] ?? '' ) );
+        $metadata['consent'] = ! empty( $_POST['consent'] ) ? '1' : '0';
 
         if ($create_account === '1') {
             if ($profile['first_name'] === '' || $profile['last_name'] === '') {
