@@ -77,26 +77,49 @@ class AuditLogger {
     }
 
     /**
-     * Persist a structured telemetry event to the audit log.
+     * Persist an event to the audit log.
      *
-     * Called by EventEmitter as the audit-first fallback so events remain
-     * queryable even if the telemetry backend is unavailable.
+     * Supports two signatures:
+     * - Compliance: record_event(event_name, payload)
+     * - Telemetry: record_event(trace_id, event_name, timestamp, payload)
      *
-     * @param string $trace_id   Correlation ID shared across related events.
-     * @param string $event_name Canonical event name (e.g. "generate.request").
-     * @param int    $timestamp  Unix timestamp of the event.
-     * @param array  $payload    Full event envelope (must be PII-safe before calling).
+     * @param mixed ...$args Variable arguments based on signature.
      */
-    public function record_event( string $trace_id, string $event_name, int $timestamp, array $payload ): void {
-        $this->log( 'telemetry_event', array(
-            'object_type' => 'telemetry',
-            'details'     => array(
-                'trace_id'   => $trace_id,
-                'event_name' => $event_name,
-                'timestamp'  => $timestamp,
-                'payload'    => $payload,
-            ),
-        ) );
+    public function record_event( ...$args ): void {
+        // Handle compliance signature: record_event(event_name, payload)
+        if ( count( $args ) === 2 && is_string( $args[0] ) && is_array( $args[1] ) ) {
+            $event_name = $args[0];
+            $payload = $args[1];
+            
+            $context = array(
+                'user_id'     => isset( $payload['user_id'] ) ? (int) $payload['user_id'] : get_current_user_id(),
+                'object_type' => (string) ( $payload['object_type'] ?? 'compliance_rule' ),
+                'object_id'   => isset( $payload['object_id'] ) ? (int) $payload['object_id'] : 0,
+                'details'     => $payload,
+            );
+            
+            $this->log( $event_name, $context );
+            return;
+        }
+        
+        // Handle telemetry signature: record_event(trace_id, event_name, timestamp, payload)
+        if ( count( $args ) === 4 ) {
+            list( $trace_id, $event_name, $timestamp, $payload ) = $args;
+            
+            $this->log( 'telemetry_event', array(
+                'object_type' => 'telemetry',
+                'details'     => array(
+                    'trace_id'   => $trace_id,
+                    'event_name' => $event_name,
+                    'timestamp'  => $timestamp,
+                    'payload'    => $payload,
+                ),
+            ) );
+            return;
+        }
+        
+        // Fallback for unexpected arguments
+        error_log( 'AuditLogger::record_event called with unexpected arguments: ' . wp_json_encode( $args ) );
     }
 
     /**
