@@ -1,0 +1,16 @@
+card: SMMA-Approval
+bucket: SMMA
+
+allowed_paths:
+  - app/public/wp-content/plugins/kh-smma/src/Admin/
+  - app/public/wp-content/plugins/kh-smma/src/API/
+  - app/public/wp-content/plugins/kh-smma/src/Services/
+  - app/public/wp-content/plugins/kh-smma/src/Scheduling/
+  - app/public/wp-content/plugins/kh-smma/tests/
+  - tests/SMMA/
+  - docs/smma/
+
+protected_paths:
+  - docs/contracts/
+  - golden-fixtures/
+  - .github/workflows/

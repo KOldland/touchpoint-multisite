@@ -1,0 +1,27 @@
+name: Migration Guard
+
+on:
+  pull_request:
+
+jobs:
+  migration-guard:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+
+      - name: Immutable + Sequential Migration Checks
+        run: php scripts/migration_guard.php
+
+      - name: Schema Drift Check
+        env:
+          SCHEMA_APPLY_CMD: ${{ vars.SCHEMA_APPLY_CMD }}
+          SCHEMA_VALIDATE_CMD: ${{ vars.SCHEMA_VALIDATE_CMD }}
+        run: php scripts/schema_drift_guard.php
