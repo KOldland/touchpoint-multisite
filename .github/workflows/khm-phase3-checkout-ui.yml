@@ -1,0 +1,65 @@
+name: khm-phase3-checkout-ui
+
+on:
+  pull_request:
+    paths:
+      - 'app/public/wp-content/plugins/khm-plugin/assets/js/checkout-ui-helpers.js'
+      - 'app/public/wp-content/plugins/khm-plugin/assets/js/membership-modal.js'
+      - 'app/public/wp-content/plugins/khm-plugin/assets/js/landing.js'
+      - 'app/public/wp-content/plugins/khm-plugin/assets/js/price-review.js'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Admin/AdminMenu.php'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Admin/pages/price-review.php'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Membership/PriceOverrideEndpoint.php'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Membership/LandingPageShortcode.php'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Elementor/widgets/MembershipCheckoutButton_Widget.php'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Public/MembershipCheckoutButtonShortcode.php'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Services/MembershipRepository.php'
+      - 'app/public/wp-content/plugins/khm-plugin/templates/landing.php'
+      - 'app/public/wp-content/plugins/khm-plugin/tests/Membership/PriceOverrideEndpointTest.php'
+      - 'app/public/wp-content/plugins/khm-plugin/tests/UI/checkout_ui_helpers.test.js'
+      - '.github/workflows/khm-phase3-checkout-ui.yml'
+      - 'docs/PHASE3_API_CONTRACT.md'
+  push:
+    branches:
+      - ai2/phase3-checkout-ui
+
+jobs:
+  checkout-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          tools: composer:v2
+
+      - name: Install KHM plugin test dependencies
+        run: |
+          cd app/public/wp-content/plugins/khm-plugin
+          composer install --no-interaction --prefer-dist
+
+      - name: Run checkout UI node test
+        run: node app/public/wp-content/plugins/khm-plugin/tests/UI/checkout_ui_helpers.test.js
+
+      - name: Run checkout PHP tests
+        run: |
+          mkdir -p app/public/wp-content/plugins/khm-plugin/artifacts/ai2-phase3
+          cd app/public/wp-content/plugins/khm-plugin
+          vendor/bin/phpunit \
+            tests/Membership/PromoValidationTest.php \
+            tests/Membership/SignupInitTest.php \
+            tests/Membership/LandingSuccessEndpointTest.php \
+            tests/Membership/PriceOverrideEndpointTest.php \
+            > artifacts/ai2-phase3/phpunit_signup_checkout_ui.log
+          cat artifacts/ai2-phase3/phpunit_signup_checkout_ui.log
+
+      - name: Upload checkout UI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: khm-phase3-checkout-ui
+          path: app/public/wp-content/plugins/khm-plugin/artifacts/ai2-phase3/phpunit_signup_checkout_ui.log

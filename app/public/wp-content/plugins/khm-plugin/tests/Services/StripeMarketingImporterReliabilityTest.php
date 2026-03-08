@@ -10,12 +10,18 @@ namespace KHM\Tests\Services;
 use KHM\Services\LevelRepository;
 use KHM\Services\StripeMarketingImportAuditLogger;
 use KHM\Services\StripeMarketingImporter;
+use KHM\Models\MembershipLevel;
 use PHPUnit\Framework\TestCase;
 
 class StripeMarketingImporterReliabilityTest extends TestCase {
 
 	public function test_import_skips_when_content_unchanged(): void {
 		$repo = $this->createMock( LevelRepository::class );
+		$repo
+			->expects( $this->once() )
+			->method( 'get' )
+			->with( 22, true )
+			->willReturn( new MembershipLevel( [ 'id' => 22, 'name' => 'Premium' ] ) );
 		$repo
 			->expects( $this->once() )
 			->method( 'getMeta' )
@@ -25,13 +31,13 @@ class StripeMarketingImporterReliabilityTest extends TestCase {
 					'presentation' => [
 						'marketing_features' => [ 'Feature one', 'Feature two' ],
 					],
-					'stripe_product_id' => 'prod_same',
+					'stripe_product_id' => 'prod_same1',
 				]
 			);
 
 		$repo
 			->expects( $this->never() )
-			->method( 'updateMeta' );
+			->method( 'update' );
 
 		$auditLogger = $this->createMock( StripeMarketingImportAuditLogger::class );
 		$auditLogger->method( 'log' );
@@ -62,7 +68,7 @@ class StripeMarketingImporterReliabilityTest extends TestCase {
 			}
 		};
 
-		$result = $importer->importProductToLevel( 'prod_same', null, false, 'cli' );
+		$result = $importer->importProductToLevel( 'prod_same1', null, false, 'cli' );
 		$this->assertSame( 'unchanged', $result['skipped_reason'] );
 		$this->assertFalse( $result['changed'] );
 	}
@@ -88,7 +94,7 @@ class StripeMarketingImporterReliabilityTest extends TestCase {
 			}
 		};
 
-		$result = $importer->importProductToLevel( 'prod_locked', 10, false, 'webhook' );
+		$result = $importer->importProductToLevel( 'prod_locked1', 10, false, 'webhook' );
 		$this->assertSame( 'locked', $result['skipped_reason'] );
 		$this->assertFalse( $result['changed'] );
 	}

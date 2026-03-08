@@ -1,9 +1,9 @@
 {
-    "version": "1.0.0",
-    "prompt_hash": "138c6166b6bdda7d931c92cf595499f574848b9728e233674b5288f3ea36f1ee",
-    "prompt_version": "cic-01",
+    "version": "1.1.0",
+    "prompt_hash": "b6f0733428452dd57827b0341d266107ca938e923cb23e93fcd99c41d81d1949",
+    "prompt_version": "paid-01",
     "created_at": "2026-03-03T00:00:00Z",
-    "author": "@ci-qa-team",
-    "checksum": "ca5e68ab21c838be9e7b9e34f3b2b3cb673457d28c0c9763b652b67ec822ebc4",
-    "notes": "Canonical CIC-01 golden fixture"
+    "author": "@paid-adapter-team",
+    "checksum": "b6f0733428452dd57827b0341d266107ca938e923cb23e93fcd99c41d81d1949",
+    "notes": "PAID-01: canonical dry_run manifest input fixture — replaces CIC-01 template placeholder"
 }

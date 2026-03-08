@@ -1,0 +1,45 @@
+name: MEM-08 Release Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment label (staging|production)'
+        required: false
+        default: 'staging'
+        type: string
+  pull_request:
+    branches: [main, staging]
+    paths:
+      - 'scripts/mem_release_gate_check.php'
+      - 'docs/membership/release_runbook.md'
+      - 'docs/membership/post_release_checklist.md'
+      - 'observability/dashboards/membership_health.json'
+      - '.github/workflows/mem-08-release-gate.yml'
+
+jobs:
+  mem-release-gate:
+    name: mem-release-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+
+      - name: Install khm-plugin dependencies
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Run MEM release gate checks
+        run: |
+          mkdir -p artifacts
+          php scripts/mem_release_gate_check.php --environment="${{ inputs.environment || 'staging' }}" | tee artifacts/mem_release_gate.log
+
+      - name: Upload gate artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mem08-release-gate-artifacts
+          path: artifacts/mem_release_gate.log

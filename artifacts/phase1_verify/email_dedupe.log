@@ -1,0 +1,10 @@
+Phase-1 email dedupe verification summary
+
+Direct committed runtime dedupe smoke output was not present in the repository at report time.
+
+Supporting source/test references:
+- app/public/wp-content/plugins/khm-plugin/tests/Services/EnhancedEmailServiceQueueTest.php
+- app/public/wp-content/plugins/khm-plugin/tests/helpers/email_queue_stub.php
+
+Result:
+- Queue processing behavior is covered in tests, but no committed standalone email dedupe smoke log was available.

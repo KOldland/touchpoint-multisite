@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://khm.local/contracts/membership_scaling_indexes.json",
+  "title": "Membership Scaling Index Plan",
+  "type": "object",
+  "required": ["version", "migration_file", "tables"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "mem-09"
+    },
+    "migration_file": {
+      "type": "string",
+      "const": "migrations/20260304_add_indexes_attribution.php"
+    },
+    "tables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["table", "indexes"],
+        "properties": {
+          "table": { "type": "string" },
+          "indexes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "columns", "purpose"],
+              "properties": {
+                "name": { "type": "string" },
+                "columns": { "type": "string" },
+                "purpose": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "tables": [
+    {
+      "table": "wp_promotion_attribution",
+      "indexes": [
+        { "name": "idx_promotion_schedule_created", "columns": "schedule_id, created_at", "purpose": "schedule report pagination" },
+        { "name": "idx_promotion_sponsor_created", "columns": "sponsor_id, created_at", "purpose": "sponsor report filters" },
+        { "name": "idx_promotion_created_id", "columns": "created_at, id", "purpose": "time-ordered scans and cursoring" },
+        { "name": "idx_promotion_retention_cursor", "columns": "anonymized_at, legal_hold_until, id", "purpose": "retention candidate lookup" }
+      ]
+    },
+    {
+      "table": "wp_khm_processed_webhook_events",
+      "indexes": [
+        { "name": "idx_khm_processed_events_status_created", "columns": "status, created_at", "purpose": "ops status queues" },
+        { "name": "idx_khm_processed_events_type_created", "columns": "event_type, created_at", "purpose": "event-type drilldown" }
+      ]
+    },
+    {
+      "table": "wp_khm_processed_webhooks",
+      "indexes": [
+        { "name": "idx_khm_processed_status_created", "columns": "status, created_at", "purpose": "legacy status scans" },
+        { "name": "idx_khm_processed_type_created", "columns": "event_type, created_at", "purpose": "legacy type drilldown" }
+      ]
+    },
+    {
+      "table": "wp_kh_paid_reconciliations",
+      "indexes": [
+        { "name": "idx_paid_reconciliations_status_created", "columns": "status, created_at", "purpose": "finance status screens" },
+        { "name": "idx_paid_reconciliations_sponsor_created", "columns": "sponsor_id, created_at", "purpose": "sponsor-level reconciliation views" },
+        { "name": "idx_paid_reconciliations_discrepancy", "columns": "discrepancy_percent, created_at", "purpose": "discrepancy alert triage" }
+      ]
+    },
+    {
+      "table": "wp_khm_email_queue",
+      "indexes": [
+        { "name": "idx_khm_email_queue_status_schedule_priority", "columns": "status, scheduled_at, priority", "purpose": "queue worker dequeue path" },
+        { "name": "idx_khm_email_queue_status_updated", "columns": "status, updated_at", "purpose": "DLQ/failed queue aging" }
+      ]
+    }
+  ]
+}

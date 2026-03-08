@@ -1,0 +1,94 @@
+{
+  "persistence": {
+    "approve_case": {
+      "schedule_id": "1201",
+      "sponsor_id": "sp_qa_01",
+      "reviewer_user_id": 45,
+      "review_notes": "QA approve persistence path",
+      "trace_id": "trace_persist_approve_1"
+    },
+    "reject_case": {
+      "schedule_id": "1202",
+      "sponsor_id": "sp_qa_01",
+      "reviewer_user_id": 46,
+      "review_notes": "QA reject persistence path",
+      "trace_id": "trace_persist_reject_1"
+    }
+  },
+  "integration": {
+    "warn_visibility_rows": [
+      {
+        "schedule_id": "1301",
+        "variant_id": "var_1301",
+        "post_title": "WARN schedule remains visible",
+        "sponsor_id": "sp_qa_02",
+        "sponsor_name": "QA Sponsor",
+        "submitter": "qa.editor@example.com",
+        "requested_schedule_date": "2026-03-10T10:00:00Z",
+        "approval_status": "pending",
+        "approval_required": true,
+        "approval_reason": "compliance_changed",
+        "compliance_status": "WARN",
+        "compliance_reason": "Needs sponsor sign-off",
+        "ruleset_version": "r2026.03"
+      },
+      {
+        "schedule_id": "1302",
+        "variant_id": "var_1302",
+        "post_title": "Already approved",
+        "sponsor_id": "sp_qa_02",
+        "sponsor_name": "QA Sponsor",
+        "submitter": "qa.editor@example.com",
+        "requested_schedule_date": "2026-03-10T11:00:00Z",
+        "approval_status": "approved",
+        "approval_required": false,
+        "approval_reason": "",
+        "compliance_status": "OK",
+        "compliance_reason": "",
+        "ruleset_version": "r2026.03"
+      }
+    ],
+    "dispatch_transition_case": {
+      "schedule_id": "1303",
+      "sponsor_id": "sp_qa_02",
+      "reviewer_user_id": 47,
+      "review_notes": "Dispatch unblock integration"
+    }
+  },
+  "smoke": {
+    "schedule": {
+      "schedule_id": "1401",
+      "variant_id": "var_1401",
+      "sponsor_id": "sp_qa_03",
+      "approval_status": "approved",
+      "approval_required": true,
+      "compliance_status": "WARN",
+      "schedule_time": "2026-03-15T08:00:00Z",
+      "boost_options": {
+        "budget_cents": 1500,
+        "channels": ["linkedin"]
+      }
+    },
+    "variant": {
+      "variant_id": "var_1401",
+      "linkedIn": {
+        "text": "QA smoke variant text"
+      }
+    },
+    "bundle": {
+      "schedule_id": "1401",
+      "variant_id": "var_1401",
+      "file_name": "schedule_export_1401.zip",
+      "bundle_size": 120,
+      "manifest": {
+        "schedule_id": "1401",
+        "variant_id": "var_1401",
+        "estimated_spend": 15,
+        "estimated_ops": 1,
+        "approval_status": "approved",
+        "compliance_status": "WARN"
+      }
+    },
+    "trace_id": "trace_smoke_sa08_1"
+  }
+}

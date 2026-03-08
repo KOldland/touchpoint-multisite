@@ -16,6 +16,11 @@ use PHPUnit\Framework\TestCase;
 
 class WebhooksCheckoutAssignTest extends TestCase {
 	public function test_checkout_session_completed_assigns_membership(): void {
+		$GLOBALS['khm_test_membership_levels'][456] = (object) [
+			'id' => 456,
+			'name' => 'Pro',
+		];
+
 		$verifier = $this->createMock( WebhookVerifierInterface::class );
 		$idempotency = $this->createMock( IdempotencyStoreInterface::class );
 		$orders = $this->createMock( OrderRepositoryInterface::class );

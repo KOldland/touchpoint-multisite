@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Implements PaidAdapterContract for Google Ads campaigns.
  * Supports both dry-run (preview) and execute modes.
  */
-class GoogleAdsAdapter extends PaidAdapterContract {
+class GoogleAdsAdapter extends PaidAdapterBase {
     /** @var TokenRepository */
     private $tokens;
 
@@ -96,7 +96,7 @@ class GoogleAdsAdapter extends PaidAdapterContract {
     /**
      * Dry-run: Return operation sequence without executing API calls.
      */
-    public function dry_run( array $schedule_payload ) {
+    public function dry_run( array $schedule_payload, array $opts = [] ): array {
         $validation = $this->validate_payload( $schedule_payload );
         if ( is_wp_error( $validation ) ) {
             return $validation;
@@ -154,7 +154,7 @@ class GoogleAdsAdapter extends PaidAdapterContract {
     /**
      * Execute: Perform real API calls (currently stubbed for sandbox).
      */
-    public function execute( array $schedule_payload ) {
+    public function execute( array $schedule_payload, array $opts = [] ): array {
         $validation = $this->validate_payload( $schedule_payload );
         if ( is_wp_error( $validation ) ) {
             return $validation;
@@ -200,7 +200,7 @@ class GoogleAdsAdapter extends PaidAdapterContract {
     /**
      * Get adapter metadata.
      */
-    public function get_metadata() {
+    public function get_metadata(): array {
         return array(
             'name'        => 'Google Ads',
             'version'     => '1.0.0',

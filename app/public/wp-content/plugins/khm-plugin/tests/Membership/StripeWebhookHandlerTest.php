@@ -5,7 +5,10 @@ namespace KHM\Tests\Membership;
 use PHPUnit\Framework\TestCase;
 use KHM\Membership\ProcessedWebhook;
 use KHM\Membership\StripeWebhookHandler;
+use KHM\Services\MembershipRepository;
 use WP_REST_Request;
+
+require_once dirname(__DIR__) . '/helpers/stripe_signature.php';
 
 class StripeWebhookHandlerTest extends TestCase {
     private $handler;
@@ -19,7 +22,10 @@ class StripeWebhookHandlerTest extends TestCase {
         // Clean up test data
         global $wpdb;
         $wpdb->query("DELETE FROM {$wpdb->prefix}khm_processed_webhooks");
+        $wpdb->query("DELETE FROM {$wpdb->prefix}khm_processed_webhook_events");
         $wpdb->query("DELETE FROM {$wpdb->prefix}khm_membership_webhook_operations");
+        $wpdb->query("DELETE FROM {$wpdb->prefix}khm_webhook_dead_letter");
+        $wpdb->query("DELETE FROM {$wpdb->prefix}promotion_attribution");
         $wpdb->query("DELETE FROM {$wpdb->prefix}user_membership");
         if ( isset( $GLOBALS['khm_test_transients'] ) && is_array( $GLOBALS['khm_test_transients'] ) ) {
             $GLOBALS['khm_test_transients'] = [];
@@ -29,7 +35,10 @@ class StripeWebhookHandlerTest extends TestCase {
     protected function tearDown(): void {
         global $wpdb;
         $wpdb->query("DELETE FROM {$wpdb->prefix}khm_processed_webhooks");
+        $wpdb->query("DELETE FROM {$wpdb->prefix}khm_processed_webhook_events");
         $wpdb->query("DELETE FROM {$wpdb->prefix}khm_membership_webhook_operations");
+        $wpdb->query("DELETE FROM {$wpdb->prefix}khm_webhook_dead_letter");
+        $wpdb->query("DELETE FROM {$wpdb->prefix}promotion_attribution");
         $wpdb->query("DELETE FROM {$wpdb->prefix}user_membership");
         if ( isset( $GLOBALS['khm_test_transients'] ) && is_array( $GLOBALS['khm_test_transients'] ) ) {
             $GLOBALS['khm_test_transients'] = [];
@@ -97,6 +106,10 @@ class StripeWebhookHandlerTest extends TestCase {
             'evt_test_12345'
         ));
         $this->assertEquals(1, $count);
+    }
+
+    public function testWebhookIdempotency(): void {
+        $this->test_idempotency_prevents_duplicate_processing();
     }
 
     public function test_checkout_session_completed_creates_membership() {
@@ -168,6 +181,34 @@ class StripeWebhookHandlerTest extends TestCase {
         // Cleanup
         remove_filter('khm_membership_tier_registry', $filter);
         $wpdb->delete($wpdb->prefix . 'membership_tier', ['id' => $plan_id]);
+    }
+
+    public function testWebhookCreatesAttributionFromMetadata(): void {
+        $this->test_checkout_session_completed_creates_membership();
+    }
+
+    public function test_resolve_or_create_user_prefers_stripe_email_over_metadata_guest_email(): void {
+        $stripeUser = (object) [ 'ID' => 501 ];
+        $guestUser = (object) [ 'ID' => 777 ];
+
+        $GLOBALS['khm_test_users_by']['email'] = [
+            'stripe@example.com' => $stripeUser,
+            'guest@example.com' => $guestUser,
+        ];
+
+        $session = (object) [
+            'customer_details' => (object) [ 'email' => 'stripe@example.com' ],
+            'customer_email' => 'fallback@example.com',
+        ];
+        $metadata = [
+            'guest_email' => 'guest@example.com',
+        ];
+
+        $method = new \ReflectionMethod( StripeWebhookHandler::class, 'resolve_or_create_user_from_session' );
+        $method->setAccessible( true );
+        $resolvedUserId = (int) $method->invoke( $this->handler, $session, $metadata, 0 );
+
+        $this->assertSame( 501, $resolvedUserId );
     }
 
     public function test_invoice_paid_updates_status_to_active() {
@@ -617,5 +658,205 @@ class StripeWebhookHandlerTest extends TestCase {
         $this->assertEquals('price_pro_monthly', $membership['stripe_price_id']);
         remove_filter('khm_membership_tier_registry', $filter);
         $wpdb->delete($wpdb->prefix . 'membership_tier', ['id' => $pro_tier_id]);
+    }
+
+    public function test_checkout_no_consent_creates_stub_attribution_without_utm(): void {
+        global $wpdb;
+
+        $wpdb->insert($wpdb->prefix . 'membership_tier', [
+            'slug' => 'premium',
+            'name' => 'Premium',
+            'price_cents' => 2999,
+            'is_active' => 1
+        ]);
+        $plan_id = $wpdb->insert_id;
+
+        $filter = function () {
+            return [
+                'premium' => [
+                    'price_id' => 'price_premium_monthly',
+                    'trial_eligible' => false,
+                    'trial_days' => 0,
+                ],
+            ];
+        };
+        add_filter('khm_membership_tier_registry', $filter);
+
+        $event_payload = [
+            'id' => 'evt_checkout_no_consent',
+            'type' => 'checkout.session.completed',
+            'data' => [
+                'object' => [
+                    'id' => 'cs_no_consent',
+                    'mode' => 'subscription',
+                    'customer' => 'cus_no_consent',
+                    'subscription' => 'sub_no_consent',
+                    'metadata' => [
+                        'user_id' => '123',
+                        'membership_level_id' => (string) $plan_id,
+                        'tier_slug' => 'premium',
+                        'stripe_price_id' => 'price_premium_monthly',
+                        'schedule_id' => '77',
+                        'sponsor_id' => '11',
+                        'utm_source' => 'newsletter',
+                        'utm_campaign' => 'spring',
+                        'consent' => '0',
+                    ],
+                ],
+            ],
+        ];
+
+        $request = new WP_REST_Request('POST');
+        $request->set_body(json_encode($event_payload));
+        $response = $this->handler->handle_request($request);
+        $this->assertEquals(200, $response->get_status());
+
+        $this->handler->process_queued_event([
+            'event_id' => 'evt_checkout_no_consent',
+            'event_type' => 'checkout.session.completed',
+            'data_object' => $event_payload['data']['object'],
+            'trace_id' => 'trace-no-consent',
+        ]);
+
+        $attrib = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}promotion_attribution WHERE user_id = %d",
+            123
+        ), ARRAY_A);
+
+        $this->assertNotNull($attrib);
+        $this->assertEquals('paid_no_consent', $attrib['conversion_type'] ?? '');
+        $this->assertEquals('', $attrib['utm_source'] ?? '');
+        $this->assertEquals('', $attrib['utm_campaign'] ?? '');
+        $this->assertEquals('', $attrib['user_email'] ?? '');
+
+        remove_filter('khm_membership_tier_registry', $filter);
+        $wpdb->delete($wpdb->prefix . 'membership_tier', ['id' => $plan_id]);
+    }
+
+    public function test_processing_failure_creates_dead_letter_record(): void {
+        global $wpdb;
+
+        $this->handler->process_queued_event([
+            'event_id' => 'evt_dead_letter_1',
+            'event_type' => 'invoice.paid',
+            'data_object' => [
+                'id' => 'in_dead_letter',
+                'customer' => 'cus_missing',
+                'subscription' => 'sub_missing',
+            ],
+            'trace_id' => 'trace-dead-letter',
+        ]);
+
+        $dead_letter = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}khm_webhook_dead_letter WHERE event_id = %s",
+            'evt_dead_letter_1'
+        ), ARRAY_A);
+
+        $this->assertNotNull($dead_letter);
+        $this->assertEquals('processing_failed', $dead_letter['reason'] ?? '');
+    }
+
+    public function test_invalid_signature_rejected_when_verification_enabled(): void {
+        remove_filter( 'khm_membership_webhook_skip_signature_verification', '__return_true' );
+        putenv( 'KH_STRIPE_WEBHOOK_SECRET=whsec_test_secret' );
+
+        $request = new WP_REST_Request( 'POST' );
+        $request->set_body( wp_json_encode([
+            'id' => 'evt_invalid_sig_001',
+            'type' => 'invoice.paid',
+            'data' => [
+                'object' => [ 'id' => 'in_invalid_sig', 'customer' => 'cus_invalid_sig' ],
+            ],
+        ]) );
+        $request->set_header( 'stripe-signature', 't=1700000000,v1=invalid' );
+
+        $response = $this->handler->handle_request( $request );
+        $this->assertEquals( 400, $response->get_status() );
+        $this->assertEquals( 'Invalid signature', $response->get_data()['error'] ?? '' );
+
+        putenv( 'KH_STRIPE_WEBHOOK_SECRET' );
+        add_filter( 'khm_membership_webhook_skip_signature_verification', '__return_true' );
+    }
+
+    public function test_webhook_falls_back_to_temp_attribution(): void {
+        global $wpdb;
+
+        $wpdb->insert( $wpdb->prefix . 'membership_tier', [
+            'slug' => 'premium',
+            'name' => 'Premium',
+            'price_cents' => 2999,
+            'is_active' => 1,
+        ] );
+        $plan_id = $wpdb->insert_id;
+
+        $repo = new MembershipRepository();
+        $repo->storeTempAttribution( 'cs_temp_fallback_unit', [
+            'schedule_id' => '555',
+            'sponsor_id' => '66',
+            'utm_source' => 'temp_source',
+            'utm_campaign' => 'temp_campaign',
+            'consent' => true,
+        ], 3600 );
+
+        $filter = function () {
+            return [
+                'premium' => [
+                    'price_id' => 'price_premium_monthly',
+                    'trial_eligible' => false,
+                    'trial_days' => 0,
+                ],
+            ];
+        };
+        add_filter( 'khm_membership_tier_registry', $filter );
+
+        $payload = [
+            'id' => 'evt_temp_fallback_001',
+            'type' => 'checkout.session.completed',
+            'data' => [
+                'object' => [
+                    'id' => 'cs_temp_fallback_unit',
+                    'mode' => 'subscription',
+                    'customer' => 'cus_temp_fallback',
+                    'subscription' => 'sub_temp_fallback',
+                    'metadata' => [
+                        'user_id' => '123',
+                        'membership_level_id' => (string) $plan_id,
+                        'tier_slug' => 'premium',
+                        'stripe_price_id' => 'price_premium_monthly',
+                        'schedule_id' => '',
+                        'sponsor_id' => '',
+                        'utm_source' => '',
+                    ],
+                ],
+            ],
+        ];
+
+        $request = new WP_REST_Request( 'POST' );
+        $request->set_body( wp_json_encode( $payload ) );
+        $response = $this->handler->handle_request( $request );
+        $this->assertEquals( 200, $response->get_status() );
+
+        $this->handler->process_queued_event([
+            'event_id' => 'evt_temp_fallback_001',
+            'event_type' => 'checkout.session.completed',
+            'data_object' => $payload['data']['object'],
+            'trace_id' => 'trace-temp-fallback-unit',
+        ]);
+
+        $row = $wpdb->get_row(
+            $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}promotion_attribution WHERE user_id = %d", 123 ),
+            ARRAY_A
+        );
+
+        $this->assertNotNull( $row );
+        $this->assertSame( '555', (string) ( $row['schedule_id'] ?? '' ) );
+        $this->assertSame( '', (string) ( $row['utm_source'] ?? '' ) );
+
+        remove_filter( 'khm_membership_tier_registry', $filter );
+        $wpdb->delete( $wpdb->prefix . 'membership_tier', [ 'id' => $plan_id ] );
+    }
+
+    public function testWebhookFallsBackToTempAttribution(): void {
+        $this->test_webhook_falls_back_to_temp_attribution();
     }
 }

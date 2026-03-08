@@ -1,0 +1,41 @@
+name: smma-frontend-post-publish-ci
+
+on:
+  pull_request:
+    paths:
+      - 'app/public/wp-content/plugins/kh-smma/assets/js/smma-admin.js'
+      - 'app/public/wp-content/plugins/kh-smma/assets/js/smma-variant-grid.js'
+      - 'app/public/wp-content/plugins/kh-smma/assets/css/smma-admin.css'
+      - 'app/public/wp-content/plugins/kh-smma/src/Admin/AssetsManager.php'
+      - 'app/public/wp-content/plugins/kh-smma/tests/frontend/**'
+      - '.github/workflows/smma-frontend-post-publish-ci.yml'
+      - 'docs/PHASE3_API_CONTRACT.md'
+  push:
+    branches:
+      - ai2/phase3-post-publish
+
+jobs:
+  frontend-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run variant grid unit test
+        run: node app/public/wp-content/plugins/kh-smma/tests/frontend/variant-grid.test.js
+
+      - name: Generate deterministic demo log
+        run: |
+          mkdir -p app/public/wp-content/plugins/kh-smma/artifacts/phase3
+          node app/public/wp-content/plugins/kh-smma/tests/frontend/post_publish_demo.js \
+            > app/public/wp-content/plugins/kh-smma/artifacts/phase3/demo_run.log
+          cat app/public/wp-content/plugins/kh-smma/artifacts/phase3/demo_run.log
+
+      - name: Upload demo artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smma-phase3-post-publish
+          path: app/public/wp-content/plugins/kh-smma/artifacts/phase3/demo_run.log

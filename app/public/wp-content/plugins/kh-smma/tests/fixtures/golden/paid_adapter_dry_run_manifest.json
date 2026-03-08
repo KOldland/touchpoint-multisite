@@ -1,17 +1,35 @@
 {
-  "run_id": "dryrun_{{RUN_ID}}",
-  "adapter": "meta_ads",
-  "mode": "dry_run",
-  "items": [
+  "manifest_id": "man_20260303_001",
+  "campaign": {
+    "campaign_id": "camp_123",
+    "title": "Spring Boost"
+  },
+  "operations": [
     {
-      "asset_id": "asset_{{ASSET_ID_1}}",
-      "action": "create_campaign",
-      "status": "planned"
-    },
-    {
-      "asset_id": "asset_{{ASSET_ID_2}}",
-      "action": "create_adset",
-      "status": "planned"
+      "operation_id": "op_1",
+      "type": "CREATE_CAMPAIGN",
+      "channel": "linkedin",
+      "targeting": {
+        "geo": ["AU"],
+        "audience_ids": ["aud_1"]
+      },
+      "creative": {
+        "headline": "Grow Your Business",
+        "body": "Reach your audience today.",
+        "asset_ids": ["asset_1"]
+      },
+      "bid": {
+        "type": "CPM",
+        "amount": 10,
+        "currency": "AUD"
+      },
+      "start_time": "2026-04-01T10:00:00Z",
+      "end_time": "2026-04-07T10:00:00Z"
     }
-  ]
+  ],
+  "meta": {
+    "sponsor_id": "sp_456",
+    "schedule_id": "sch_123",
+    "idempotency_key": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  }
 }

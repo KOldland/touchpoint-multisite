@@ -15,6 +15,11 @@ use DateTimeInterface;
 
 class MembershipRepository implements MembershipRepositoryInterface {
 
+    private const TEMP_ATTRIBUTION_OPTION_PREFIX = 'khm_temp_attribution_';
+    private const SIGNUP_IDEMPOTENCY_OPTION_PREFIX = 'khm_signup_init_idem_';
+    private const PRICE_REVIEW_OVERRIDE_PREFIX = 'khm_price_review_override_';
+    private const RETENTION_DEFAULT_DAYS = 730;
+
     private string $tableName;
     private string $levelsTable;
     private string $usersTable;
@@ -30,14 +35,337 @@ class MembershipRepository implements MembershipRepositoryInterface {
         global $wpdb;
         $this->tableName = $wpdb->prefix . 'khm_memberships_users';
         $this->levelsTable = $wpdb->prefix . 'khm_membership_levels';
-        $this->usersTable  = $wpdb->users;
+        $this->usersTable  = isset( $wpdb->users ) && is_string( $wpdb->users ) && $wpdb->users !== ''
+            ? $wpdb->users
+            : $wpdb->prefix . 'users';
         $this->promotionAttributionTable = $wpdb->prefix . 'promotion_attribution';
         $this->sponsorsTable = $wpdb->prefix . 'khm_sponsors';
-        $this->postsTable = $wpdb->posts;
+        $this->postsTable = isset( $wpdb->posts ) && is_string( $wpdb->posts ) && $wpdb->posts !== ''
+            ? $wpdb->posts
+            : $wpdb->prefix . 'posts';
         $this->hasPromotionAttributionTable = $this->tableExists( $this->promotionAttributionTable );
         $this->hasSponsorsTable = $this->tableExists( $this->sponsorsTable );
         $this->hasPostsTable = $this->tableExists( $this->postsTable );
         $this->levels = new LevelRepository();
+    }
+
+    public function storeTempAttribution( string $sessionId, array $payload, int $ttlSeconds = 86400 ): bool {
+        $sessionId = sanitize_text_field( $sessionId );
+        if ( '' === $sessionId ) {
+            return false;
+        }
+
+        $ttlSeconds = max( 60, $ttlSeconds );
+        $record = [
+            'session_id' => $sessionId,
+            'payload' => $payload,
+            'stored_at' => gmdate( 'c' ),
+            'expires_at' => time() + $ttlSeconds,
+        ];
+
+        $optionKey = self::TEMP_ATTRIBUTION_OPTION_PREFIX . $sessionId;
+        $updated = update_option( $optionKey, $record, false );
+        set_transient( $optionKey, $record, $ttlSeconds );
+
+        return (bool) $updated || get_option( $optionKey, null ) !== null;
+    }
+
+    public function getTempAttribution( string $sessionId ): ?array {
+        $sessionId = sanitize_text_field( $sessionId );
+        if ( '' === $sessionId ) {
+            return null;
+        }
+
+        $optionKey = self::TEMP_ATTRIBUTION_OPTION_PREFIX . $sessionId;
+        $record = get_transient( $optionKey );
+        if ( ! is_array( $record ) ) {
+            $record = get_option( $optionKey, null );
+        }
+
+        if ( ! is_array( $record ) ) {
+            return null;
+        }
+
+        $expiresAt = isset( $record['expires_at'] ) ? (int) $record['expires_at'] : 0;
+        if ( $expiresAt > 0 && $expiresAt < time() ) {
+            delete_transient( $optionKey );
+            return null;
+        }
+
+        return $record;
+    }
+
+    public function storeSignupInitIdempotency( string $idempotencyKey, string $sessionId, string $checkoutUrl, int $ttlSeconds = 86400 ): bool {
+        $idempotencyKey = sanitize_text_field( $idempotencyKey );
+        $sessionId = sanitize_text_field( $sessionId );
+        if ( '' === $idempotencyKey || '' === $sessionId ) {
+            return false;
+        }
+
+        $ttlSeconds = max( 60, $ttlSeconds );
+        $optionKey = self::SIGNUP_IDEMPOTENCY_OPTION_PREFIX . md5( $idempotencyKey );
+        $record = [
+            'idempotency_key' => $idempotencyKey,
+            'session_id' => $sessionId,
+            'checkout_url' => function_exists( 'esc_url_raw' ) ? esc_url_raw( $checkoutUrl ) : ( filter_var( $checkoutUrl, FILTER_SANITIZE_URL ) ?: '' ),
+            'stored_at' => gmdate( 'c' ),
+            'expires_at' => time() + $ttlSeconds,
+        ];
+
+        $updated = update_option( $optionKey, $record, false );
+        set_transient( $optionKey, $record, $ttlSeconds );
+
+        return (bool) $updated || get_option( $optionKey, null ) !== null;
+    }
+
+    public function getSignupInitByIdempotency( string $idempotencyKey ): ?array {
+        $idempotencyKey = sanitize_text_field( $idempotencyKey );
+        if ( '' === $idempotencyKey ) {
+            return null;
+        }
+
+        $optionKey = self::SIGNUP_IDEMPOTENCY_OPTION_PREFIX . md5( $idempotencyKey );
+        $record = get_transient( $optionKey );
+        if ( ! is_array( $record ) ) {
+            $record = get_option( $optionKey, null );
+        }
+
+        if ( ! is_array( $record ) ) {
+            return null;
+        }
+
+        $expiresAt = isset( $record['expires_at'] ) ? (int) $record['expires_at'] : 0;
+        if ( $expiresAt > 0 && $expiresAt < time() ) {
+            delete_transient( $optionKey );
+            return null;
+        }
+
+        return $record;
+    }
+
+    public function savePriceReviewOverride( string $referenceId, array $payload ): bool {
+        $referenceId = sanitize_text_field( $referenceId );
+        if ( '' === $referenceId ) {
+            return false;
+        }
+
+        return update_option( self::PRICE_REVIEW_OVERRIDE_PREFIX . md5( $referenceId ), $payload, false );
+    }
+
+    public function getPriceReviewOverride( string $referenceId ): ?array {
+        $referenceId = sanitize_text_field( $referenceId );
+        if ( '' === $referenceId ) {
+            return null;
+        }
+
+        $value = get_option( self::PRICE_REVIEW_OVERRIDE_PREFIX . md5( $referenceId ), null );
+        return is_array( $value ) ? $value : null;
+    }
+
+    /**
+     * Persist checkout profile metadata onto user meta.
+     *
+     * @param int $userId User ID.
+     * @param array<string,mixed> $metadata Checkout metadata payload.
+     */
+    public function persistCheckoutProfileMeta( int $userId, array $metadata ): void {
+        if ( $userId <= 0 || empty( $metadata ) ) {
+            return;
+        }
+
+        $firstName = sanitize_text_field( (string) ( $metadata['profile_first_name'] ?? '' ) );
+        $lastName = sanitize_text_field( (string) ( $metadata['profile_last_name'] ?? '' ) );
+        $mobile = sanitize_text_field( (string) ( $metadata['profile_mobile'] ?? '' ) );
+        $jobTitle = sanitize_text_field( (string) ( $metadata['profile_job_title'] ?? '' ) );
+        $company = sanitize_text_field( (string) ( $metadata['profile_company'] ?? '' ) );
+        $marketingOptInProvided = array_key_exists( 'profile_marketing_optin', $metadata );
+        $marketingOptIn = $this->toBoolFlag( $metadata['profile_marketing_optin'] ?? null );
+
+        if ( $firstName !== '' ) {
+            update_user_meta( $userId, 'first_name', $firstName );
+        }
+        if ( $lastName !== '' ) {
+            update_user_meta( $userId, 'last_name', $lastName );
+        }
+        if ( $mobile !== '' ) {
+            update_user_meta( $userId, 'mobile', $mobile );
+        }
+        if ( $jobTitle !== '' ) {
+            update_user_meta( $userId, 'job_title', $jobTitle );
+        }
+        if ( $company !== '' ) {
+            update_user_meta( $userId, 'company', $company );
+        }
+        if ( $marketingOptInProvided ) {
+            update_user_meta( $userId, 'marketing_opt_in', $marketingOptIn ? 1 : 0 );
+        }
+    }
+
+    /**
+     * Normalize common bool-like values to bool.
+     *
+     * @param mixed $value
+     */
+    private function toBoolFlag( $value ): bool {
+        if ( is_bool( $value ) ) {
+            return $value;
+        }
+
+        if ( is_numeric( $value ) ) {
+            return (int) $value === 1;
+        }
+
+        $normalized = strtolower( trim( (string) $value ) );
+        return in_array( $normalized, [ '1', 'true', 'yes', 'on' ], true );
+    }
+
+    public function resolveLandingSchedule( string $scheduleId ): array {
+        $scheduleId = sanitize_text_field( $scheduleId );
+        $scheduleId = substr( preg_replace( '/[^A-Za-z0-9_-]/', '', $scheduleId ), 0, 128 );
+
+        $payload = [
+            'id' => $scheduleId,
+            'title' => '',
+            'recommended_post_time' => '',
+            'boost_copy' => '',
+        ];
+
+        if ( '' === $scheduleId ) {
+            $payload['id'] = 'unknown';
+            $payload['title'] = __( 'Membership Success', 'khm-membership' );
+            return $payload;
+        }
+
+        $numericId = 0;
+        if ( preg_match( '/(\d+)/', $scheduleId, $matches ) ) {
+            $numericId = absint( $matches[1] );
+        }
+
+        if ( $numericId > 0 && function_exists( 'get_post' ) ) {
+            $post = get_post( $numericId );
+            if ( is_object( $post ) && isset( $post->post_title ) ) {
+                $payload['title'] = sanitize_text_field( (string) $post->post_title );
+            }
+
+            if ( function_exists( 'get_post_meta' ) ) {
+                $payload['recommended_post_time'] = sanitize_text_field( (string) get_post_meta( $numericId, 'recommended_post_time', true ) );
+                $payload['boost_copy'] = sanitize_text_field( (string) get_post_meta( $numericId, 'boost_copy', true ) );
+            }
+        }
+
+        if ( '' === $payload['title'] ) {
+            $payload['title'] = __( 'Membership Success', 'khm-membership' );
+        }
+
+        return $payload;
+    }
+
+    public function resolveLandingSponsor( ?string $sponsorId ): ?array {
+        if ( null === $sponsorId ) {
+            return null;
+        }
+
+        $sponsorId = sanitize_text_field( $sponsorId );
+        $sponsorId = substr( preg_replace( '/[^A-Za-z0-9_-]/', '', $sponsorId ), 0, 128 );
+        if ( '' === $sponsorId ) {
+            return null;
+        }
+
+        $numericId = 0;
+        if ( preg_match( '/(\d+)/', $sponsorId, $matches ) ) {
+            $numericId = absint( $matches[1] );
+        }
+
+        $name = '';
+        if ( $numericId > 0 ) {
+            global $wpdb;
+            $table = $wpdb->prefix . 'khm_sponsors';
+            $name = (string) $wpdb->get_var(
+                $wpdb->prepare( "SELECT name FROM {$table} WHERE id = %d LIMIT 1", $numericId )
+            );
+        }
+
+        $logo = (string) get_option( 'khm_sponsor_logo_' . $sponsorId, '' );
+        $accent = sanitize_text_field( (string) get_option( 'khm_sponsor_accent_' . $sponsorId, '' ) );
+        $blurb = (string) get_option( 'khm_sponsor_blurb_' . $sponsorId, '' );
+
+        $allowedBlurb = [
+            'a' => [ 'href' => [], 'target' => [], 'rel' => [] ],
+            'strong' => [],
+            'em' => [],
+            'br' => [],
+            'p' => [],
+            'span' => [ 'class' => [] ],
+        ];
+
+        return [
+            'id' => $sponsorId,
+            'name' => sanitize_text_field( $name ),
+            'logo_url' => function_exists( 'esc_url_raw' ) ? esc_url_raw( $logo ) : ( filter_var( $logo, FILTER_SANITIZE_URL ) ?: '' ),
+            'accent_color' => preg_match( '/^#[A-Fa-f0-9]{6}$/', $accent ) ? $accent : '',
+            'blurb' => function_exists( 'wp_kses' ) ? wp_kses( $blurb, $allowedBlurb ) : strip_tags( $blurb, '<a><strong><em><br><p><span>' ),
+        ];
+    }
+
+    public function buildLandingSuccessCtas(): array {
+        return [
+            [ 'name' => 'Go to account', 'action' => 'account_url', 'url' => home_url( '/account' ) ],
+            [ 'name' => 'Download welcome pack', 'action' => 'download', 'url' => home_url( '/download/pack.pdf' ) ],
+            [ 'name' => 'Invite a friend', 'action' => 'invite', 'url' => home_url( '/invite' ) ],
+            [ 'name' => 'Manage membership', 'action' => 'manage', 'url' => home_url( '/account/membership' ) ],
+        ];
+    }
+
+    /**
+     * Create a promotion_attribution record.
+     *
+     * @param array $data Attribution data with keys: schedule_id, sponsor_id, user_id, user_email, utm_*, phase_at_click, conversion_type, reference, consent, etc.
+     * @return int|false Attribution record ID or false on failure.
+     */
+    public function createPromotionAttribution( array $data ) {
+        if ( ! $this->hasPromotionAttributionTable ) {
+            return false;
+        }
+
+        global $wpdb;
+
+        $record = [
+            'schedule_id' => isset( $data['schedule_id'] ) ? absint( $data['schedule_id'] ) : 0,
+            'sponsor_id' => isset( $data['sponsor_id'] ) ? ( $data['sponsor_id'] > 0 ? absint( $data['sponsor_id'] ) : null ) : null,
+            'user_id' => isset( $data['user_id'] ) ? ( $data['user_id'] > 0 ? absint( $data['user_id'] ) : null ) : null,
+            'user_email' => isset( $data['user_email'] ) && is_email( $data['user_email'] ) ? sanitize_email( $data['user_email'] ) : null,
+            'utm_source' => isset( $data['utm_source'] ) ? sanitize_text_field( $data['utm_source'] ) : null,
+            'utm_medium' => isset( $data['utm_medium'] ) ? sanitize_text_field( $data['utm_medium'] ) : null,
+            'utm_campaign' => isset( $data['utm_campaign'] ) ? sanitize_text_field( $data['utm_campaign'] ) : null,
+            'utm_term' => isset( $data['utm_term'] ) ? sanitize_text_field( $data['utm_term'] ) : null,
+            'utm_content' => isset( $data['utm_content'] ) ? sanitize_text_field( $data['utm_content'] ) : null,
+            'phase_at_click' => isset( $data['phase_at_click'] ) ? sanitize_text_field( $data['phase_at_click'] ) : null,
+            'conversion_type' => isset( $data['conversion_type'] ) ? sanitize_key( $data['conversion_type'] ) : 'signup',
+            'reference' => isset( $data['reference'] ) ? sanitize_text_field( $data['reference'] ) : null,
+            'reference_metadata' => isset( $data['reference_metadata'] ) && is_string( $data['reference_metadata'] ) ? $data['reference_metadata'] : null,
+            'consent' => ! empty( $data['consent'] ) ? 1 : 0,
+            'consent_source' => isset( $data['consent_source'] ) ? sanitize_key( $data['consent_source'] ) : null,
+            'consent_given_at' => isset( $data['consent_given_at'] ) && ! empty( $data['consent_given_at'] ) ? sanitize_text_field( $data['consent_given_at'] ) : null,
+            'plan_id' => isset( $data['plan_id'] ) ? absint( $data['plan_id'] ) : null,
+            'created_at' => current_time( 'mysql', 1 ),
+        ];
+
+        $inserted = $wpdb->insert( $this->promotionAttributionTable, $record );
+        if ( ! $inserted ) {
+            return false;
+        }
+
+        $attributionId = (int) $wpdb->insert_id;
+
+        do_action( 'khm_membership_attribution_created', [
+            'attribution_id' => $attributionId,
+            'schedule_id' => $record['schedule_id'],
+            'sponsor_id' => $record['sponsor_id'],
+            'user_id' => $record['user_id'],
+            'conversion_type' => $record['conversion_type'],
+        ] );
+
+        return $attributionId;
     }
 
     /**
@@ -796,6 +1124,9 @@ class MembershipRepository implements MembershipRepositoryInterface {
             'search'   => '',
             'level_id' => null,
             'status'   => '',
+            'schedule_id' => null,
+            'sponsor_id' => null,
+            'conversion_type' => '',
             'orderby'  => 'start_date',
             'order'    => 'DESC',
             'per_page' => 20,
@@ -828,6 +1159,21 @@ class MembershipRepository implements MembershipRepositoryInterface {
             $values[] = $args['status'];
         }
 
+        if ( ! empty( $args['schedule_id'] ) && $this->hasPromotionAttributionTable ) {
+            $where[]  = 'pa.schedule_id = %d';
+            $values[] = (int) $args['schedule_id'];
+        }
+
+        if ( ! empty( $args['sponsor_id'] ) && $this->hasPromotionAttributionTable ) {
+            $where[]  = 'pa.sponsor_id = %d';
+            $values[] = (int) $args['sponsor_id'];
+        }
+
+        if ( ! empty( $args['conversion_type'] ) && $this->hasPromotionAttributionTable ) {
+            $where[]  = 'pa.conversion_type = %s';
+            $values[] = (string) $args['conversion_type'];
+        }
+
         $whereSql = $where ? 'WHERE ' . implode( ' AND ', $where ) : '';
 
         $orderMap = [
@@ -837,9 +1183,16 @@ class MembershipRepository implements MembershipRepositoryInterface {
             'start_date' => 'm.startdate',
             'end_date'   => 'm.enddate',
             'status'     => 'm.status',
+            'attribution_schedule' => 'pa.schedule_id',
+            'attribution_sponsor' => 'pa.sponsor_id',
+            'attribution_conversion' => 'pa.conversion_type',
+            'attribution_created' => 'pa.created_at',
         ];
 
         $orderBy = isset( $orderMap[ $args['orderby'] ] ) ? $orderMap[ $args['orderby'] ] : 'm.startdate';
+        if ( ! $this->hasPromotionAttributionTable && strpos( $orderBy, 'pa.' ) === 0 ) {
+            $orderBy = 'm.startdate';
+        }
         $order   = strtoupper( (string) $args['order'] ) === 'ASC' ? 'ASC' : 'DESC';
 
         $limit  = max( 1, (int) $args['per_page'] );
@@ -894,6 +1247,517 @@ class MembershipRepository implements MembershipRepositoryInterface {
             'items' => $items ?: [],
             'total' => $total,
         ];
+    }
+
+    /**
+     * Retrieve attribution history rows for a specific user.
+     *
+     * @param int $userId User ID.
+     * @param int $limit Max rows.
+     * @return array<int,array<string,mixed>>
+     */
+    public function getAttributionHistoryForUser( int $userId, int $limit = 100 ): array {
+        if ( $userId <= 0 || ! $this->hasPromotionAttributionTable ) {
+            return [];
+        }
+
+        global $wpdb;
+
+        $limit = max( 1, min( 500, $limit ) );
+
+        $fields = [
+            'pa.id',
+            'pa.schedule_id',
+            'pa.sponsor_id',
+            'pa.user_id',
+            'pa.user_email',
+            'pa.utm_source',
+            'pa.utm_medium',
+            'pa.utm_campaign',
+            'pa.utm_term',
+            'pa.utm_content',
+            'pa.phase_at_click',
+            'pa.conversion_type',
+            'pa.plan_id',
+            'pa.reference_metadata',
+            'pa.created_at',
+        ];
+
+        if ( $this->hasPostsTable ) {
+            $fields[] = 'schedule_post.post_title AS schedule_title';
+        } else {
+            $fields[] = 'NULL AS schedule_title';
+        }
+
+        if ( $this->hasSponsorsTable ) {
+            $fields[] = 'sponsor.name AS sponsor_name';
+        } else {
+            $fields[] = 'NULL AS sponsor_name';
+        }
+
+        $sql = "SELECT " . implode( ', ', $fields ) . "
+                FROM {$this->promotionAttributionTable} pa";
+
+        if ( $this->hasPostsTable ) {
+            $sql .= " LEFT JOIN {$this->postsTable} schedule_post ON schedule_post.ID = pa.schedule_id";
+        }
+
+        if ( $this->hasSponsorsTable ) {
+            $sql .= " LEFT JOIN {$this->sponsorsTable} sponsor ON sponsor.id = pa.sponsor_id";
+        }
+
+        $sql .= " WHERE pa.user_id = %d ORDER BY pa.created_at DESC, pa.id DESC LIMIT %d";
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare( $sql, $userId, $limit ),
+            ARRAY_A
+        );
+
+        return $rows ?: [];
+    }
+
+    /**
+     * Anonymize attribution rows for a specific user.
+     *
+     * @param int $userId User ID.
+     * @return int Number of updated rows.
+     */
+    public function anonymizeAttributionForUser( int $userId ): int {
+        if ( $userId <= 0 || ! $this->hasPromotionAttributionTable ) {
+            return 0;
+        }
+
+        global $wpdb;
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id FROM {$this->promotionAttributionTable} WHERE user_id = %d ORDER BY id DESC LIMIT %d",
+                $userId,
+                50000
+            ),
+            ARRAY_A
+        );
+
+        if ( ! is_array( $rows ) || empty( $rows ) ) {
+            return 0;
+        }
+
+        $count = 0;
+        $actor_id = function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
+        foreach ( $rows as $row ) {
+            $id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+            if ( $id <= 0 ) {
+                continue;
+            }
+            if ( $this->anonymizeAttributionById( $id, $actor_id, 'user_request_or_admin' ) ) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    public function anonymizeAttributionById( int $id, int $actorId = 0, string $reason = 'manual' ): bool {
+        if ( $id <= 0 || ! $this->hasPromotionAttributionTable ) {
+            return false;
+        }
+
+        global $wpdb;
+
+        $row = $wpdb->get_row(
+            $wpdb->prepare( "SELECT * FROM {$this->promotionAttributionTable} WHERE id = %d LIMIT 1", $id ),
+            ARRAY_A
+        );
+
+        if ( ! is_array( $row ) ) {
+            return false;
+        }
+
+        $reference = isset( $row['reference'] ) ? (string) $row['reference'] : '';
+        if ( '' === $reference ) {
+            $metadata = isset( $row['reference_metadata'] ) ? json_decode( (string) $row['reference_metadata'], true ) : null;
+            if ( is_array( $metadata ) ) {
+                $reference = isset( $metadata['reference'] ) ? (string) $metadata['reference'] : ( isset( $metadata['stripe_session_id'] ) ? (string) $metadata['stripe_session_id'] : '' );
+            }
+        }
+
+        $referenceHash = $reference !== '' ? $this->buildReferenceHash( $reference ) : null;
+
+        $metadata_audit = [
+            'anonymized' => true,
+            'anonymized_at' => gmdate( 'c' ),
+            'anonymized_by' => $actorId,
+            'reason' => $reason,
+            'reference_hash' => $referenceHash,
+        ];
+
+        $updated = $wpdb->update(
+            $this->promotionAttributionTable,
+            [
+                'user_id' => null,
+                'user_email' => null,
+                'utm_source' => null,
+                'utm_medium' => null,
+                'utm_campaign' => null,
+                'utm_term' => null,
+                'utm_content' => null,
+                'phase_at_click' => null,
+                'reference' => null,
+                'reference_hash' => $referenceHash,
+                'consent' => 0,
+                'consent_source' => 'anonymized',
+                'anonymized_at' => current_time( 'mysql', 1 ),
+                'anonymized_by' => $actorId > 0 ? $actorId : null,
+                'anonymize_reason' => substr( sanitize_text_field( $reason ), 0, 255 ),
+                'reference_metadata' => wp_json_encode( $metadata_audit ),
+            ],
+            [ 'id' => $id ],
+            [ '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d', '%s', '%s' ],
+            [ '%d' ]
+        );
+
+        if ( false === $updated ) {
+            do_action( 'khm_membership_reporting_telemetry', 'membership.anonymize.failed', [
+                'id' => $id,
+                'actor_id' => $actorId,
+                'reason' => $reason,
+            ] );
+            return false;
+        }
+
+        do_action( 'khm_membership_reporting_telemetry', 'membership.anonymize.succeeded', [
+            'id' => $id,
+            'actor_id' => $actorId,
+            'reason' => $reason,
+        ] );
+        do_action( 'khm_membership_attribution_mutated', [
+            'operation' => 'anonymize_by_id',
+            'id' => $id,
+        ] );
+
+        return true;
+    }
+
+    /**
+     * @param array<string,mixed> $filters
+     */
+    public function anonymizeAttributionByFilters( array $filters, int $actorId, string $reason, int $limit = 500, bool $dryRun = false ): array {
+        if ( ! $this->hasPromotionAttributionTable ) {
+            return [ 'matched' => 0, 'updated' => 0, 'ids' => [] ];
+        }
+
+        global $wpdb;
+        $limit = max( 1, min( 5000, $limit ) );
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$this->promotionAttributionTable} ORDER BY created_at ASC, id ASC LIMIT %d",
+                100000
+            ),
+            ARRAY_A
+        );
+
+        $matchedIds = [];
+        foreach ( $rows as $row ) {
+            if ( count( $matchedIds ) >= $limit ) {
+                break;
+            }
+
+            if ( ! empty( $row['anonymized_at'] ) ) {
+                continue;
+            }
+
+            if ( isset( $filters['consent'] ) ) {
+                $consentWanted = (int) $filters['consent'];
+                $rowConsent = isset( $row['consent'] ) ? (int) $row['consent'] : 0;
+                if ( $rowConsent !== $consentWanted ) {
+                    continue;
+                }
+            }
+
+            if ( ! empty( $filters['created_before'] ) ) {
+                $cutoff = strtotime( (string) $filters['created_before'] );
+                $rowTime = isset( $row['created_at'] ) ? strtotime( (string) $row['created_at'] ) : false;
+                if ( false === $rowTime || false === $cutoff || $rowTime >= $cutoff ) {
+                    continue;
+                }
+            }
+
+            $id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+            if ( $id > 0 ) {
+                $matchedIds[] = $id;
+            }
+        }
+
+        if ( $dryRun ) {
+            return [ 'matched' => count( $matchedIds ), 'updated' => 0, 'ids' => $matchedIds ];
+        }
+
+        $updated = 0;
+        foreach ( $matchedIds as $id ) {
+            if ( $this->anonymizeAttributionById( (int) $id, $actorId, $reason ) ) {
+                $updated++;
+            }
+        }
+
+        if ( $updated > 0 ) {
+            do_action( 'khm_membership_attribution_mutated', [
+                'operation' => 'anonymize_by_filters',
+                'updated' => $updated,
+                'matched' => count( $matchedIds ),
+            ] );
+        }
+
+        return [ 'matched' => count( $matchedIds ), 'updated' => $updated, 'ids' => $matchedIds ];
+    }
+
+    public function anonymizeExpiredAttribution( int $retentionDays = self::RETENTION_DEFAULT_DAYS, int $chunkSize = 500 ): array {
+        $retentionDays = max( 1, $retentionDays );
+        $cutoff = gmdate( 'Y-m-d H:i:s', time() - ( $retentionDays * 86400 ) );
+
+        $result = $this->anonymizeAttributionByFilters(
+            [
+                'created_before' => $cutoff,
+            ],
+            0,
+            'retention_expired',
+            $chunkSize,
+            false
+        );
+
+        $result['cutoff'] = $cutoff;
+        return $result;
+    }
+
+    /**
+     * Cursor-based retention anonymization to reduce lock contention at scale.
+     *
+     * @return array{matched:int,updated:int,ids:array<int,int>,last_id:int,cutoff:string}
+     */
+    public function anonymizeExpiredAttributionBatch( int $retentionDays = self::RETENTION_DEFAULT_DAYS, int $chunkSize = 500, int $lastSeenId = 0 ): array {
+        $retentionDays = max( 1, $retentionDays );
+        $chunkSize = max( 1, min( 5000, $chunkSize ) );
+        $lastSeenId = max( 0, $lastSeenId );
+        $cutoff = gmdate( 'Y-m-d H:i:s', time() - ( $retentionDays * 86400 ) );
+
+        $ids = $this->findRetentionCandidateIds( $cutoff, $chunkSize, $lastSeenId );
+        if ( empty( $ids ) ) {
+            return [
+                'matched' => 0,
+                'updated' => 0,
+                'ids' => [],
+                'last_id' => $lastSeenId,
+                'cutoff' => $cutoff,
+            ];
+        }
+
+        $updated = 0;
+        foreach ( $ids as $id ) {
+            if ( $this->anonymizeAttributionById( $id, 0, 'retention_expired' ) ) {
+                $updated++;
+            }
+        }
+
+        return [
+            'matched' => count( $ids ),
+            'updated' => $updated,
+            'ids' => $ids,
+            'last_id' => (int) max( $ids ),
+            'cutoff' => $cutoff,
+        ];
+    }
+
+    public function deleteAttributionForUser( int $userId ): int {
+        if ( $userId <= 0 || ! $this->hasPromotionAttributionTable ) {
+            return 0;
+        }
+
+        global $wpdb;
+        $deleted = $wpdb->delete( $this->promotionAttributionTable, [ 'user_id' => $userId ], [ '%d' ] );
+        $count = is_numeric( $deleted ) ? (int) $deleted : 0;
+        if ( $count > 0 ) {
+            do_action( 'khm_membership_attribution_mutated', [
+                'operation' => 'delete_for_user',
+                'user_id' => $userId,
+                'deleted' => $count,
+            ] );
+        }
+        return $count;
+    }
+
+    public function deleteExpiredAttribution( int $retentionDays = self::RETENTION_DEFAULT_DAYS, int $limit = 500 ): int {
+        if ( ! $this->hasPromotionAttributionTable ) {
+            return 0;
+        }
+
+        global $wpdb;
+        $retentionDays = max( 1, $retentionDays );
+        $cutoff = gmdate( 'Y-m-d H:i:s', time() - ( $retentionDays * 86400 ) );
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id FROM {$this->promotionAttributionTable}
+                 WHERE created_at < %s
+                 AND (legal_hold_until IS NULL OR legal_hold_until < %s)
+                 ORDER BY created_at ASC, id ASC
+                 LIMIT %d",
+                $cutoff,
+                current_time( 'mysql', 1 ),
+                max( 1, min( 5000, $limit ) )
+            ),
+            ARRAY_A
+        );
+
+        if ( ! is_array( $rows ) || empty( $rows ) ) {
+            return 0;
+        }
+
+        $count = 0;
+        foreach ( $rows as $row ) {
+            $id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+            if ( $id <= 0 ) {
+                continue;
+            }
+            $deleted = $wpdb->delete( $this->promotionAttributionTable, [ 'id' => $id ], [ '%d' ] );
+            if ( is_numeric( $deleted ) && (int) $deleted > 0 ) {
+                $count++;
+            }
+        }
+
+        if ( $count > 0 ) {
+            do_action( 'khm_membership_attribution_mutated', [
+                'operation' => 'delete_expired',
+                'deleted' => $count,
+                'retention_days' => $retentionDays,
+            ] );
+        }
+
+        return $count;
+    }
+
+    /**
+     * Cursor-based retention delete path to avoid full-table scans during large cleanup runs.
+     *
+     * @return array{matched:int,deleted:int,ids:array<int,int>,last_id:int,cutoff:string}
+     */
+    public function deleteExpiredAttributionBatch( int $retentionDays = self::RETENTION_DEFAULT_DAYS, int $chunkSize = 500, int $lastSeenId = 0 ): array {
+        if ( ! $this->hasPromotionAttributionTable ) {
+            return [ 'matched' => 0, 'deleted' => 0, 'ids' => [], 'last_id' => $lastSeenId, 'cutoff' => '' ];
+        }
+
+        global $wpdb;
+        $retentionDays = max( 1, $retentionDays );
+        $chunkSize = max( 1, min( 5000, $chunkSize ) );
+        $lastSeenId = max( 0, $lastSeenId );
+        $cutoff = gmdate( 'Y-m-d H:i:s', time() - ( $retentionDays * 86400 ) );
+        $now = current_time( 'mysql', 1 );
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id FROM {$this->promotionAttributionTable}
+                 WHERE id > %d
+                   AND created_at < %s
+                   AND (legal_hold_until IS NULL OR legal_hold_until < %s)
+                 ORDER BY id ASC
+                 LIMIT %d",
+                $lastSeenId,
+                $cutoff,
+                $now,
+                $chunkSize
+            ),
+            ARRAY_A
+        );
+
+        if ( ! is_array( $rows ) || empty( $rows ) ) {
+            return [ 'matched' => 0, 'deleted' => 0, 'ids' => [], 'last_id' => $lastSeenId, 'cutoff' => $cutoff ];
+        }
+
+        $ids = [];
+        foreach ( $rows as $row ) {
+            $id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+            if ( $id > 0 ) {
+                $ids[] = $id;
+            }
+        }
+
+        $deleted = 0;
+        foreach ( $ids as $id ) {
+            $removed = $wpdb->delete( $this->promotionAttributionTable, [ 'id' => $id ], [ '%d' ] );
+            if ( is_numeric( $removed ) && (int) $removed > 0 ) {
+                $deleted++;
+            }
+        }
+
+        if ( $deleted > 0 ) {
+            do_action( 'khm_membership_attribution_mutated', [
+                'operation' => 'delete_expired_batch',
+                'deleted' => $deleted,
+                'retention_days' => $retentionDays,
+            ] );
+        }
+
+        return [
+            'matched' => count( $ids ),
+            'deleted' => $deleted,
+            'ids' => $ids,
+            'last_id' => (int) max( $ids ),
+            'cutoff' => $cutoff,
+        ];
+    }
+
+    /**
+     * @return array<int,int>
+     */
+    private function findRetentionCandidateIds( string $cutoff, int $limit, int $afterId = 0 ): array {
+        if ( ! $this->hasPromotionAttributionTable ) {
+            return [];
+        }
+
+        global $wpdb;
+        $limit = max( 1, min( 5000, $limit ) );
+        $afterId = max( 0, $afterId );
+        $now = current_time( 'mysql', 1 );
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id
+                 FROM {$this->promotionAttributionTable}
+                 WHERE id > %d
+                   AND created_at < %s
+                   AND anonymized_at IS NULL
+                   AND (legal_hold_until IS NULL OR legal_hold_until < %s)
+                 ORDER BY id ASC
+                 LIMIT %d",
+                $afterId,
+                $cutoff,
+                $now,
+                $limit
+            ),
+            ARRAY_A
+        );
+
+        if ( ! is_array( $rows ) || empty( $rows ) ) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ( $rows as $row ) {
+            $id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+            if ( $id > 0 ) {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    private function buildReferenceHash( string $reference ): string {
+        $salt = getenv( 'KHM_ANON_SALT' );
+        if ( ! is_string( $salt ) || '' === trim( $salt ) ) {
+            $salt = (string) apply_filters( 'khm_membership_anonymization_salt_fallback', 'khm-anon-default-salt' );
+        }
+
+        return hash( 'sha256', $salt . $reference );
     }
 
     /**

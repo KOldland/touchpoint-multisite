@@ -1,0 +1,138 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://khm.local/contracts/paid_adapter_execute.json",
+  "title": "Paid Adapter Execute Response",
+  "description": "Canonical response shape returned by execute() on all paid adapters. Supports success, partial_success, and failed outcomes. See PAID-01.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifest_id", "status", "timestamp", "currency"],
+  "properties": {
+    "manifest_id": {
+      "type": "string",
+      "description": "Must match the manifest_id from the originating manifest."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "partial_success", "failed"],
+      "description": "Overall outcome. partial_success means at least one operation failed."
+    },
+    "operation_results": {
+      "type": "array",
+      "description": "Per-operation outcomes. Required when status is success or partial_success.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["operation_id", "result", "operation_id_on_channel"],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "description": "References the operation_id from the manifest."
+          },
+          "operation_id_on_channel": {
+            "type": "string",
+            "description": "Adapter-side ID returned by the ad channel. Used for reconciliation and audit."
+          },
+          "result": {
+            "type": "string",
+            "enum": ["created", "updated", "failed", "skipped"]
+          },
+          "actual_spend": { "type": "number", "minimum": 0 },
+          "currency": { "type": "string" },
+          "error": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "retryable": {
+                "type": "boolean",
+                "description": "When true, the consumer may retry this operation alone."
+              }
+            }
+          }
+        }
+      }
+    },
+    "total_actual_spend": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Sum of actual_spend across all successful operation_results."
+    },
+    "currency": {
+      "type": "string",
+      "description": "ISO 4217 currency code for all spend figures in this response."
+    },
+    "errors": {
+      "type": ["array", "null"],
+      "description": "Top-level errors not attributable to a single operation.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "detail": { "type": "object" }
+        }
+      }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp when the adapter completed execution."
+    },
+    "adapter_meta": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Adapter-specific metadata (name, version, request IDs, etc.)."
+    }
+  },
+  "examples": [
+    {
+      "manifest_id": "man_20260303_001",
+      "status": "success",
+      "operation_results": [
+        {
+          "operation_id": "op_1",
+          "operation_id_on_channel": "li_op_12345",
+          "result": "created",
+          "actual_spend": 118.40,
+          "currency": "AUD",
+          "error": null
+        }
+      ],
+      "total_actual_spend": 118.40,
+      "currency": "AUD",
+      "errors": null,
+      "timestamp": "2026-03-03T12:05:00Z",
+      "adapter_meta": { "adapter": "linkedin_sandbox", "version": "1.0.0" }
+    },
+    {
+      "manifest_id": "man_20260303_002",
+      "status": "partial_success",
+      "operation_results": [
+        {
+          "operation_id": "op_1",
+          "operation_id_on_channel": "g_op_99001",
+          "result": "created",
+          "actual_spend": 75.00,
+          "currency": "AUD",
+          "error": null
+        },
+        {
+          "operation_id": "op_2",
+          "operation_id_on_channel": "",
+          "result": "failed",
+          "actual_spend": 0,
+          "currency": "AUD",
+          "error": { "code": "BUDGET_EXCEEDED", "message": "Daily budget cap reached.", "retryable": true }
+        }
+      ],
+      "total_actual_spend": 75.00,
+      "currency": "AUD",
+      "errors": null,
+      "timestamp": "2026-03-03T12:10:00Z",
+      "adapter_meta": { "adapter": "google_sandbox", "version": "1.0.0" }
+    }
+  ]
+}

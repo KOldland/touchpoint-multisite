@@ -144,11 +144,24 @@ class MembershipCheckoutHandler {
 
         if ($user_id) {
             $metadata['user_id'] = (string) $user_id;
+            $metadata['wp_user_id'] = (string) $user_id;
+        }
+        if ( ! isset( $metadata['wp_user_id'] ) ) {
+            $metadata['wp_user_id'] = '';
         }
 
         $create_account = !empty($_POST['create_account']) ? '1' : '0';
         $profile = $this->sanitize_profile_payload($_POST['profile'] ?? null);
         $guest_email = sanitize_email((string) ($_POST['guest_email'] ?? ''));
+        $metadata['schedule_id'] = sanitize_text_field( (string) ( $_POST['schedule_id'] ?? '' ) );
+        $metadata['sponsor_id'] = sanitize_text_field( (string) ( $_POST['sponsor_id'] ?? '' ) );
+        $metadata['utm_source'] = sanitize_text_field( (string) ( $_POST['utm_source'] ?? '' ) );
+        $metadata['utm_medium'] = sanitize_text_field( (string) ( $_POST['utm_medium'] ?? '' ) );
+        $metadata['utm_campaign'] = sanitize_text_field( (string) ( $_POST['utm_campaign'] ?? '' ) );
+        $metadata['utm_term'] = sanitize_text_field( (string) ( $_POST['utm_term'] ?? '' ) );
+        $metadata['utm_content'] = sanitize_text_field( (string) ( $_POST['utm_content'] ?? '' ) );
+        $metadata['idempotency_key'] = sanitize_text_field( (string) ( $_POST['idempotency_key'] ?? '' ) );
+        $metadata['consent'] = ! empty( $_POST['consent'] ) ? '1' : '0';
 
         if ($create_account === '1') {
             if ($profile['first_name'] === '' || $profile['last_name'] === '') {
@@ -179,14 +192,20 @@ class MembershipCheckoutHandler {
         if (!empty($profile['company'])) {
             $metadata['profile_company'] = $profile['company'];
         }
-        if (!empty($profile['marketing_opt_in'])) {
-            $metadata['profile_marketing_optin'] = '1';
-        }
+        // HIGH-PRIORITY FIX #2: Always persist marketing_opt_in as explicit true/false
+        $metadata['profile_marketing_optin'] = !empty($profile['marketing_opt_in']) ? '1' : '0';
         if ($guest_email && is_email($guest_email)) {
             $metadata['guest_email'] = $guest_email;
         }
 
         $promo = $this->resolve_membership_promo($level_id, $user_id, $_POST);
+        if ( is_wp_error( $promo ) ) {
+            wp_send_json_error([
+                'code' => 'MBR_ERR_INVALID_PROMO',
+                'message' => 'Invalid promotion code.',
+                'retryable' => false,
+            ], 400);
+        }
         if (!empty($promo['metadata']) && is_array($promo['metadata'])) {
             $metadata = array_merge($metadata, $promo['metadata']);
         }
@@ -236,7 +255,7 @@ class MembershipCheckoutHandler {
                 $user_email
             );
 
-            $session = \Stripe\Checkout\Session::create($session_params);
+            $session = $this->create_stripe_checkout_session( $session_params );
 
             if (empty($session->url)) {
                 throw new \Exception('Checkout session created but missing URL');
@@ -423,9 +442,9 @@ class MembershipCheckoutHandler {
      * @param int $level_id
      * @param int $user_id
      * @param array<string,mixed> $payload
-     * @return array{metadata:array<string,string>,stripe_promotion_code:string}
+     * @return array{metadata:array<string,string>,stripe_promotion_code:string}|\WP_Error
      */
-    private function resolve_membership_promo(int $level_id, int $user_id, array $payload): array {
+    private function resolve_membership_promo(int $level_id, int $user_id, array $payload) {
         $metadata = [];
         $stripePromotionCode = '';
 
@@ -433,8 +452,8 @@ class MembershipCheckoutHandler {
         $incomingPromoId = sanitize_text_field((string) ($payload['applied_promo'] ?? $payload['promo_id'] ?? ''));
         $incomingStripePromotionCode = sanitize_text_field((string) ($payload['stripe_promotion_code'] ?? ''));
 
-        if ($incomingStripePromotionCode !== '') {
-            $stripePromotionCode = $incomingStripePromotionCode;
+        if ( '' !== $incomingStripePromotionCode && '' === $incomingCode ) {
+            return new \WP_Error( 'invalid_promo', 'Invalid promotion code.' );
         }
 
         if ($incomingCode !== '') {
@@ -444,6 +463,10 @@ class MembershipCheckoutHandler {
 
             if ($this->discounts) {
                 $validated = $this->discounts->validate_code($incomingCode, $level_id, $user_id);
+                if ( empty($validated['valid']) || empty($validated['code']) ) {
+                    return new \WP_Error( 'invalid_promo', 'Invalid promotion code.' );
+                }
+
                 if (!empty($validated['valid']) && !empty($validated['code'])) {
                     $codeObject = $validated['code'];
                     $metadata['khm_applied_promo_code'] = $incomingCode;
@@ -456,6 +479,8 @@ class MembershipCheckoutHandler {
                         $stripePromotionCode = sanitize_text_field((string) $codeObject->stripe_promotion_code);
                     }
                 }
+            } else {
+                return new \WP_Error( 'invalid_promo', 'Invalid promotion code.' );
             }
         }
 
@@ -473,5 +498,13 @@ class MembershipCheckoutHandler {
             'metadata' => $metadata,
             'stripe_promotion_code' => $stripePromotionCode,
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $params
+     * @return object
+     */
+    protected function create_stripe_checkout_session( array $params ) {
+        return \Stripe\Checkout\Session::create( $params );
     }
 }

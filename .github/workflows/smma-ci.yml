@@ -45,7 +45,7 @@ jobs:
         with:
           php-version: ${{ matrix.php-version }}
           extensions: mbstring, json, mysqli
-          coverage: none
+          coverage: xdebug
           tools: composer:v2
 
       - name: Validate composer.json
@@ -98,6 +98,19 @@ jobs:
       - name: Run PHPUnit - Smoke Tests
         working-directory: app/public/wp-content/plugins/kh-smma
         run: vendor/bin/phpunit tests/SmokeTest.php --testdox --colors=always
+
+      - name: Run PHPUnit - SMMA Workflow Suite
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: vendor/bin/phpunit tests/SMMA --testdox --colors=always
+
+      - name: Coverage Report - SMMA Workflow Suite
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          if php -m | grep -Eiq 'xdebug|pcov'; then
+            vendor/bin/phpunit tests/SMMA --coverage-text --colors=never
+          else
+            echo "Coverage extension unavailable; skipping coverage text output."
+          fi
 
       - name: Run PHPUnit - Full Test Suite
         working-directory: app/public/wp-content/plugins/kh-smma
@@ -172,6 +185,119 @@ jobs:
           echo "- CI Mode: Enabled"
           echo "- Mock LLM: Active (golden stubs)"
           echo "- Test Environment: Safe (no live API calls)"
+
+  telemetry-contract-check:
+    name: Telemetry Contract Validation (OBS-05)
+    runs-on: ubuntu-latest
+
+    env:
+      KH_SMMA_TEST_MODE: ci
+      CI: true
+      ANTHROPIC_API_KEY: ''
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mbstring, json
+          tools: composer:v2
+
+      - name: Install Composer dependencies
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Validate event_contracts.json
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          echo "Validating event_contracts.json..."
+          FIXTURE="tests/fixtures/telemetry/event_contracts.json"
+          if [ ! -f "$FIXTURE" ]; then
+            echo "ERROR: $FIXTURE not found"
+            exit 1
+          fi
+          php -r "
+            \$data = json_decode(file_get_contents('$FIXTURE'), true);
+            if (json_last_error() !== JSON_ERROR_NONE) { echo 'Invalid JSON: ' . json_last_error_msg(); exit(1); }
+            if (!isset(\$data['events'])) { echo 'Missing events key'; exit(1); }
+            if (!isset(\$data['base_envelope'])) { echo 'Missing base_envelope key'; exit(1); }
+            echo '✓ event_contracts.json is valid (' . count(\$data['events']) . ' events)' . PHP_EOL;
+          "
+
+      - name: Validate telemetry_events_schema.json
+        run: |
+          echo "Validating telemetry_events_schema.json..."
+          SCHEMA="docs/contracts/telemetry_events_schema.json"
+          if [ ! -f "$SCHEMA" ]; then
+            echo "ERROR: $SCHEMA not found"
+            exit 1
+          fi
+          php -r "
+            \$data = json_decode(file_get_contents('$SCHEMA'), true);
+            if (json_last_error() !== JSON_ERROR_NONE) { echo 'Invalid JSON: ' . json_last_error_msg(); exit(1); }
+            if (!isset(\$data['\$defs'])) { echo 'Missing \$defs key'; exit(1); }
+            echo '✓ telemetry_events_schema.json is valid (' . count(\$data['\$defs']) . ' definitions)' . PHP_EOL;
+          "
+
+      - name: Check all registry events are covered by fixture
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          echo "Checking event registry coverage..."
+          php -r "
+            \$registry = [
+              'generate.request', 'generate.response', 'compliance.check',
+              'variant.edit', 'schedule.create', 'schedule.dispatch',
+              'membership.signup', 'promotion_attribution',
+            ];
+            \$fixture = json_decode(file_get_contents('tests/fixtures/telemetry/event_contracts.json'), true);
+            \$covered = array_keys(\$fixture['events'] ?? []);
+            \$missing = array_diff(\$registry, \$covered);
+            if (!empty(\$missing)) {
+              echo 'ERROR: Registry events missing from fixture: ' . implode(', ', \$missing) . PHP_EOL;
+              exit(1);
+            }
+            echo '✓ All ' . count(\$registry) . ' registry events covered by event_contracts.json' . PHP_EOL;
+          "
+
+      - name: Run PHPUnit - EventContractTest (OBS-05)
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          vendor/bin/phpunit tests/Telemetry/EventContractTest.php --testdox --colors=always
+          echo "✓ EventContractTest passed"
+
+      - name: Run PHPUnit - EventPipelineIntegrationTest (OBS-05)
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          vendor/bin/phpunit tests/Telemetry/EventPipelineIntegrationTest.php --testdox --colors=always
+          echo "✓ EventPipelineIntegrationTest passed"
+
+      - name: Run PHPUnit - EventSmokeTest (OBS-05)
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          vendor/bin/phpunit tests/Telemetry/EventSmokeTest.php --testdox --colors=always
+          echo "✓ EventSmokeTest passed"
+
+      - name: Verify base envelope required keys match schema
+        working-directory: app/public/wp-content/plugins/kh-smma
+        run: |
+          echo "Verifying base envelope consistency..."
+          php -r "
+            \$fixture = json_decode(file_get_contents('tests/fixtures/telemetry/event_contracts.json'), true);
+            \$schema  = json_decode(file_get_contents('../../../../docs/contracts/telemetry_events_schema.json'), true);
+            \$fix_base  = \$fixture['base_envelope']['required'] ?? [];
+            \$sch_base  = \$schema['\$defs']['base_envelope']['required'] ?? [];
+            sort(\$fix_base); sort(\$sch_base);
+            if (\$fix_base !== \$sch_base) {
+              echo 'ERROR: base_envelope mismatch between fixture and schema' . PHP_EOL;
+              echo 'fixture: ' . implode(', ', \$fix_base) . PHP_EOL;
+              echo 'schema:  ' . implode(', ', \$sch_base) . PHP_EOL;
+              exit(1);
+            }
+            echo '✓ base_envelope required fields consistent across fixture and schema' . PHP_EOL;
+          "
 
   lint:
     name: PHP Code Standards
@@ -254,7 +380,7 @@ jobs:
   report:
     name: Test Report Summary
     runs-on: ubuntu-latest
-    needs: [test, lint, security]
+    needs: [test, telemetry-contract-check, lint, security]
     if: always()
 
     steps:
@@ -264,6 +390,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Test Results" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Tests: ${{ needs.test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📡 Telemetry Contracts: ${{ needs.telemetry-contract-check.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- 🔍 Lint: ${{ needs.lint.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- 🔒 Security: ${{ needs.security.result }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,61 @@
+{
+  "_comment": "OBS-CARD-01 — trace propagation fixture. All events share the same trace_id.",
+  "trace_id": "d4e8f2a0-1234-4abc-8def-000000000001",
+  "events": [
+    {
+      "event_name": "generate.request",
+      "service": "smma",
+      "payload": {
+        "session_id": "req_fixture_01",
+        "prompt_hash": "aabbcc",
+        "variant_count_requested": 1
+      }
+    },
+    {
+      "event_name": "generate.response",
+      "service": "smma",
+      "payload": {
+        "session_id": "req_fixture_01",
+        "variant_count_generated": 1,
+        "latency_ms": 250
+      }
+    },
+    {
+      "event_name": "compliance.check",
+      "service": "smma",
+      "payload": {
+        "variant_id": "v-fixture-01",
+        "outcome": "OK",
+        "rules_matched": []
+      }
+    },
+    {
+      "event_name": "variant.edit",
+      "service": "smma",
+      "payload": {
+        "variant_id": "v-fixture-01",
+        "editor_id": "1",
+        "revision_id": "rev-fixture-01",
+        "deltas": { "edit_reason": "tighten copy" }
+      }
+    },
+    {
+      "event_name": "schedule.create",
+      "service": "smma",
+      "payload": {
+        "schedule_id": "sched-fixture-01",
+        "sponsor_id": "sp-fixture-01",
+        "approval_required": false
+      }
+    },
+    {
+      "event_name": "schedule.dispatch",
+      "service": "smma",
+      "payload": {
+        "schedule_id": "sched-fixture-01",
+        "adapter": "manual",
+        "result": "dispatched"
+      }
+    }
+  ]
+}

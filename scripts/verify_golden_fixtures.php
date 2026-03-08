@@ -15,6 +15,7 @@ $required = array(
 	'invoice_paid.json',
 	'checkout_session_no_consent.json',
 	'paid_adapter_dry_run_manifest.json',
+	'paid_adapter_dry_run_response.json',
 	'paid_adapter_execute_response.json',
 );
 

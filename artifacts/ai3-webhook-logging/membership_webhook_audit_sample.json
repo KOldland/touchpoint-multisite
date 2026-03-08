@@ -1,0 +1,42 @@
+{
+    "description": "Two representative audit rows: one success (checkout), one failed (invoice.paid unknown customer).",
+    "rows": {
+        "success": {
+            "id": 9001,
+            "event_id": "evt_sample_success_001",
+            "event_type": "checkout.session.completed",
+            "operation_key": "checkout_session:cs_sample_001",
+            "object_id": "cs_sample_001",
+            "user_id": 42,
+            "outcome": "success",
+            "message": "Event processed successfully.",
+            "context": {
+                "trace_id": "trace-sample-success-001",
+                "received_at": "2026-03-07T19:00:00Z"
+            },
+            "created_at": "2026-03-07 19:00:01"
+        },
+        "failed": {
+            "event_id": "evt_smoke_001",
+            "event_type": "invoice.paid",
+            "operation_key": null,
+            "object_id": null,
+            "user_id": null,
+            "outcome": "failed",
+            "message": "invoice.paid unable to resolve user",
+            "context": {
+                "event_id": "evt_smoke_001",
+                "type": "invoice.paid",
+                "outcome": "failed",
+                "notes": "Exception during webhook processing.",
+                "timestamp": "2026-03-07T19:48:49Z",
+                "trace_id": "trace-smoke-001",
+                "received_at": "2026-03-07T19:48:49Z",
+                "error_class": "RuntimeException",
+                "context": []
+            },
+            "created_at": "2026-03-07 19:48:49",
+            "id": 4
+        }
+    }
+}

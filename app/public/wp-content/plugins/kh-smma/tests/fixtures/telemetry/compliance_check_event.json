@@ -1,0 +1,10 @@
+{
+  "_comment": "OBS-CARD-01 — canonical compliance.check event fixture",
+  "event_name": "compliance.check",
+  "trace_id": "{{UUID}}",
+  "timestamp": "{{UNIX_TS}}",
+  "service": "smma",
+  "variant_id": "v-abc123",
+  "outcome": "OK",
+  "rules_matched": []
+}

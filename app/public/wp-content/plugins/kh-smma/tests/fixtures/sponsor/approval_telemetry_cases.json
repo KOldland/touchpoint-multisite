@@ -1,0 +1,28 @@
+{
+  "requested_case": {
+    "schedule": {
+      "schedule_id": "901",
+      "sponsor_id": "sp_1",
+      "compliance_status": "WARN",
+      "approval_reason": "compliance_changed"
+    }
+  },
+  "approved_case": {
+    "schedule": {
+      "schedule_id": "902",
+      "sponsor_id": "sp_1",
+      "compliance_status": "OK"
+    },
+    "reviewer_user_id": 45,
+    "review_notes": "Approved after sponsor review"
+  },
+  "rejected_case": {
+    "schedule": {
+      "schedule_id": "903",
+      "sponsor_id": "sp_2",
+      "compliance_status": "WARN"
+    },
+    "reviewer_user_id": 52,
+    "review_notes": "Insufficient substantiation"
+  }
+}

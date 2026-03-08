@@ -1,0 +1,59 @@
+name: khm-checkout-ci
+
+on:
+  pull_request:
+    paths:
+      - 'app/public/wp-content/plugins/khm-plugin/src/Membership/SignupEndpoint.php'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Frontend/MembershipCheckoutHandler.php'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Rest/CheckoutController.php'
+      - 'app/public/wp-content/plugins/khm-plugin/tests/Membership/PromoValidationTest.php'
+      - 'app/public/wp-content/plugins/khm-plugin/tests/Membership/SignupInitTest.php'
+      - 'app/public/wp-content/plugins/khm-plugin/tests/Membership/MembershipCheckoutHandlerTest.php'
+      - '.github/workflows/khm-checkout-ci.yml'
+  push:
+    branches:
+      - integration/hardening
+    paths:
+      - 'app/public/wp-content/plugins/khm-plugin/src/Membership/SignupEndpoint.php'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Frontend/MembershipCheckoutHandler.php'
+      - 'app/public/wp-content/plugins/khm-plugin/src/Rest/CheckoutController.php'
+      - 'app/public/wp-content/plugins/khm-plugin/tests/Membership/PromoValidationTest.php'
+      - 'app/public/wp-content/plugins/khm-plugin/tests/Membership/SignupInitTest.php'
+      - 'app/public/wp-content/plugins/khm-plugin/tests/Membership/MembershipCheckoutHandlerTest.php'
+      - '.github/workflows/khm-checkout-ci.yml'
+
+jobs:
+  checkout-tests:
+    runs-on: ubuntu-latest
+    env:
+      KHM_STRIPE_TEST_MODE: ci
+      KH_STRIPE_SECRET_KEY: sk_test_ci_checkout
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          coverage: none
+
+      - name: Install dependencies
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run checkout membership tests
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: |
+          mkdir -p artifacts/ai2-phase2
+          vendor/bin/phpunit -c phpunit.xml \
+            tests/Membership/PromoValidationTest.php \
+            tests/Membership/SignupInitTest.php \
+            tests/Membership/MembershipCheckoutHandlerTest.php \
+            --log-junit artifacts/ai2-phase2/phpunit_signup_checkout.xml \
+            > artifacts/ai2-phase2/phpunit_signup_checkout.log 2>&1
+
+      - name: Upload checkout artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: khm-checkout-ci-artifacts
+          path: app/public/wp-content/plugins/khm-plugin/artifacts/ai2-phase2/

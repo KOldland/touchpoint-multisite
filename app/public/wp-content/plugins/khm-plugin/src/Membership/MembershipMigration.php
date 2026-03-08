@@ -76,6 +76,9 @@ class MembershipMigration {
             $wpdb->query($index_sql);
         }
 
+        self::ensure_promotion_attribution_columns();
+        self::ensure_promotion_attribution_indexes();
+
         $table_name = $wpdb->prefix . 'user_membership';
         $index_sql = "CREATE INDEX idx_user_membership_status ON $table_name (status);";
         $wpdb->query($index_sql);
@@ -98,6 +101,27 @@ class MembershipMigration {
               PRIMARY KEY  (event_id),
               KEY idx_khm_processed_status (status),
               KEY idx_khm_processed_type (event_type)
+            ) $charset_collate;";
+            require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+            dbDelta( $sql );
+        }
+
+        $table_name = $wpdb->prefix . 'khm_processed_webhook_events';
+        if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) != $table_name ) {
+            $sql = "CREATE TABLE $table_name (
+              event_id VARCHAR(255) NOT NULL,
+              event_type VARCHAR(128) NOT NULL,
+              status VARCHAR(16) NOT NULL DEFAULT 'processing',
+              payload LONGTEXT NULL,
+              payload_hash CHAR(64) NULL,
+              attempts INT UNSIGNED NOT NULL DEFAULT 1,
+              notes TEXT NULL,
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              processed_at DATETIME NULL,
+              PRIMARY KEY  (event_id),
+              KEY idx_khm_processed_events_status (status),
+              KEY idx_khm_processed_events_type (event_type)
             ) $charset_collate;";
             require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
             dbDelta( $sql );
@@ -152,6 +176,31 @@ class MembershipMigration {
             dbDelta( $sql );
         }
 
+          // -- membership webhook dead letters
+          $table_name = $wpdb->prefix . 'khm_webhook_dead_letter';
+          if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) != $table_name ) {
+            $sql = "CREATE TABLE $table_name (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+              event_id VARCHAR(255) NOT NULL,
+              event_type VARCHAR(128) NOT NULL,
+              payload LONGTEXT NULL,
+              payload_hash CHAR(64) NULL,
+              reason VARCHAR(64) NOT NULL,
+              error_message TEXT NULL,
+              status VARCHAR(16) NOT NULL DEFAULT 'open',
+              attempts INT UNSIGNED NOT NULL DEFAULT 1,
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              resolved_at DATETIME NULL,
+              PRIMARY KEY (id),
+              UNIQUE KEY uniq_khm_dead_event_reason (event_id, reason),
+              KEY idx_khm_dead_status (status),
+              KEY idx_khm_dead_type (event_type)
+            ) $charset_collate;";
+            require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+            dbDelta( $sql );
+          }
+
     }
 
     private static function ensure_membership_columns(): void {
@@ -173,4 +222,67 @@ class MembershipMigration {
             }
         }
     }
+
+      private static function ensure_promotion_attribution_indexes(): void {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . 'promotion_attribution';
+        if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name ) ) !== $table_name ) {
+          return;
+        }
+
+        self::maybe_create_index( $table_name, 'idx_promotion_schedule', 'schedule_id' );
+        self::maybe_create_index( $table_name, 'idx_promotion_user', 'user_id' );
+        self::maybe_create_index( $table_name, 'idx_promotion_sponsor', 'sponsor_id' );
+        self::maybe_create_index( $table_name, 'idx_promotion_created', 'created_at' );
+        self::maybe_create_index( $table_name, 'idx_promotion_conversion', 'conversion_type' );
+        self::maybe_create_index( $table_name, 'idx_promotion_user_created', 'user_id, created_at' );
+        self::maybe_create_index( $table_name, 'idx_promotion_retention', 'created_at, anonymized_at, legal_hold_until' );
+        self::maybe_create_index( $table_name, 'idx_promotion_reference_hash', 'reference_hash' );
+      }
+
+      private static function ensure_promotion_attribution_columns(): void {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . 'promotion_attribution';
+        if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name ) ) !== $table_name ) {
+          return;
+        }
+
+        $columns = [
+          'consent' => "ALTER TABLE {$table_name} ADD COLUMN consent TINYINT(1) NOT NULL DEFAULT 0",
+          'consent_given_at' => "ALTER TABLE {$table_name} ADD COLUMN consent_given_at DATETIME NULL",
+          'consent_source' => "ALTER TABLE {$table_name} ADD COLUMN consent_source VARCHAR(32) NULL",
+          'reference' => "ALTER TABLE {$table_name} ADD COLUMN reference VARCHAR(255) NULL",
+          'reference_hash' => "ALTER TABLE {$table_name} ADD COLUMN reference_hash CHAR(64) NULL",
+          'anonymized_at' => "ALTER TABLE {$table_name} ADD COLUMN anonymized_at DATETIME NULL",
+          'anonymized_by' => "ALTER TABLE {$table_name} ADD COLUMN anonymized_by BIGINT NULL",
+          'anonymize_reason' => "ALTER TABLE {$table_name} ADD COLUMN anonymize_reason VARCHAR(255) NULL",
+          'legal_hold_until' => "ALTER TABLE {$table_name} ADD COLUMN legal_hold_until DATETIME NULL",
+        ];
+
+        foreach ( $columns as $column => $sql ) {
+          $exists = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table_name} LIKE %s", $column ) );
+          if ( ! $exists ) {
+            $wpdb->query( $sql );
+          }
+        }
+      }
+
+      private static function maybe_create_index( string $table_name, string $index_name, string $columns ): void {
+        global $wpdb;
+
+        $existing = $wpdb->get_var(
+          $wpdb->prepare(
+            "SHOW INDEX FROM {$table_name} WHERE Key_name = %s",
+            $index_name
+          )
+        );
+
+        if ( $existing ) {
+          return;
+        }
+
+        $wpdb->query( "CREATE INDEX {$index_name} ON {$table_name} ({$columns})" );
+      }
 }

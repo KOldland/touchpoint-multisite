@@ -1,0 +1,15 @@
+{
+  "id": "evt_invoice_paid_fixture",
+  "type": "invoice.paid",
+  "created": 1767148860,
+  "data": {
+    "object": {
+      "id": "in_fixture_001",
+      "customer": "cus_fixture_001",
+      "subscription": "sub_fixture_001",
+      "amount_paid": 2999,
+      "currency": "gbp",
+      "period_end": 1769827200
+    }
+  }
+}

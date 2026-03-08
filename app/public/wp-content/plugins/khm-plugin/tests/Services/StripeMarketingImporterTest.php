@@ -9,6 +9,7 @@ namespace KHM\Tests\Services;
 
 use KHM\Services\LevelRepository;
 use KHM\Services\StripeMarketingImporter;
+use KHM\Models\MembershipLevel;
 use PHPUnit\Framework\TestCase;
 
 class StripeMarketingImporterTest extends TestCase {
@@ -17,19 +18,24 @@ class StripeMarketingImporterTest extends TestCase {
 		$repo = $this->createMock( LevelRepository::class );
 		$repo
 			->expects( $this->once() )
+			->method( 'get' )
+			->with( 22, true )
+			->willReturn( new MembershipLevel( [ 'id' => 22, 'name' => 'Premium' ] ) );
+		$repo
+			->expects( $this->once() )
 			->method( 'getMeta' )
 			->with( 22, 'khm_level_meta', [] )
 			->willReturn( [ 'presentation' => [ 'template' => 'compact' ] ] );
 		$repo
 			->expects( $this->once() )
-			->method( 'updateMeta' )
+			->method( 'update' )
 			->with(
 				22,
-				'khm_level_meta',
+				$this->anything(),
 				$this->callback(
 					function ( $meta ) {
-						return isset( $meta['presentation']['marketing_features'] )
-							&& $meta['presentation']['marketing_features'] === [ 'Feature one', 'Feature two', 'Feature three' ];
+						return isset( $meta['khm_level_meta']['presentation']['marketing_features'] )
+							&& $meta['khm_level_meta']['presentation']['marketing_features'] === [ 'Feature one', 'Feature two', 'Feature three' ];
 					}
 				)
 			)

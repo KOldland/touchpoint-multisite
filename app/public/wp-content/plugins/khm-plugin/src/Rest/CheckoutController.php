@@ -85,9 +85,23 @@ class CheckoutController {
             'purchase_type' => 'subscription',
             'membership_level_id' => (string) $levelId,
             'user_id' => $userId ? (string) $userId : '',
+            'wp_user_id' => $userId ? (string) $userId : '',
+            'schedule_id' => sanitize_text_field( (string) ( $request->get_param( 'schedule_id' ) ?? '' ) ),
+            'sponsor_id' => sanitize_text_field( (string) ( $request->get_param( 'sponsor_id' ) ?? '' ) ),
+            'utm_source' => sanitize_text_field( (string) ( $request->get_param( 'utm_source' ) ?? '' ) ),
+            'utm_medium' => sanitize_text_field( (string) ( $request->get_param( 'utm_medium' ) ?? '' ) ),
+            'utm_campaign' => sanitize_text_field( (string) ( $request->get_param( 'utm_campaign' ) ?? '' ) ),
+            'utm_term' => sanitize_text_field( (string) ( $request->get_param( 'utm_term' ) ?? '' ) ),
+            'utm_content' => sanitize_text_field( (string) ( $request->get_param( 'utm_content' ) ?? '' ) ),
+            'profile_marketing_optin' => $this->normalize_bool_metadata( $request->get_param( 'profile_marketing_optin' ) ),
+            'idempotency_key' => sanitize_text_field( (string) ( $request->get_param( 'idempotency_key' ) ?? '' ) ),
         ];
+        $metadata['consent'] = $this->normalize_bool_metadata( $request->get_param( 'consent' ) );
 
         $promo = $this->resolve_membership_promo($levelId, $userId, $request);
+        if ( is_wp_error( $promo ) ) {
+            return $this->invalid_promo_response();
+        }
         if (!empty($promo['metadata']) && is_array($promo['metadata'])) {
             $metadata = array_merge($metadata, $promo['metadata']);
         }
@@ -114,7 +128,7 @@ class CheckoutController {
 
             $params = apply_filters('khm_stripe_checkout_session_params', $params, $levelId, $userId ?: null, $email);
 
-            $session = \Stripe\Checkout\Session::create($params);
+            $session = $this->create_stripe_checkout_session( $params );
         } catch ( \Throwable $e ) {
             error_log('Stripe checkout session error: ' . $e->getMessage());
             return new WP_REST_Response([ 'message' => __( 'Unable to create checkout session.', 'khm-membership' ) ], 500);
@@ -189,9 +203,9 @@ class CheckoutController {
      * @param int $levelId
      * @param int $userId
      * @param WP_REST_Request $request
-     * @return array{metadata:array<string,string>,stripe_promotion_code:string}
+     * @return array{metadata:array<string,string>,stripe_promotion_code:string}|\WP_Error
      */
-    private function resolve_membership_promo(int $levelId, int $userId, WP_REST_Request $request): array {
+    private function resolve_membership_promo(int $levelId, int $userId, WP_REST_Request $request) {
         $metadata = [];
         $stripePromotionCode = '';
 
@@ -199,8 +213,8 @@ class CheckoutController {
         $incomingPromoId = sanitize_text_field((string) ($request->get_param('applied_promo') ?? $request->get_param('promo_id') ?? ''));
         $incomingStripePromotionCode = sanitize_text_field((string) ($request->get_param('stripe_promotion_code') ?? ''));
 
-        if ($incomingStripePromotionCode !== '') {
-            $stripePromotionCode = $incomingStripePromotionCode;
+        if ( '' !== $incomingStripePromotionCode && '' === $incomingCode ) {
+            return new \WP_Error( 'invalid_promo', 'Invalid promotion code.' );
         }
 
         if ($incomingCode !== '') {
@@ -210,6 +224,10 @@ class CheckoutController {
 
             if ($this->discounts) {
                 $validated = $this->discounts->validate_code($incomingCode, $levelId, $userId);
+                if ( empty($validated['valid']) || empty($validated['code']) ) {
+                    return new \WP_Error( 'invalid_promo', 'Invalid promotion code.' );
+                }
+
                 if (!empty($validated['valid']) && !empty($validated['code'])) {
                     $codeObject = $validated['code'];
                     $metadata['khm_applied_promo_code'] = $incomingCode;
@@ -221,6 +239,8 @@ class CheckoutController {
                         $stripePromotionCode = sanitize_text_field((string) $codeObject->stripe_promotion_code);
                     }
                 }
+            } else {
+                return new \WP_Error( 'invalid_promo', 'Invalid promotion code.' );
             }
         }
 
@@ -238,5 +258,38 @@ class CheckoutController {
             'metadata' => $metadata,
             'stripe_promotion_code' => $stripePromotionCode,
         ];
+    }
+
+    private function invalid_promo_response(): WP_REST_Response {
+        return new WP_REST_Response(
+            [
+                'code' => 'MBR_ERR_INVALID_PROMO',
+                'message' => 'Invalid promotion code.',
+                'retryable' => false,
+            ],
+            400
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $params
+     * @return object
+     */
+    protected function create_stripe_checkout_session( array $params ) {
+        return \Stripe\Checkout\Session::create( $params );
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function normalize_bool_metadata( $value ): string {
+        if ( is_bool( $value ) ) {
+            return $value ? '1' : '0';
+        }
+        if ( is_numeric( $value ) ) {
+            return (int) $value === 1 ? '1' : '0';
+        }
+        $normalized = strtolower( trim( (string) $value ) );
+        return in_array( $normalized, [ '1', 'true', 'yes', 'on' ], true ) ? '1' : '0';
     }
 }

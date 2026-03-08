@@ -1,0 +1,9 @@
+{
+  "image_id": "img_hero_001",
+  "width": 1600,
+  "height": 900,
+  "orientation": "landscape",
+  "aspect_ratio": "1.7778",
+  "thumbnail_url": "https://example.test/uploads/smma/thumbs/img_hero_001.jpg",
+  "request_id": "req_img_upload_001"
+}

@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "prompt_hash": "manual-membership-webhook-fixture",
+  "prompt_version": "mem-02",
+  "created_at": "2026-03-03T00:00:00Z",
+  "author": "@backend-mem-team",
+  "checksum": "sha256:manual-update",
+  "notes": "Canonical invoice.paid fixture for membership webhook contract checks."
+}

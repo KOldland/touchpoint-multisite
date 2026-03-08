@@ -28,7 +28,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * - create_creative: Ad creative (text, media assets)
  * - associate_audience: Target audience settings
  */
-class LinkedInAdsAdapter extends PaidAdapterContract {
+class LinkedInAdsAdapter extends PaidAdapterBase {
     /** @var TokenRepository */
     private $tokens;
 
@@ -107,7 +107,7 @@ class LinkedInAdsAdapter extends PaidAdapterContract {
      * @param array $schedule_payload
      * @return array|WP_Error
      */
-    public function dry_run( array $schedule_payload ) {
+    public function dry_run( array $schedule_payload, array $opts = [] ): array {
         $validation = $this->validate_payload( $schedule_payload );
         if ( is_wp_error( $validation ) ) {
             return $validation;
@@ -167,7 +167,7 @@ class LinkedInAdsAdapter extends PaidAdapterContract {
      * @param array $schedule_payload
      * @return array|WP_Error
      */
-    public function execute( array $schedule_payload ) {
+    public function execute( array $schedule_payload, array $opts = [] ): array {
         $validation = $this->validate_payload( $schedule_payload );
         if ( is_wp_error( $validation ) ) {
             return $validation;
@@ -215,7 +215,7 @@ class LinkedInAdsAdapter extends PaidAdapterContract {
      * 
      * @return array
      */
-    public function get_metadata() {
+    public function get_metadata(): array {
         return array(
             'name'        => 'LinkedIn Ads',
             'version'     => '1.0.0',

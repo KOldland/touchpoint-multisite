@@ -1,0 +1,10 @@
+PHPUnit 9.6.34 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.1.33
+Configuration: /Users/krisoldland/Local Sites/touchpoint-template-remote/app/public/wp-content/plugins/kh-smma/phpunit.xml
+
+...................                                               19 / 19 (100%)
+
+Time: 00:00.012, Memory: 6.00 MB
+
+OK (19 tests, 63 assertions)

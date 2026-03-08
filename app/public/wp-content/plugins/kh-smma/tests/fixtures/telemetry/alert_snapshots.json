@@ -1,0 +1,138 @@
+{
+  "_comment": "OBS-04: metrics snapshots used by AlertEvaluatorTest",
+
+  "no_alert_snapshots": [
+    {
+      "snapshot_id": 1,
+      "window_start": "2026-03-06 12:00:00",
+      "created_at": "2026-03-06 12:05:00",
+      "metrics": {
+        "compliance_ok": 90,
+        "compliance_warn": 5,
+        "compliance_fail": 5,
+        "schedule_created": 10,
+        "schedule_dispatched": 10
+      }
+    }
+  ],
+
+  "compliance_warn_snapshots": [
+    {
+      "snapshot_id": 2,
+      "window_start": "2026-03-06 12:05:00",
+      "created_at": "2026-03-06 12:10:00",
+      "metrics": {
+        "compliance_ok": 30,
+        "compliance_warn": 6,
+        "compliance_fail": 6,
+        "schedule_created": 18,
+        "schedule_dispatched": 17
+      }
+    },
+    {
+      "snapshot_id": 1,
+      "window_start": "2026-03-06 12:00:00",
+      "created_at": "2026-03-06 12:05:00",
+      "metrics": {
+        "compliance_ok": 28,
+        "compliance_warn": 7,
+        "compliance_fail": 7,
+        "schedule_created": 16,
+        "schedule_dispatched": 15
+      }
+    }
+  ],
+  "_comment_compliance_warn": "fail=6/(30+6+6)=14.3%  prev fail=7/(28+7+7)=16.7%  both >10% → WARNING",
+
+  "compliance_crit_snapshots": [
+    {
+      "snapshot_id": 3,
+      "window_start": "2026-03-06 12:10:00",
+      "created_at": "2026-03-06 12:15:00",
+      "metrics": {
+        "compliance_ok": 20,
+        "compliance_warn": 5,
+        "compliance_fail": 15,
+        "schedule_created": 20,
+        "schedule_dispatched": 18
+      }
+    }
+  ],
+  "_comment_compliance_crit": "fail=15/(20+5+15)=37.5%  >25% → CRITICAL",
+
+  "queue_backlog_snapshots": [
+    {
+      "snapshot_id": 4,
+      "window_start": "2026-03-06 12:15:00",
+      "created_at": "2026-03-06 12:20:00",
+      "metrics": {
+        "compliance_ok": 50,
+        "compliance_warn": 2,
+        "compliance_fail": 1,
+        "schedule_created": 45,
+        "schedule_dispatched": 20
+      }
+    }
+  ],
+  "_comment_queue": "backlog=45-20=25 > 20 → WARNING",
+
+  "normal_queue_snapshots": [
+    {
+      "snapshot_id": 5,
+      "window_start": "2026-03-06 12:20:00",
+      "created_at": "2026-03-06 12:25:00",
+      "metrics": {
+        "compliance_ok": 50,
+        "compliance_warn": 2,
+        "compliance_fail": 1,
+        "schedule_created": 30,
+        "schedule_dispatched": 28
+      }
+    }
+  ],
+  "_comment_normal_queue": "backlog=30-28=2  ≤20 → no alert",
+
+  "dispatch_error_events": [
+    {
+      "id": 201, "action": "telemetry_event", "created_at": "2026-03-06 12:01:00",
+      "decoded_details": { "event_name": "schedule.dispatch", "payload": { "service": "smma", "schedule_id": "101", "adapter": "meta", "result": "failed" } }
+    },
+    {
+      "id": 202, "action": "telemetry_event", "created_at": "2026-03-06 12:01:10",
+      "decoded_details": { "event_name": "schedule.dispatch", "payload": { "service": "smma", "schedule_id": "102", "adapter": "meta", "result": "failed" } }
+    },
+    {
+      "id": 203, "action": "telemetry_event", "created_at": "2026-03-06 12:01:20",
+      "decoded_details": { "event_name": "schedule.dispatch", "payload": { "service": "smma", "schedule_id": "103", "adapter": "linkedin", "result": "failed" } }
+    },
+    {
+      "id": 204, "action": "telemetry_event", "created_at": "2026-03-06 12:01:30",
+      "decoded_details": { "event_name": "schedule.dispatch", "payload": { "service": "smma", "schedule_id": "104", "adapter": "meta", "result": "failed" } }
+    },
+    {
+      "id": 205, "action": "telemetry_event", "created_at": "2026-03-06 12:01:40",
+      "decoded_details": { "event_name": "schedule.dispatch", "payload": { "service": "smma", "schedule_id": "105", "adapter": "meta", "result": "failed" } }
+    },
+    {
+      "id": 206, "action": "telemetry_event", "created_at": "2026-03-06 12:01:50",
+      "decoded_details": { "event_name": "schedule.dispatch", "payload": { "service": "smma", "schedule_id": "106", "adapter": "twitter", "result": "failed" } }
+    }
+  ],
+  "_comment_dispatch": "6 failures > 5 → WARNING",
+
+  "mixed_dispatch_events": [
+    {
+      "id": 211, "action": "telemetry_event", "created_at": "2026-03-06 12:05:00",
+      "decoded_details": { "event_name": "schedule.dispatch", "payload": { "service": "smma", "schedule_id": "201", "adapter": "meta", "result": "dispatched" } }
+    },
+    {
+      "id": 212, "action": "telemetry_event", "created_at": "2026-03-06 12:05:10",
+      "decoded_details": { "event_name": "schedule.dispatch", "payload": { "service": "smma", "schedule_id": "202", "adapter": "meta", "result": "failed" } }
+    },
+    {
+      "id": 213, "action": "telemetry_event", "created_at": "2026-03-06 12:05:20",
+      "decoded_details": { "event_name": "generate.request", "payload": { "service": "smma" } }
+    }
+  ],
+  "_comment_mixed": "only 1 dispatch failure ≤5 → no alert"
+}

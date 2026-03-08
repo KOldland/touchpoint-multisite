@@ -15,6 +15,44 @@ if (!defined('ABSPATH')) {
 // Brain\Monkey setup for unit tests
 require_once dirname(__DIR__) . '/vendor/antecedent/patchwork/Patchwork.php';
 
+if ( ! class_exists( 'WP_CLI' ) ) {
+    class WP_CLI {
+        public static array $lines = [];
+        public static array $successes = [];
+        public static array $warnings = [];
+        public static array $errors = [];
+
+        public static function line( $message ): void {
+            self::$lines[] = (string) $message;
+        }
+
+        public static function success( $message ): void {
+            self::$successes[] = (string) $message;
+        }
+
+        public static function warning( $message ): void {
+            self::$warnings[] = (string) $message;
+        }
+
+        public static function error( $message ): void {
+            self::$errors[] = (string) $message;
+            throw new RuntimeException( (string) $message );
+        }
+
+        public static function colorize( $message ) {
+            return (string) $message;
+        }
+    }
+}
+
+if ( ! class_exists( 'WP_List_Table' ) ) {
+    class WP_List_Table {
+        public function __construct( $args = [] ) {}
+        public function prepare_items(): void {}
+        public function display(): void {}
+    }
+}
+
 /**
  * Mock WordPress global $wpdb for tests that need database access
  */
@@ -105,6 +143,11 @@ if (!isset($wpdb)) {
                 return $count;
             }
 
+            if (preg_match('/SELECT COUNT\(\*\) FROM\s+([a-zA-Z0-9_`]+)\s*$/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                return count($this->data[$table] ?? []);
+            }
+
             if (preg_match('/SELECT\s+(?:id|event_id)\s+FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+event_id\s*=\s*[\'"]?([^\'"\s]+)[\'"]?/i', $query, $m)) {
                 $table = $this->normalize_table($m[1]);
                 $event_id = $m[2];
@@ -155,6 +198,42 @@ if (!isset($wpdb)) {
 
         public function get_row($query, $output = OBJECT, $offset = 0) {
             $query = trim((string) $query);
+            if (preg_match('/SELECT\s+um\.user_id,\s*um\.tier_id,\s*um\.status,\s*um\.trial_ends_at,\s*um\.started_at,\s*um\.cancelled_at,\s*mt\.slug\s+as\s+tier_slug,\s*mt\.name\s+as\s+tier_name\s+FROM\s+([a-zA-Z0-9_`]+)\s+um\s+LEFT\s+JOIN\s+([a-zA-Z0-9_`]+)\s+mt\s+ON\s+um\.tier_id\s*=\s*mt\.id\s+WHERE\s+um\.user_id\s*=\s*([0-9]+)/is', $query, $m)) {
+                $membershipTable = $this->normalize_table($m[1]);
+                $tierTable = $this->normalize_table($m[2]);
+                $userId = (int) $m[3];
+
+                foreach ($this->data[$membershipTable] ?? [] as $membershipRow) {
+                    if ((int) ($membershipRow['user_id'] ?? 0) !== $userId) {
+                        continue;
+                    }
+
+                    $tier = null;
+                    $tierId = (int) ($membershipRow['tier_id'] ?? 0);
+                    foreach ($this->data[$tierTable] ?? [] as $tierRow) {
+                        if ((int) ($tierRow['id'] ?? 0) === $tierId) {
+                            $tier = $tierRow;
+                            break;
+                        }
+                    }
+
+                    $result = [
+                        'user_id' => (int) ($membershipRow['user_id'] ?? 0),
+                        'tier_id' => $tierId,
+                        'status' => (string) ($membershipRow['status'] ?? ''),
+                        'trial_ends_at' => $membershipRow['trial_ends_at'] ?? null,
+                        'started_at' => $membershipRow['started_at'] ?? null,
+                        'cancelled_at' => $membershipRow['cancelled_at'] ?? null,
+                        'tier_slug' => $tier['slug'] ?? null,
+                        'tier_name' => $tier['name'] ?? null,
+                    ];
+
+                    return $output === ARRAY_A ? $result : (object) $result;
+                }
+
+                return null;
+            }
+
             if (preg_match('/SELECT\s+status\s+FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+event_id\s*=\s*[\'"]?([^\'"\s]+)[\'"]?/i', $query, $m)) {
                 $table = $this->normalize_table($m[1]);
                 $event_id = $m[2];
@@ -198,6 +277,17 @@ if (!isset($wpdb)) {
                 $id = (int) $m[2];
                 foreach ($this->data[$table] ?? [] as $row) {
                     if ((int)($row['id'] ?? 0) === $id && (int)($row['is_active'] ?? 0) === 1) {
+                        return $output === ARRAY_A ? $row : (object) $row;
+                    }
+                }
+                return null;
+            }
+
+            if (preg_match('/SELECT \* FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+id\s*=\s*([0-9]+)/i', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $id = (int) $m[2];
+                foreach ($this->data[$table] ?? [] as $row) {
+                    if ((int)($row['id'] ?? 0) === $id) {
                         return $output === ARRAY_A ? $row : (object) $row;
                     }
                 }
@@ -313,6 +403,49 @@ if (!isset($wpdb)) {
 
         public function get_results($query, $output = OBJECT) {
             $query = trim((string) $query);
+            if (preg_match('/SELECT\s+id\s+FROM\s+([a-zA-Z0-9_`]+)\s+WHERE\s+id\s*>\s*([0-9]+)\s+AND\s+created_at\s*<\s*[\'"]?([^\'"\s]+\s+[^\'"\s]+)[\'"]?\s+AND\s+anonymized_at\s+IS\s+NULL\s+AND\s+\(legal_hold_until\s+IS\s+NULL\s+OR\s+legal_hold_until\s*<\s*[\'"]?([^\'"\s]+\s+[^\'"\s]+)[\'"]?\)\s+ORDER\s+BY\s+id\s+ASC\s+LIMIT\s+([0-9]+)/is', $query, $m)) {
+                $table = $this->normalize_table($m[1]);
+                $afterId = (int) $m[2];
+                $cutoffTime = strtotime((string) $m[3]);
+                $nowTime = strtotime((string) $m[4]);
+                $limit = (int) $m[5];
+
+                $rows = [];
+                foreach ($this->data[$table] ?? [] as $row) {
+                    $id = (int) ($row['id'] ?? 0);
+                    if ($id <= $afterId) {
+                        continue;
+                    }
+
+                    $createdAt = isset($row['created_at']) ? strtotime((string) $row['created_at']) : false;
+                    if ($createdAt === false || ($cutoffTime !== false && $createdAt >= $cutoffTime)) {
+                        continue;
+                    }
+
+                    if (!empty($row['anonymized_at'])) {
+                        continue;
+                    }
+
+                    if (!empty($row['legal_hold_until'])) {
+                        $legalHoldUntil = strtotime((string) $row['legal_hold_until']);
+                        if ($legalHoldUntil !== false && $nowTime !== false && $legalHoldUntil >= $nowTime) {
+                            continue;
+                        }
+                    }
+
+                    $rows[] = ['id' => $id];
+                }
+
+                usort($rows, static fn($a, $b) => ((int) $a['id']) <=> ((int) $b['id']));
+                $rows = array_slice($rows, 0, max(0, $limit));
+
+                if ($output === ARRAY_A) {
+                    return $rows;
+                }
+
+                return array_map(static fn($row) => (object) $row, $rows);
+            }
+
             if (preg_match('/SELECT .* FROM\s+([a-zA-Z0-9_`]+).*LIMIT\s+([0-9]+)/is', $query, $m)) {
                 $table = $this->normalize_table($m[1]);
                 $limit = (int) $m[2];
@@ -398,6 +531,13 @@ if (!function_exists('sanitize_key')) {
         $key = strtolower($key);
         return preg_replace('/[^a-z0-9_\\-]/', '', $key);
     }
+
+if (!function_exists('sanitize_file_name')) {
+    function sanitize_file_name($filename) {
+        $filename = preg_replace('/[^A-Za-z0-9._-]/', '-', (string) $filename);
+        return trim((string) $filename, '-');
+    }
+}
 }
 
 if (!function_exists('absint')) {
@@ -448,6 +588,15 @@ if (!function_exists('wp_rand')) {
 
 if (!function_exists('get_user_by')) {
     function get_user_by($field, $value) {
+        if (isset($GLOBALS['khm_test_users_by']) && is_array($GLOBALS['khm_test_users_by'])) {
+            $fieldKey = (string) $field;
+            $lookupValue = (string) $value;
+            if (isset($GLOBALS['khm_test_users_by'][$fieldKey]) && is_array($GLOBALS['khm_test_users_by'][$fieldKey])) {
+                if (isset($GLOBALS['khm_test_users_by'][$fieldKey][$lookupValue])) {
+                    return $GLOBALS['khm_test_users_by'][$fieldKey][$lookupValue];
+                }
+            }
+        }
         return false;
     }
 }
@@ -494,9 +643,45 @@ if (!function_exists('update_option')) {
     }
 }
 
+if (!function_exists('get_site_option')) {
+    function get_site_option($option, $default = false) {
+        return get_option($option, $default);
+    }
+}
+
+if (!function_exists('update_site_option')) {
+    function update_site_option($option, $value) {
+        return update_option($option, $value, false);
+    }
+}
+
+if (!function_exists('wp_upload_dir')) {
+    function wp_upload_dir() {
+        return [
+            'basedir' => sys_get_temp_dir() . '/khm-test-uploads',
+            'baseurl' => 'https://example.com/uploads',
+        ];
+    }
+}
+
+if (!function_exists('wp_mkdir_p')) {
+    function wp_mkdir_p($target) {
+        if (is_dir($target)) {
+            return true;
+        }
+        return mkdir($target, 0777, true);
+    }
+}
+
 if (!function_exists('home_url')) {
     function home_url($path = '') {
         return 'https://example.com' . $path;
+    }
+}
+
+if (!function_exists('trailingslashit')) {
+    function trailingslashit($value) {
+        return rtrim((string) $value, '/\\') . '/';
     }
 }
 
@@ -588,6 +773,12 @@ if (!function_exists('wp_json_encode')) {
     }
 }
 
+if (!function_exists('wp_kses_post')) {
+    function wp_kses_post($text) {
+        return (string) $text;
+    }
+}
+
 if (!function_exists('is_wp_error')) {
     function is_wp_error($thing) {
         return $thing instanceof WP_Error;
@@ -612,9 +803,36 @@ if (!function_exists('__return_false')) {
     }
 }
 
+if (!function_exists('esc_html__')) {
+    function esc_html__($text, $domain = 'default') {
+        return (string) $text;
+    }
+}
+
+if (!function_exists('check_admin_referer')) {
+    function check_admin_referer($action = -1, $query_arg = '_wpnonce') {
+        return true;
+    }
+}
+
+if (!function_exists('wp_die')) {
+    function wp_die($message = '', $title = '', $args = []) {
+        $status = 403;
+        if (is_array($args) && isset($args['response'])) {
+            $status = (int) $args['response'];
+        }
+
+        throw new RuntimeException((string) $message, $status > 0 ? $status : 403);
+    }
+}
+
 if (!function_exists('error_log')) {
     function error_log($message, $message_type = 0, $destination = null, $extra_headers = null) {
-        // Suppress error logs during tests
+        if (!isset($GLOBALS['khm_test_error_logs']) || !is_array($GLOBALS['khm_test_error_logs'])) {
+            $GLOBALS['khm_test_error_logs'] = [];
+        }
+
+        $GLOBALS['khm_test_error_logs'][] = (string) $message;
         return true;
     }
 }

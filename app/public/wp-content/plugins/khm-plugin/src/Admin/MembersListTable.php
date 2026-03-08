@@ -59,6 +59,7 @@ class MembersListTable extends \WP_List_Table {
 			'start_date' => [ 'start_date', true ],
 			'end_date'   => [ 'end_date', false ],
 			'status'     => [ 'status', false ],
+			'attribution' => [ 'attribution_created', false ],
 		];
 	}
 
@@ -276,11 +277,13 @@ class MembersListTable extends \WP_List_Table {
 	public function column_attribution( $item ): string {
 		$schedule_id    = isset( $item['attribution_schedule_id'] ) ? absint( $item['attribution_schedule_id'] ) : 0;
 		$sponsor_id     = isset( $item['attribution_sponsor_id'] ) ? absint( $item['attribution_sponsor_id'] ) : 0;
+		$user_id        = isset( $item['user_id'] ) ? absint( $item['user_id'] ) : 0;
 		$schedule_title = isset( $item['attribution_schedule_title'] ) ? trim( (string) $item['attribution_schedule_title'] ) : '';
 		$sponsor_name   = isset( $item['attribution_sponsor_name'] ) ? trim( (string) $item['attribution_sponsor_name'] ) : '';
 		$utm_source     = isset( $item['attribution_utm_source'] ) ? trim( (string) $item['attribution_utm_source'] ) : '';
 		$phase          = isset( $item['attribution_phase_at_click'] ) ? trim( (string) $item['attribution_phase_at_click'] ) : '';
 		$conversion     = isset( $item['attribution_conversion_type'] ) ? trim( (string) $item['attribution_conversion_type'] ) : '';
+		$created_at     = isset( $item['attribution_created_at'] ) ? trim( (string) $item['attribution_created_at'] ) : '';
 
 		$rows = [];
 
@@ -337,6 +340,29 @@ class MembersListTable extends \WP_List_Table {
 				'%s %s',
 				esc_html__( 'Conversion:', 'khm-membership' ),
 				esc_html( $conversion )
+			);
+		}
+
+		if ( $created_at !== '' ) {
+			$rows[] = sprintf(
+				'%s %s',
+				esc_html__( 'Recorded:', 'khm-membership' ),
+				esc_html( date_i18n( get_option( 'date_format' ), strtotime( $created_at ) ) )
+			);
+		}
+
+		if ( $user_id > 0 ) {
+			$report_link = add_query_arg(
+				[
+					'page' => 'khm-membership-reports',
+					'user_id' => $user_id,
+				],
+				admin_url( 'admin.php' )
+			);
+			$rows[] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $report_link ),
+				esc_html__( 'View Report Rows', 'khm-membership' )
 			);
 		}
 

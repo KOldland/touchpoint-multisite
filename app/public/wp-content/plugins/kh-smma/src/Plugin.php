@@ -9,6 +9,10 @@ use KH_SMMA\Admin\AdminInterface;
 use KH_SMMA\Admin\AuditLogPage;
 use KH_SMMA\Admin\CapabilitySettingsPage;
 use KH_SMMA\Admin\AssetsManager;
+use KH_SMMA\Admin\ImageUploadPage;
+use KH_SMMA\Admin\PendingApprovalsPage;
+use KH_SMMA\Admin\ScheduleDetailPage;
+use KH_SMMA\Admin\PostBoostPage;
 use KH_SMMA\Services\ScheduleQueueProcessor;
 use KH_SMMA\Services\TokenRepository;
 use KH_SMMA\Services\AuditLogger;
@@ -18,6 +22,7 @@ use KH_SMMA\Services\EngagementMetricsService;
 use KH_SMMA\Services\PhaseEngine;
 use KH_SMMA\Services\FeatureFlags;
 use KH_SMMA\Services\SmmaGenerator;
+use KH_SMMA\Services\Card1StateStore;
 use KH_SMMA\API\RestController;
 use KH_SMMA\Security\CredentialVault;
 use KH_SMMA\Security\CapabilityManager;
@@ -30,6 +35,42 @@ use KH_SMMA\Adapters\TwitterChannelAdapter;
 use KH_SMMA\OAuth\OAuthManager;
 use KH_SMMA\CLI\LifecycleSimulatorCommand;
 use KH_SMMA\CLI\EventCatalogCommand;
+use KH_SMMA\CLI\SettlementCommand;
+use KH_SMMA\Reconciliation\PaidReconciliationService;
+use KH_SMMA\Reconciliation\PaidReconciliationAdjustmentService;
+use KH_SMMA\Reconciliation\FxService;
+use KH_SMMA\Reconciliation\SettlementWorker;
+use KH_SMMA\Api\ReconciliationController;
+use KH_SMMA\Api\SettlementAckController;
+use KH_SMMA\CLI\SettlementDeliverCommand;
+use KH_SMMA\Reconciliation\SettlementDeliveryService;
+use KH_SMMA\Reconciliation\DeliveryIdempotencyStore;
+use KH_SMMA\Reconciliation\SftpAccountingAdapter;
+use KH_SMMA\Reconciliation\AccountingApiAdapter;
+use KH_SMMA\Adapters\ReconciliationService;
+use KH_SMMA\Admin\PaidReconciliationPage;
+use KH_SMMA\Api\PaidReconciliationRunController;
+use KH_SMMA\API\ManualExportController;
+use KH_SMMA\API\SponsorApprovalController;
+use KH_SMMA\CLI\ReconcileCommand;
+use KH_SMMA\Scheduling\ScheduleRepository;
+use KH_SMMA\Scheduling\DispatchEligibilityService;
+use KH_SMMA\Telemetry\EventEmitter;
+use KH_SMMA\Telemetry\EventQueue;
+use KH_SMMA\Telemetry\TelemetryRetryService;
+use KH_SMMA\Telemetry\TelemetryPayloadSanitizer;
+use KH_SMMA\Telemetry\TelemetryConfigService;
+use KH_SMMA\Telemetry\TraceContext;
+use KH_SMMA\Telemetry\AnalyticsFeedbackService as TelemetryAnalyticsFeedbackService;
+use KH_SMMA\Telemetry\MetricsSnapshotRepository;
+use KH_SMMA\Membership\SignupHandler;
+use KH_SMMA\Membership\AttributionService;
+use KH_SMMA\Admin\ObservabilityDashboardPage;
+use KH_SMMA\Admin\TelemetryDebugPage;
+use KH_SMMA\Telemetry\AlertEvaluator;
+use KH_SMMA\Telemetry\TelemetryTraceService;
+use KH_SMMA\Notifications\ApprovalNotificationService;
+use KH_SMMA\SponsorApproval\ApprovalPermissionService;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -73,6 +114,76 @@ class Plugin {
     private $lifecycle_simulator;
 
     /**
+     * @var PaidReconciliationService
+     */
+    private $reconciliation_service;
+
+    /**
+     * @var PaidReconciliationAdjustmentService
+     */
+    private $adjustment_service;
+
+    /**
+     * @var FxService
+     */
+    private $fx_service;
+
+    /**
+     * @var SettlementWorker
+     */
+    private $settlement_worker;
+
+    /**
+     * @var SettlementDeliveryService
+     */
+    private $delivery_service;
+
+    /**
+     * @var ReconciliationService
+     */
+    private $recon_service;
+
+    /**
+     * @var EventEmitter
+     */
+    private $event_emitter;
+
+    /**
+     * @var MetricsSnapshotRepository
+     */
+    private $snapshot_repo;
+
+    /**
+     * @var TelemetryAnalyticsFeedbackService
+     */
+    private $telemetry_analytics;
+
+    /**
+     * @var AlertEvaluator
+     */
+    private $alert_evaluator;
+
+    /**
+     * @var EventQueue
+     */
+    private $event_queue;
+
+    /**
+     * @var TelemetryRetryService
+     */
+    private $retry_service;
+
+    /**
+     * @var TelemetryPayloadSanitizer
+     */
+    private $payload_sanitizer;
+
+    /**
+     * @var TelemetryConfigService
+     */
+    private $telemetry_config;
+
+    /**
      * Primary bootstrap entrypoint.
      */
     public function register() {
@@ -114,13 +225,29 @@ class Plugin {
     private function bootstrap_services() {
         global $wpdb;
 
-        $this->vault               = new CredentialVault();
-        $this->token_repository    = new TokenRepository( $wpdb, $this->vault );
-        $this->audit_logger        = new AuditLogger( $wpdb );
-        $this->capability_manager  = new CapabilityManager();
-        $this->analytics_feedback  = new AnalyticsFeedbackService();
-        $this->lifecycle_simulator = new LifecycleSimulator();
-        $this->engagement_metrics  = new EngagementMetricsService();
+        $this->vault                  = new CredentialVault();
+        $this->token_repository       = new TokenRepository( $wpdb, $this->vault );
+        $this->audit_logger           = new AuditLogger( $wpdb );
+        $this->capability_manager     = new CapabilityManager();
+        $this->analytics_feedback     = new AnalyticsFeedbackService();
+        $this->lifecycle_simulator    = new LifecycleSimulator();
+        $this->engagement_metrics     = new EngagementMetricsService();
+        if ( $this->has_reconciliation_support() ) {
+            $this->reconciliation_service = new PaidReconciliationService( $wpdb, $this->audit_logger );
+            $this->fx_service             = FxService::from_config();
+            $this->adjustment_service     = new PaidReconciliationAdjustmentService( $wpdb, $this->audit_logger );
+            $this->settlement_worker      = new SettlementWorker( $wpdb, $this->adjustment_service, $this->fx_service, $this->audit_logger );
+            $this->delivery_service       = new SettlementDeliveryService( $wpdb, $this->settlement_worker, $this->audit_logger, new DeliveryIdempotencyStore() );
+            $this->recon_service          = new ReconciliationService( $wpdb, $this->audit_logger, $this->reconciliation_service );
+        }
+        $this->retry_service          = new TelemetryRetryService( $wpdb );
+        $this->event_queue            = new EventQueue( $this->retry_service );
+        $this->payload_sanitizer      = new TelemetryPayloadSanitizer();
+        $this->event_emitter          = new EventEmitter( $this->audit_logger, $this->event_queue, $this->payload_sanitizer );
+        $this->telemetry_config       = new TelemetryConfigService( $wpdb, $this->event_emitter );
+        $this->snapshot_repo          = new MetricsSnapshotRepository( $wpdb );
+        $this->telemetry_analytics    = new TelemetryAnalyticsFeedbackService( $this->snapshot_repo );
+        $this->alert_evaluator        = new AlertEvaluator( $this->snapshot_repo, $this->event_emitter, $this->audit_logger );
     }
 
     /**
@@ -150,6 +277,18 @@ class Plugin {
         ( new AuditLogPage( $wpdb ) )->register();
         ( new CapabilitySettingsPage() )->register();
         ( new AssetsManager() )->register();
+        ( new ImageUploadPage() )->register();
+        if ( $this->has_reconciliation_support() ) {
+            ( new PaidReconciliationPage( $this->recon_service, $this->audit_logger ) )->register();
+        }
+        ( new PendingApprovalsPage( new ScheduleRepository( $this->audit_logger ), new ApprovalPermissionService() ) )->register();
+        ( new ScheduleDetailPage() )->register();
+        ( new PostBoostPage() )->register();
+        // OBS-03/04: Observability dashboard with alert indicators.
+        ( new ObservabilityDashboardPage( $this->snapshot_repo, $this->audit_logger, $this->alert_evaluator ) )->register();
+        // OBS-08: Telemetry Debug page (manage_observability required).
+        $trace_service = new TelemetryTraceService( $this->audit_logger, $this->payload_sanitizer );
+        ( new TelemetryDebugPage( $trace_service ) )->register();
     }
 
     /**
@@ -164,8 +303,53 @@ class Plugin {
         ( new PhaseEngine( $wpdb ) )->register();
         $flags = new FeatureFlags();
         $flags->ensure_defaults();
-        ( new RestController( $flags, new SmmaGenerator(), $this->audit_logger, new PhaseEngine( $wpdb ) ) )->register();
+        ( new RestController( $flags, new SmmaGenerator(), $this->audit_logger, new PhaseEngine( $wpdb ), null, null, $this->event_emitter ) )->register();
+        ( new DispatchEligibilityService( $this->audit_logger ) )->register();
+
+        // OBS-02: Telemetry analytics aggregation.
+        $this->telemetry_analytics->register();
+
+        // OBS-04: Alert evaluation.
+        $this->alert_evaluator->register();
+
+        // OBS-06: Non-blocking event queue and retry service.
+        $this->event_queue->register();
+        $this->retry_service->register();
+
+        // OBS-07: Telemetry governance — cleanup cron.
+        $this->telemetry_config->register();
+
+        // OBS: Membership telemetry listeners.
+        ( new SignupHandler( $this->event_emitter ) )->register();
+        ( new AttributionService( $this->event_emitter ) )->register();
+
+        // OBS: schedule.dispatch — fires whenever ScheduleQueueProcessor updates status.
+        $emitter = $this->event_emitter;
+        add_action( 'kh_smma_schedule_status_changed', function ( $schedule_id, $status ) use ( $emitter ) {
+            $result = 'completed' === $status || 'sandboxed' === $status ? 'dispatched'
+                    : ( 'failed' === $status ? 'failed' : 'exported' );
+            $emitter->emit( 'schedule.dispatch', array(
+                'schedule_id' => (string) $schedule_id,
+                'adapter'     => (string) get_post_meta( $schedule_id, '_kh_smma_delivery_mode', true ) ?: 'manual',
+                'result'      => $result,
+                'service'     => 'smma',
+            ) );
+        }, 10, 2 );
         ( new ManualExportAdapter() )->register();
+        if ( $this->has_reconciliation_support() ) {
+            ( new ReconciliationController(
+                $this->reconciliation_service,
+                $this->adjustment_service,
+                $this->settlement_worker,
+                $this->audit_logger
+            ) )->register();
+            $this->settlement_worker->register();
+            ( new SettlementAckController( $this->delivery_service, $this->audit_logger ) )->register();
+            ( new PaidReconciliationRunController( $this->recon_service, $this->audit_logger ) )->register();
+        }
+        ( new ManualExportController( $this->audit_logger ) )->register();
+        ( new SponsorApprovalController( new ScheduleRepository( $this->audit_logger ), $this->audit_logger, new ApprovalPermissionService() ) )->register();
+        ( new ApprovalNotificationService( $this->audit_logger ) )->register();
         ( new MetaChannelAdapter( $this->token_repository ) )->register();
         ( new LinkedInChannelAdapter( $this->token_repository ) )->register();
         ( new TwitterChannelAdapter( $this->token_repository ) )->register();
@@ -185,6 +369,11 @@ class Plugin {
 
         ( new LifecycleSimulatorCommand( $this->lifecycle_simulator, $this->analytics_feedback ) )->register();
         ( new EventCatalogCommand( new PhaseEngine( $wpdb ) ) )->register();
+        if ( $this->has_reconciliation_support() ) {
+            ( new SettlementCommand( $this->settlement_worker ) )->register();
+            ( new SettlementDeliverCommand( $this->delivery_service, new SftpAccountingAdapter(), new AccountingApiAdapter() ) )->register();
+            ( new ReconcileCommand( $this->recon_service ) )->register();
+        }
     }
 
     /**
@@ -207,6 +396,35 @@ class Plugin {
         if ( ! wp_next_scheduled( 'kh_smma_phase_aggregate' ) ) {
             wp_schedule_event( time(), 'hourly', 'kh_smma_phase_aggregate' );
         }
+
+        if ( ! wp_next_scheduled( 'kh_smma_run_settlement' ) ) {
+            wp_schedule_event( time(), 'daily', 'kh_smma_run_settlement' );
+        }
+
+        // OBS-02: flush telemetry analytics snapshot every 5 minutes.
+        if ( ! wp_next_scheduled( \KH_SMMA\Telemetry\AnalyticsFeedbackService::CRON_HOOK ) ) {
+            wp_schedule_event( time(), 'kh_smma_five_minutes', \KH_SMMA\Telemetry\AnalyticsFeedbackService::CRON_HOOK );
+        }
+
+        // OBS-04: alert evaluation every 5 minutes.
+        if ( ! wp_next_scheduled( \KH_SMMA\Telemetry\AlertEvaluator::CRON_HOOK ) ) {
+            wp_schedule_event( time(), 'kh_smma_five_minutes', \KH_SMMA\Telemetry\AlertEvaluator::CRON_HOOK );
+        }
+
+        // OBS-06: event queue flush every 5 minutes.
+        if ( ! wp_next_scheduled( \KH_SMMA\Telemetry\EventQueue::FLUSH_CRON_HOOK ) ) {
+            wp_schedule_event( time(), 'kh_smma_five_minutes', \KH_SMMA\Telemetry\EventQueue::FLUSH_CRON_HOOK );
+        }
+
+        // OBS-06: replay buffered telemetry events every 5 minutes.
+        if ( ! wp_next_scheduled( \KH_SMMA\Telemetry\TelemetryRetryService::REPLAY_CRON_HOOK ) ) {
+            wp_schedule_event( time(), 'kh_smma_five_minutes', \KH_SMMA\Telemetry\TelemetryRetryService::REPLAY_CRON_HOOK );
+        }
+
+        // OBS-07: daily telemetry retention cleanup.
+        if ( ! wp_next_scheduled( \KH_SMMA\Telemetry\TelemetryConfigService::CRON_HOOK ) ) {
+            wp_schedule_event( time(), 'daily', \KH_SMMA\Telemetry\TelemetryConfigService::CRON_HOOK );
+        }
     }
 
     /**
@@ -221,6 +439,13 @@ class Plugin {
             $schedules['kh_smma_minute'] = array(
                 'interval' => 60,
                 'display'  => __( 'KH SMMA – every minute', 'kh-smma' ),
+            );
+        }
+
+        if ( ! isset( $schedules['kh_smma_five_minutes'] ) ) {
+            $schedules['kh_smma_five_minutes'] = array(
+                'interval' => 300,
+                'display'  => __( 'KH SMMA – every 5 minutes', 'kh-smma' ),
             );
         }
 
@@ -253,6 +478,22 @@ class Plugin {
         add_filter( 'cron_schedules', array( $plugin, 'register_custom_cron_interval' ) );
         $plugin->token_repository->install();
         ( new PhaseEngine( $wpdb ) )->install();
+        $audit = new AuditLogger( $wpdb );
+        ( new Card1StateStore( $wpdb ) )->install();
+        if ( $plugin->has_reconciliation_support() ) {
+            ( new PaidReconciliationService( $wpdb, $audit ) )->install();
+            $adj_svc = new PaidReconciliationAdjustmentService( $wpdb, $audit );
+            $adj_svc->install();
+            $settlement_worker = new SettlementWorker( $wpdb, $adj_svc, FxService::from_config(), $audit );
+            $settlement_worker->install();
+            ( new SettlementDeliveryService( $wpdb, $settlement_worker, $audit, new DeliveryIdempotencyStore() ) )->install();
+            ( new ReconciliationService( $wpdb, $audit, new PaidReconciliationService( $wpdb, $audit ) ) )->install();
+        }
+        // OBS-02: analytics snapshots table.
+        ( new MetricsSnapshotRepository( $wpdb ) )->install();
+
+        // OBS-06: telemetry retry buffer table.
+        ( new TelemetryRetryService( $wpdb ) )->install();
 
         flush_rewrite_rules();
 
@@ -279,6 +520,68 @@ class Plugin {
             wp_unschedule_event( $timestamp, 'kh_smma_phase_aggregate' );
         }
 
+        $timestamp = wp_next_scheduled( 'kh_smma_run_settlement' );
+        if ( $timestamp ) {
+            wp_unschedule_event( $timestamp, 'kh_smma_run_settlement' );
+        }
+
+        $timestamp = wp_next_scheduled( \KH_SMMA\Telemetry\AnalyticsFeedbackService::CRON_HOOK );
+        if ( $timestamp ) {
+            wp_unschedule_event( $timestamp, \KH_SMMA\Telemetry\AnalyticsFeedbackService::CRON_HOOK );
+        }
+
+        $timestamp = wp_next_scheduled( \KH_SMMA\Telemetry\AlertEvaluator::CRON_HOOK );
+        if ( $timestamp ) {
+            wp_unschedule_event( $timestamp, \KH_SMMA\Telemetry\AlertEvaluator::CRON_HOOK );
+        }
+
+        $timestamp = wp_next_scheduled( \KH_SMMA\Telemetry\EventQueue::FLUSH_CRON_HOOK );
+        if ( $timestamp ) {
+            wp_unschedule_event( $timestamp, \KH_SMMA\Telemetry\EventQueue::FLUSH_CRON_HOOK );
+        }
+
+        $timestamp = wp_next_scheduled( \KH_SMMA\Telemetry\TelemetryRetryService::REPLAY_CRON_HOOK );
+        if ( $timestamp ) {
+            wp_unschedule_event( $timestamp, \KH_SMMA\Telemetry\TelemetryRetryService::REPLAY_CRON_HOOK );
+        }
+
+        $timestamp = wp_next_scheduled( \KH_SMMA\Telemetry\TelemetryConfigService::CRON_HOOK );
+        if ( $timestamp ) {
+            wp_unschedule_event( $timestamp, \KH_SMMA\Telemetry\TelemetryConfigService::CRON_HOOK );
+        }
+
         flush_rewrite_rules();
+    }
+
+    /**
+     * Reconciliation is optional in this branch; skip wiring when the package is absent.
+     */
+    private function has_reconciliation_support() {
+        $required = array(
+            PaidReconciliationService::class,
+            PaidReconciliationAdjustmentService::class,
+            FxService::class,
+            SettlementWorker::class,
+            SettlementDeliveryService::class,
+            DeliveryIdempotencyStore::class,
+            SftpAccountingAdapter::class,
+            AccountingApiAdapter::class,
+            ReconciliationService::class,
+            ReconciliationController::class,
+            SettlementAckController::class,
+            PaidReconciliationRunController::class,
+            PaidReconciliationPage::class,
+            SettlementCommand::class,
+            SettlementDeliverCommand::class,
+            ReconcileCommand::class,
+        );
+
+        foreach ( $required as $class ) {
+            if ( ! class_exists( $class ) ) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
