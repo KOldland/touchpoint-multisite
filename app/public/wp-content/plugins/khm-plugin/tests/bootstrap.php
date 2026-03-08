@@ -15,6 +15,44 @@ if (!defined('ABSPATH')) {
 // Brain\Monkey setup for unit tests
 require_once dirname(__DIR__) . '/vendor/antecedent/patchwork/Patchwork.php';
 
+if ( ! class_exists( 'WP_CLI' ) ) {
+    class WP_CLI {
+        public static array $lines = [];
+        public static array $successes = [];
+        public static array $warnings = [];
+        public static array $errors = [];
+
+        public static function line( $message ): void {
+            self::$lines[] = (string) $message;
+        }
+
+        public static function success( $message ): void {
+            self::$successes[] = (string) $message;
+        }
+
+        public static function warning( $message ): void {
+            self::$warnings[] = (string) $message;
+        }
+
+        public static function error( $message ): void {
+            self::$errors[] = (string) $message;
+            throw new RuntimeException( (string) $message );
+        }
+
+        public static function colorize( $message ) {
+            return (string) $message;
+        }
+    }
+}
+
+if ( ! class_exists( 'WP_List_Table' ) ) {
+    class WP_List_Table {
+        public function __construct( $args = [] ) {}
+        public function prepare_items(): void {}
+        public function display(): void {}
+    }
+}
+
 /**
  * Mock WordPress global $wpdb for tests that need database access
  */
@@ -732,6 +770,12 @@ if (!function_exists('wp_schedule_event')) {
 if (!function_exists('wp_json_encode')) {
     function wp_json_encode($data, $options = 0, $depth = 512) {
         return json_encode($data, $options, $depth);
+    }
+}
+
+if (!function_exists('wp_kses_post')) {
+    function wp_kses_post($text) {
+        return (string) $text;
     }
 }
 

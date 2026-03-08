@@ -8,6 +8,7 @@
 namespace KHM\Tests\Admin;
 
 use KHM\Admin\LevelsPage;
+use KHM\Models\MembershipLevel;
 use KHM\Services\LevelRepository;
 use PHPUnit\Framework\TestCase;
 
@@ -48,7 +49,7 @@ class StripePriceIdTest extends TestCase {
 			->expects( $this->once() )
 			->method( 'create' )
 			->with( $levelData, $meta )
-			->willReturn( (object) [ 'id' => 1, 'name' => 'Premium Membership' ] );
+			->willReturn( new MembershipLevel( [ 'id' => 1, 'name' => 'Premium Membership' ] ) );
 		
 		// Act
 		$level = $this->repository->create( $levelData, $meta );
@@ -278,7 +279,7 @@ class StripePriceIdTest extends TestCase {
 			->expects( $this->once() )
 			->method( 'create' )
 			->with( $levelData, $meta )
-			->willReturn( (object) [ 'id' => 1, 'name' => 'Free Tier' ] );
+			->willReturn( new MembershipLevel( [ 'id' => 1, 'name' => 'Free Tier' ] ) );
 		
 		// Act
 		$level = $this->repository->create( $levelData, $meta );
