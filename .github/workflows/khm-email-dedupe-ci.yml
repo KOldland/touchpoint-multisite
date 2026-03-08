@@ -36,12 +36,11 @@ jobs:
         run: composer install --prefer-dist --no-progress --no-interaction
 
       - name: Run email dedupe tests
-        working-directory: app/public/wp-content/plugins/khm-plugin
         run: |
           mkdir -p artifacts/ai2-phase2
-          vendor/bin/phpunit -c phpunit.xml \
-            tests/Services/EnhancedEmailServiceDedupeTest.php \
-            tests/Membership/EmailDedupeTest.php \
+          vendor/bin/phpunit -c app/public/wp-content/plugins/khm-plugin/phpunit.xml \
+            app/public/wp-content/plugins/khm-plugin/tests/Services/EnhancedEmailServiceDedupeTest.php \
+            app/public/wp-content/plugins/khm-plugin/tests/Membership/EmailDedupeTest.php \
             --log-junit artifacts/ai2-phase2/phpunit_email_dedupe.xml \
             > artifacts/ai2-phase2/email_dedupe_test.log 2>&1
 
@@ -49,4 +48,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: khm-email-dedupe-artifacts
-          path: app/public/wp-content/plugins/khm-plugin/artifacts/ai2-phase2/
+          path: artifacts/ai2-phase2/
