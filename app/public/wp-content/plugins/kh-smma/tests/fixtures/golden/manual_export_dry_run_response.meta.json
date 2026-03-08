@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "prompt_hash": "6688d4a1471328bd179e5747a7c3473defafed453ef45c47ab7194fbc21d44e5",
+  "prompt_version": "paid-07",
+  "created_at": "2026-03-04T00:00:00Z",
+  "author": "@paid-adapter-team",
+  "checksum": "6688d4a1471328bd179e5747a7c3473defafed453ef45c47ab7194fbc21d44e5",
+  "labels": ["golden-owner-approved"],
+  "notes": "PAID-07: ManualExportAdapter deterministic dry_run response. manifest_id=man_20260303_001, op_1, estimated=60.0 AUD, confidence=1.0 (manual export is fully predictable)."
+}

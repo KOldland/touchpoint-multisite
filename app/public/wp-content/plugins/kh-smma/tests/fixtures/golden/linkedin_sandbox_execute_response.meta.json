@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "prompt_hash": "cc3f3a633aa1f846d96d2f07cc50aaa2e20edf90b6b52f5b22fb3611b794f637",
+  "prompt_version": "paid-03",
+  "created_at": "2026-03-04T00:00:00Z",
+  "author": "@paid-adapter-team",
+  "checksum": "cc3f3a633aa1f846d96d2f07cc50aaa2e20edf90b6b52f5b22fb3611b794f637",
+  "notes": "PAID-03: LinkedInSandboxAdapter deterministic execute response. manifest_id=man_20260303_001, op_1, idem=a1b2c3d4..., estimated=60.0 AUD (10×6d), actual=59.35 AUD (delta via sha256 seed of linkedin_sandbox)."
+}

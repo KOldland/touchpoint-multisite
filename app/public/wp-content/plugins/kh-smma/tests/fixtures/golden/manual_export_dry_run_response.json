@@ -1,0 +1,15 @@
+{
+  "manifest_id": "man_20260303_001",
+  "operations": [
+    {
+      "operation_id": "op_1",
+      "estimated_ops": ["manual_export"],
+      "estimated_spend": 60.0,
+      "currency": "AUD",
+      "confidence": 1.0
+    }
+  ],
+  "total_estimated_spend": 60.0,
+  "currency": "AUD",
+  "timestamp": "2026-03-04T00:00:00Z"
+}

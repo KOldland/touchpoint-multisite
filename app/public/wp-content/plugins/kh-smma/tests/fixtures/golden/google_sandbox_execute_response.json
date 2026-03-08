@@ -1,0 +1,22 @@
+{
+  "manifest_id": "man_20260303_001",
+  "status": "success",
+  "operation_results": [
+    {
+      "operation_id": "op_1",
+      "operation_id_on_channel": "g_op_84a2dfb9e9a6",
+      "result": "created",
+      "actual_spend": 60.07,
+      "currency": "AUD",
+      "error": null
+    }
+  ],
+  "total_actual_spend": 60.07,
+  "currency": "AUD",
+  "errors": null,
+  "timestamp": "2026-03-04T00:00:00Z",
+  "adapter_meta": {
+    "adapter": "google_sandbox",
+    "version": "1.0.0"
+  }
+}

@@ -66,6 +66,24 @@ require_once AM_PATH . 'includes/admin-ui.php';
 register_activation_hook(__FILE__, 'kh_ad_manager_activate');
 add_action('plugins_loaded', 'kh_ad_manager_maybe_update_tables');
 
+// Paid reconciliation admin page.
+add_action( 'plugins_loaded', function () {
+    if ( file_exists( AM_PATH . 'src/Admin/ReconciliationPage.php' ) ) {
+        require_once AM_PATH . 'src/Admin/ReconciliationPage.php';
+        ( new KH_AdManager_ReconciliationPage() )->register();
+    }
+} );
+
+// Finance reconciliation admin page + adjustment modal (PAID-05).
+add_action( 'plugins_loaded', function () {
+    if ( file_exists( AM_PATH . 'src/Admin/FinanceReconciliationPage.php' ) ) {
+        require_once AM_PATH . 'src/Admin/FinanceReconciliationPage.php';
+        require_once AM_PATH . 'src/Admin/AdjustmentModal.php';
+        ( new KH_AdManager_FinanceReconciliationPage() )->register();
+        ( new KH_AdManager_AdjustmentModal() )->register();
+    }
+} );
+
 function kh_ad_manager_get_events_table_sql() {
     global $wpdb;
 

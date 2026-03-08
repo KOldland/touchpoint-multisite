@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "prompt_hash": "d62fbf774fb95efb859050962124ccfc3b474ca793a764df0adb3cbf5ede2855",
+  "prompt_version": "paid-07",
+  "created_at": "2026-03-04T00:00:00Z",
+  "author": "@paid-adapter-team",
+  "checksum": "d62fbf774fb95efb859050962124ccfc3b474ca793a764df0adb3cbf5ede2855",
+  "labels": ["golden-owner-approved"],
+  "notes": "PAID-07: LinkedInSandboxAdapter deterministic dry_run response. manifest_id=man_20260303_001, op_1, estimated=60.0 AUD (10×6d), confidence=0.86."
+}
