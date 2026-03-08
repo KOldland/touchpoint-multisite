@@ -404,11 +404,21 @@ class MembershipCheckoutButton_Widget extends Widget_Base {
 
         // Enqueue JavaScript
         $js_path = $plugin_path . 'assets/js/membership-modal.js';
+        $helper_path = $plugin_path . 'assets/js/checkout-ui-helpers.js';
+        if (file_exists($helper_path)) {
+            wp_enqueue_script(
+                'khm-checkout-ui-helpers',
+                $plugin_url . 'assets/js/checkout-ui-helpers.js',
+                [],
+                filemtime($helper_path),
+                true
+            );
+        }
         if (file_exists($js_path)) {
             wp_enqueue_script(
                 'khm-membership-modal',
                 $plugin_url . 'assets/js/membership-modal.js',
-                ['jquery'],
+                ['jquery', 'khm-checkout-ui-helpers'],
                 filemtime($js_path),
                 true
             );

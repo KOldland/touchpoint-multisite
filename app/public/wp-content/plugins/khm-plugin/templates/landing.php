@@ -82,6 +82,14 @@ $blurb = function_exists( 'wp_kses' )
         <input type="hidden" name="phase_at_click" value="<?php echo $escAttr( (string) ( $data['phase_at_click'] ?? 'landing' ) ); ?>">
         <input type="hidden" name="signup_init_endpoint" value="<?php echo $escAttr( $signupInitEndpoint ); ?>">
 
+        <label for="khm-promo-code" style="display:block;margin:12px 0 6px;"><?php echo $esc( 'Promo code' ); ?></label>
+        <input type="text" id="khm-promo-code" name="promo_code" value="" placeholder="WELCOME10" style="width:100%;max-width:260px;">
+
+        <label for="khm-marketing-optin" style="display:flex;gap:8px;align-items:flex-start;margin:12px 0;">
+            <input type="checkbox" id="khm-marketing-optin" name="profile_marketing_optin" value="1">
+            <span>I would like occasional membership updates and offers.</span>
+        </label>
+
         <label for="khm-consent" style="display:flex;gap:8px;align-items:flex-start;margin:12px 0;">
             <input type="checkbox" id="khm-consent" name="consent" value="1" aria-label="Consent to attribution tracking">
             <span>I consent to attribution tracking for campaign measurement.</span>

@@ -506,8 +506,55 @@ Validated promo is attached to Stripe `discounts[].promotion_code` only when ser
   - `sponsor` is `null`
   - `attribution` is `null`
   - only generic success copy should be shown
+  - any membership detail CTA should route to the generic account page without attribution details
 
-## 9. POST `/wp-json/kh-membership/v1/landing-telemetry`
+## 9. POST `/wp-json/kh-membership/v1/price-override`
+
+- Purpose: persist demo-only manual pricing overrides for the Price Review admin screen.
+- Auth: admin / membership manager with REST nonce.
+
+### Request
+
+```json
+{
+  "reference_id": "demo-price-review",
+  "currency": "AUD",
+  "items": [
+    {
+      "key": "creative_setup",
+      "label": "Creative setup",
+      "amount_cents": 4500
+    },
+    {
+      "key": "campaign_management",
+      "label": "Campaign management",
+      "amount_cents": 8500
+    }
+  ]
+}
+```
+
+### Success `200`
+
+```json
+{
+  "ok": true,
+  "reference_id": "demo-price-review",
+  "currency": "AUD",
+  "items": [],
+  "total_amount_cents": 13000
+}
+```
+
+### Validation error `422`
+
+```json
+{
+  "message": "Override amount is outside the allowed range."
+}
+```
+
+## 10. POST `/wp-json/kh-membership/v1/landing-telemetry`
 
 - Purpose: record frontend success/CTA telemetry.
 - Auth: public.
@@ -564,13 +611,15 @@ Frontend should emit or expect the following event names already present in the 
   - `app/public/wp-content/plugins/kh-smma/assets/js/pending-approvals.js`
   - `app/public/wp-content/plugins/kh-smma/assets/js/calendar-modal.js`
   - `app/public/wp-content/plugins/khm-plugin/assets/js/membership-modal.js`
+  - `app/public/wp-content/plugins/khm-plugin/assets/js/checkout-ui-helpers.js`
   - `app/public/wp-content/plugins/khm-plugin/assets/js/landing.js`
+  - `app/public/wp-content/plugins/khm-plugin/assets/js/price-review.js`
 - Existing landing/signup UI already uses:
   - `/kh-membership/v1/signup-init`
   - `/kh-membership/v1/landing-success`
+  - `/kh-membership/v1/price-override`
   - `/kh-membership/v1/landing-telemetry`
 
 ## Open constraints for later Phase 3 PRs
 
 - Image upload/layout preview endpoints are not formalized in the current backend contract yet. Frontend should not invent them; that needs a follow-up backend contract or explicit reuse of an existing media endpoint.
-- Price Review spreadsheet write-back API is not yet formalized in current repo contracts. Treat that as a separate contract step before UI implementation.

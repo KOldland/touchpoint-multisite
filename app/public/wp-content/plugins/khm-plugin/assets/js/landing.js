@@ -1,4 +1,4 @@
-(function () {
+(function (root, helpers) {
     'use strict';
 
     var MAX_POLL_ATTEMPTS = 5;
@@ -14,8 +14,10 @@
         });
     }
 
+    helpers = helpers || {};
+
     function text(el) {
-        return el ? String(el.value || '').trim() : '';
+        return helpers.text ? helpers.text(el ? el.value : '') : (el ? String(el.value || '').trim() : '');
     }
 
     function getErrorMessage(payload) {
@@ -152,21 +154,31 @@
         var contentEl = container.querySelector('.khm-success-content');
         var actionsEl = container.querySelector('.khm-success-actions');
         var liveEl = createLiveRegion();
+        var successContent = helpers.buildSuccessContent ? helpers.buildSuccessContent(payload) : {
+            headline: 'Membership confirmation',
+            body: '',
+            showAttribution: !!(payload && payload.consent)
+        };
 
         var schedule = payload.schedule || {};
         var body = '';
-        body += '<p><strong>Status:</strong> ' + String(payload.membership_status || 'pending') + '</p>';
-        body += '<p><strong>Schedule:</strong> ' + String(schedule.title || 'Membership') + '</p>';
-        if (schedule.recommended_post_time) {
-            body += '<p><strong>Recommended post time:</strong> ' + String(schedule.recommended_post_time) + '</p>';
-        }
-        if (schedule.boost_copy) {
-            body += '<p>' + String(schedule.boost_copy) + '</p>';
-        }
-        body += buildSponsorBlock(payload);
-        var attributionLine = describeAttribution(payload);
-        if (attributionLine) {
-            body += '<p class="khm-success-referred">' + attributionLine + '</p>';
+        body += '<p>' + String(successContent.body || '') + '</p>';
+        if (payload.consent) {
+            body += '<p><strong>Status:</strong> ' + String(payload.membership_status || 'pending') + '</p>';
+            body += '<p><strong>Schedule:</strong> ' + String(schedule.title || 'Membership') + '</p>';
+            if (schedule.recommended_post_time) {
+                body += '<p><strong>Recommended post time:</strong> ' + String(schedule.recommended_post_time) + '</p>';
+            }
+            if (schedule.boost_copy) {
+                body += '<p>' + String(schedule.boost_copy) + '</p>';
+            }
+            body += buildSponsorBlock(payload);
+            var attributionLine = describeAttribution(payload);
+            if (attributionLine) {
+                body += '<p class="khm-success-referred">' + attributionLine + '</p>';
+            }
+        } else if (payload.ctas && payload.ctas[0] && payload.ctas[0].url) {
+            body += '<p><a href="' + String(payload.ctas[0].url) + '">Open membership details</a></p>';
         }
 
         if (contentEl) {
@@ -367,6 +379,8 @@
         var phaseInput = form.querySelector('input[name="phase_at_click"]');
         var endpointInput = form.querySelector('input[name="signup_init_endpoint"]');
         var consentInput = form.querySelector('input[name="consent"]');
+        var promoInput = form.querySelector('input[name="promo_code"]');
+        var marketingInput = form.querySelector('input[name="profile_marketing_optin"]');
 
         var scheduleId = text(scheduleInput);
         if (!scheduleId) {
@@ -377,18 +391,35 @@
         }
 
         var consent = !!(consentInput && consentInput.checked);
-        var payload = {
-            schedule_id: scheduleId,
-            sponsor_id: text(sponsorInput) || null,
-            utm_source: consent ? (text(sourceInput) || null) : null,
-            utm_medium: consent ? (text(mediumInput) || null) : null,
-            utm_campaign: consent ? (text(campaignInput) || null) : null,
-            phase_at_click: consent ? (text(phaseInput) || null) : null,
-            idempotency_key: uuidv4(),
-            consent: consent,
-            client_reference: button.getAttribute('data-action') || null,
-            plan_id: button.getAttribute('data-plan-id') || null
-        };
+        var payload = helpers.buildLandingPayload
+            ? helpers.buildLandingPayload({
+                schedule_id: scheduleId,
+                sponsor_id: text(sponsorInput),
+                utm_source: text(sourceInput),
+                utm_medium: text(mediumInput),
+                utm_campaign: text(campaignInput),
+                phase_at_click: text(phaseInput),
+                idempotency_key: uuidv4(),
+                consent: consent,
+                client_reference: button.getAttribute('data-action') || null,
+                plan_id: button.getAttribute('data-plan-id') || null,
+                promo_code: text(promoInput),
+                profile_marketing_optin: !!(marketingInput && marketingInput.checked)
+            })
+            : {
+                schedule_id: scheduleId,
+                sponsor_id: text(sponsorInput) || null,
+                utm_source: consent ? (text(sourceInput) || null) : null,
+                utm_medium: consent ? (text(mediumInput) || null) : null,
+                utm_campaign: consent ? (text(campaignInput) || null) : null,
+                phase_at_click: consent ? (text(phaseInput) || null) : null,
+                idempotency_key: uuidv4(),
+                consent: consent,
+                client_reference: button.getAttribute('data-action') || null,
+                plan_id: button.getAttribute('data-plan-id') || null,
+                promo_code: text(promoInput) || null,
+                profile_marketing_optin: !!(marketingInput && marketingInput.checked)
+            };
 
         var endpoint = text(endpointInput) || '/wp-json/kh-membership/v1/signup-init';
         button.disabled = true;
@@ -429,7 +460,9 @@
                 }
 
                 if (errorEl) {
-                    errorEl.textContent = getErrorMessage(body);
+                    errorEl.textContent = helpers.getPromoErrorMessage
+                        ? helpers.getPromoErrorMessage(body, getErrorMessage(body))
+                        : getErrorMessage(body);
                 }
             })
             .catch(function () {
@@ -459,4 +492,4 @@
     } else {
         init();
     }
-})();
+})(window, window.KHMCheckoutUiHelpers || {});

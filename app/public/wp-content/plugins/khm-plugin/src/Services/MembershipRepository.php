@@ -17,6 +17,7 @@ class MembershipRepository implements MembershipRepositoryInterface {
 
     private const TEMP_ATTRIBUTION_OPTION_PREFIX = 'khm_temp_attribution_';
     private const SIGNUP_IDEMPOTENCY_OPTION_PREFIX = 'khm_signup_init_idem_';
+    private const PRICE_REVIEW_OVERRIDE_PREFIX = 'khm_price_review_override_';
     private const RETENTION_DEFAULT_DAYS = 730;
 
     private string $tableName;
@@ -140,6 +141,25 @@ class MembershipRepository implements MembershipRepositoryInterface {
         }
 
         return $record;
+    }
+
+    public function savePriceReviewOverride( string $referenceId, array $payload ): bool {
+        $referenceId = sanitize_text_field( $referenceId );
+        if ( '' === $referenceId ) {
+            return false;
+        }
+
+        return update_option( self::PRICE_REVIEW_OVERRIDE_PREFIX . md5( $referenceId ), $payload, false );
+    }
+
+    public function getPriceReviewOverride( string $referenceId ): ?array {
+        $referenceId = sanitize_text_field( $referenceId );
+        if ( '' === $referenceId ) {
+            return null;
+        }
+
+        $value = get_option( self::PRICE_REVIEW_OVERRIDE_PREFIX . md5( $referenceId ), null );
+        return is_array( $value ) ? $value : null;
     }
 
     /**

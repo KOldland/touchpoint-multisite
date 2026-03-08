@@ -169,6 +169,7 @@ require_once __DIR__ . '/src/Membership/AttributionEndpoint.php';
 require_once __DIR__ . '/src/Membership/TierRegistry.php';
 require_once __DIR__ . '/src/Membership/SignupEndpoint.php';
 require_once __DIR__ . '/src/Membership/LandingSuccessEndpoint.php';
+require_once __DIR__ . '/src/Membership/PriceOverrideEndpoint.php';
 require_once __DIR__ . '/src/Membership/DsarController.php';
 require_once __DIR__ . '/src/Membership/RetentionWorker.php';
 require_once __DIR__ . '/src/Membership/StatusEndpoint.php';
@@ -213,6 +214,10 @@ add_action( 'rest_api_init', function() {
     }
     if ( class_exists( 'KHM\\Membership\\LandingSuccessEndpoint' ) ) {
         $endpoint = new KHM\Membership\LandingSuccessEndpoint();
+        $endpoint->register_routes();
+    }
+    if ( class_exists( 'KHM\\Membership\\PriceOverrideEndpoint' ) ) {
+        $endpoint = new KHM\Membership\PriceOverrideEndpoint();
         $endpoint->register_routes();
     }
     if ( class_exists( 'KHM\\Membership\\DsarController' ) ) {
