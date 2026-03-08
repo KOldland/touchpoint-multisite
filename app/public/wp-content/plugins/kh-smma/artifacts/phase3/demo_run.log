@@ -1,0 +1,6 @@
+Phase 3 post-publish demo
+Fixture: generate_awareness_ok.json
+Step 1 generate: PASS - request_id=req_demo_phase3 variants=1
+Step 2 grid render: PASS - variant_id=var_demo_001 compliance=OK
+Step 3 inline edit: PASS - revision_id=rev_demo_001 approval_status=approved
+Step 4 schedule: PASS - schedule_id=sched_demo_001 status=queued
