@@ -267,16 +267,22 @@ class SignupEndpoint {
             'tier_slug' => (string) $tier_slug,
             'stripe_price_id' => (string) $price_id,
             'user_id' => (string) $user_id,
+            'wp_user_id' => (string) $user_id,
             'schedule_id' => (string) ( $attribution['schedule_id'] ?? '' ),
             'sponsor_id' => (string) ( $attribution['sponsor_id'] ?? '' ),
             'utm_source' => (string) ( $attribution['utm_source'] ?? '' ),
             'utm_medium' => (string) ( $attribution['utm_medium'] ?? '' ),
             'utm_campaign' => (string) ( $attribution['utm_campaign'] ?? '' ),
+            'utm_term' => (string) ( $attribution['utm_term'] ?? '' ),
+            'utm_content' => (string) ( $attribution['utm_content'] ?? '' ),
             'phase_at_click' => (string) ( $attribution['phase_at_click'] ?? '' ),
             'idempotency_key' => (string) ( $attribution['idempotency_key'] ?? '' ),
             'consent' => ! empty( $attribution['consent'] ) ? '1' : '0',
             'trial_days' => (string) max( 0, $trial_days ),
         ];
+        if ( array_key_exists( 'profile_marketing_optin', $attribution ) && null !== $attribution['profile_marketing_optin'] ) {
+            $metadata['profile_marketing_optin'] = ! empty( $attribution['profile_marketing_optin'] ) ? '1' : '0';
+        }
 
         try {
             \Stripe\Stripe::setApiKey($secret);
@@ -315,7 +321,7 @@ class SignupEndpoint {
                 ];
             }
 
-            $session = \Stripe\Checkout\Session::create($session_params);
+            $session = $this->create_stripe_checkout_session($session_params);
 
             if ( empty($session->url) ) {
                 return $this->error_response( 'MBR_ERR_202', 'checkout_session_missing_url', 500, true );
@@ -447,6 +453,8 @@ class SignupEndpoint {
             'utm_source' => $this->nullable_text( $params['utm_source'] ?? null, 128 ),
             'utm_medium' => $this->nullable_text( $params['utm_medium'] ?? null, 128 ),
             'utm_campaign' => $this->nullable_text( $params['utm_campaign'] ?? null, 256 ),
+            'utm_term' => $this->nullable_text( $params['utm_term'] ?? null, 128 ),
+            'utm_content' => $this->nullable_text( $params['utm_content'] ?? null, 128 ),
             'phase_at_click' => $this->nullable_text( $params['phase_at_click'] ?? null, 64 ),
             'idempotency_key' => sanitize_text_field( (string) ( $params['idempotency_key'] ?? wp_generate_uuid4() ) ),
             'consent' => $consent,
@@ -463,6 +471,8 @@ class SignupEndpoint {
             $payload['utm_source'] = null;
             $payload['utm_medium'] = null;
             $payload['utm_campaign'] = null;
+            $payload['utm_term'] = null;
+            $payload['utm_content'] = null;
             $payload['phase_at_click'] = null;
         }
 
@@ -659,11 +669,14 @@ class SignupEndpoint {
             'success_url' => home_url( '/membership-success?session_id={CHECKOUT_SESSION_ID}' ),
             'cancel_url' => home_url( '/membership-landing' ),
             'metadata' => [
+                'wp_user_id' => (string) get_current_user_id(),
                 'schedule_id' => (string) ( $payload['schedule_id'] ?? '' ),
                 'sponsor_id' => (string) ( $payload['sponsor_id'] ?? '' ),
                 'utm_source' => (string) ( $payload['utm_source'] ?? '' ),
                 'utm_medium' => (string) ( $payload['utm_medium'] ?? '' ),
                 'utm_campaign' => (string) ( $payload['utm_campaign'] ?? '' ),
+                'utm_term' => (string) ( $payload['utm_term'] ?? '' ),
+                'utm_content' => (string) ( $payload['utm_content'] ?? '' ),
                 'phase_at_click' => (string) ( $payload['phase_at_click'] ?? '' ),
                 'idempotency_key' => (string) ( $payload['idempotency_key'] ?? '' ),
                 'consent' => ! empty( $payload['consent'] ) ? '1' : '0',
@@ -674,9 +687,18 @@ class SignupEndpoint {
         if ( array_key_exists( 'profile_marketing_optin', $payload ) && null !== $payload['profile_marketing_optin'] ) {
             $params['metadata']['profile_marketing_optin'] = ! empty( $payload['profile_marketing_optin'] ) ? '1' : '0';
         }
+        $validatedPromo = is_array( $payload['validated_promo'] ?? null ) ? $payload['validated_promo'] : [];
+        $promoCodeObject = is_object( $validatedPromo['code'] ?? null ) ? $validatedPromo['code'] : null;
+        if ( $promoCodeObject && ! empty( $promoCodeObject->stripe_promotion_code ) ) {
+            $params['discounts'] = [
+                [
+                    'promotion_code' => sanitize_text_field( (string) $promoCodeObject->stripe_promotion_code ),
+                ],
+            ];
+        }
 
         try {
-            $session = \Stripe\Checkout\Session::create( $params, [
+            $session = $this->create_stripe_checkout_session( $params, [
                 'idempotency_key' => (string) $payload['idempotency_key'],
             ]);
         } catch ( \Throwable $throwable ) {
@@ -819,6 +841,7 @@ class SignupEndpoint {
             'promo_code' => sanitize_text_field( (string) ( $params['promo_code'] ?? '' ) ),
             'stripe_promotion_code' => sanitize_text_field( (string) ( $params['stripe_promotion_code'] ?? '' ) ),
             'consent' => $consent,
+            'profile_marketing_optin' => $this->normalize_optional_bool( $params['profile_marketing_optin'] ?? null ),
         ];
 
         if ( ! $consent ) {
@@ -867,5 +890,14 @@ class SignupEndpoint {
             ],
             400
         );
+    }
+
+    /**
+     * @param array<string,mixed> $params
+     * @param array<string,mixed> $options
+     * @return object
+     */
+    protected function create_stripe_checkout_session( array $params, array $options = [] ) {
+        return \Stripe\Checkout\Session::create( $params, $options );
     }
 }

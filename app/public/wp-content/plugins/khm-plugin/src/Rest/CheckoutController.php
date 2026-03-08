@@ -85,7 +85,18 @@ class CheckoutController {
             'purchase_type' => 'subscription',
             'membership_level_id' => (string) $levelId,
             'user_id' => $userId ? (string) $userId : '',
+            'wp_user_id' => $userId ? (string) $userId : '',
+            'schedule_id' => sanitize_text_field( (string) ( $request->get_param( 'schedule_id' ) ?? '' ) ),
+            'sponsor_id' => sanitize_text_field( (string) ( $request->get_param( 'sponsor_id' ) ?? '' ) ),
+            'utm_source' => sanitize_text_field( (string) ( $request->get_param( 'utm_source' ) ?? '' ) ),
+            'utm_medium' => sanitize_text_field( (string) ( $request->get_param( 'utm_medium' ) ?? '' ) ),
+            'utm_campaign' => sanitize_text_field( (string) ( $request->get_param( 'utm_campaign' ) ?? '' ) ),
+            'utm_term' => sanitize_text_field( (string) ( $request->get_param( 'utm_term' ) ?? '' ) ),
+            'utm_content' => sanitize_text_field( (string) ( $request->get_param( 'utm_content' ) ?? '' ) ),
+            'profile_marketing_optin' => $this->normalize_bool_metadata( $request->get_param( 'profile_marketing_optin' ) ),
+            'idempotency_key' => sanitize_text_field( (string) ( $request->get_param( 'idempotency_key' ) ?? '' ) ),
         ];
+        $metadata['consent'] = $this->normalize_bool_metadata( $request->get_param( 'consent' ) );
 
         $promo = $this->resolve_membership_promo($levelId, $userId, $request);
         if ( is_wp_error( $promo ) ) {
@@ -266,5 +277,19 @@ class CheckoutController {
      */
     protected function create_stripe_checkout_session( array $params ) {
         return \Stripe\Checkout\Session::create( $params );
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function normalize_bool_metadata( $value ): string {
+        if ( is_bool( $value ) ) {
+            return $value ? '1' : '0';
+        }
+        if ( is_numeric( $value ) ) {
+            return (int) $value === 1 ? '1' : '0';
+        }
+        $normalized = strtolower( trim( (string) $value ) );
+        return in_array( $normalized, [ '1', 'true', 'yes', 'on' ], true ) ? '1' : '0';
     }
 }
