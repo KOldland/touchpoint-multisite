@@ -33,6 +33,16 @@ jobs:
         with:
           node-version: '20'
 
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          tools: composer:v2
+
+      - name: Install SMMA test dependencies
+        run: |
+          cd app/public/wp-content/plugins/kh-smma
+          composer install --no-interaction --prefer-dist
+
       - name: Run approval frontend tests
         run: |
           node app/public/wp-content/plugins/kh-smma/tests/frontend/calendar-modal.test.js
