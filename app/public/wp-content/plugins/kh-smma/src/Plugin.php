@@ -9,6 +9,7 @@ use KH_SMMA\Admin\AdminInterface;
 use KH_SMMA\Admin\AuditLogPage;
 use KH_SMMA\Admin\CapabilitySettingsPage;
 use KH_SMMA\Admin\AssetsManager;
+use KH_SMMA\Admin\ImageUploadPage;
 use KH_SMMA\Admin\PendingApprovalsPage;
 use KH_SMMA\Admin\ScheduleDetailPage;
 use KH_SMMA\Admin\PostBoostPage;
@@ -274,6 +275,7 @@ class Plugin {
         ( new AuditLogPage( $wpdb ) )->register();
         ( new CapabilitySettingsPage() )->register();
         ( new AssetsManager() )->register();
+        ( new ImageUploadPage() )->register();
         ( new PaidReconciliationPage( $this->recon_service, $this->audit_logger ) )->register();
         ( new PendingApprovalsPage( new ScheduleRepository( $this->audit_logger ), new ApprovalPermissionService() ) )->register();
         ( new ScheduleDetailPage() )->register();

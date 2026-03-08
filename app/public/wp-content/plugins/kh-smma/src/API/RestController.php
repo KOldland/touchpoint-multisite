@@ -128,6 +128,19 @@ class RestController {
             'callback' => array( $this, 'handle_compliance_check' ),
             'permission_callback' => array( $this, 'check_permissions' ),
         ) );
+
+        register_rest_route( 'kh-smma/v1', '/demo/compose', array(
+            array(
+                'methods' => 'GET',
+                'callback' => array( $this, 'handle_demo_compose_get' ),
+                'permission_callback' => array( $this, 'check_permissions' ),
+            ),
+            array(
+                'methods' => 'POST',
+                'callback' => array( $this, 'handle_demo_compose_post' ),
+                'permission_callback' => array( $this, 'check_permissions' ),
+            ),
+        ) );
     }
 
     public function check_permissions( WP_REST_Request $request ) {
@@ -1407,6 +1420,90 @@ class RestController {
             'manifest'     => $manifest,
             'expires_at'   => gmdate( 'Y-m-d\\TH:i:s\\Z', strtotime( '+7 days' ) ),
         ) );
+    }
+
+    public function handle_demo_compose_get( WP_REST_Request $request ) {
+        $reference_id = sanitize_text_field( (string) $request->get_param( 'reference_id' ) );
+        $post_id      = absint( $request->get_param( 'post_id' ) );
+        $saved        = $this->load_demo_compose_mapping( $reference_id, $post_id );
+
+        return rest_ensure_response( array(
+            'status'       => 'ok',
+            'reference_id' => $reference_id,
+            'post_id'      => $post_id,
+            'mapping'      => $saved['mapping'],
+            'preview_url'  => $saved['preview_url'],
+            'saved_at'     => $saved['saved_at'],
+        ) );
+    }
+
+    public function handle_demo_compose_post( WP_REST_Request $request ) {
+        $payload      = $request->get_json_params();
+        $reference_id = sanitize_text_field( (string) ( $payload['reference_id'] ?? '' ) );
+        $post_id      = absint( $payload['post_id'] ?? 0 );
+        $mapping      = is_array( $payload['mapping'] ?? null ) ? $payload['mapping'] : array();
+        $layout_id    = sanitize_text_field( (string) ( $payload['layout_id'] ?? '' ) );
+        $preview_url  = esc_url_raw( (string) ( $payload['preview_url'] ?? '' ) );
+
+        if ( '' === $reference_id && 0 === $post_id ) {
+            return new WP_Error( 'kh_smma_missing_reference', __( 'reference_id or post_id is required.', 'kh-smma' ), array( 'status' => 400 ) );
+        }
+
+        if ( '' === $layout_id ) {
+            return new WP_Error( 'kh_smma_missing_layout', __( 'layout_id is required.', 'kh-smma' ), array( 'status' => 400 ) );
+        }
+
+        $record = array(
+            'reference_id' => $reference_id,
+            'post_id'      => $post_id,
+            'layout_id'    => $layout_id,
+            'mapping'      => $mapping,
+            'preview_url'  => $preview_url,
+            'saved_at'     => current_time( 'mysql' ),
+        );
+
+        if ( $post_id > 0 ) {
+            update_post_meta( $post_id, '_khm_image_compose', wp_json_encode( $record ) );
+        } else {
+            update_option( 'kh_smma_image_compose_' . md5( $reference_id ), $record );
+        }
+
+        return rest_ensure_response( array(
+            'status'            => 'ok',
+            'reference_id'      => $reference_id,
+            'post_id'           => $post_id,
+            'layout_id'         => $layout_id,
+            'mapping'           => $mapping,
+            'preview_url'       => $preview_url,
+            'composed_image_id' => sanitize_text_field( (string) ( $payload['composed_image_id'] ?? '' ) ),
+            'saved_at'          => $record['saved_at'],
+        ) );
+    }
+
+    private function load_demo_compose_mapping( string $reference_id, int $post_id ): array {
+        $stored = array();
+
+        if ( $post_id > 0 ) {
+            $raw = get_post_meta( $post_id, '_khm_image_compose', true );
+            if ( is_string( $raw ) && '' !== $raw ) {
+                $decoded = json_decode( $raw, true );
+                if ( is_array( $decoded ) ) {
+                    $stored = $decoded;
+                }
+            } elseif ( is_array( $raw ) ) {
+                $stored = $raw;
+            }
+        }
+
+        if ( empty( $stored ) && '' !== $reference_id ) {
+            $stored = get_option( 'kh_smma_image_compose_' . md5( $reference_id ), array() );
+        }
+
+        return array(
+            'mapping'     => is_array( $stored['mapping'] ?? null ) ? $stored['mapping'] : array(),
+            'preview_url' => sanitize_text_field( (string) ( $stored['preview_url'] ?? '' ) ),
+            'saved_at'    => sanitize_text_field( (string) ( $stored['saved_at'] ?? '' ) ),
+        );
     }
 
 }
