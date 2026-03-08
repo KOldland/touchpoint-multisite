@@ -25,6 +25,8 @@ Verify:
 - SHA256 file exists
 - ASCII-armored signature exists when GPG is configured
 
+If no local GPG key is available, use the `phase4-release-rc` workflow with release secrets configured in GitHub Actions and attach the workflow artifact instead of a locally signed zip.
+
 ## 3. Run staging / replica migration verification
 
 ```bash
@@ -95,6 +97,13 @@ Verify:
 - p95 / p99 latency within agreed thresholds
 - no abnormal DLQ or queue growth during smoke
 
+If `k6` is not installed locally, run the GitHub workflows instead:
+
+```bash
+gh workflow run load-test.yml -f base_url="<staging-base-url>" -f vus="50" -f duration="2m"
+gh workflow run canary-smoke.yml -f base_url="<staging-base-url>"
+```
+
 ## 5. Run security checks
 
 ```bash
@@ -110,11 +119,22 @@ Verify:
 - secret scan passes cleanly
 - any composer audit findings are reviewed and triaged before canary
 
+If `composer audit` cannot reach Packagist from the local machine, use the `phase4-security` workflow result as the authoritative audit artifact.
+
 ## 6. Optional full membership sanity run
 
 ```bash
 cd app/public/wp-content/plugins/khm-plugin
 vendor/bin/phpunit --testsuite membership \
+  > ../../../../../artifacts/phase4/phpunit_membership_final.log 2>&1
+cd ../../../../../
+```
+
+If the `membership` testsuite alias resolves to no tests in the local environment, run the full plugin suite instead:
+
+```bash
+cd app/public/wp-content/plugins/khm-plugin
+vendor/bin/phpunit \
   > ../../../../../artifacts/phase4/phpunit_membership_final.log 2>&1
 cd ../../../../../
 ```
