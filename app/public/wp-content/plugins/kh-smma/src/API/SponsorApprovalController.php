@@ -1,7 +1,7 @@
 <?php
 declare( strict_types=1 );
 
-namespace KH_SMMA\Api;
+namespace KH_SMMA\API;
 
 use KH_SMMA\SponsorApproval\ApprovalPermissionService;
 use KH_SMMA\Sponsor\ApprovalSafetyService;
