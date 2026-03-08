@@ -1,0 +1,17 @@
+Test bootstrap loaded
+PHPUnit 9.6.34 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.1.33
+Configuration: app/public/wp-content/plugins/khm-plugin/phpunit.xml
+
+..KHM webhook webhook.processed {"event_id":"evt_rate_limit_1","event_type":"noop.event","trace_id":"5b684925-7511-4f38-b242-4d6c3ab5d1d1","latency_ms":0}
+KHM webhook webhook.received {"event_id":"evt_rate_limit_1","event_type":"noop.event","latency_ms":1}
+KHM webhook webhook.processed {"event_id":"evt_rate_limit_2","event_type":"noop.event","trace_id":"5d07629a-66dc-4786-adf1-e8b081e60466","latency_ms":0}
+KHM webhook webhook.received {"event_id":"evt_rate_limit_2","event_type":"noop.event","latency_ms":0}
+KHM webhook webhook.rate_limit.exceeded {"ip":"203.0.113.55","count":3,"window":60,"reason":"request_threshold_exceeded"}
+KHM webhook webhook.rate_limited {"ip":"203.0.113.55","count":3,"window":60,"reason":"request_threshold_exceeded"}
+.                                                                 3 / 3 (100%)
+
+Time: 00:00.059, Memory: 18.00 MB
+
+OK (3 tests, 14 assertions)

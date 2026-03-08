@@ -2,6 +2,8 @@
 
 namespace KHM\Membership;
 
+use KHM\Services\RateLimitService;
+
 class StripeWebhookHandler {
     private const STATUS_TRIAL = 'trial';
     private const STATUS_ACTIVE = 'active';
@@ -40,8 +42,9 @@ class StripeWebhookHandler {
 
     public function handle_request( \WP_REST_Request $req ) {
         $started_at = microtime( true );
-        if ( $this->is_rate_limited() ) {
-            $this->emit_telemetry( 'webhook.rate_limited', [ 'ip' => $this->get_client_ip() ] );
+        $ip = $this->get_client_ip();
+        $rateLimit = $this->get_rate_limit_service()->consumeWebhookRequest( $ip );
+        if ( empty( $rateLimit['allowed'] ) ) {
             return new \WP_REST_Response( [ 'error' => 'Rate limit exceeded' ], 429 );
         }
 
@@ -49,7 +52,7 @@ class StripeWebhookHandler {
         $sig_header = $this->get_signature_header( $req );
         $event = $this->verify_event_signature( $payload, $sig_header );
         if ( is_wp_error( $event ) ) {
-            $this->emit_telemetry( 'webhook.invalid_signature', [
+            $this->get_rate_limit_service()->recordInvalidSignature( $ip, [
                 'code' => $event->get_error_code(),
                 'message' => $event->get_error_message(),
             ] );
@@ -1157,32 +1160,8 @@ class StripeWebhookHandler {
     }
 
     private function is_rate_limited(): bool {
-        if ( ! function_exists( 'get_transient' ) || ! function_exists( 'set_transient' ) ) {
-            return false;
-        }
-
-        $window_default = self::DEFAULT_RATE_LIMIT_WINDOW_SECONDS;
-        $max_default = self::DEFAULT_RATE_LIMIT_MAX_REQUESTS;
-
-        if ( defined( 'KHM_MEMBERSHIP_WEBHOOK_RATE_LIMIT_WINDOW' ) ) {
-            $window_default = (int) KHM_MEMBERSHIP_WEBHOOK_RATE_LIMIT_WINDOW;
-        }
-        if ( defined( 'KHM_MEMBERSHIP_WEBHOOK_RATE_LIMIT_MAX_REQUESTS' ) ) {
-            $max_default = (int) KHM_MEMBERSHIP_WEBHOOK_RATE_LIMIT_MAX_REQUESTS;
-        }
-
-        $window_seconds = (int) apply_filters( 'khm_membership_webhook_rate_limit_window', $window_default );
-        $max_requests = (int) apply_filters( 'khm_membership_webhook_rate_limit_max_requests', $max_default );
-        $window_seconds = max( 5, $window_seconds );
-        $max_requests = max( 1, $max_requests );
-
-        $ip = $this->get_client_ip();
-        $key = 'khm_wh_rl_' . md5( $ip . '|' . gmdate( 'YmdHi' ) );
-        $count = (int) get_transient( $key );
-        $count++;
-        set_transient( $key, $count, $window_seconds );
-
-        return $count > $max_requests;
+        $rateLimit = $this->get_rate_limit_service()->consumeWebhookRequest( $this->get_client_ip() );
+        return empty( $rateLimit['allowed'] );
     }
 
     private function get_client_ip(): string {
@@ -1231,6 +1210,20 @@ class StripeWebhookHandler {
     private function emit_telemetry( string $metric, array $context = [] ): void {
         do_action( 'khm_membership_webhook_telemetry', $metric, $context );
         error_log( 'KHM webhook ' . $metric . ' ' . wp_json_encode( $context ) );
+    }
+
+    private function get_rate_limit_service(): RateLimitService {
+        $service = apply_filters( 'khm_membership_webhook_rate_limit_service', null, $this );
+        if ( $service instanceof RateLimitService ) {
+            return $service;
+        }
+
+        return new RateLimitService( function ( string $metric, array $context ): void {
+            $this->emit_telemetry( $metric, $context );
+            if ( 'webhook.rate_limit.exceeded' === $metric ) {
+                $this->emit_telemetry( 'webhook.rate_limited', $context );
+            }
+        } );
     }
 
     private function to_object( $value ) {
