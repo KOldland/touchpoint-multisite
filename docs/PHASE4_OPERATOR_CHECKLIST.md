@@ -2,6 +2,10 @@
 
 Use this checklist after migration approval is granted. Do not run production migration, real Stripe validation, or canary traffic shift without the required human approvals.
 
+Current staging target:
+
+- `http://touchpoint5stg.wpenginepowered.com`
+
 ## 1. Refresh the release branch
 
 ```bash
@@ -100,8 +104,8 @@ Verify:
 If `k6` is not installed locally, run the GitHub workflows instead:
 
 ```bash
-gh workflow run load-test.yml -f base_url="<staging-base-url>" -f vus="50" -f duration="2m"
-gh workflow run canary-smoke.yml -f base_url="<staging-base-url>"
+gh workflow run load-test.yml -f base_url="http://touchpoint5stg.wpenginepowered.com" -f vus="50" -f duration="2m"
+gh workflow run canary-smoke.yml -f base_url="http://touchpoint5stg.wpenginepowered.com"
 ```
 
 ## 5. Run security checks

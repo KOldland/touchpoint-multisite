@@ -39,8 +39,12 @@
 - local unsigned RC build: complete
 - local full `khm-plugin` suite: complete
 - staging DB verification: blocked by WP Engine topology
-- staging HTTP load/canary smoke: pending staging base URL and runnable `k6` environment
+- staging HTTP load/canary smoke: pending runnable `k6` environment
 - signed RC: pending release signing key
+
+## Active staging target
+
+- `http://touchpoint5stg.wpenginepowered.com`
 
 ## Known blockers
 
