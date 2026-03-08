@@ -42,12 +42,13 @@ jobs:
         run: composer install --no-interaction --prefer-dist
 
       - name: Run checkout membership tests
+        working-directory: app/public/wp-content/plugins/khm-plugin
         run: |
           mkdir -p artifacts/ai2-phase2
-          vendor/bin/phpunit -c app/public/wp-content/plugins/khm-plugin/phpunit.xml \
-            app/public/wp-content/plugins/khm-plugin/tests/Membership/PromoValidationTest.php \
-            app/public/wp-content/plugins/khm-plugin/tests/Membership/SignupInitTest.php \
-            app/public/wp-content/plugins/khm-plugin/tests/Membership/MembershipCheckoutHandlerTest.php \
+          vendor/bin/phpunit -c phpunit.xml \
+            tests/Membership/PromoValidationTest.php \
+            tests/Membership/SignupInitTest.php \
+            tests/Membership/MembershipCheckoutHandlerTest.php \
             --log-junit artifacts/ai2-phase2/phpunit_signup_checkout.xml \
             > artifacts/ai2-phase2/phpunit_signup_checkout.log 2>&1
 
@@ -55,4 +56,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: khm-checkout-ci-artifacts
-          path: artifacts/ai2-phase2/
+          path: app/public/wp-content/plugins/khm-plugin/artifacts/ai2-phase2/
