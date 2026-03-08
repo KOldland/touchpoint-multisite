@@ -212,8 +212,10 @@ class LandingPageShortcode {
         }
 
         $mainFile = dirname( __DIR__, 2 ) . '/khm-plugin.php';
+        $helperUrl = plugin_dir_url( $mainFile ) . 'assets/js/checkout-ui-helpers.js';
         $scriptUrl = plugin_dir_url( $mainFile ) . 'assets/js/landing.js';
-        wp_enqueue_script( 'khm-membership-landing', $scriptUrl, [], '1.0.0', true );
+        wp_enqueue_script( 'khm-checkout-ui-helpers', $helperUrl, [], '1.0.0', true );
+        wp_enqueue_script( 'khm-membership-landing', $scriptUrl, [ 'khm-checkout-ui-helpers' ], '1.0.0', true );
     }
 
     private function enqueue_style(): void {

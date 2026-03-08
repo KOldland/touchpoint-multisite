@@ -112,6 +112,15 @@ class AdminMenu {
             [ $this, 'render_email_preview' ]
         );
 
+        add_submenu_page(
+            'khm-membership',
+            __('Price Review', 'khm-membership'),
+            __('Price Review', 'khm-membership'),
+            'manage_options',
+            'khm-price-review',
+            [ $this, 'render_price_review' ]
+        );
+
         // Elementor cache reset
         add_submenu_page(
             'khm-membership',
@@ -151,6 +160,33 @@ class AdminMenu {
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('khm_admin'),
         ]);
+
+        if ( false !== strpos( $hook, 'khm-price-review' ) ) {
+            $plugin_file = dirname(__DIR__, 2) . '/khm-plugin.php';
+            $price_js = dirname(__DIR__, 2) . '/assets/js/price-review.js';
+            $helpers_js = dirname(__DIR__, 2) . '/assets/js/checkout-ui-helpers.js';
+
+            wp_enqueue_script(
+                'khm-checkout-ui-helpers',
+                plugins_url('assets/js/checkout-ui-helpers.js', $plugin_file),
+                [],
+                file_exists($helpers_js) ? (string) filemtime($helpers_js) : '1.0.0',
+                true
+            );
+
+            wp_enqueue_script(
+                'khm-price-review',
+                plugins_url('assets/js/price-review.js', $plugin_file),
+                [ 'khm-checkout-ui-helpers' ],
+                file_exists($price_js) ? (string) filemtime($price_js) : '1.0.0',
+                true
+            );
+
+            wp_localize_script( 'khm-price-review', 'khmPriceReview', [
+                'endpoint' => rest_url( 'kh-membership/v1/price-override' ),
+                'nonce' => wp_create_nonce( 'wp_rest' ),
+            ] );
+        }
     }
 
     /**
@@ -218,6 +254,25 @@ class AdminMenu {
         }
 
         esc_html_e( 'Membership level admin is unavailable.', 'khm-membership' );
+    }
+
+    public function render_price_review(): void {
+        $repo = class_exists( '\KHM\Services\MembershipRepository' ) ? new \KHM\Services\MembershipRepository() : null;
+        $payload = is_object( $repo ) ? $repo->getPriceReviewOverride( 'demo-price-review' ) : null;
+        if ( ! is_array( $payload ) ) {
+            $payload = [
+                'reference_id' => 'demo-price-review',
+                'currency' => 'AUD',
+                'items' => [
+                    [ 'key' => 'creative_setup', 'label' => 'Creative setup', 'amount_cents' => 4500 ],
+                    [ 'key' => 'campaign_management', 'label' => 'Campaign management', 'amount_cents' => 8500 ],
+                    [ 'key' => 'reporting', 'label' => 'Reporting', 'amount_cents' => 2500 ],
+                ],
+            ];
+        }
+
+        $GLOBALS['khm_price_review_payload'] = $payload;
+        require_once __DIR__ . '/pages/price-review.php';
     }
 
     /**

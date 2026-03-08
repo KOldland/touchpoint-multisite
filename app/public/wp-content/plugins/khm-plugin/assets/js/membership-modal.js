@@ -15,8 +15,10 @@
  * 9. Webhook handler activates membership
  */
 
-(function($) {
+(function($, root) {
     'use strict';
+
+    const Helpers = root.KHMCheckoutUiHelpers || {};
 
     const MembershipModal = {
         modal: null,
@@ -85,6 +87,15 @@
                                 <div id="khm-membership-promo-message" class="khm-messages"></div>
                             </div>
             `;
+            const consentHTML = `
+                            <div class="khm-membership-consent-section">
+                                <label class="khm-create-account-toggle-wrap">
+                                    <input type="checkbox" id="khm-membership-consent" />
+                                    <strong>Allow attribution tracking for this checkout</strong>
+                                </label>
+                                <p class="description">UTM and sponsor attribution metadata is sent only when consent is enabled.</p>
+                            </div>
+            `;
 
             const modalHTML = `
                 <div id="khm-membership-modal" class="khm-modal-overlay" style="display: none;">
@@ -110,6 +121,7 @@
                                 <div id="khm-tier-features" class="khm-tier-features"></div>
                             </div>
                             ${promoHTML}
+                            ${consentHTML}
                             ${createAccountHTML}
 
                             <!-- Action Buttons -->
@@ -321,6 +333,8 @@
                 }
             }
 
+            payload.consent = $('#khm-membership-consent').is(':checked') ? 1 : 0;
+
             // AJAX call to create Stripe Checkout Session
             $.ajax({
                 url: config.ajaxUrl,
@@ -346,6 +360,8 @@
                     // Try to extract error message from response
                     if (xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
                         errorMessage = xhr.responseJSON.data.message;
+                    } else if (xhr.responseJSON) {
+                        errorMessage = (Helpers.getPromoErrorMessage || this.escapeHtml)(xhr.responseJSON, errorMessage);
                     } else if (xhr.responseText) {
                         try {
                             const data = JSON.parse(xhr.responseText);
@@ -383,6 +399,7 @@
             $('#khm-create-account-details').hide();
             $('#khm-first-name, #khm-last-name, #khm-mobile, #khm-job-title, #khm-company').val('');
             $('#khm-marketing-optin').prop('checked', false);
+            $('#khm-membership-consent').prop('checked', false);
         },
 
         applyPromo: function() {
@@ -425,7 +442,9 @@
                         this.showPromoMessage(response.data.message || 'Promo code applied.', 'success');
                     } else {
                         this.clearPromo(false);
-                        const message = response.data && response.data.message ? response.data.message : 'Invalid promo code.';
+                        const message = Helpers.getPromoErrorMessage
+                            ? Helpers.getPromoErrorMessage(response.data || response, 'Invalid promo code.')
+                            : (response.data && response.data.message ? response.data.message : 'Invalid promo code.');
                         this.showPromoMessage(message, 'error');
                     }
                     $('#khm-membership-apply-promo').prop('disabled', false);
@@ -433,8 +452,10 @@
                 error: (xhr) => {
                     this.clearPromo(false);
                     let message = 'Unable to validate promo code.';
-                    if (xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
-                        message = xhr.responseJSON.data.message;
+                    if (xhr.responseJSON) {
+                        message = Helpers.getPromoErrorMessage
+                            ? Helpers.getPromoErrorMessage(xhr.responseJSON.data || xhr.responseJSON, message)
+                            : message;
                     }
                     this.showPromoMessage(message, 'error');
                     $('#khm-membership-apply-promo').prop('disabled', false).text('Apply');
@@ -516,5 +537,8 @@
 
     // Expose to global scope if needed
     window.KHMMembershipModal = MembershipModal;
+    window.KHMMembershipModalHelpers = {
+        getPromoErrorMessage: Helpers.getPromoErrorMessage || function(payload, fallback) { return fallback || 'Invalid promotion code.'; }
+    };
 
-})(jQuery);
+})(jQuery, window);

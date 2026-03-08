@@ -98,11 +98,21 @@ class MembershipCheckoutButtonShortcode {
 		}
 
 		$js_path = $plugin_path . 'assets/js/membership-modal.js';
+        $helper_path = $plugin_path . 'assets/js/checkout-ui-helpers.js';
+        if ( file_exists( $helper_path ) ) {
+            wp_enqueue_script(
+                'khm-checkout-ui-helpers',
+                $plugin_url . 'assets/js/checkout-ui-helpers.js',
+                array(),
+                (string) filemtime( $helper_path ),
+                true
+            );
+        }
 		if ( file_exists( $js_path ) ) {
 			wp_enqueue_script(
 				'khm-membership-modal',
 				$plugin_url . 'assets/js/membership-modal.js',
-				array( 'jquery' ),
+				array( 'jquery', 'khm-checkout-ui-helpers' ),
 				(string) filemtime( $js_path ),
 				true
 			);
