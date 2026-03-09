@@ -1993,9 +1993,9 @@ add_action('admin_menu', function() {
     );
 
     add_submenu_page('editorial_planner', __('Planner','khm-membership'), __('Planner','khm-membership'), 'edit_posts', 'editorial_planner', 'render_editorial_planner_page');
-    add_submenu_page('editorial_planner', __('Sessions','khm-membership'), __('Sessions','khm-membership'), 'edit_posts', 'editorial_sessions', 'render_editorial_planner_page');
+    add_submenu_page('editorial_planner', __('New Session','khm-membership'), __('New Session','khm-membership'), 'edit_posts', 'editorial_new_session', 'render_new_session_page');
+    add_submenu_page('editorial_planner', __('Sessions','khm-membership'), __('Sessions','khm-membership'), 'edit_posts', 'editorial_sessions', 'render_sessions_page');
     add_submenu_page('editorial_planner', __('Frameworks','khm-membership'), __('Frameworks','khm-membership'), 'edit_posts', 'editorial_frameworks', 'render_frameworks_page');
-    add_submenu_page('editorial_planner', __('Exports','khm-membership'), __('Exports','khm-membership'), 'manage_options', 'editorial_exports', 'render_exports_page');
 });
 
 function render_editorial_planner_page() {
@@ -2022,12 +2022,70 @@ function render_editorial_planner_page() {
 
 function render_frameworks_page() {
     echo '<div id="editorial-frameworks-app"></div>';
-    wp_enqueue_script('editorial-frameworks', plugins_url('assets/js/editorial-frameworks.js', __FILE__), ['wp-element', 'wp-api-fetch'], '1.0', true);
+    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-frameworks.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
+    wp_enqueue_script(
+        'editorial-frameworks',
+        plugins_url('assets/js/editorial-frameworks.js', __FILE__),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
+        $version,
+        true
+    );
+    wp_localize_script(
+        'editorial-frameworks',
+        'dualGptData',
+        array(
+            'nonce' => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
+    );
+}
+
+function render_new_session_page() {
+    echo '<div id="editorial-new-session-app"></div>';
+    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-new-session.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
+    wp_enqueue_script(
+        'editorial-new-session',
+        plugins_url('assets/js/editorial-new-session.js', __FILE__),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
+        $version,
+        true
+    );
+    wp_localize_script(
+        'editorial-new-session',
+        'dualGptData',
+        array(
+            'nonce' => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
+    );
+    wp_localize_script(
+        'editorial-new-session',
+        'admin_url',
+        admin_url()
+    );
 }
 
 function render_sessions_page() {
     echo '<div id="editorial-sessions-app"></div>';
-    wp_enqueue_script('editorial-sessions', plugins_url('assets/js/editorial-sessions.js', __FILE__), ['wp-element', 'wp-api-fetch'], '1.0', true);
+    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-sessions.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
+    wp_enqueue_script(
+        'editorial-sessions',
+        plugins_url('assets/js/editorial-sessions.js', __FILE__),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
+        $version,
+        true
+    );
+    wp_localize_script(
+        'editorial-sessions',
+        'dualGptData',
+        array(
+            'nonce' => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
+    );
 }
 
 function render_exports_page() {
