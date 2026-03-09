@@ -31,6 +31,13 @@ class Editorial_Planner_Plugin {
     }
 
     public function register_admin_page() {
+        // KHM plugin owns the active Editorial Planner admin UI.
+        // When that UI is available, suppress legacy menu registration
+        // to avoid duplicate Planner/Sessions entries in wp-admin.
+        if ( function_exists( 'render_editorial_planner_page' ) ) {
+            return;
+        }
+
         add_menu_page(
             'Editorial',
             'Editorial',

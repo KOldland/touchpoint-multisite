@@ -251,6 +251,7 @@ add_action('init', function() {
         'label' => 'Planner Sessions',
         'public' => false,
         'show_ui' => true,
+        'show_in_menu' => false,
         'supports' => array('title','editor','author','custom-fields'),
         'capability_type' => 'post',
         'show_in_rest' => true,
@@ -1992,8 +1993,8 @@ add_action('admin_menu', function() {
     );
 
     add_submenu_page('editorial_planner', __('Planner','khm-membership'), __('Planner','khm-membership'), 'edit_posts', 'editorial_planner', 'render_editorial_planner_page');
+    add_submenu_page('editorial_planner', __('Sessions','khm-membership'), __('Sessions','khm-membership'), 'edit_posts', 'editorial_sessions', 'render_editorial_planner_page');
     add_submenu_page('editorial_planner', __('Frameworks','khm-membership'), __('Frameworks','khm-membership'), 'edit_posts', 'editorial_frameworks', 'render_frameworks_page');
-    add_submenu_page('editorial_planner', __('Sessions','khm-membership'), __('Sessions','khm-membership'), 'edit_posts', 'editorial_sessions', 'render_sessions_page');
     add_submenu_page('editorial_planner', __('Exports','khm-membership'), __('Exports','khm-membership'), 'manage_options', 'editorial_exports', 'render_exports_page');
 });
 
