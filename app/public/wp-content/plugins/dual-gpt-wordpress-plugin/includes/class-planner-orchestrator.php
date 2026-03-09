@@ -45,13 +45,48 @@ class Dual_GPT_Planner_Orchestrator {
 
         $meta['phase1'] = $phase1_data;
 
+        // Encode and validate JSON size to prevent prompt length issues
+        $context_json = wp_json_encode($phase1_data);
+        $json_length = strlen($context_json);
+        
+        // If JSON is too large, aggressively truncate
+        if ($json_length > 5000) {
+            error_log('[PLANNER] Phase 1 context JSON is large (' . $json_length . ' chars), truncating...');
+            
+            // Further reduce SERP results
+            if (isset($phase1_data['serp_snapshot']) && is_array($phase1_data['serp_snapshot'])) {
+                foreach ($phase1_data['serp_snapshot'] as $query => $results) {
+                    if (is_array($results)) {
+                        $phase1_data['serp_snapshot'][$query] = array_slice($results, 0, 3);
+                        foreach ($phase1_data['serp_snapshot'][$query] as $idx => $result) {
+                            if (isset($result['snippet'])) {
+                                $phase1_data['serp_snapshot'][$query][$idx]['snippet'] = $this->truncate_text($result['snippet'], 100);
+                            }
+                            if (isset($result['description'])) {
+                                $phase1_data['serp_snapshot'][$query][$idx]['description'] = $this->truncate_text($result['description'], 100);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Limit keywords further
+            if (isset($phase1_data['candidate_keywords']) && is_array($phase1_data['candidate_keywords'])) {
+                $phase1_data['candidate_keywords'] = array_slice($phase1_data['candidate_keywords'], 0, 40);
+            }
+            
+            $context_json = wp_json_encode($phase1_data);
+            $new_length = strlen($context_json);
+            error_log('[PLANNER] After truncation: ' . $new_length . ' chars (saved ' . ($json_length - $new_length) . ' chars)');
+        }
+
         $phase1_job_id = $this->enqueue_phase_job(
             $session_id,
             'phase1',
             $topic,
             $includes,
             $excludes,
-            wp_json_encode($phase1_data),
+            $context_json,
             $focus_level
         );
         if (is_wp_error($phase1_job_id)) {
@@ -1251,19 +1286,35 @@ class Dual_GPT_Planner_Orchestrator {
             $topic . ' industry report',
             $topic . ' market outlook',
         );
-        foreach ($includes as $include) {
+        // Limit additional queries from includes to prevent prompt bloat
+        $limited_includes = array_slice($includes, 0, 2);
+        foreach ($limited_includes as $include) {
             $queries[] = $include . ' trends';
         }
 
         $serp_snapshot = array();
         foreach ($queries as $query) {
-            $serp_snapshot[$query] = $research_tools->web_search($query, 8);
+            // Reduce from 8 to 5 results per query
+            $results = $research_tools->web_search($query, 5);
+            // Truncate snippets in SERP results to reduce size
+            if (is_array($results)) {
+                foreach ($results as $idx => $result) {
+                    if (isset($result['snippet'])) {
+                        $results[$idx]['snippet'] = $this->truncate_text($result['snippet'], 200);
+                    }
+                    if (isset($result['description'])) {
+                        $results[$idx]['description'] = $this->truncate_text($result['description'], 200);
+                    }
+                }
+            }
+            $serp_snapshot[$query] = $results;
         }
 
         $keyword_candidates = array();
-        $seed_terms = array_merge(array($topic), $includes);
+        $seed_terms = array_merge(array($topic), $limited_includes);
         foreach ($seed_terms as $seed) {
-            $suggestions = $keyword_provider->keyword_suggestions($seed, 25);
+            // Reduce from 25 to 15 suggestions per seed
+            $suggestions = $keyword_provider->keyword_suggestions($seed, 15);
             if (is_wp_error($suggestions)) {
                 continue;
             }
@@ -1274,7 +1325,8 @@ class Dual_GPT_Planner_Orchestrator {
             }
         }
 
-        $candidate_keywords = array_keys($keyword_candidates);
+        // Limit total candidate keywords to 75 to prevent prompt bloat
+        $candidate_keywords = array_slice(array_keys($keyword_candidates), 0, 75);
 
         $trend_summary = array();
         $trend_keywords = array_slice($candidate_keywords, 0, 5);
