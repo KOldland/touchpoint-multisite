@@ -2045,6 +2045,32 @@ add_action('admin_menu', function() {
 }, 999);
 
 function render_editorial_planner_page() {
+    $requested_session = isset($_GET['session']) ? sanitize_text_field(wp_unslash($_GET['session'])) : '';
+    $requested_session_id = isset($_GET['session_id']) ? sanitize_text_field(wp_unslash($_GET['session_id'])) : '';
+    $auto_open_editor = isset($_GET['auto_open_editor']) ? sanitize_text_field(wp_unslash($_GET['auto_open_editor'])) : '';
+
+    if ($requested_session || $requested_session_id || $auto_open_editor) {
+        echo '<div id="editorial-planner-app"></div>';
+        $planner_path = plugin_dir_path(__FILE__) . 'assets/js/editorial-planner.js';
+        $planner_version = file_exists($planner_path) ? filemtime($planner_path) : '1.0';
+        wp_enqueue_script(
+            'editorial-planner',
+            plugins_url('assets/js/editorial-planner.js', __FILE__),
+            array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
+            $planner_version,
+            true
+        );
+        wp_localize_script(
+            'editorial-planner',
+            'dualGptData',
+            array(
+                'nonce' => wp_create_nonce('wp_rest'),
+                'restUrl' => rest_url('dual-gpt/v1/'),
+            )
+        );
+        return;
+    }
+
     // Coming Soon mockup with blurred calendar
     ?>
     <div class="wrap">

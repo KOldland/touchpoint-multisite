@@ -79,6 +79,17 @@ const EditorialPlannerApp = () => {
     }, []);
 
     useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const targetSessionId = params.get('session') || params.get('session_id');
+
+        if (!targetSessionId) {
+            return;
+        }
+
+        openSessionDetail(targetSessionId, { silent: true });
+    }, []);
+
+    useEffect(() => {
         if (!showFocusControls) {
             return;
         }
