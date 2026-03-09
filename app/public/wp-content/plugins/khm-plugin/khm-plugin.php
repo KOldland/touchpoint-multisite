@@ -164,6 +164,7 @@ require_once __DIR__ . '/src/Sponsors/SponsorAudit.php';
 require_once __DIR__ . '/src/Sponsors/SponsorIngest.php';
 require_once __DIR__ . '/src/Sponsors/SponsorController.php';
 require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
+require_once __DIR__ . '/src/Sponsors/SponsorDashboard.php';
 require_once __DIR__ . '/src/Admin/PriceValidationAjax.php';
 require_once __DIR__ . '/src/Membership/MembershipMigration.php';
 require_once __DIR__ . '/src/Membership/AttributionEndpoint.php';
@@ -288,6 +289,12 @@ if (is_admin()) {
     }
     if ( class_exists( 'KHM\\Admin\\PriceValidationAjax' ) ) {
         ( new KHM\Admin\PriceValidationAjax() )->register();
+    }
+} else {
+    // Frontend: Register sponsor dashboard shortcode
+    if ( class_exists( 'KHM\\Sponsors\\SponsorDashboard' ) ) {
+        $sponsor_dashboard = new KHM\Sponsors\SponsorDashboard();
+        $sponsor_dashboard->register();
     }
 }
 
