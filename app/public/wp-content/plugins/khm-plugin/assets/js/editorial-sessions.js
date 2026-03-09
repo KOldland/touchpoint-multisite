@@ -24,6 +24,7 @@ const EditorialSessionsApp = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortBy, setSortBy] = useState('created_at_desc');
     const [error, setError] = useState('');
+    const [deletingSessionId, setDeletingSessionId] = useState('');
 
     useEffect(() => {
         loadSessions();
@@ -64,6 +65,38 @@ const EditorialSessionsApp = () => {
         } catch (err) {
             console.error('Failed to load session details', err);
             setError('Failed to load session details.');
+        }
+    };
+
+    const deleteSession = async (sessionId) => {
+        if (!sessionId) {
+            return;
+        }
+
+        const confirmed = window.confirm('Delete this session permanently? This cannot be undone.');
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            setDeletingSessionId(sessionId);
+            setError('');
+            await apiFetch({
+                path: `dual-gpt/v1/sessions/${sessionId}`,
+                method: 'DELETE',
+            });
+
+            if (selectedSession === sessionId) {
+                setSelectedSession(null);
+                setSessionDetails(null);
+            }
+
+            await loadSessions();
+        } catch (err) {
+            console.error('Failed to delete session', err);
+            setError(err?.message || 'Failed to delete session. Please try again.');
+        } finally {
+            setDeletingSessionId('');
         }
     };
 
@@ -146,27 +179,36 @@ const EditorialSessionsApp = () => {
                             )
                         ),
                         wp.element.createElement('tbody', null,
-                            sortedSessions.map(session =>
+                            sortedSessions.map(session => {
+                                const sessionId = session.session_id || session.id;
+                                return (
                                 wp.element.createElement('tr', {
-                                    key: session.session_id,
-                                    style: { backgroundColor: selectedSession === session.session_id ? '#f5f5f5' : 'transparent' }
+                                    key: sessionId,
+                                    style: { backgroundColor: selectedSession === sessionId ? '#f5f5f5' : 'transparent' }
                                 },
-                                    wp.element.createElement('td', null, session.title || session.session_id),
+                                    wp.element.createElement('td', null, session.title || sessionId),
                                     wp.element.createElement('td', null, session.created_at ? formatDate(session.created_at) : '-'),
                                     wp.element.createElement('td', null, session.status || '-'),
                                     wp.element.createElement('td', null,
                                         wp.element.createElement('button', {
                                             className: 'button button-small',
-                                            onClick: () => loadSessionDetails(session.session_id),
+                                            onClick: () => loadSessionDetails(sessionId),
                                             style: { marginRight: '5px' }
                                         }, 'View Details'),
                                         wp.element.createElement('a', {
-                                            href: `?page=editorial_planner&session=${session.session_id}`,
+                                            href: `?page=editorial_planner&session=${sessionId}`,
                                             className: 'button button-small'
-                                        }, 'Edit')
+                                        }, 'Edit'),
+                                        wp.element.createElement('button', {
+                                            className: 'button button-small',
+                                            onClick: () => deleteSession(sessionId),
+                                            disabled: deletingSessionId === sessionId,
+                                            style: { marginLeft: '5px', color: '#b32d2e', borderColor: '#b32d2e' }
+                                        }, deletingSessionId === sessionId ? 'Deleting…' : 'Delete')
                                     )
                                 )
-                            )
+                                );
+                            })
                         )
                     )
             ),

@@ -133,6 +133,28 @@ class Dual_GPT_DB_Handler {
     }
 
     /**
+     * Delete session by ID
+     */
+    public function delete_session($session_id) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'ai_sessions';
+
+        $result = $wpdb->delete(
+            $table,
+            array('id' => $session_id),
+            array('%s')
+        );
+
+        if ($result === false) {
+            $db_error = isset($wpdb->last_error) && $wpdb->last_error ? $wpdb->last_error : 'No database error reported.';
+            return new WP_Error('db_delete_error', 'Failed to delete session. DB error: ' . $db_error);
+        }
+
+        return $result > 0;
+    }
+
+    /**
      * Update session metadata JSON
      */
     public function update_session_meta($session_id, $meta) {
