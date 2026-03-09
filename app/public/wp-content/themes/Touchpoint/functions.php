@@ -253,6 +253,21 @@ add_action( 'enqueue_block_editor_assets', function() {
 		filemtime( get_stylesheet_directory() . '/js/editor-guidance.js' ),
 		true
 	);
+
+	wp_enqueue_script(
+		'touchpoint-editor-block-collapse',
+		get_stylesheet_directory_uri() . '/js/editor-block-collapse.js',
+		array( 'wp-dom-ready' ),
+		filemtime( get_stylesheet_directory() . '/js/editor-block-collapse.js' ),
+		true
+	);
+
+	wp_enqueue_style(
+		'touchpoint-editor-block-collapse',
+		get_stylesheet_directory_uri() . '/js/editor-block-collapse.css',
+		array(),
+		filemtime( get_stylesheet_directory() . '/js/editor-block-collapse.css' )
+	);
 } );
 
 add_action( 'init', function() {

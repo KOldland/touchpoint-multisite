@@ -25,8 +25,10 @@ import {
     Tooltip,
     Icon,
     Modal,
+    ToolbarGroup,
+    ToolbarButton,
 } from '@wordpress/components';
-import { InspectorControls, useBlockProps } from '@wordpress/block-editor';
+import { InspectorControls, useBlockProps, BlockControls } from '@wordpress/block-editor';
 import { Fragment, useState, useCallback, useEffect, useMemo } from '@wordpress/element';
 import { useSelect } from '@wordpress/data';
 import { trash, plus, warning, check } from '@wordpress/icons';
@@ -438,6 +440,7 @@ const Edit = ( props ) => {
     const [ sponsorLoading, setSponsorLoading ] = useState( false );
     const [ sponsorError, setSponsorError ] = useState( '' );
     const [ sponsorSaving, setSponsorSaving ] = useState( false );
+    const [ isCollapsed, setIsCollapsed ] = useState( false );
 
     const { postId, postTitle, postContent } = useSelect( ( select ) => {
         try {
@@ -1192,6 +1195,18 @@ const Edit = ( props ) => {
 
     return (
         <Fragment>
+            <BlockControls>
+                <ToolbarGroup>
+                    <ToolbarButton
+                        onClick={ () => setIsCollapsed( ! isCollapsed ) }
+                        isPressed={ isCollapsed }
+                    >
+                        { isCollapsed
+                            ? __( 'Expand block', 'khm-membership' )
+                            : __( 'Collapse block', 'khm-membership' ) }
+                    </ToolbarButton>
+                </ToolbarGroup>
+            </BlockControls>
             <InspectorControls>
                 <PanelBody title={ __( 'AnswerCard Settings', 'khm-membership' ) } initialOpen={ true }>
                     { /* Answer Card ID - readonly */ }
@@ -1974,6 +1989,20 @@ const Edit = ( props ) => {
                     ) }
                 </div>
 
+                { isCollapsed ? (
+                    <div className="khm-answer-card-editor__collapsed">
+                        <strong>{ question || __( 'Untitled AnswerCard', 'khm-membership' ) }</strong>
+                        { conciseAnswer && (
+                            <p>
+                                { conciseAnswer.length > 160
+                                    ? `${ conciseAnswer.slice( 0, 160 ) }…`
+                                    : conciseAnswer }
+                            </p>
+                        ) }
+                    </div>
+                ) : (
+                    <>
+
                 <TextControl
                     label={ __( 'Question', 'khm-membership' ) }
                     value={ question }
@@ -2107,6 +2136,8 @@ const Edit = ( props ) => {
                         help={ __( 'Key topics and concepts this content covers. Use Advanced to link tags to canonical entities.', 'khm-membership' ) }
                     />
                 </div>
+                    </>
+                ) }
             </div>
             { resolverOpen && (
                 <Modal

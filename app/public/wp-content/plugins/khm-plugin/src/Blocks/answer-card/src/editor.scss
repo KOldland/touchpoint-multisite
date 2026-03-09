@@ -154,6 +154,26 @@
     &__add-btn {
         margin-top: 8px;
     }
+
+    &__collapsed {
+        border: 1px dashed #d0d7de;
+        border-radius: 6px;
+        padding: 12px;
+        margin-top: 8px;
+
+        strong {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+
+        p {
+            margin: 0;
+            color: #50575e;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+    }
 }
 
 // Score indicator in sidebar
