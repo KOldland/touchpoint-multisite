@@ -68,31 +68,20 @@ const EditorialFrameworksApp = () => {
                 method: 'GET',
             });
 
-            if (!response.ok) {
-                throw new Error(`Export failed with status ${response.status}`);
-            }
+            if (response && response.file_url) {
+                // Trigger download by navigating to the file URL
+                window.location.href = response.file_url;
 
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-
-            const fileExtension = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'html';
-            const filename = `${framework.title.replace(/\s+/g, '_')}.${fileExtension}`;
-            link.download = filename;
-
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-
-            // Show success notice
-            if (wp.data && wp.data.dispatch) {
-                wp.data.dispatch('core/notices').createNotice(
-                    'success',
-                    `Successfully exported framework as ${format.toUpperCase()}.`,
-                    { type: 'snackbar' }
-                );
+                // Show success notice
+                if (wp.data && wp.data.dispatch) {
+                    wp.data.dispatch('core/notices').createNotice(
+                        'success',
+                        `Successfully exported framework as ${format.toUpperCase()}.`,
+                        { type: 'snackbar' }
+                    );
+                }
+            } else {
+                throw new Error('No download URL returned from export API');
             }
         } catch (err) {
             console.error(`Failed to export framework as ${format}:`, err);
