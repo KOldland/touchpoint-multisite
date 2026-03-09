@@ -2,6 +2,7 @@
 namespace KH_SMMA\Admin;
 
 use KH_SMMA\Compliance\ComplianceRulesStore;
+use KH_SMMA\Scheduling\ScheduleRepository;
 use KH_SMMA\Services\AuditLogger;
 use KH_SMMA\Sponsor\ApprovalPermissionService;
 use KH_SMMA\Sponsor\ApprovalSafetyService;
@@ -38,7 +39,7 @@ class ComplianceCorpusPage {
         $this->store       = $store ?: new ComplianceRulesStore();
         $this->audit       = $audit ?: new AuditLogger( $wpdb );
         $this->permissions = $permissions ?: new ApprovalPermissionService();
-        $this->safety      = $safety ?: new ApprovalSafetyService();
+        $this->safety      = $safety ?: new ApprovalSafetyService( new ScheduleRepository( $this->audit ), $this->audit );
     }
 
     public function register(): void {

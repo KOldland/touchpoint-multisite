@@ -11,6 +11,7 @@ use function do_action;
 use function get_current_user_id;
 use function sanitize_text_field;
 use function time;
+use function update_post_meta;
 use function wp_generate_uuid4;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -22,10 +23,19 @@ class ApprovalSafetyService {
     private AuditLogger $logger;
     private ApprovalTelemetryService $telemetry;
 
-    public function __construct( ScheduleRepository $repository, AuditLogger $logger, ?ApprovalTelemetryService $telemetry = null ) {
-        $this->repository = $repository;
+    public function __construct( ?ScheduleRepository $repository = null, ?AuditLogger $logger = null, ?ApprovalTelemetryService $telemetry = null ) {
+        if ( null === $logger ) {
+            global $wpdb;
+            if ( isset( $wpdb ) && $wpdb instanceof \wpdb ) {
+                $logger = new AuditLogger( $wpdb );
+            } else {
+                $logger = new AuditLogger( new \wpdb() );
+            }
+        }
+
         $this->logger     = $logger;
-        $this->telemetry  = $telemetry ?: new ApprovalTelemetryService( $repository, $logger );
+        $this->repository = $repository ?: new ScheduleRepository( $this->logger );
+        $this->telemetry  = $telemetry ?: new ApprovalTelemetryService( $this->repository, $this->logger );
     }
 
     /**
@@ -78,6 +88,72 @@ class ApprovalSafetyService {
         }
 
         return $results;
+    }
+
+    public function trigger_rereview_for_corpus_version( int $corpus_version, ?int $actor_id = null ): int {
+        $flagged      = 0;
+        $event_time   = time();
+
+        $query = new \WP_Query( array(
+            'post_type'      => 'kh_smma_schedule',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+        ) );
+
+        $posts = is_array( $query->posts ?? null ) ? $query->posts : array();
+        foreach ( $posts as $post ) {
+            $schedule_id = is_object( $post ) && isset( $post->ID ) ? (string) (int) $post->ID : (string) (int) $post;
+            if ( '' === $schedule_id || '0' === $schedule_id ) {
+                continue;
+            }
+
+            $status = strtolower( (string) get_post_meta( (int) $schedule_id, '_kh_smma_approval_status', true ) );
+            if ( 'approved' !== $status ) {
+                continue;
+            }
+
+            if ( ! $this->repository->markScheduleForReReview( $schedule_id, 'compliance_corpus_changed' ) ) {
+                continue;
+            }
+
+            if ( function_exists( 'update_post_meta' ) ) {
+                update_post_meta( (int) $schedule_id, '_kh_smma_requires_rereview', 1 );
+                update_post_meta( (int) $schedule_id, '_kh_smma_schedule_status', 'awaiting_approval' );
+                update_post_meta( (int) $schedule_id, '_kh_smma_compliance_ruleset_version', (string) $corpus_version );
+            }
+
+            $trace_id = function_exists( 'wp_generate_uuid4' ) ? wp_generate_uuid4() : uniqid( 'trace_', true );
+            $this->logger->log( 'schedule.re_review_required', array(
+                'object_type' => 'schedule',
+                'object_id'   => (int) $schedule_id,
+                'user_id'     => $actor_id ?? get_current_user_id(),
+                'details'     => array(
+                    'schedule_id'     => $schedule_id,
+                    'actor'           => $actor_id ?? get_current_user_id(),
+                    'reason'          => 'compliance_corpus_changed',
+                    'corpus_version'  => $corpus_version,
+                    'timestamp'       => $event_time,
+                ),
+            ) );
+
+            do_action( 'kh_smma_telemetry_event', 'schedule.re_review_required', array(
+                'trace_id'       => $trace_id,
+                'schedule_id'    => $schedule_id,
+                'reason'         => 'compliance_corpus_changed',
+                'corpus_version' => $corpus_version,
+                'timestamp'      => $event_time,
+            ) );
+
+            ++$flagged;
+        }
+
+        if ( function_exists( 'wp_reset_postdata' ) ) {
+            wp_reset_postdata();
+        }
+
+        return $flagged;
     }
 
     /**
