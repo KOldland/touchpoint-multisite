@@ -43,6 +43,13 @@ const countWords = ( text ) => {
     if ( ! text ) return 0;
     return text.trim().split( /\s+/ ).filter( ( word ) => word.length > 0 ).length;
 };
+const formatPercentOneDecimal = ( value ) => {
+    const numeric = Number( value || 0 );
+    if ( Number.isNaN( numeric ) ) {
+        return '0.0';
+    }
+    return ( numeric * 100 ).toFixed( 1 );
+};
 
 /**
  * Generate a client-side answer_card_id (will be validated/replaced server-side)
@@ -295,17 +302,18 @@ const ScoreIndicator = ( { score, isLoading } ) => {
     }
 
     const scoreNum = parseFloat( score );
-    const scorePercent = Math.round( scoreNum * 100 );
+    const scorePercent = formatPercentOneDecimal( scoreNum );
     let scoreClass = 'low';
-    if ( scorePercent >= 80 ) {
+    if ( scoreNum >= 0.8 ) {
         scoreClass = 'high';
-    } else if ( scorePercent >= 60 ) {
+    } else if ( scoreNum >= 0.6 ) {
         scoreClass = 'medium';
     }
 
     return (
         <div className={ `khm-answer-card-score khm-answer-card-score--${ scoreClass }` }>
             <strong>{ __( 'GEO Score:', 'khm-membership' ) }</strong>
+            <span className="khm-answer-card-score__value">{ scorePercent }%</span>
             <span className="khm-answer-card-score__value">{ scorePercent }%</span>
         </div>
     );
@@ -315,7 +323,7 @@ const ScoreIndicator = ( { score, isLoading } ) => {
  * Score bar component
  */
 const ScoreBar = ( { label, value } ) => {
-    const percent = Math.round( ( value || 0 ) * 100 );
+    const percent = formatPercentOneDecimal( value );
     return (
         <div className="khm-score-bar">
             <div className="khm-score-bar__label">
@@ -323,7 +331,7 @@ const ScoreBar = ( { label, value } ) => {
                 <span>{ percent }%</span>
             </div>
             <div className="khm-score-bar__track">
-                <span className="khm-score-bar__fill" style={ { width: `${ percent }%` } } />
+                <span className="khm-score-bar__fill" style={ { width: `${ parseFloat( percent ) }%` } } />
             </div>
         </div>
     );
