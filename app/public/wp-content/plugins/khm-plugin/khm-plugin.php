@@ -161,6 +161,7 @@ require_once __DIR__ . '/src/GEO/SuggestAnswerCardsEndpoint.php';
 require_once __DIR__ . '/src/GEO/RedirectHandler.php';
 require_once __DIR__ . '/src/Sponsors/SponsorMigration.php';
 require_once __DIR__ . '/src/Sponsors/SponsorAudit.php';
+require_once __DIR__ . '/src/Sponsors/SponsorIngest.php';
 require_once __DIR__ . '/src/Sponsors/SponsorController.php';
 require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
 require_once __DIR__ . '/src/Admin/PriceValidationAjax.php';

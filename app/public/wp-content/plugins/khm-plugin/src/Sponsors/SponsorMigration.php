@@ -13,6 +13,8 @@ class SponsorMigration {
     const DOCS_TABLE = 'khm_sponsor_docs';
     const AUDIT_TABLE = 'khm_sponsor_audit';
     const SPONSORS_TABLE = 'khm_sponsors';
+    const INGEST_JOBS_TABLE = 'khm_sponsor_ingest_jobs';
+    const SOURCES_TABLE = 'khm_sponsor_sources';
 
     public static function docs_table_name(): string {
         global $wpdb;
@@ -29,6 +31,16 @@ class SponsorMigration {
         return $wpdb->prefix . self::AUDIT_TABLE;
     }
 
+    public static function ingest_jobs_table_name(): string {
+        global $wpdb;
+        return $wpdb->prefix . self::INGEST_JOBS_TABLE;
+    }
+
+    public static function sources_table_name(): string {
+        global $wpdb;
+        return $wpdb->prefix . self::SOURCES_TABLE;
+    }
+
     public static function create_tables(): bool {
         global $wpdb;
 
@@ -36,6 +48,8 @@ class SponsorMigration {
         $sponsors_table = self::sponsors_table_name();
         $docs_table = self::docs_table_name();
         $audit_table = self::audit_table_name();
+        $ingest_jobs_table = self::ingest_jobs_table_name();
+        $sources_table = self::sources_table_name();
 
         $sponsors_sql = "CREATE TABLE IF NOT EXISTS {$sponsors_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -88,10 +102,52 @@ class SponsorMigration {
             KEY created_at (created_at)
         ) {$charset_collate};";
 
+        $ingest_jobs_sql = "CREATE TABLE IF NOT EXISTS {$ingest_jobs_table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            sponsor_id BIGINT UNSIGNED NOT NULL,
+            status VARCHAR(32) NOT NULL DEFAULT 'queued',
+            source_type VARCHAR(32) NOT NULL DEFAULT 'urls',
+            payload LONGTEXT NULL,
+            total_items INT UNSIGNED NOT NULL DEFAULT 0,
+            processed_items INT UNSIGNED NOT NULL DEFAULT 0,
+            succeeded_items INT UNSIGNED NOT NULL DEFAULT 0,
+            failed_items INT UNSIGNED NOT NULL DEFAULT 0,
+            error_message TEXT NULL,
+            created_by BIGINT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY sponsor_id (sponsor_id),
+            KEY status (status),
+            KEY created_at (created_at)
+        ) {$charset_collate};";
+
+        $sources_sql = "CREATE TABLE IF NOT EXISTS {$sources_table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            sponsor_id BIGINT UNSIGNED NOT NULL,
+            root_url TEXT NOT NULL,
+            domain_allowlist TEXT NULL,
+            max_pages INT UNSIGNED NOT NULL DEFAULT 25,
+            max_depth INT UNSIGNED NOT NULL DEFAULT 2,
+            max_response_kb INT UNSIGNED NOT NULL DEFAULT 512,
+            status VARCHAR(32) NOT NULL DEFAULT 'active',
+            last_run_at DATETIME NULL,
+            last_job_id BIGINT UNSIGNED NULL,
+            created_by BIGINT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY sponsor_id (sponsor_id),
+            KEY status (status),
+            KEY created_at (created_at)
+        ) {$charset_collate};";
+
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta( $sponsors_sql );
         dbDelta( $docs_sql );
         dbDelta( $audit_sql );
+        dbDelta( $ingest_jobs_sql );
+        dbDelta( $sources_sql );
 
         $url_column = $wpdb->get_row( $wpdb->prepare( "SHOW COLUMNS FROM {$sponsors_table} LIKE %s", 'url' ), ARRAY_A );
         if ( empty( $url_column ) ) {
@@ -110,9 +166,13 @@ class SponsorMigration {
         $sponsors_table = self::sponsors_table_name();
         $docs_table = self::docs_table_name();
         $audit_table = self::audit_table_name();
+        $ingest_jobs_table = self::ingest_jobs_table_name();
+        $sources_table = self::sources_table_name();
         $sponsors_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $sponsors_table ) ) === $sponsors_table;
         $docs_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $docs_table ) ) === $docs_table;
         $audit_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $audit_table ) ) === $audit_table;
-        return $sponsors_exists && $docs_exists && $audit_exists;
+        $ingest_jobs_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ingest_jobs_table ) ) === $ingest_jobs_table;
+        $sources_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $sources_table ) ) === $sources_table;
+        return $sponsors_exists && $docs_exists && $audit_exists && $ingest_jobs_exists && $sources_exists;
     }
 }

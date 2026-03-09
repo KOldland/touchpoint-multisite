@@ -36,6 +36,55 @@ class SponsorController {
             ),
         ) );
 
+        register_rest_route( 'khm-geo/v1', '/sponsor-docs/bulk-import', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'create_bulk_import_job' ),
+            'permission_callback' => function() {
+                return current_user_can( 'manage_options' ) || current_user_can( 'edit_others_posts' );
+            },
+        ) );
+
+        register_rest_route( 'khm-geo/v1', '/sponsor-docs/ingest-jobs', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'list_ingest_jobs' ),
+            'permission_callback' => function() {
+                return current_user_can( 'edit_posts' );
+            },
+        ) );
+
+        register_rest_route( 'khm-geo/v1', '/sponsor-sources', array(
+            array(
+                'methods'             => 'GET',
+                'callback'            => array( $this, 'list_sources' ),
+                'permission_callback' => function() {
+                    return current_user_can( 'edit_posts' );
+                },
+            ),
+            array(
+                'methods'             => 'POST',
+                'callback'            => array( $this, 'create_source' ),
+                'permission_callback' => function() {
+                    return current_user_can( 'manage_options' ) || current_user_can( 'edit_others_posts' );
+                },
+            ),
+        ) );
+
+        register_rest_route( 'khm-geo/v1', '/sponsor-sources/(?P<id>\d+)/run', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'run_source' ),
+            'permission_callback' => function() {
+                return current_user_can( 'manage_options' ) || current_user_can( 'edit_others_posts' );
+            },
+        ) );
+
+        register_rest_route( 'khm-geo/v1', '/sponsor-docs/bulk-approve', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'bulk_approve_imported_docs' ),
+            'permission_callback' => function() {
+                return current_user_can( 'manage_options' ) || current_user_can( 'edit_others_posts' );
+            },
+        ) );
+
         register_rest_route( 'khm-geo/v1', '/sponsor-docs/(?P<id>\\d+)/approve', array(
             'methods'             => 'POST',
             'callback'            => array( $this, 'approve_doc' ),
@@ -175,6 +224,96 @@ class SponsorController {
         );
 
         return new \WP_REST_Response( array( 'success' => true ) );
+    }
+
+    public function create_bulk_import_job( \WP_REST_Request $request ): \WP_REST_Response {
+        $body = $request->get_json_params();
+        $sponsor_id = absint( $body['sponsor_id'] ?? 0 );
+        $allowed_for_export = ! empty( $body['allowed_for_export'] ) ? 1 : 0;
+        $source_type = sanitize_key( $body['source_type'] ?? 'urls' );
+
+        $items = array();
+        if ( ! empty( $body['urls'] ) && is_string( $body['urls'] ) ) {
+            $items = SponsorIngest::collect_items_from_url_lines( $body['urls'] );
+        } elseif ( ! empty( $body['urls'] ) && is_array( $body['urls'] ) ) {
+            $items = SponsorIngest::normalize_items( $body['urls'] );
+        }
+
+        if ( ! $sponsor_id || empty( $items ) ) {
+            return new \WP_REST_Response( array( 'error' => 'Missing sponsor_id or bulk URLs payload.' ), 400 );
+        }
+
+        $job_id = SponsorIngest::create_job( $sponsor_id, $items, $allowed_for_export, $source_type, get_current_user_id() );
+        if ( ! $job_id ) {
+            return new \WP_REST_Response( array( 'error' => 'Failed to queue ingest job.' ), 500 );
+        }
+
+        return new \WP_REST_Response(
+            array(
+                'job_id'      => $job_id,
+                'status'      => 'queued',
+                'item_count'  => count( $items ),
+                'sponsor_id'  => $sponsor_id,
+            ),
+            201
+        );
+    }
+
+    public function list_ingest_jobs( \WP_REST_Request $request ): \WP_REST_Response {
+        $limit = absint( $request->get_param( 'limit' ) ?: 25 );
+        return new \WP_REST_Response( SponsorIngest::list_jobs( $limit ) );
+    }
+
+    public function list_sources( \WP_REST_Request $request ): \WP_REST_Response {
+        $limit = absint( $request->get_param( 'limit' ) ?: 50 );
+        return new \WP_REST_Response( SponsorIngest::list_sources( $limit ) );
+    }
+
+    public function create_source( \WP_REST_Request $request ): \WP_REST_Response {
+        $body = $request->get_json_params();
+        $source_id = SponsorIngest::create_source(
+            array(
+                'sponsor_id'       => absint( $body['sponsor_id'] ?? 0 ),
+                'root_url'         => esc_url_raw( $body['root_url'] ?? '' ),
+                'domain_allowlist' => sanitize_text_field( $body['domain_allowlist'] ?? '' ),
+                'max_pages'        => absint( $body['max_pages'] ?? 25 ),
+                'max_depth'        => absint( $body['max_depth'] ?? 2 ),
+                'max_response_kb'  => absint( $body['max_response_kb'] ?? 512 ),
+                'status'           => sanitize_key( $body['status'] ?? 'active' ),
+                'created_by'       => get_current_user_id(),
+            )
+        );
+
+        if ( ! $source_id ) {
+            return new \WP_REST_Response( array( 'error' => 'Failed to create source.' ), 400 );
+        }
+
+        return new \WP_REST_Response( array( 'source_id' => $source_id ), 201 );
+    }
+
+    public function run_source( \WP_REST_Request $request ): \WP_REST_Response {
+        $source_id = absint( $request->get_param( 'id' ) );
+        if ( ! $source_id ) {
+            return new \WP_REST_Response( array( 'error' => 'Invalid source id.' ), 400 );
+        }
+
+        $job_id = SponsorIngest::queue_source_crawl_job( $source_id, 1, get_current_user_id() );
+        if ( ! $job_id ) {
+            return new \WP_REST_Response( array( 'error' => 'Failed to queue source crawl job.' ), 400 );
+        }
+
+        return new \WP_REST_Response( array( 'job_id' => $job_id, 'status' => 'queued' ), 201 );
+    }
+
+    public function bulk_approve_imported_docs( \WP_REST_Request $request ): \WP_REST_Response {
+        $body = $request->get_json_params();
+        $sponsor_id = absint( $body['sponsor_id'] ?? 0 );
+        if ( ! $sponsor_id ) {
+            return new \WP_REST_Response( array( 'error' => 'Missing sponsor_id.' ), 400 );
+        }
+
+        $approved_count = SponsorIngest::approve_imported_docs_by_sponsor( $sponsor_id );
+        return new \WP_REST_Response( array( 'approved_count' => $approved_count ) );
     }
 
     public function select_research_docs( \WP_REST_Request $request ): \WP_REST_Response {
