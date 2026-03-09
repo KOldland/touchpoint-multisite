@@ -29,7 +29,7 @@ class Dual_GPT_Admin {
             'dual-gpt-settings',
             array($this, 'settings_page'),
             'dashicons-admin-tools',
-            30
+            12
         );
 
         add_submenu_page(

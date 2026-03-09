@@ -142,9 +142,16 @@ class Dual_GPT_Plugin {
         ));
 
         register_rest_route('dual-gpt/v1', '/sessions/(?P<id>[a-zA-Z0-9\\-]+)', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'get_session_detail'),
-            'permission_callback' => array($this, 'check_permissions'),
+            array(
+                'methods' => 'GET',
+                'callback' => array($this, 'get_session_detail'),
+                'permission_callback' => array($this, 'check_permissions'),
+            ),
+            array(
+                'methods' => 'DELETE',
+                'callback' => array($this, 'delete_session'),
+                'permission_callback' => array($this, 'check_permissions'),
+            ),
         ));
 
         // Planner orchestration endpoints
@@ -687,6 +694,41 @@ class Dual_GPT_Plugin {
         unset($session['meta_json']);
 
         return new WP_REST_Response($session, 200);
+    }
+
+    /**
+     * Delete session
+     */
+    public function delete_session($request) {
+        $db = new Dual_GPT_DB_Handler();
+        $session_id = sanitize_text_field($request->get_param('id'));
+
+        if (empty($session_id)) {
+            return new WP_Error('missing_session_id', 'Session ID is required', array('status' => 400));
+        }
+
+        $session = $db->get_session($session_id);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to delete this session', array('status' => 403));
+        }
+
+        $deleted = $db->delete_session($session_id);
+        if (is_wp_error($deleted)) {
+            return $deleted;
+        }
+
+        if (!$deleted) {
+            return new WP_Error('session_delete_failed', 'Failed to delete session', array('status' => 500));
+        }
+
+        return new WP_REST_Response(array(
+            'success' => true,
+            'session_id' => $session_id,
+        ), 200);
     }
 
     /**

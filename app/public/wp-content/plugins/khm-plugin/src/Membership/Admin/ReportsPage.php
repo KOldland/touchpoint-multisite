@@ -158,7 +158,7 @@ class ReportsPage {
                                     $sponsor_name = isset( $row['sponsor_name'] ) ? trim( (string) $row['sponsor_name'] ) : '';
                                     if ( $sponsor_id > 0 ) {
                                         $label = $sponsor_name ? sprintf( '%s (#%d)', $sponsor_name, $sponsor_id ) : sprintf( '#%d', $sponsor_id );
-                                        $sponsor_link = admin_url( 'admin.php?page=khm-sponsor-library' );
+                                        $sponsor_link = admin_url( 'admin.php?page=khm-sponsorship' );
                                         echo '<a href="' . esc_url( $sponsor_link ) . '">' . esc_html( $label ) . '</a>';
                                     } else {
                                         echo '—';

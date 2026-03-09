@@ -86,7 +86,7 @@ class AdminInterface {
             'kh-smma-dashboard',
             array( $this, 'render_dashboard' ),
             'dashicons-share-alt2',
-            27
+            10
         );
     }
 

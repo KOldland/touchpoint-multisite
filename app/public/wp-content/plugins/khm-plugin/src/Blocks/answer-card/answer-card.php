@@ -1474,17 +1474,18 @@ function display_geo_score_column( $column, $post_id ) {
     }
 
     $score = floatval( $score );
+    $percent_score = $score <= 1 ? ( $score * 100 ) : $score;
     $class = 'geo-score--low';
-    if ( $score >= 70 ) {
+    if ( $percent_score >= 70 ) {
         $class = 'geo-score--high';
-    } elseif ( $score >= 40 ) {
+    } elseif ( $percent_score >= 40 ) {
         $class = 'geo-score--medium';
     }
 
     printf(
-        '<span class="geo-score %s">%s</span>',
+        '<span class="geo-score %s">%s%%</span>',
         esc_attr( $class ),
-        esc_html( number_format( $score, 1 ) )
+        esc_html( number_format( $percent_score, 0 ) )
     );
 }
 add_action( 'manage_posts_custom_column', __NAMESPACE__ . '\\display_geo_score_column', 10, 2 );

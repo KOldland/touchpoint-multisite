@@ -56,7 +56,7 @@ class TouchPoint_MailChimp_Admin {
             'touchpoint-mailchimp',
             array($this, 'render_main_page'),
             'dashicons-email-alt',
-            30
+            13
         );
         
         add_submenu_page(

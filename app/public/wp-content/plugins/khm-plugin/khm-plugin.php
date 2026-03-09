@@ -161,8 +161,10 @@ require_once __DIR__ . '/src/GEO/SuggestAnswerCardsEndpoint.php';
 require_once __DIR__ . '/src/GEO/RedirectHandler.php';
 require_once __DIR__ . '/src/Sponsors/SponsorMigration.php';
 require_once __DIR__ . '/src/Sponsors/SponsorAudit.php';
+require_once __DIR__ . '/src/Sponsors/SponsorIngest.php';
 require_once __DIR__ . '/src/Sponsors/SponsorController.php';
 require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
+require_once __DIR__ . '/src/Sponsors/SponsorDashboard.php';
 require_once __DIR__ . '/src/Admin/PriceValidationAjax.php';
 require_once __DIR__ . '/src/Membership/MembershipMigration.php';
 require_once __DIR__ . '/src/Membership/AttributionEndpoint.php';
@@ -251,6 +253,7 @@ add_action('init', function() {
         'label' => 'Planner Sessions',
         'public' => false,
         'show_ui' => true,
+        'show_in_menu' => false,
         'supports' => array('title','editor','author','custom-fields'),
         'capability_type' => 'post',
         'show_in_rest' => true,
@@ -286,6 +289,12 @@ if (is_admin()) {
     }
     if ( class_exists( 'KHM\\Admin\\PriceValidationAjax' ) ) {
         ( new KHM\Admin\PriceValidationAjax() )->register();
+    }
+} else {
+    // Frontend: Register sponsor dashboard shortcode
+    if ( class_exists( 'KHM\\Sponsors\\SponsorDashboard' ) ) {
+        $sponsor_dashboard = new KHM\Sponsors\SponsorDashboard();
+        $sponsor_dashboard->register();
     }
 }
 
@@ -976,7 +985,7 @@ function khm_create_main_admin_menu() {
             'khm-main-menu',
             'khm_render_main_admin_page',
             'dashicons-chart-line',
-            30
+            9
         );
     }
 }
@@ -1988,29 +1997,116 @@ add_action('admin_menu', function() {
         'editorial_planner',
         'render_editorial_planner_page',
         'dashicons-welcome-write-blog',
-        6
+        3
     );
 
     add_submenu_page('editorial_planner', __('Planner','khm-membership'), __('Planner','khm-membership'), 'edit_posts', 'editorial_planner', 'render_editorial_planner_page');
-    add_submenu_page('editorial_planner', __('Frameworks','khm-membership'), __('Frameworks','khm-membership'), 'edit_posts', 'editorial_frameworks', 'render_frameworks_page');
+    add_submenu_page('editorial_planner', __('New Session','khm-membership'), __('New Session','khm-membership'), 'edit_posts', 'editorial_new_session', 'render_new_session_page');
     add_submenu_page('editorial_planner', __('Sessions','khm-membership'), __('Sessions','khm-membership'), 'edit_posts', 'editorial_sessions', 'render_sessions_page');
-    add_submenu_page('editorial_planner', __('Exports','khm-membership'), __('Exports','khm-membership'), 'manage_options', 'editorial_exports', 'render_exports_page');
+    add_submenu_page('editorial_planner', __('Frameworks','khm-membership'), __('Frameworks','khm-membership'), 'edit_posts', 'editorial_frameworks', 'render_frameworks_page');
 });
 
+add_action('admin_menu', function() {
+    global $menu;
+
+    if (!is_array($menu) || empty($menu)) {
+        return;
+    }
+
+    $elementor_slugs = array('elementor', 'elementor-app');
+
+    foreach ($elementor_slugs as $target_slug) {
+        $found_index = null;
+        $found_item = null;
+
+        foreach ($menu as $index => $item) {
+            if (!empty($item[2]) && $item[2] === $target_slug) {
+                $found_index = $index;
+                $found_item = $item;
+                break;
+            }
+        }
+
+        if (null === $found_index || null === $found_item) {
+            continue;
+        }
+
+        unset($menu[$found_index]);
+
+        $new_index = 200;
+        while (isset($menu[$new_index])) {
+            $new_index++;
+        }
+
+        $menu[$new_index] = $found_item;
+    }
+
+    ksort($menu);
+}, 999);
+
 function render_editorial_planner_page() {
-    // Bootstrap existing Planner UI
-    echo '<div id="editorial-planner-app"></div>';
-    $planner_path = plugin_dir_path(__FILE__) . 'assets/js/editorial-planner.js';
-    $planner_version = file_exists($planner_path) ? filemtime($planner_path) : '1.0';
+    // Coming Soon mockup with blurred calendar
+    ?>
+    <div class="wrap">
+        <h1><?php esc_html_e( 'Editorial Planner', 'khm-membership' ); ?></h1>
+        
+        <div style="position: relative; margin-top: 40px; max-width: 1200px;">
+            <!-- Blurred Calendar Mockup -->
+            <div style="filter: blur(8px); opacity: 0.3; pointer-events: none;">
+                <div style="background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 20px;">
+                    <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-bottom: 20px;">
+                        <div style="font-weight: 600; text-align: center; padding: 10px; background: #f0f0f0;">Sun</div>
+                        <div style="font-weight: 600; text-align: center; padding: 10px; background: #f0f0f0;">Mon</div>
+                        <div style="font-weight: 600; text-align: center; padding: 10px; background: #f0f0f0;">Tue</div>
+                        <div style="font-weight: 600; text-align: center; padding: 10px; background: #f0f0f0;">Wed</div>
+                        <div style="font-weight: 600; text-align: center; padding: 10px; background: #f0f0f0;">Thu</div>
+                        <div style="font-weight: 600; text-align: center; padding: 10px; background: #f0f0f0;">Fri</div>
+                        <div style="font-weight: 600; text-align: center; padding: 10px; background: #f0f0f0;">Sat</div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px;">
+                        <?php for ( $i = 1; $i <= 35; $i++ ) : ?>
+                            <div style="aspect-ratio: 1; border: 1px solid #e0e0e0; border-radius: 3px; padding: 8px; background: <?php echo $i % 7 === 0 ? '#f9f9f9' : '#fff'; ?>;">
+                                <div style="font-weight: 600; margin-bottom: 5px;"><?php echo ( $i <= 31 ) ? $i : ''; ?></div>
+                                <?php if ( $i % 3 === 0 && $i <= 31 ) : ?>
+                                    <div style="background: #4a90e2; height: 20px; border-radius: 2px; margin-bottom: 3px;"></div>
+                                <?php endif; ?>
+                                <?php if ( $i % 5 === 0 && $i <= 31 ) : ?>
+                                    <div style="background: #7cb342; height: 20px; border-radius: 2px;"></div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endfor; ?>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Coming Soon Overlay -->
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 10;">
+                <div style="background: #fff; border: 3px solid #0073aa; border-radius: 8px; padding: 60px 80px; box-shadow: 0 8px 24px rgba(0,0,0,0.15);">
+                    <div style="font-size: 64px; margin-bottom: 20px;">📅</div>
+                    <h2 style="margin: 0 0 20px 0; font-size: 36px; color: #0073aa;">Coming Soon</h2>
+                    <p style="margin: 0; font-size: 18px; color: #666; max-width: 400px;">
+                        The editorial calendar and planning tools are currently under development.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php
+}
+
+function render_frameworks_page() {
+    echo '<div id="editorial-frameworks-app"></div>';
+    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-frameworks.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
     wp_enqueue_script(
-        'editorial-planner',
-        plugins_url('assets/js/editorial-planner.js', __FILE__),
+        'editorial-frameworks',
+        plugins_url('assets/js/editorial-frameworks.js', __FILE__),
         array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
-        $planner_version,
+        $version,
         true
     );
     wp_localize_script(
-        'editorial-planner',
+        'editorial-frameworks',
         'dualGptData',
         array(
             'nonce' => wp_create_nonce('wp_rest'),
@@ -2019,14 +2115,51 @@ function render_editorial_planner_page() {
     );
 }
 
-function render_frameworks_page() {
-    echo '<div id="editorial-frameworks-app"></div>';
-    wp_enqueue_script('editorial-frameworks', plugins_url('assets/js/editorial-frameworks.js', __FILE__), ['wp-element', 'wp-api-fetch'], '1.0', true);
+function render_new_session_page() {
+    echo '<div id="editorial-new-session-app"></div>';
+    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-new-session.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
+    wp_enqueue_script(
+        'editorial-new-session',
+        plugins_url('assets/js/editorial-new-session.js', __FILE__),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
+        $version,
+        true
+    );
+    wp_localize_script(
+        'editorial-new-session',
+        'dualGptData',
+        array(
+            'nonce' => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
+    );
+    wp_localize_script(
+        'editorial-new-session',
+        'admin_url',
+        admin_url()
+    );
 }
 
 function render_sessions_page() {
     echo '<div id="editorial-sessions-app"></div>';
-    wp_enqueue_script('editorial-sessions', plugins_url('assets/js/editorial-sessions.js', __FILE__), ['wp-element', 'wp-api-fetch'], '1.0', true);
+    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-sessions.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
+    wp_enqueue_script(
+        'editorial-sessions',
+        plugins_url('assets/js/editorial-sessions.js', __FILE__),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
+        $version,
+        true
+    );
+    wp_localize_script(
+        'editorial-sessions',
+        'dualGptData',
+        array(
+            'nonce' => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
+    );
 }
 
 function render_exports_page() {

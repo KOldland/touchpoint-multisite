@@ -73,7 +73,7 @@ class AdminManager {
             'khm-seo',
             array( $this, 'admin_page' ),
             'dashicons-search',
-            80
+            6
         );
 
         add_submenu_page(
