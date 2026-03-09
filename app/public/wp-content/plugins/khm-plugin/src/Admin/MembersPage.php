@@ -650,7 +650,7 @@ class MembersPage {
 			$sponsor_label = $sponsor_name !== ''
 				? sprintf( '%s (#%d)', $sponsor_name, $sponsor_id )
 				: sprintf( '#%d', $sponsor_id );
-			echo '<strong>' . esc_html__( 'Sponsor:', 'khm-membership' ) . '</strong> <a href="' . esc_url( admin_url( 'admin.php?page=khm-sponsor-library' ) ) . '">' . esc_html( $sponsor_label ) . '</a><br>';
+			echo '<strong>' . esc_html__( 'Sponsor:', 'khm-membership' ) . '</strong> <a href="' . esc_url( admin_url( 'admin.php?page=khm-sponsorship' ) ) . '">' . esc_html( $sponsor_label ) . '</a><br>';
 		}
 
 		if ( $utm_source !== '' ) {

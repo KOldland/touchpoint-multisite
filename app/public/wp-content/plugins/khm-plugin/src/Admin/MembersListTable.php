@@ -310,7 +310,7 @@ class MembersListTable extends \WP_List_Table {
 			$sponsor_label = $sponsor_name !== ''
 				? sprintf( '%s (#%d)', $sponsor_name, $sponsor_id )
 				: sprintf( '#%d', $sponsor_id );
-			$sponsor_link = admin_url( 'admin.php?page=khm-sponsor-library' );
+			$sponsor_link = admin_url( 'admin.php?page=khm-sponsorship' );
 			$rows[] = sprintf(
 				'%s <a href="%s">%s</a>',
 				esc_html__( 'Sponsor:', 'khm-membership' ),

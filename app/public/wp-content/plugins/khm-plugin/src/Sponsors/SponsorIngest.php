@@ -10,7 +10,7 @@ namespace KHM\Sponsors;
 defined( 'ABSPATH' ) || exit;
 
 class SponsorIngest {
-    public static function create_job( int $sponsor_id, array $items, int $allowed_for_export = 1, string $source_type = 'urls', int $created_by = 0 ): int {
+    public static function create_job( int $sponsor_id, array $items, int $allowed_for_export = 1, string $source_type = 'urls', int $created_by = 0, int $library_id = 0 ): int {
         if ( ! SponsorMigration::table_exists() ) {
             SponsorMigration::create_tables();
         }
@@ -24,6 +24,7 @@ class SponsorIngest {
             $sponsor_id,
             array(
                 'allowed_for_export' => $allowed_for_export ? 1 : 0,
+                'library_id'         => $library_id > 0 ? $library_id : 0,
                 'items'              => $items,
             ),
             sanitize_key( $source_type ?: 'urls' ),
@@ -59,6 +60,7 @@ class SponsorIngest {
             $table,
             array(
                 'sponsor_id'       => $sponsor_id,
+                'library_id'       => absint( $data['library_id'] ?? 0 ) ?: null,
                 'root_url'         => $root_url,
                 'domain_allowlist' => implode( ',', $allowlist ),
                 'max_pages'        => $max_pages,
@@ -67,7 +69,7 @@ class SponsorIngest {
                 'status'           => $status,
                 'created_by'       => absint( $data['created_by'] ?? 0 ) ?: get_current_user_id(),
             ),
-            array( '%d', '%s', '%s', '%d', '%d', '%d', '%s', '%d' )
+            array( '%d', '%d', '%s', '%s', '%d', '%d', '%d', '%s', '%d' )
         );
 
         return false === $inserted ? 0 : (int) $wpdb->insert_id;
@@ -100,6 +102,7 @@ class SponsorIngest {
                 return array(
                     'id'              => absint( $row['id'] ?? 0 ),
                     'sponsor_id'      => absint( $row['sponsor_id'] ?? 0 ),
+                    'library_id'      => absint( $row['library_id'] ?? 0 ),
                     'sponsor_name'    => sanitize_text_field( $row['sponsor_name'] ?? '' ),
                     'root_url'        => esc_url_raw( $row['root_url'] ?? '' ),
                     'domain_allowlist'=> sanitize_text_field( $row['domain_allowlist'] ?? '' ),
@@ -137,6 +140,7 @@ class SponsorIngest {
 
         $payload = array(
             'source_id'         => absint( $source['id'] ?? 0 ),
+            'library_id'        => absint( $source['library_id'] ?? 0 ),
             'root_url'          => esc_url_raw( $source['root_url'] ?? '' ),
             'domain_allowlist'  => self::normalize_allowlist( $source['domain_allowlist'] ?? '' ),
             'max_pages'         => max( 1, absint( $source['max_pages'] ?? 25 ) ),
@@ -167,6 +171,174 @@ class SponsorIngest {
         }
 
         return $job_id;
+    }
+
+    public static function create_library( array $data ): int {
+        if ( ! SponsorMigration::table_exists() ) {
+            SponsorMigration::create_tables();
+        }
+
+        $sponsor_id = absint( $data['sponsor_id'] ?? 0 );
+        $name = sanitize_text_field( $data['name'] ?? '' );
+        $topic = sanitize_text_field( $data['topic'] ?? '' );
+        if ( ! $sponsor_id || '' === $name ) {
+            return 0;
+        }
+
+        global $wpdb;
+        $table = SponsorMigration::libraries_table_name();
+        $inserted = $wpdb->insert(
+            $table,
+            array(
+                'sponsor_id' => $sponsor_id,
+                'name'       => $name,
+                'topic'      => $topic ?: null,
+                'status'     => 'active',
+                'created_by' => absint( $data['created_by'] ?? 0 ) ?: get_current_user_id(),
+            ),
+            array( '%d', '%s', '%s', '%s', '%d' )
+        );
+
+        return false === $inserted ? 0 : (int) $wpdb->insert_id;
+    }
+
+    public static function list_libraries( int $limit = 200, int $sponsor_id = 0 ): array {
+        if ( ! SponsorMigration::table_exists() ) {
+            SponsorMigration::create_tables();
+        }
+
+        global $wpdb;
+        $table = SponsorMigration::libraries_table_name();
+        $sponsors_table = SponsorMigration::sponsors_table_name();
+        $docs_table = SponsorMigration::docs_table_name();
+        $limit = max( 1, min( 500, $limit ) );
+
+        if ( $sponsor_id > 0 ) {
+            $rows = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT l.*, s.name AS sponsor_name,
+                        COUNT(d.id) AS file_count,
+                        SUM(CASE WHEN d.approved = 0 THEN 1 ELSE 0 END) AS pending_count,
+                        MAX(d.created_at) AS last_updated
+                    FROM {$table} l
+                    LEFT JOIN {$sponsors_table} s ON s.id = l.sponsor_id
+                    LEFT JOIN {$docs_table} d ON d.library_id = l.id
+                    WHERE l.sponsor_id = %d
+                    GROUP BY l.id
+                    ORDER BY l.created_at DESC
+                    LIMIT %d",
+                    $sponsor_id,
+                    $limit
+                ),
+                ARRAY_A
+            );
+        } else {
+            $rows = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT l.*, s.name AS sponsor_name,
+                        COUNT(d.id) AS file_count,
+                        SUM(CASE WHEN d.approved = 0 THEN 1 ELSE 0 END) AS pending_count,
+                        MAX(d.created_at) AS last_updated
+                    FROM {$table} l
+                    LEFT JOIN {$sponsors_table} s ON s.id = l.sponsor_id
+                    LEFT JOIN {$docs_table} d ON d.library_id = l.id
+                    GROUP BY l.id
+                    ORDER BY l.created_at DESC
+                    LIMIT %d",
+                    $limit
+                ),
+                ARRAY_A
+            );
+        }
+
+        if ( ! is_array( $rows ) ) {
+            return array();
+        }
+
+        return array_map(
+            function( array $row ): array {
+                return array(
+                    'id'           => absint( $row['id'] ?? 0 ),
+                    'sponsor_id'   => absint( $row['sponsor_id'] ?? 0 ),
+                    'sponsor_name' => sanitize_text_field( $row['sponsor_name'] ?? '' ),
+                    'name'         => sanitize_text_field( $row['name'] ?? '' ),
+                    'topic'        => sanitize_text_field( $row['topic'] ?? '' ),
+                    'status'       => sanitize_key( $row['status'] ?? 'active' ),
+                    'file_count'   => absint( $row['file_count'] ?? 0 ),
+                    'pending_count'=> absint( $row['pending_count'] ?? 0 ),
+                    'last_updated' => sanitize_text_field( $row['last_updated'] ?? '' ),
+                );
+            },
+            $rows
+        );
+    }
+
+    public static function get_library( int $library_id ): array {
+        if ( ! SponsorMigration::table_exists() ) {
+            SponsorMigration::create_tables();
+        }
+
+        if ( $library_id <= 0 ) {
+            return array();
+        }
+
+        global $wpdb;
+        $table = SponsorMigration::libraries_table_name();
+        $sponsors_table = SponsorMigration::sponsors_table_name();
+        $row = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT l.*, s.name AS sponsor_name FROM {$table} l LEFT JOIN {$sponsors_table} s ON s.id = l.sponsor_id WHERE l.id = %d LIMIT 1",
+                $library_id
+            ),
+            ARRAY_A
+        );
+
+        return is_array( $row ) ? $row : array();
+    }
+
+    public static function list_docs_by_library( int $library_id, int $limit = 500 ): array {
+        if ( ! SponsorMigration::table_exists() ) {
+            SponsorMigration::create_tables();
+        }
+
+        if ( $library_id <= 0 ) {
+            return array();
+        }
+
+        global $wpdb;
+        $docs_table = SponsorMigration::docs_table_name();
+        $limit = max( 1, min( 1000, $limit ) );
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$docs_table} WHERE library_id = %d ORDER BY created_at DESC LIMIT %d",
+                $library_id,
+                $limit
+            ),
+            ARRAY_A
+        );
+
+        return is_array( $rows ) ? $rows : array();
+    }
+
+    public static function approve_docs_by_library( int $library_id ): int {
+        if ( ! SponsorMigration::table_exists() ) {
+            SponsorMigration::create_tables();
+        }
+
+        if ( $library_id <= 0 ) {
+            return 0;
+        }
+
+        global $wpdb;
+        $docs_table = SponsorMigration::docs_table_name();
+        $updated = $wpdb->query(
+            $wpdb->prepare(
+                "UPDATE {$docs_table} SET approved = 1 WHERE library_id = %d AND approved = 0",
+                $library_id
+            )
+        );
+
+        return max( 0, absint( $updated ) );
     }
 
     public static function approve_imported_docs_by_sponsor( int $sponsor_id ): int {
@@ -325,7 +497,7 @@ class SponsorIngest {
                     'error'     => 'No ingest items were supplied.',
                 );
             } else {
-                $outcome = self::process_url_items( $sponsor_id, $job_id, $items, $allowed_for_export, 'bulk_ingest' );
+                $outcome = self::process_url_items( $sponsor_id, $job_id, $items, $allowed_for_export, 'bulk_ingest', absint( $payload['library_id'] ?? 0 ) );
             }
         }
 
@@ -557,12 +729,24 @@ class SponsorIngest {
             }
 
             $title = sanitize_text_field( pathinfo( (string) $single['name'], PATHINFO_FILENAME ) );
+            $thumbnail_url = '';
+            $mime_type = (string) ( $uploaded['type'] ?? '' );
+            if ( strpos( $mime_type, 'image/' ) === 0 ) {
+                $thumbnail_url = esc_url_raw( $uploaded['url'] );
+            }
+
+            $pdf_meta = array();
+            if ( 'application/pdf' === $mime_type ) {
+                $pdf_meta = self::extract_pdf_metadata( (string) $uploaded['file'] );
+            }
+
             $items[] = array(
                 'url'      => esc_url_raw( $uploaded['url'] ),
-                'title'    => $title,
-                'authors'  => '',
+                'title'    => sanitize_text_field( $pdf_meta['title'] ?? $title ),
+                'authors'  => sanitize_text_field( $pdf_meta['authors'] ?? '' ),
                 'publisher'=> '',
-                'pub_date' => '',
+                'pub_date' => sanitize_text_field( $pdf_meta['pub_date'] ?? '' ),
+                'cover_thumbnail_url' => $thumbnail_url,
             );
         }
 
@@ -593,13 +777,14 @@ class SponsorIngest {
                 'authors'   => sanitize_text_field( $item['authors'] ?? '' ),
                 'publisher' => sanitize_text_field( $item['publisher'] ?? '' ),
                 'pub_date'  => sanitize_text_field( $item['pub_date'] ?? '' ),
+                'cover_thumbnail_url' => esc_url_raw( $item['cover_thumbnail_url'] ?? '' ),
             );
         }
 
         return $normalized;
     }
 
-    private static function process_url_items( int $sponsor_id, int $job_id, array $items, int $allowed_for_export, string $source ): array {
+    private static function process_url_items( int $sponsor_id, int $job_id, array $items, int $allowed_for_export, string $source, int $library_id = 0 ): array {
         global $wpdb;
         $docs_table = SponsorMigration::docs_table_name();
         $processed = 0;
@@ -619,6 +804,11 @@ class SponsorIngest {
                 $title = self::title_from_url( $url );
             }
 
+            $web_meta = self::extract_page_metadata( $url );
+            if ( '' === $title && ! empty( $web_meta['title'] ) ) {
+                $title = sanitize_text_field( $web_meta['title'] );
+            }
+
             if ( '' === $title ) {
                 $failed++;
                 continue;
@@ -635,11 +825,13 @@ class SponsorIngest {
                 $url,
                 array(
                     'title'              => $title,
-                    'authors'            => sanitize_text_field( $item['authors'] ?? '' ),
+                    'authors'            => sanitize_text_field( $item['authors'] ?? ( $web_meta['authors'] ?? '' ) ),
                     'publisher'          => sanitize_text_field( $item['publisher'] ?? '' ),
-                    'pub_date'           => self::normalize_pub_date( $item['pub_date'] ?? '' ),
+                    'pub_date'           => self::normalize_pub_date( $item['pub_date'] ?? ( $web_meta['pub_date'] ?? '' ) ),
+                    'cover_thumbnail_url'=> esc_url_raw( $item['cover_thumbnail_url'] ?? ( $web_meta['cover_thumbnail_url'] ?? '' ) ),
                     'allowed_for_export' => $allowed_for_export,
                     'created_by'         => get_current_user_id(),
+                    'library_id'         => $library_id,
                 ),
                 $meta_patch
             );
@@ -668,6 +860,7 @@ class SponsorIngest {
         $max_depth = max( 0, min( 6, absint( $payload['max_depth'] ?? 2 ) ) );
         $max_response_kb = max( 64, min( 4096, absint( $payload['max_response_kb'] ?? 512 ) ) );
         $allowed_for_export = ! empty( $payload['allowed_for_export'] ) ? 1 : 0;
+        $library_id = absint( $payload['library_id'] ?? 0 );
 
         $base_host = strtolower( (string) wp_parse_url( $root_url, PHP_URL_HOST ) );
         if ( '' === $base_host ) {
@@ -718,6 +911,7 @@ class SponsorIngest {
             }
 
             $title = self::extract_html_title( $html, $url );
+            $meta_details = self::extract_html_metadata( $html );
             $etag = sanitize_text_field( (string) ( $headers['etag'] ?? '' ) );
             $last_modified = sanitize_text_field( (string) ( $headers['last-modified'] ?? '' ) );
             $content_hash = hash( 'sha256', $html );
@@ -727,11 +921,13 @@ class SponsorIngest {
                 $url,
                 array(
                     'title'              => $title,
-                    'authors'            => '',
+                    'authors'            => sanitize_text_field( $meta_details['authors'] ?? '' ),
                     'publisher'          => '',
-                    'pub_date'           => null,
+                    'pub_date'           => self::normalize_pub_date( (string) ( $meta_details['pub_date'] ?? '' ) ),
+                    'cover_thumbnail_url'=> esc_url_raw( $meta_details['cover_thumbnail_url'] ?? '' ),
                     'allowed_for_export' => $allowed_for_export,
                     'created_by'         => get_current_user_id(),
+                    'library_id'         => $library_id,
                 ),
                 array(
                     'source'        => 'crawl',
@@ -807,16 +1003,18 @@ class SponsorIngest {
             $updated = $wpdb->update(
                 $docs_table,
                 array(
+                    'library_id'         => absint( $doc_data['library_id'] ?? 0 ) ?: null,
                     'title'              => sanitize_text_field( $doc_data['title'] ?? '' ),
                     'authors'            => sanitize_text_field( $doc_data['authors'] ?? '' ),
                     'publisher'          => sanitize_text_field( $doc_data['publisher'] ?? '' ),
                     'pub_date'           => self::normalize_pub_date( (string) ( $doc_data['pub_date'] ?? '' ) ),
+                    'cover_thumbnail_url'=> esc_url_raw( $doc_data['cover_thumbnail_url'] ?? '' ),
                     'meta'               => wp_json_encode( $next_meta ),
                     'allowed_for_export' => ! empty( $doc_data['allowed_for_export'] ) ? 1 : 0,
                     'approved'           => 0,
                 ),
                 array( 'id' => absint( $existing['id'] ?? 0 ) ),
-                array( '%s', '%s', '%s', '%s', '%s', '%d', '%d' ),
+                array( '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d' ),
                 array( '%d' )
             );
 
@@ -827,17 +1025,19 @@ class SponsorIngest {
             $docs_table,
             array(
                 'sponsor_id'         => $sponsor_id,
+                'library_id'         => absint( $doc_data['library_id'] ?? 0 ) ?: null,
                 'title'              => sanitize_text_field( $doc_data['title'] ?? '' ),
                 'url'                => $url,
                 'authors'            => sanitize_text_field( $doc_data['authors'] ?? '' ),
                 'publisher'          => sanitize_text_field( $doc_data['publisher'] ?? '' ),
                 'pub_date'           => self::normalize_pub_date( (string) ( $doc_data['pub_date'] ?? '' ) ),
+                'cover_thumbnail_url'=> esc_url_raw( $doc_data['cover_thumbnail_url'] ?? '' ),
                 'meta'               => wp_json_encode( $next_meta ),
                 'allowed_for_export' => ! empty( $doc_data['allowed_for_export'] ) ? 1 : 0,
                 'approved'           => 0,
                 'created_by'         => absint( $doc_data['created_by'] ?? 0 ) ?: get_current_user_id(),
             ),
-            array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d' )
+            array( '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d' )
         );
 
         return false !== $inserted;
@@ -892,6 +1092,90 @@ class SponsorIngest {
         }
 
         return self::title_from_url( $fallback_url );
+    }
+
+    private static function extract_html_metadata( string $html ): array {
+        $meta = array(
+            'authors' => '',
+            'pub_date' => '',
+            'cover_thumbnail_url' => '',
+        );
+
+        if ( preg_match( '/<meta[^>]+name=["\']author["\'][^>]+content=["\']([^"\']+)["\']/i', $html, $matches ) ) {
+            $meta['authors'] = sanitize_text_field( html_entity_decode( (string) $matches[1], ENT_QUOTES | ENT_HTML5, 'UTF-8' ) );
+        }
+
+        if ( preg_match( '/<meta[^>]+property=["\']article:published_time["\'][^>]+content=["\']([^"\']+)["\']/i', $html, $matches ) ) {
+            $meta['pub_date'] = sanitize_text_field( (string) $matches[1] );
+        } elseif ( preg_match( '/<meta[^>]+name=["\']pubdate["\'][^>]+content=["\']([^"\']+)["\']/i', $html, $matches ) ) {
+            $meta['pub_date'] = sanitize_text_field( (string) $matches[1] );
+        }
+
+        if ( preg_match( '/<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']/i', $html, $matches ) ) {
+            $meta['cover_thumbnail_url'] = esc_url_raw( (string) $matches[1] );
+        }
+
+        return $meta;
+    }
+
+    private static function extract_page_metadata( string $url ): array {
+        $meta = array(
+            'title' => '',
+            'authors' => '',
+            'pub_date' => '',
+            'cover_thumbnail_url' => '',
+        );
+
+        $response = wp_remote_get( $url, array( 'timeout' => 8, 'redirection' => 2, 'user-agent' => 'KHM-SponsorCrawler/1.0' ) );
+        if ( is_wp_error( $response ) ) {
+            return $meta;
+        }
+
+        $code = (int) wp_remote_retrieve_response_code( $response );
+        if ( $code < 200 || $code >= 300 ) {
+            return $meta;
+        }
+
+        $body = (string) wp_remote_retrieve_body( $response );
+        if ( '' === $body ) {
+            return $meta;
+        }
+
+        $meta['title'] = self::extract_html_title( $body, $url );
+        $html_meta = self::extract_html_metadata( $body );
+        $meta['authors'] = sanitize_text_field( $html_meta['authors'] ?? '' );
+        $meta['pub_date'] = sanitize_text_field( $html_meta['pub_date'] ?? '' );
+        $meta['cover_thumbnail_url'] = esc_url_raw( $html_meta['cover_thumbnail_url'] ?? '' );
+        return $meta;
+    }
+
+    private static function extract_pdf_metadata( string $file_path ): array {
+        $meta = array(
+            'title' => '',
+            'authors' => '',
+            'pub_date' => '',
+        );
+
+        if ( '' === $file_path || ! file_exists( $file_path ) || ! is_readable( $file_path ) ) {
+            return $meta;
+        }
+
+        $chunk = @file_get_contents( $file_path, false, null, 0, 65536 );
+        if ( ! is_string( $chunk ) || '' === $chunk ) {
+            return $meta;
+        }
+
+        if ( preg_match( '/\/Title\s*\(([^\)]+)\)/', $chunk, $matches ) ) {
+            $meta['title'] = sanitize_text_field( (string) $matches[1] );
+        }
+        if ( preg_match( '/\/Author\s*\(([^\)]+)\)/', $chunk, $matches ) ) {
+            $meta['authors'] = sanitize_text_field( (string) $matches[1] );
+        }
+        if ( preg_match( '/\/CreationDate\s*\(D:(\d{4})(\d{2})(\d{2})/', $chunk, $matches ) ) {
+            $meta['pub_date'] = sanitize_text_field( $matches[1] . '-' . $matches[2] . '-' . $matches[3] );
+        }
+
+        return $meta;
     }
 
     private static function extract_links( string $html, string $base_url ): array {
