@@ -43,12 +43,12 @@ const countWords = ( text ) => {
     if ( ! text ) return 0;
     return text.trim().split( /\s+/ ).filter( ( word ) => word.length > 0 ).length;
 };
-const formatPercentOneDecimal = ( value ) => {
+const formatPercent = ( value ) => {
     const numeric = Number( value || 0 );
     if ( Number.isNaN( numeric ) ) {
-        return '0.0';
+        return '0';
     }
-    return ( numeric * 100 ).toFixed( 1 );
+    return String( Math.round( numeric * 100 ) );
 };
 
 /**
@@ -302,7 +302,7 @@ const ScoreIndicator = ( { score, isLoading } ) => {
     }
 
     const scoreNum = parseFloat( score );
-    const scorePercent = formatPercentOneDecimal( scoreNum );
+    const scorePercent = formatPercent( scoreNum );
     let scoreClass = 'low';
     if ( scoreNum >= 0.8 ) {
         scoreClass = 'high';
@@ -323,7 +323,7 @@ const ScoreIndicator = ( { score, isLoading } ) => {
  * Score bar component
  */
 const ScoreBar = ( { label, value } ) => {
-    const percent = formatPercentOneDecimal( value );
+    const percent = formatPercent( value );
     return (
         <div className="khm-score-bar">
             <div className="khm-score-bar__label">
@@ -341,7 +341,7 @@ const ScoreBar = ( { label, value } ) => {
  * Confidence Badge with Tooltip
  */
 const ConfidenceBadge = ( { confidence, reasons, tips } ) => {
-    const confidencePercent = formatPercentOneDecimal( confidence );
+    const confidencePercent = formatPercent( confidence );
     let badgeClass = 'low';
     
     if ( confidence >= 0.8 ) {
@@ -1429,7 +1429,7 @@ const Edit = ( props ) => {
                                 { scoreDetails.citation_contributions.map( ( item ) => {
                                     const citation = citations?.[ item.idx ] || {};
                                     const title = decodeHtmlEntities( citation.title || citation.url || '' );
-                                    const contribution = formatPercentOneDecimal( item.contribution );
+                                    const contribution = formatPercent( item.contribution );
                                     return (
                                         <li key={ `contrib-${ item.idx }` }>
                                             <span>{ title || __( 'Citation', 'khm-membership' ) } #{ item.idx + 1 }</span>
@@ -1455,7 +1455,7 @@ const Edit = ( props ) => {
                             const supports = reasons.filter( ( reason ) => reason.polarity === 'support' );
                             const confidenceScore = scoreDetails?.scores?.evidence_confidence ?? scoreDetails?.total_score;
                             const confidencePercent = Number.isFinite( confidenceScore )
-                                ? `${ formatPercentOneDecimal( confidenceScore ) }%`
+                                ? `${ formatPercent( confidenceScore ) }%`
                                 : __( 'n/a', 'khm-membership' );
                             return (
                                 <span className="khm-reasons-header__meta">

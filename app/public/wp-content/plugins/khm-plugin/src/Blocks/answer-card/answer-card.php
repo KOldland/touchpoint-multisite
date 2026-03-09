@@ -1485,7 +1485,7 @@ function display_geo_score_column( $column, $post_id ) {
     printf(
         '<span class="geo-score %s">%s%%</span>',
         esc_attr( $class ),
-        esc_html( number_format( $percent_score, 1 ) )
+        esc_html( number_format( $percent_score, 0 ) )
     );
 }
 add_action( 'manage_posts_custom_column', __NAMESPACE__ . '\\display_geo_score_column', 10, 2 );
