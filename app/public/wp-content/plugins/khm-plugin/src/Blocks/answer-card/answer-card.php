@@ -275,21 +275,35 @@ function render_answercard_block( $attributes, $content ) {
     $html .= '<span class="khm-answer-card__meta-label">' . esc_html__( 'Show meta', 'khm-membership' ) . '</span>';
     $html .= '</button>';
     $html .= '<div id="' . esc_attr( $meta_id ) . '" class="khm-answer-card__meta" hidden>';
+    
+    $has_meta = false;
+    
     if ( $meta_title ) {
         $html .= '<p><strong>' . esc_html__( 'Title:', 'khm-membership' ) . '</strong> ' . esc_html( $meta_title ) . '</p>';
+        $has_meta = true;
     }
     if ( $meta_url ) {
-        $html .= '<p><strong>' . esc_html__( 'URL:', 'khm-membership' ) . '</strong> <a href="' . esc_url( $meta_url ) . '">' . esc_html( $meta_url ) . '</a></p>';
+        $html .= '<p><strong>' . esc_html__( 'URL:', 'khm-membership' ) . '</strong> <a href="' . esc_url( $meta_url ) . '" target="_blank" rel="noopener">' . esc_html( $meta_url ) . '</a></p>';
+        $has_meta = true;
     }
     if ( $meta_author ) {
         $html .= '<p><strong>' . esc_html__( 'Author:', 'khm-membership' ) . '</strong> ' . esc_html( $meta_author ) . '</p>';
+        $has_meta = true;
     }
     if ( $meta_publisher ) {
         $html .= '<p><strong>' . esc_html__( 'Publisher:', 'khm-membership' ) . '</strong> ' . esc_html( $meta_publisher ) . '</p>';
+        $has_meta = true;
     }
     if ( $meta_date ) {
         $html .= '<p><strong>' . esc_html__( 'Date:', 'khm-membership' ) . '</strong> ' . esc_html( $meta_date ) . '</p>';
+        $has_meta = true;
     }
+    
+    // Show message if no meta data is available
+    if ( ! $has_meta ) {
+        $html .= '<p class="khm-answer-card__meta-empty">' . esc_html__( 'No metadata available for this section summary.', 'khm-membership' ) . '</p>';
+    }
+    
     $html .= '</div>';
 
     $html .= '<button type="button" class="khm-answer-card__save khm-answer-card__save--floating" data-post-id="' . esc_attr( $post_id ) . '" data-answer-card-id="' . esc_attr( $answer_card_id ) . '" data-answer-card-question="' . esc_attr( $question ) . '" data-rest-nonce="' . esc_attr( $rest_nonce ) . '" data-login-url="' . esc_url( $login_url ) . '" data-rest-root="' . esc_url( $rest_root ) . '" title="' . esc_attr__( 'Save to library', 'khm-membership' ) . '">';

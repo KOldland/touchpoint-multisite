@@ -301,61 +301,6 @@ const ScoreIndicator = ( { score, isLoading } ) => {
         scoreClass = 'medium';
     }
 
-    const sponsorOptions = buildSponsorOptions( sponsorDocs );
-    const sponsorPreview = ( sponsorDocs || [] )
-        .filter( ( doc ) => Number( doc.sponsor_id || 0 ) === Number( sponsorId || 0 ) && doc.approved )
-        .slice( 0, 3 );
-
-    const persistSponsorToggle = ( enable, overrides = {} ) => {
-        if ( ! postId || ! answerCardId ) {
-            return;
-        }
-
-        setSponsorSaving( true );
-        apiFetch( {
-            path: `/khm-geo/v1/cards/${ postId }/sponsor-toggle`,
-            method: 'POST',
-            data: {
-                enable,
-                sponsor_id: overrides.sponsorId ?? sponsorId ?? 0,
-                sponsor_name: overrides.sponsorName ?? sponsorName ?? '',
-                sponsor_url: overrides.sponsorUrl ?? sponsorUrl ?? '',
-                sponsor_doc_ids: overrides.sponsorDocIds ?? sponsorDocIds ?? [],
-                answer_card_id: answerCardId,
-                sponsor_boost: overrides.sponsorBoost ?? sponsorBoost ?? 0,
-                approval_required: overrides.sponsorRequiresApproval ?? sponsorRequiresApproval ?? true,
-                approved: overrides.sponsorApproved ?? sponsorApproved ?? false,
-                justification: overrides.sponsorJustification ?? sponsorJustification ?? '',
-            },
-        } ).then( () => {
-            setSponsorSaving( false );
-        } ).catch( ( error ) => {
-            setSponsorError( error.message || __( 'Failed to save sponsor settings', 'khm-membership' ) );
-            setSponsorSaving( false );
-        } );
-    };
-
-    const approveSponsor = () => {
-        if ( ! postId || ! answerCardId ) {
-            return;
-        }
-        setSponsorSaving( true );
-        apiFetch( {
-            path: `/khm-geo/v1/cards/${ postId }/sponsor-approve`,
-            method: 'POST',
-            data: {
-                answer_card_id: answerCardId,
-                justification: sponsorJustification || '',
-            },
-        } ).then( () => {
-            setAttributes( { sponsorApproved: true } );
-            setSponsorSaving( false );
-        } ).catch( ( error ) => {
-            setSponsorError( error.message || __( 'Failed to approve sponsor', 'khm-membership' ) );
-            setSponsorSaving( false );
-        } );
-    };
-
     return (
         <div className={ `khm-answer-card-score khm-answer-card-score--${ scoreClass }` }>
             <strong>{ __( 'GEO Score:', 'khm-membership' ) }</strong>
@@ -1182,6 +1127,64 @@ const Edit = ( props ) => {
         } ).catch( ( error ) => {
             setResolverError( error.message || __( 'Failed to unresolve entity', 'khm-membership' ) );
             setResolverLoading( false );
+        } );
+    };
+
+    /**
+     * Sponsor-related functions and constants
+     */
+    const sponsorOptions = buildSponsorOptions( sponsorDocs );
+    const sponsorPreview = ( sponsorDocs || [] )
+        .filter( ( doc ) => Number( doc.sponsor_id || 0 ) === Number( sponsorId || 0 ) && doc.approved )
+        .slice( 0, 3 );
+
+    const persistSponsorToggle = ( enable, overrides = {} ) => {
+        if ( ! postId || ! answerCardId ) {
+            return;
+        }
+
+        setSponsorSaving( true );
+        apiFetch( {
+            path: `/khm-geo/v1/cards/${ postId }/sponsor-toggle`,
+            method: 'POST',
+            data: {
+                enable,
+                sponsor_id: overrides.sponsorId ?? sponsorId ?? 0,
+                sponsor_name: overrides.sponsorName ?? sponsorName ?? '',
+                sponsor_url: overrides.sponsorUrl ?? sponsorUrl ?? '',
+                sponsor_doc_ids: overrides.sponsorDocIds ?? sponsorDocIds ?? [],
+                answer_card_id: answerCardId,
+                sponsor_boost: overrides.sponsorBoost ?? sponsorBoost ?? 0,
+                approval_required: overrides.sponsorRequiresApproval ?? sponsorRequiresApproval ?? true,
+                approved: overrides.sponsorApproved ?? sponsorApproved ?? false,
+                justification: overrides.sponsorJustification ?? sponsorJustification ?? '',
+            },
+        } ).then( () => {
+            setSponsorSaving( false );
+        } ).catch( ( error ) => {
+            setSponsorError( error.message || __( 'Failed to save sponsor settings', 'khm-membership' ) );
+            setSponsorSaving( false );
+        } );
+    };
+
+    const approveSponsor = () => {
+        if ( ! postId || ! answerCardId ) {
+            return;
+        }
+        setSponsorSaving( true );
+        apiFetch( {
+            path: `/khm-geo/v1/cards/${ postId }/sponsor-approve`,
+            method: 'POST',
+            data: {
+                answer_card_id: answerCardId,
+                justification: sponsorJustification || '',
+            },
+        } ).then( () => {
+            setAttributes( { sponsorApproved: true } );
+            setSponsorSaving( false );
+        } ).catch( ( error ) => {
+            setSponsorError( error.message || __( 'Failed to approve sponsor', 'khm-membership' ) );
+            setSponsorSaving( false );
         } );
     };
 

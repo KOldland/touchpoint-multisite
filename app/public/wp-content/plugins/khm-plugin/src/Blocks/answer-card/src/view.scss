@@ -369,6 +369,11 @@ body.khm-modal-open {
     &__meta.is-open {
         display: block;
     }
+
+    &__meta-empty {
+        font-style: italic;
+        opacity: 0.7;
+    }
 }
 
 .khm-modal-header {
