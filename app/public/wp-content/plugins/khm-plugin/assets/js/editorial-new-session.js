@@ -1,5 +1,5 @@
 // Editorial New Session React App
-const { useState } = wp.element;
+const { useState, useEffect } = wp.element;
 const {
     Button,
     SelectControl,
@@ -11,6 +11,7 @@ const {
     CardHeader,
     RangeControl,
     ToggleControl,
+    TextControl,
 } = wp.components;
 const { dispatch } = wp.data;
 
@@ -39,6 +40,41 @@ const EditorialNewSessionApp = () => {
     const [error, setError] = useState('');
     const [focusLevel, setFocusLevel] = useState(50);
     const showFocusControls = true;
+    
+    // New sponsor-related fields
+    const [researchProfile, setResearchProfile] = useState('');
+    const [authorProfile, setAuthorProfile] = useState('');
+    const [isSponsored, setIsSponsored] = useState(false);
+    const [selectedSponsor, setSelectedSponsor] = useState('');
+    const [sponsors, setSponsors] = useState([]);
+    const [sponsorWeighting, setSponsorWeighting] = useState(2);
+    const [loadingSponsors, setLoadingSponsors] = useState(false);
+
+    // Load sponsors when sponsored content is checked
+    useEffect(() => {
+        if (isSponsored && sponsors.length === 0) {
+            loadSponsors();
+        }
+    }, [isSponsored]);
+
+    const loadSponsors = async () => {
+        try {
+            setLoadingSponsors(true);
+            const response = await apiFetch({
+                path: 'khm-geo/v1/sponsors',
+                method: 'GET',
+            });
+            
+            if (Array.isArray(response)) {
+                setSponsors(response);
+            }
+        } catch (err) {
+            console.error('Failed to load sponsors:', err);
+            setError('Failed to load sponsors. Please try again.');
+        } finally {
+            setLoadingSponsors(false);
+        }
+    };
 
     const handleStartSession = async () => {
         if (!selectedTopic) {
@@ -46,9 +82,20 @@ const EditorialNewSessionApp = () => {
             return;
         }
 
+        // Validation for sponsored content
+        if (isSponsored && !selectedSponsor && sponsors.length > 0) {
+            setError('Please select a sponsor for sponsored content, or ensure sponsors are available.');
+            return;
+        }
+
         try {
             setStarting(true);
             setError('');
+
+            // Get sponsor name if selected
+            const sponsorName = selectedSponsor ? 
+                sponsors.find(s => s.id === parseInt(selectedSponsor))?.name : 
+                null;
 
             const sessionPayload = {
                 role: 'research',
@@ -59,6 +106,21 @@ const EditorialNewSessionApp = () => {
                     includes,
                     excludes,
                     ...(showFocusControls ? { focus_level: focusLevel } : {}),
+                    // Add new sponsor-related metadata
+                    research_profile: researchProfile || undefined,
+                    author_profile: authorProfile || undefined,
+                    is_sponsored: isSponsored,
+                    ...(isSponsored ? {
+                        sponsor_id: selectedSponsor || undefined,
+                        sponsor_name: sponsorName || undefined,
+                        sponsor_weighting: sponsorWeighting,
+                        // Instructions for sponsor handling
+                        sponsor_config: {
+                            ignore_non_sponsor_vendors: true,
+                            prioritize_sponsor_queries: !selectedSponsor, // Only when no sponsor library selected
+                            weighting_level: sponsorWeighting
+                        }
+                    } : {})
                 },
                 idempotency_key: `planner-${Date.now()}`,
             };
@@ -93,6 +155,11 @@ const EditorialNewSessionApp = () => {
             setExcludes([]);
             setSelectedTopic(TOPIC_OPTIONS[0].value);
             setFocusLevel(50);
+            setResearchProfile('');
+            setAuthorProfile('');
+            setIsSponsored(false);
+            setSelectedSponsor('');
+            setSponsorWeighting(2);
 
             // Navigate to planner to view the session
             window.location.href = admin_url + 'admin.php?page=editorial_planner';
@@ -124,6 +191,97 @@ const EditorialNewSessionApp = () => {
                     onChange: setSelectedTopic,
                     help: 'Select the primary topic or industry for this planning session',
                 }),
+                wp.element.createElement('div', { style: { marginTop: '20px' } },
+                    wp.element.createElement(TextControl, {
+                        label: 'Research Profile',
+                        value: researchProfile,
+                        onChange: setResearchProfile,
+                        placeholder: 'e.g., Technology Analyst, Industry Expert',
+                        help: 'Optional: Specify research perspective or profile from Dual GPT settings',
+                    })
+                ),
+                wp.element.createElement('div', { style: { marginTop: '20px' } },
+                    wp.element.createElement(TextControl, {
+                        label: 'Author Profile',
+                        value: authorProfile,
+                        onChange: setAuthorProfile,
+                        placeholder: 'e.g., Technical Writer, Subject Matter Expert',
+                        help: 'Optional: Specify authoring voice or profile from Dual GPT settings',
+                    })
+                ),
+                wp.element.createElement('div', { style: { marginTop: '20px' } },
+                    wp.element.createElement(ToggleControl, {
+                        label: 'Sponsored Content',
+                        checked: isSponsored,
+                        onChange: setIsSponsored,
+                        help: 'Enable sponsor-specific research targeting and content filtering',
+                    })
+                ),
+                isSponsored && wp.element.createElement('div', { 
+                    style: { 
+                        marginTop: '15px', 
+                        marginLeft: '20px',
+                        padding: '15px',
+                        backgroundColor: '#f0f0f1',
+                        borderLeft: '3px solid #2271b1',
+                        borderRadius: '4px'
+                    } 
+                },
+                    wp.element.createElement('h4', { style: { marginTop: 0, marginBottom: '15px' } }, 'Sponsor Settings'),
+                    loadingSponsors ? 
+                        wp.element.createElement(Spinner, null) :
+                        wp.element.createElement(SelectControl, {
+                            label: 'Sponsor',
+                            value: selectedSponsor,
+                            options: [
+                                { label: '-- Select Sponsor --', value: '' },
+                                ...sponsors.map(sponsor => ({
+                                    label: sponsor.name,
+                                    value: sponsor.id
+                                }))
+                            ],
+                            onChange: setSelectedSponsor,
+                            help: selectedSponsor ? 
+                                'Sponsor library content will be prioritized. Non-sponsor vendors will be filtered out.' :
+                                'Without sponsor selection, sponsor name will be added to all research queries.',
+                        }),
+                    wp.element.createElement('div', { style: { marginTop: '15px' } },
+                        wp.element.createElement('label', { style: { display: 'block', marginBottom: '8px', fontWeight: '500' } }, 'Sponsor Weighting'),
+                        wp.element.createElement(RangeControl, {
+                            value: sponsorWeighting,
+                            onChange: setSponsorWeighting,
+                            min: 0,
+                            max: 5,
+                            step: 1,
+                            marks: [
+                                { value: 0, label: '0' },
+                                { value: 2, label: '2' },
+                                { value: 5, label: '5' }
+                            ],
+                            help: 'Level 0: Impartial (logo only, no vendor references). Level 5: Only sponsor content referenced.',
+                        })
+                    ),
+                    wp.element.createElement('div', { 
+                        style: { 
+                            marginTop: '10px', 
+                            padding: '10px',
+                            backgroundColor: '#fff',
+                            border: '1px solid #ddd',
+                            borderRadius: '3px',
+                            fontSize: '13px'
+                        }
+                    },
+                        wp.element.createElement('strong', null, `Current Level: ${sponsorWeighting}`),
+                        wp.element.createElement('p', { style: { margin: '5px 0 0 0', color: '#666' } },
+                            sponsorWeighting === 0 ? 'Totally impartial - carries sponsor logo but doesn\'t reference other solution providers' :
+                            sponsorWeighting === 1 ? 'Minimal sponsor prominence - balanced coverage' :
+                            sponsorWeighting === 2 ? 'Balanced - sponsor highlighted with broader context (Default)' :
+                            sponsorWeighting === 3 ? 'Sponsor-focused - significant emphasis on sponsor content' :
+                            sponsorWeighting === 4 ? 'Heavily sponsor-led - mostly sponsor references' :
+                            'Only sponsor content - exclusive sponsor references'
+                        )
+                    )
+                ),
                 wp.element.createElement('div', { style: { marginTop: '20px' } },
                     wp.element.createElement(FormTokenField, {
                         label: 'Include Keywords',
