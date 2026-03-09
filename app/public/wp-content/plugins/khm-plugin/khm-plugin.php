@@ -985,7 +985,7 @@ function khm_create_main_admin_menu() {
             'khm-main-menu',
             'khm_render_main_admin_page',
             'dashicons-chart-line',
-            6
+            9
         );
     }
 }
