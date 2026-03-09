@@ -29,7 +29,7 @@ class AdminMenu {
             'khm-membership',
             [ $this, 'render_dashboard' ],
             'dashicons-groups',
-            30
+            4
         );
 
         // Dashboard (default)

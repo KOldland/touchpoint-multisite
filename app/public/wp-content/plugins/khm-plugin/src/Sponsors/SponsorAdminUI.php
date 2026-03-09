@@ -34,7 +34,7 @@ class SponsorAdminUI {
             'khm-sponsorship',
             array( $this, 'render_sponsors_page' ),
             'dashicons-groups',
-            62
+            5
         );
 
         add_submenu_page(

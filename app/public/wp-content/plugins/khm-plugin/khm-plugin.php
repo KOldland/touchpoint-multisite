@@ -985,7 +985,7 @@ function khm_create_main_admin_menu() {
             'khm-main-menu',
             'khm_render_main_admin_page',
             'dashicons-chart-line',
-            30
+            6
         );
     }
 }
@@ -1997,7 +1997,7 @@ add_action('admin_menu', function() {
         'editorial_planner',
         'render_editorial_planner_page',
         'dashicons-welcome-write-blog',
-        6
+        3
     );
 
     add_submenu_page('editorial_planner', __('Planner','khm-membership'), __('Planner','khm-membership'), 'edit_posts', 'editorial_planner', 'render_editorial_planner_page');
