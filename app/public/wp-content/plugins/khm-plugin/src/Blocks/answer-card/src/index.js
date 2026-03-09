@@ -27,7 +27,7 @@ import {
     Modal,
 } from '@wordpress/components';
 import { InspectorControls, useBlockProps } from '@wordpress/block-editor';
-import { Fragment, useState, useCallback, useEffect } from '@wordpress/element';
+import { Fragment, useState, useCallback, useEffect, useMemo } from '@wordpress/element';
 import { useSelect } from '@wordpress/data';
 import { trash, plus, warning, check } from '@wordpress/icons';
 import apiFetch from '@wordpress/api-fetch';
@@ -1134,9 +1134,11 @@ const Edit = ( props ) => {
      * Sponsor-related functions and constants
      */
     const sponsorOptions = buildSponsorOptions( sponsorDocs );
-    const sponsorPreview = ( sponsorDocs || [] )
-        .filter( ( doc ) => Number( doc.sponsor_id || 0 ) === Number( sponsorId || 0 ) && doc.approved )
-        .slice( 0, 3 );
+    const sponsorPreview = useMemo( () => {
+        return ( sponsorDocs || [] )
+            .filter( ( doc ) => Number( doc.sponsor_id || 0 ) === Number( sponsorId || 0 ) && doc.approved )
+            .slice( 0, 3 );
+    }, [ sponsorDocs, sponsorId ] );
 
     const persistSponsorToggle = ( enable, overrides = {} ) => {
         if ( ! postId || ! answerCardId ) {
