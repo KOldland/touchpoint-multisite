@@ -2006,6 +2006,44 @@ add_action('admin_menu', function() {
     add_submenu_page('editorial_planner', __('Frameworks','khm-membership'), __('Frameworks','khm-membership'), 'edit_posts', 'editorial_frameworks', 'render_frameworks_page');
 });
 
+add_action('admin_menu', function() {
+    global $menu;
+
+    if (!is_array($menu) || empty($menu)) {
+        return;
+    }
+
+    $elementor_slugs = array('elementor', 'elementor-app');
+
+    foreach ($elementor_slugs as $target_slug) {
+        $found_index = null;
+        $found_item = null;
+
+        foreach ($menu as $index => $item) {
+            if (!empty($item[2]) && $item[2] === $target_slug) {
+                $found_index = $index;
+                $found_item = $item;
+                break;
+            }
+        }
+
+        if (null === $found_index || null === $found_item) {
+            continue;
+        }
+
+        unset($menu[$found_index]);
+
+        $new_index = 200;
+        while (isset($menu[$new_index])) {
+            $new_index++;
+        }
+
+        $menu[$new_index] = $found_item;
+    }
+
+    ksort($menu);
+}, 999);
+
 function render_editorial_planner_page() {
     // Coming Soon mockup with blurred calendar
     ?>
