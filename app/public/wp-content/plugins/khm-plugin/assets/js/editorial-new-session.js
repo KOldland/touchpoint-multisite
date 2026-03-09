@@ -11,7 +11,6 @@ const {
     CardHeader,
     RangeControl,
     ToggleControl,
-    TextControl,
 } = wp.components;
 const { dispatch } = wp.data;
 
@@ -49,6 +48,40 @@ const EditorialNewSessionApp = () => {
     const [sponsors, setSponsors] = useState([]);
     const [sponsorWeighting, setSponsorWeighting] = useState(2);
     const [loadingSponsors, setLoadingSponsors] = useState(false);
+    
+    // Presets for dropdowns
+    const [researchPresets, setResearchPresets] = useState([]);
+    const [authorPresets, setAuthorPresets] = useState([]);
+    const [loadingPresets, setLoadingPresets] = useState(false);
+
+    // Load presets on mount
+    useEffect(() => {
+        loadPresets();
+    }, []);
+
+    const loadPresets = async () => {
+        try {
+            setLoadingPresets(true);
+            const response = await apiFetch({
+                path: 'dual-gpt/v1/presets',
+                method: 'GET',
+            });
+            
+            if (Array.isArray(response)) {
+                // Filter presets by role
+                const research = response.filter(p => p.role === 'research' || p.role === 'both');
+                const author = response.filter(p => p.role === 'author' || p.role === 'both');
+                
+                setResearchPresets(research);
+                setAuthorPresets(author);
+            }
+        } catch (err) {
+            console.error('Failed to load presets:', err);
+            // Don't show error - presets are optional
+        } finally {
+            setLoadingPresets(false);
+        }
+    };
 
     // Load sponsors when sponsored content is checked
     useEffect(() => {
@@ -99,15 +132,14 @@ const EditorialNewSessionApp = () => {
 
             const sessionPayload = {
                 role: 'research',
-                preset_id: 'research-default',
+                preset_id: researchProfile || 'research-default', // Use selected research profile or default
                 title: selectedTopic,
                 meta: {
                     topic: selectedTopic,
                     includes,
                     excludes,
                     ...(showFocusControls ? { focus_level: focusLevel } : {}),
-                    // Add new sponsor-related metadata
-                    research_profile: researchProfile || undefined,
+                    // Add author profile to metadata (research profile is in preset_id)
                     author_profile: authorProfile || undefined,
                     is_sponsored: isSponsored,
                     ...(isSponsored ? {
@@ -192,22 +224,38 @@ const EditorialNewSessionApp = () => {
                     help: 'Select the primary topic or industry for this planning session',
                 }),
                 wp.element.createElement('div', { style: { marginTop: '20px' } },
-                    wp.element.createElement(TextControl, {
-                        label: 'Research Profile',
-                        value: researchProfile,
-                        onChange: setResearchProfile,
-                        placeholder: 'e.g., Technology Analyst, Industry Expert',
-                        help: 'Optional: Specify research perspective or profile from Dual GPT settings',
-                    })
+                    loadingPresets ? 
+                        wp.element.createElement(Spinner, null) :
+                        wp.element.createElement(SelectControl, {
+                            label: 'Research Profile',
+                            value: researchProfile,
+                            options: [
+                                { label: '-- Select Research Profile --', value: '' },
+                                ...researchPresets.map(preset => ({
+                                    label: preset.name,
+                                    value: preset.id
+                                }))
+                            ],
+                            onChange: setResearchProfile,
+                            help: 'Optional: Research perspective from Dual GPT presets',
+                        })
                 ),
                 wp.element.createElement('div', { style: { marginTop: '20px' } },
-                    wp.element.createElement(TextControl, {
-                        label: 'Author Profile',
-                        value: authorProfile,
-                        onChange: setAuthorProfile,
-                        placeholder: 'e.g., Technical Writer, Subject Matter Expert',
-                        help: 'Optional: Specify authoring voice or profile from Dual GPT settings',
-                    })
+                    loadingPresets ? 
+                        wp.element.createElement(Spinner, null) :
+                        wp.element.createElement(SelectControl, {
+                            label: 'Author Profile',
+                            value: authorProfile,
+                            options: [
+                                { label: '-- Select Author Profile --', value: '' },
+                                ...authorPresets.map(preset => ({
+                                    label: preset.name,
+                                    value: preset.id
+                                }))
+                            ],
+                            onChange: setAuthorProfile,
+                            help: 'Optional: Authoring voice from Dual GPT presets',
+                        })
                 ),
                 wp.element.createElement('div', { style: { marginTop: '20px' } },
                     wp.element.createElement(ToggleControl, {
