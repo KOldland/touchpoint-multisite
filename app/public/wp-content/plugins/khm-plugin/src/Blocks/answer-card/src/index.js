@@ -341,7 +341,7 @@ const ScoreBar = ( { label, value } ) => {
  * Confidence Badge with Tooltip
  */
 const ConfidenceBadge = ( { confidence, reasons, tips } ) => {
-    const confidencePercent = Math.round( ( confidence || 0 ) * 100 );
+    const confidencePercent = formatPercentOneDecimal( confidence );
     let badgeClass = 'low';
     
     if ( confidence >= 0.8 ) {
@@ -1429,7 +1429,7 @@ const Edit = ( props ) => {
                                 { scoreDetails.citation_contributions.map( ( item ) => {
                                     const citation = citations?.[ item.idx ] || {};
                                     const title = decodeHtmlEntities( citation.title || citation.url || '' );
-                                    const contribution = Math.round( ( item.contribution || 0 ) * 100 );
+                                    const contribution = formatPercentOneDecimal( item.contribution );
                                     return (
                                         <li key={ `contrib-${ item.idx }` }>
                                             <span>{ title || __( 'Citation', 'khm-membership' ) } #{ item.idx + 1 }</span>
@@ -1455,7 +1455,7 @@ const Edit = ( props ) => {
                             const supports = reasons.filter( ( reason ) => reason.polarity === 'support' );
                             const confidenceScore = scoreDetails?.scores?.evidence_confidence ?? scoreDetails?.total_score;
                             const confidencePercent = Number.isFinite( confidenceScore )
-                                ? `${ Math.round( confidenceScore * 100 ) }%`
+                                ? `${ formatPercentOneDecimal( confidenceScore ) }%`
                                 : __( 'n/a', 'khm-membership' );
                             return (
                                 <span className="khm-reasons-header__meta">
