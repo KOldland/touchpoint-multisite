@@ -19,7 +19,7 @@ class Main extends Base {
 			'capability' => 'manage_options',
 			'menu_slug' => 'elementor',
 			'function' => [ Plugin::$instance->settings, 'display_settings_page' ],
-			'position' => 58.5,
+			'position' => 200,
 		];
 	}
 
