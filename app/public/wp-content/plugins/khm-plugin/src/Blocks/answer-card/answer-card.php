@@ -167,7 +167,7 @@ function render_answercard_block( $attributes, $content ) {
     $html .= '<span class="khm-answer-card__divider" aria-hidden="true"></span>';
     $html .= '<button type="button" class="khm-answer-card__toggle" aria-expanded="false" aria-controls="' . esc_attr( $modal_id ) . '">';
     $html .= '<span class="khm-answer-card__toggle-icon" aria-hidden="true"></span>';
-    $html .= esc_html__( 'Section Summary', 'khm-membership' );
+    $html .= esc_html__( 'Key Takeaway', 'khm-membership' );
     $html .= '</button>';
     $html .= '</div>';
 
@@ -175,7 +175,7 @@ function render_answercard_block( $attributes, $content ) {
     $html .= '<div class="khm-modal khm-modal large khm-answer-card__modal-card" role="dialog" aria-modal="true" aria-labelledby="' . esc_attr( $modal_id ) . '-title">';
     $html .= '<div class="khm-modal-header">';
     $html .= '<div class="khm-answer-card__header-text">';
-    $html .= '<span class="khm-answer-card__eyebrow" style="display:block;line-height:1;margin-bottom:-12px;">' . esc_html__( 'Section Summary', 'khm-membership' ) . '</span>';
+    $html .= '<span class="khm-answer-card__eyebrow" style="display:block;line-height:1;margin-bottom:-12px;">' . esc_html__( 'Key Takeaway', 'khm-membership' ) . '</span>';
     if ( ! empty( $attributes['sponsorToggle'] ) ) {
         $html .= '<span class="khm-answer-card__sponsor-badge">' . esc_html__( 'Sponsored', 'khm-membership' ) . '</span>';
     }
@@ -264,7 +264,7 @@ function render_answercard_block( $attributes, $content ) {
     }
 
     $html .= '<div class="khm-answer-card__actions">';
-    $html .= '<button type="button" class="khm-answer-card__share" data-post-id="' . esc_attr( $post_id ) . '" data-answer-card-question="' . esc_attr( $question ) . '" data-ajax-url="' . esc_url( $ajax_url ) . '" data-share-nonce="' . esc_attr( $share_nonce ) . '" data-login-url="' . esc_url( $login_url ) . '" title="' . esc_attr__( 'Share section summary', 'khm-membership' ) . '" aria-label="' . esc_attr__( 'Share section summary', 'khm-membership' ) . '">';
+    $html .= '<button type="button" class="khm-answer-card__share" data-post-id="' . esc_attr( $post_id ) . '" data-answer-card-question="' . esc_attr( $question ) . '" data-ajax-url="' . esc_url( $ajax_url ) . '" data-share-nonce="' . esc_attr( $share_nonce ) . '" data-login-url="' . esc_url( $login_url ) . '" title="' . esc_attr__( 'Share key takeaway', 'khm-membership' ) . '" aria-label="' . esc_attr__( 'Share key takeaway', 'khm-membership' ) . '">';
     $html .= '<span class="dashicons dashicons-email" aria-hidden="true"></span>';
     $html .= '<span class="khm-answer-card__share-label">' . esc_html__( 'Share summary', 'khm-membership' ) . '</span>';
     $html .= '</button>';
@@ -301,7 +301,7 @@ function render_answercard_block( $attributes, $content ) {
     
     // Show message if no meta data is available
     if ( ! $has_meta ) {
-        $html .= '<p class="khm-answer-card__meta-empty">' . esc_html__( 'No metadata available for this section summary.', 'khm-membership' ) . '</p>';
+        $html .= '<p class="khm-answer-card__meta-empty">' . esc_html__( 'No metadata available for this key takeaway.', 'khm-membership' ) . '</p>';
     }
     
     $html .= '</div>';

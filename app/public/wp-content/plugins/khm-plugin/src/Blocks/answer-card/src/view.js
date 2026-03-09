@@ -169,7 +169,7 @@ const bindSaveButton = ( card ) => {
             }
             button.setAttribute( 'title', originalText );
             button.disabled = false;
-            showToast( error.message || 'Unable to save section summary. Please try again.' );
+            showToast( error.message || 'Unable to save key takeaway. Please try again.' );
         }
     } );
 };
@@ -185,7 +185,7 @@ const openShareModal = ( card, data ) => {
     modal.innerHTML = `
         <div class="khm-modal khm-answer-card-share-modal__card" role="dialog" aria-modal="true">
             <div class="khm-modal-header">
-                <h3 class="khm-modal-title">Share section summary</h3>
+                <h3 class="khm-modal-title">Share key takeaway</h3>
                 <button type="button" class="khm-modal-close" aria-label="Close">&times;</button>
             </div>
             <div class="khm-modal-content">
@@ -202,7 +202,7 @@ const openShareModal = ( card, data ) => {
                     </label>
                     <label>
                         Personal Message (Optional):
-                        <textarea name="personal_message" placeholder="I thought you'd find this section summary useful..."></textarea>
+                        <textarea name="personal_message" placeholder="I thought you'd find this key takeaway useful..."></textarea>
                     </label>
                     <div class="khm-answer-card-share-modal__actions">
                         <button type="button" class="khm-answer-card-share-modal__cancel">Cancel</button>
@@ -274,7 +274,7 @@ const openShareModal = ( card, data ) => {
                 throw new Error( ( payload && payload.data ) || 'Share failed' );
             }
 
-            showToast( 'Section summary shared.', 'success' );
+            showToast( 'Key takeaway shared.', 'success' );
             closeModal();
         } catch ( error ) {
             showToast( error.message || 'Share failed.' );
