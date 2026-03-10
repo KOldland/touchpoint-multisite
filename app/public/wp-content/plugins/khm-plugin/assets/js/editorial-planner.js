@@ -24,6 +24,7 @@ const TOPIC_OPTIONS = [
     { label: 'Logistics', value: 'Logistics' },
     { label: 'Energy', value: 'Energy' },
     { label: 'Retail', value: 'Retail' },
+    { label: 'Pricing', value: 'Pricing' },
 ];
 
 const DEFAULT_RESEARCH_POLICY = {
@@ -35,7 +36,6 @@ const DEFAULT_RESEARCH_POLICY = {
         case_study: 1,
     },
     blocked_domains: ['wikipedia.org', 'pinterest.com', 'reddit.com', 'quora.com'],
-    allowed_domains: [],
 };
 
 const DEFAULT_AUTHOR_POLICY = {
@@ -66,6 +66,16 @@ const THINKING_PHRASES = [
     'Almost there',
 ];
 
+const AUTHOR_PROFILE_OPTIONS = [
+    { label: 'Balanced', value: 'balanced' },
+    { label: 'Journalistic', value: 'journalistic' },
+    { label: 'Analytical', value: 'analytical' },
+    { label: 'Executive', value: 'executive' },
+];
+
+const MIN_CITATIONS_REQUIRED = 2;
+const PHASE_ORDER = ['phase1', 'phase2', 'phase3', 'phase4'];
+
 const apiFetch = (options) =>
     wp.apiFetch({
         ...options,
@@ -81,6 +91,7 @@ const EditorialPlannerApp = () => {
     const [sessionsError, setSessionsError] = useState('');
 
     const [startModalOpen, setStartModalOpen] = useState(false);
+    const [topicOptions, setTopicOptions] = useState(TOPIC_OPTIONS);
     const [selectedTopic, setSelectedTopic] = useState(TOPIC_OPTIONS[0].value);
     const [includes, setIncludes] = useState([]);
     const [excludes, setExcludes] = useState([]);
@@ -108,6 +119,7 @@ const EditorialPlannerApp = () => {
     const [frameworkProgress, setFrameworkProgress] = useState({});
     const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
     const [authorPreview, setAuthorPreview] = useState(null);
+    const [authorProfileSelection, setAuthorProfileSelection] = useState({});
     const [authorProgress, setAuthorProgress] = useState({});
     const [authorLoading, setAuthorLoading] = useState({});
     const authorStatusRef = useRef({});
@@ -115,18 +127,21 @@ const EditorialPlannerApp = () => {
     const [phase3RerunLoading, setPhase3RerunLoading] = useState(false);
     const [phase2RerunLoading, setPhase2RerunLoading] = useState(false);
     const [phase1RerunLoading, setPhase1RerunLoading] = useState(false);
+    const [articleActionLoading, setArticleActionLoading] = useState({});
     const [expandedPhases, setExpandedPhases] = useState({});
+    const [focusLevel, setFocusLevel] = useState(50);
     const [synopsisModalOpen, setSynopsisModalOpen] = useState(false);
     const [synopsisPlan, setSynopsisPlan] = useState({});
     const [synopsisPlanLoading, setSynopsisPlanLoading] = useState(false);
     const [synopsisPlanError, setSynopsisPlanError] = useState('');
     const [synopsisGenerateLoading, setSynopsisGenerateLoading] = useState(false);
     const [synopsisTotal, setSynopsisTotal] = useState(20);
-    const [focusLevel, setFocusLevel] = useState(50);
     const [focusDirty, setFocusDirty] = useState(false);
     const [thinkingPhraseIndex, setThinkingPhraseIndex] = useState(0);
+    const [diveDeeperModalOpen, setDiveDeeperModalOpen] = useState(false);
+    const [diveDeeperArticle, setDiveDeeperArticle] = useState(null);
+    const [diveDeeperDepthSlider, setDiveDeeperDepthSlider] = useState(2);
     const showFocusControls = true;
-
     // URL-based routing: check if we're viewing a specific session detail
     const params = new URLSearchParams(window.location.search);
     const viewingSessionId = params.get('session') || params.get('session_id');
@@ -135,12 +150,18 @@ const EditorialPlannerApp = () => {
         if (!sessionId) {
             return;
         }
-        window.history.pushState(null, '', `?session_id=${sessionId}`);
+        const url = new URL(window.location.href);
+        url.searchParams.set('session_id', String(sessionId));
+        url.searchParams.delete('session');
+        window.history.pushState(null, '', `${url.pathname}${url.search}`);
         openSessionDetail(sessionId);
     };
 
     const navigateBack = () => {
-        window.history.pushState(null, '', window.location.pathname);
+        const url = new URL(window.location.href);
+        url.searchParams.delete('session_id');
+        url.searchParams.delete('session');
+        window.history.pushState(null, '', `${url.pathname}${url.search}`);
         setDetailModalOpen(false);
         setSessionDetail(null);
         setResearchPolicyDetail(null);
@@ -155,13 +176,35 @@ const EditorialPlannerApp = () => {
 
     useEffect(() => {
         loadSessions();
+        loadTopLineCategories();
     }, []);
+
+    const loadTopLineCategories = async () => {
+        try {
+            const response = await apiFetch({
+                path: 'dual-gpt/v1/planner/top-line-categories',
+                method: 'GET',
+            });
+            const rows = Array.isArray(response?.top_line_categories) ? response.top_line_categories : [];
+            if (!rows.length) {
+                return;
+            }
+
+            const options = rows.map((row) => ({ label: row.name, value: row.name }));
+            setTopicOptions(options);
+            if (!selectedTopic || !options.some((option) => option.value === selectedTopic)) {
+                setSelectedTopic(options[0].value);
+            }
+        } catch (error) {
+            console.error('Failed to load top-line categories:', error);
+        }
+    };
 
     useEffect(() => {
         if (!viewingSessionId) {
             return;
         }
-        openSessionDetail(viewingSessionId, { silent: true });
+        openSessionDetail(viewingSessionId);
     }, [viewingSessionId]);
 
     useEffect(() => {
@@ -185,9 +228,6 @@ const EditorialPlannerApp = () => {
                 industry: Number(researchPolicyDetail?.source_mix_minimums?.industry ?? DEFAULT_RESEARCH_POLICY.source_mix_minimums.industry),
                 case_study: Number(researchPolicyDetail?.source_mix_minimums?.case_study ?? DEFAULT_RESEARCH_POLICY.source_mix_minimums.case_study),
             },
-            allowed_domains: Array.isArray(researchPolicyDetail?.allowed_domains)
-                ? [...researchPolicyDetail.allowed_domains]
-                : [],
             blocked_domains: Array.isArray(researchPolicyDetail?.blocked_domains)
                 ? [...researchPolicyDetail.blocked_domains]
                 : [...DEFAULT_RESEARCH_POLICY.blocked_domains],
@@ -282,7 +322,7 @@ const EditorialPlannerApp = () => {
             setStartModalOpen(false);
             setIncludes([]);
             setExcludes([]);
-            setSelectedTopic(TOPIC_OPTIONS[0].value);
+            setSelectedTopic(topicOptions[0]?.value || TOPIC_OPTIONS[0].value);
             await loadSessions();
             await openSessionDetail(sessionResponse.session_id);
         } catch (error) {
@@ -345,6 +385,14 @@ const EditorialPlannerApp = () => {
     const openSessionDetail = async (sessionId, options = {}) => {
         const { silent = false } = options;
         try {
+            if (!silent && sessionId) {
+                const url = new URL(window.location.href);
+                if (url.searchParams.get('session_id') !== String(sessionId)) {
+                    url.searchParams.set('session_id', String(sessionId));
+                    url.searchParams.delete('session');
+                    window.history.pushState(null, '', `${url.pathname}${url.search}`);
+                }
+            }
             if (!silent) {
                 setDetailModalOpen(true);
                 setDetailLoading(true);
@@ -559,6 +607,135 @@ const EditorialPlannerApp = () => {
         return 'Balanced';
     };
 
+    const getCitationCount = (article) => {
+        const explicitCount = Number(article?.citation_count || 0);
+        if (explicitCount > 0) {
+            return explicitCount;
+        }
+        return Array.isArray(article?.citations) ? article.citations.length : 0;
+    };
+
+    const getRecommendedAuthorProfile = (article) => {
+        const blob = JSON.stringify({
+            title: article?.title || article?.headline || '',
+            summary: article?.summary || article?.brief || '',
+            keywords: article?.keywords || [],
+            framework: article?.framework?.output || {},
+        }).toLowerCase();
+
+        if (/\b(board|ceo|cfo|leadership|executive|strategy|roadmap|portfolio|investment)\b/.test(blob)) {
+            return 'executive';
+        }
+        if (/\b(data|model|forecast|sensitivity|variance|analysis|benchmark|quant|correlation|method)\b/.test(blob)) {
+            return 'analytical';
+        }
+        if (/\b(report|interview|case study|investigation|survey|field|news|press|announced)\b/.test(blob)) {
+            return 'journalistic';
+        }
+
+        return 'balanced';
+    };
+
+    const getSelectedAuthorProfile = (article) =>
+        authorProfileSelection?.[article?.id] || article?.author?.profile || getRecommendedAuthorProfile(article);
+
+    const getAuthorProfileLabel = (value) =>
+        AUTHOR_PROFILE_OPTIONS.find((item) => item.value === value)?.label || 'Balanced';
+
+    const isFrameworkGenerating = Object.values(frameworkLoading || {}).some(Boolean);
+    const isAuthorGenerating = Object.values(authorLoading || {}).some(Boolean);
+    const hasRunningFrameworks = (sessionDetail?.meta?.articles || []).some((article) =>
+        ['running', 'queued'].includes(article?.framework?.status)
+    );
+    const hasRunningAuthors = (sessionDetail?.meta?.articles || []).some((article) =>
+        ['running', 'queued'].includes(article?.author?.status)
+    );
+
+        const showThinkingIndicator =
+                synopsisGenerateLoading === true ||
+                isFrameworkGenerating ||
+                isAuthorGenerating ||
+                phase4RerunLoading ||
+                phase3RerunLoading ||
+                phase2RerunLoading ||
+                phase1RerunLoading ||
+                ['running', 'queued', 'processing'].includes(sessionDetail?.meta?.phases?.phase1?.status) ||
+                ['running', 'queued', 'processing'].includes(sessionDetail?.meta?.phases?.phase2?.status) ||
+                ['running', 'queued', 'processing'].includes(sessionDetail?.meta?.phases?.phase3?.status) ||
+                ['running', 'queued', 'processing'].includes(sessionDetail?.meta?.phases?.phase4?.status) ||
+                hasRunningFrameworks ||
+                hasRunningAuthors;
+
+        const activePhaseLabel = synopsisGenerateLoading
+                ? 'Generating Article Synopses'
+                : isAuthorGenerating
+                    ? 'Generating Article Draft'
+                    : isFrameworkGenerating
+                        ? 'Generating Framework'
+                        : phase4RerunLoading
+                            ? 'Research Phase 4'
+                            : phase3RerunLoading
+                                ? 'Research Phase 3'
+                                : phase2RerunLoading
+                                    ? 'Research Phase 2'
+                                    : phase1RerunLoading
+                                        ? 'Research Phase 1'
+                                        : hasRunningAuthors
+                                            ? 'Generating Article Draft'
+                                            : hasRunningFrameworks
+                                                ? 'Generating Framework'
+                                        : ['running', 'queued', 'processing'].includes(sessionDetail?.meta?.phases?.phase4?.status)
+                                            ? 'Research Phase 4'
+                                            : ['running', 'queued', 'processing'].includes(sessionDetail?.meta?.phases?.phase3?.status)
+                                                ? 'Research Phase 3'
+                                                : ['running', 'queued', 'processing'].includes(sessionDetail?.meta?.phases?.phase2?.status)
+                                                    ? 'Research Phase 2'
+                                                    : ['running', 'queued', 'processing'].includes(sessionDetail?.meta?.phases?.phase1?.status)
+                                                        ? 'Research Phase 1'
+                                                        : '';
+
+    // Sync preview snapshots from live session data so modals always reflect latest state
+    useEffect(() => {
+        const articles = sessionDetail?.meta?.articles;
+        if (!Array.isArray(articles)) return;
+        if (authorPreview?.id) {
+            const updated = articles.find((a) => a.id === authorPreview.id);
+            if (updated && updated !== authorPreview) {
+                setAuthorPreview(updated);
+            }
+        }
+        if (frameworkPreview?.id) {
+            const updated = articles.find((a) => a.id === frameworkPreview.id);
+            if (updated && updated !== frameworkPreview) {
+                setFrameworkPreview(updated);
+            }
+        }
+    }, [sessionDetail]);
+
+    useEffect(() => {
+        const articles = sessionDetail?.meta?.articles;
+        if (!Array.isArray(articles) || !articles.length) {
+            return;
+        }
+        setAuthorProfileSelection((prev) => {
+            const next = { ...prev };
+            let changed = false;
+            articles.forEach((article) => {
+                if (!article?.id) {
+                    return;
+                }
+                const existing = next[article.id];
+                if (existing) {
+                    return;
+                }
+                const persisted = article?.author?.profile;
+                next[article.id] = persisted || getRecommendedAuthorProfile(article);
+                changed = true;
+            });
+            return changed ? next : prev;
+        });
+    }, [sessionDetail?.meta?.articles]);
+
     const estimateSynopses = (meta, value) => {
         if (!meta) {
             return { min: 0, max: 0, estimate: 0, topics: 0 };
@@ -593,6 +770,55 @@ const EditorialPlannerApp = () => {
             min: Math.max(topics, estimate - variance),
             max: estimate + variance,
         };
+    };
+
+    const summarizeAuthorValidation = (meta) => {
+        const summary = {
+            drafts_with_output: 0,
+            drafts_failed: 0,
+            error_count: 0,
+            warning_count: 0,
+            issues: [],
+        };
+
+        const articles = Array.isArray(meta?.articles) ? meta.articles : [];
+        articles.forEach((article) => {
+            const author = article?.author || {};
+            if (author?.status === 'failed') {
+                summary.drafts_failed += 1;
+            }
+
+            const output = author?.output;
+            if (!output || typeof output !== 'object') {
+                return;
+            }
+
+            summary.drafts_with_output += 1;
+
+            const validationErrors = Array.isArray(output?.validation_errors)
+                ? output.validation_errors
+                : [];
+            const warnings = Array.isArray(output?.warnings) ? output.warnings : [];
+
+            summary.error_count += validationErrors.length;
+            summary.warning_count += warnings.length;
+
+            validationErrors.forEach((message) => {
+                if (!message) {
+                    return;
+                }
+                summary.issues.push({ severity: 'error', message: String(message) });
+            });
+
+            warnings.forEach((message) => {
+                if (!message) {
+                    return;
+                }
+                summary.issues.push({ severity: 'warning', message: String(message) });
+            });
+        });
+
+        return summary;
     };
 
     const formatPolicyDomainList = (domains) => {
@@ -650,7 +876,6 @@ const EditorialPlannerApp = () => {
                     industry: Number(policyDraft?.source_mix_minimums?.industry ?? 0),
                     case_study: Number(policyDraft?.source_mix_minimums?.case_study ?? 0),
                 },
-                allowed_domains: normalizeDomainTokens(policyDraft?.allowed_domains),
                 blocked_domains: normalizeDomainTokens(policyDraft?.blocked_domains),
             };
 
@@ -693,7 +918,6 @@ const EditorialPlannerApp = () => {
                 industry: Number(source?.source_mix_minimums?.industry ?? DEFAULT_RESEARCH_POLICY.source_mix_minimums.industry),
                 case_study: Number(source?.source_mix_minimums?.case_study ?? DEFAULT_RESEARCH_POLICY.source_mix_minimums.case_study),
             },
-            allowed_domains: Array.isArray(source?.allowed_domains) ? [...source.allowed_domains] : [],
             blocked_domains: Array.isArray(source?.blocked_domains)
                 ? [...source.blocked_domains]
                 : [...DEFAULT_RESEARCH_POLICY.blocked_domains],
@@ -770,6 +994,16 @@ const EditorialPlannerApp = () => {
             dispatch('core/notices').createNotice(
                 'error',
                 'Session detail not loaded yet. Please refresh and try again.',
+                { type: 'snackbar' }
+            );
+            return;
+        }
+
+        const citationCount = getCitationCount(article);
+        if (citationCount < MIN_CITATIONS_REQUIRED) {
+            dispatch('core/notices').createNotice(
+                'error',
+                `Framework generation requires at least ${MIN_CITATIONS_REQUIRED} citations. This article has ${citationCount}.`,
                 { type: 'snackbar' }
             );
             return;
@@ -1166,16 +1400,33 @@ const EditorialPlannerApp = () => {
             return;
         }
 
+        const citationCount = getCitationCount(article);
+        if (citationCount < MIN_CITATIONS_REQUIRED) {
+            dispatch('core/notices').createNotice(
+                'error',
+                `Author generation requires at least ${MIN_CITATIONS_REQUIRED} citations. This article has ${citationCount}.`,
+                { type: 'snackbar' }
+            );
+            return;
+        }
+
+        const selectedProfile = getSelectedAuthorProfile(article);
+
         try {
             setAuthorLoading((prev) => ({ ...prev, [article.id]: true }));
             console.log('[Planner] Run Author click', {
                 sessionId: sessionDetail.id,
                 articleId: article.id,
+                authorProfile: selectedProfile,
             });
             const data = await apiFetch({
                 path: 'dual-gpt/v1/planner/run-author',
                 method: 'POST',
-                data: { session_id: sessionDetail.id, article_id: article.id },
+                data: {
+                    session_id: sessionDetail.id,
+                    article_id: article.id,
+                    author_profile: selectedProfile,
+                },
             });
             console.log('[Planner] Author job queued', data);
             dispatch('core/notices').createNotice(
@@ -1196,6 +1447,7 @@ const EditorialPlannerApp = () => {
                         author: {
                             ...(item.author || {}),
                             status: 'running',
+                            profile: selectedProfile,
                         },
                     };
                 });
@@ -1236,9 +1488,107 @@ const EditorialPlannerApp = () => {
         openPrintWindow(html);
     };
 
+    const runArticleAction = async (article, action, successMessage, params = null) => {
+        if (!sessionDetail?.id || !article?.id) {
+            return;
+        }
+
+        const loadingKey = `${action}:${article.id}`;
+        try {
+            setArticleActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
+            const payload = {
+                session_id: sessionDetail.id,
+                article_id: article.id,
+                action,
+                ...(showFocusControls ? { focus_level: focusLevel } : {}),
+                ...(params ? { params } : {}),
+            };
+            await apiFetch({
+                path: 'dual-gpt/v1/planner/article-action',
+                method: 'POST',
+                data: payload,
+            });
+
+            dispatch('core/notices').createNotice('success', successMessage, { type: 'snackbar' });
+            await refreshSessionDetail();
+        } catch (error) {
+            console.error(`Article action failed (${action}):`, error);
+            dispatch('core/notices').createNotice(
+                'error',
+                error.message || 'Article action failed.',
+                { type: 'snackbar' }
+            );
+        } finally {
+            setArticleActionLoading((prev) => ({ ...prev, [loadingKey]: false }));
+        }
+    };
+
+    const handleDismissArticle = async (article) => {
+        if (!article?.id) {
+            return;
+        }
+        const title = article?.headline || article?.title || 'this article';
+        const confirmed = window.confirm(`Dismiss ${title}? This removes it from this planner session.`);
+        if (!confirmed) {
+            return;
+        }
+        await runArticleAction(article, 'dismiss', 'Article dismissed from this planner session.');
+    };
+
+    const handleDeepDiveArticle = (article) => {
+        setDiveDeeperArticle(article);
+        setDiveDeeperDepthSlider(2);
+        setDiveDeeperModalOpen(true);
+    };
+
+    const mapSliderToDepthParams = (sliderValue) => {
+        const stops = [
+            {
+                target_min_citations: 2,
+                recency_months: 36,
+                source_mix_minimums: { industry: 1 },
+            },
+            {
+                target_min_citations: 3,
+                recency_months: 24,
+                source_mix_minimums: { industry: 1, news: 1 },
+            },
+            {
+                target_min_citations: 4,
+                recency_months: 18,
+                source_mix_minimums: { industry: 1, news: 1, research: 1 },
+            },
+            {
+                target_min_citations: 6,
+                recency_months: 12,
+                source_mix_minimums: { industry: 2, news: 1, research: 1 },
+            },
+            {
+                target_min_citations: 8,
+                recency_months: 6,
+                source_mix_minimums: { industry: 2, news: 2, research: 2 },
+            },
+        ];
+        return stops[Math.min(Math.max(sliderValue, 0), 4)];
+    };
+
+    const handleDiveDeeperSubmit = async () => {
+        if (!diveDeeperArticle) {
+            return;
+        }
+        const params = mapSliderToDepthParams(diveDeeperDepthSlider);
+        setDiveDeeperModalOpen(false);
+        await runArticleAction(
+            diveDeeperArticle,
+            'dive_deeper',
+            'Dive deeper research initiated. Specialist is gathering additional citations...',
+            params
+        );
+    };
+
     const renderPhaseSummaries = () => {
         const phases = sessionDetail?.meta?.phases || {};
-        const phaseOrder = ['phase1', 'phase2', 'phase3', 'phase4'];
+        const phaseOrder = PHASE_ORDER;
 
         const renderList = (items) => {
             if (!items || !items.length) {
@@ -1849,7 +2199,44 @@ const EditorialPlannerApp = () => {
             return keywordMetrics.find((metric) => keywords.includes(metric.keyword));
         };
 
+        const rows = articles.map((article, index) => {
+            const metric = findMetric(article.keywords || []);
+            const volumeValue = Number(metric?.search_volume ?? 0);
+            const rankingSignal = Number(metric?.priority_score ?? metric?.rank ?? 0);
+            const citationsCount = getCitationCount(article);
+            return {
+                article,
+                index,
+                metric,
+                volumeValue: Number.isFinite(volumeValue) ? volumeValue : 0,
+                rankingSignal: Number.isFinite(rankingSignal) ? rankingSignal : 0,
+                citationsCount,
+            };
+        });
+
+        const maxVolume = Math.max(1, ...rows.map((item) => item.volumeValue || 0));
+        const maxRankingSignal = Math.max(1, ...rows.map((item) => item.rankingSignal || 0));
+        const maxCitations = Math.max(1, ...rows.map((item) => item.citationsCount || 0));
+        const scoredRows = rows
+            .map((item) => {
+                const priorityScore =
+                    ((item.volumeValue / maxVolume) * 0.45) +
+                    ((item.citationsCount / maxCitations) * 0.35) +
+                    ((item.rankingSignal / maxRankingSignal) * 0.2);
+                const marketSignal = Math.round((item.volumeValue / maxVolume) * 100);
+                return { ...item, priorityScore, marketSignal };
+            })
+            .sort((a, b) => b.priorityScore - a.priorityScore);
+
         return wp.element.createElement(
+            'div',
+            null,
+            wp.element.createElement(
+                'p',
+                { style: { margin: '8px 0', fontSize: '12px', color: '#50575e' } },
+                'Priority score weights: 45% Market Signal, 35% Citation Strength, 20% Keyword Ranking. Author profile recommendation is inferred from article intent and framework language.'
+            ),
+            wp.element.createElement(
             'table',
             { className: 'widefat striped', style: { marginTop: '12px' } },
             wp.element.createElement(
@@ -1861,7 +2248,7 @@ const EditorialPlannerApp = () => {
                     wp.element.createElement('th', null, 'Headline'),
                     wp.element.createElement('th', null, 'Brief'),
                     wp.element.createElement('th', null, 'Keywords'),
-                    wp.element.createElement('th', null, 'Volume'),
+                    wp.element.createElement('th', null, 'Market Signal'),
                     wp.element.createElement('th', null, 'Citations'),
                     wp.element.createElement('th', null, 'Framework Status'),
                     wp.element.createElement('th', null, 'Author Status'),
@@ -1871,10 +2258,9 @@ const EditorialPlannerApp = () => {
             wp.element.createElement(
                 'tbody',
                 null,
-                articles.map((article, index) => {
-                    const metric = findMetric(article.keywords || []);
+                scoredRows.map((row, priorityIndex) => {
+                    const { article, index, metric, citationsCount, priorityScore, marketSignal } = row;
                     const volume = metric?.search_volume ?? '—';
-                    const citationsCount = article.citation_count ?? (article.citations?.length || 0);
                     const frameworkStatusRaw = article.framework?.status || 'pending';
                     const frameworkStatus =
                         frameworkStatusRaw === 'completed' ? 'complete' : frameworkStatusRaw;
@@ -1889,11 +2275,28 @@ const EditorialPlannerApp = () => {
                     const authorEditUrl = article.author?.edit_url;
                     const frameworkReady =
                         frameworkStatus === 'complete' && !!article.framework?.output;
-                    const frameworkActionLabel = frameworkStatus === 'complete' ? 'Regenerate' : 'Generate';
+                    const meetsCitationThreshold = citationsCount >= MIN_CITATIONS_REQUIRED;
+                    const selectedProfile = getSelectedAuthorProfile(article);
+                    const recommendedProfile = getRecommendedAuthorProfile(article);
+                    const frameworkActionLabel =
+                        frameworkStatus === 'complete' ? 'Regenerate Framework' : 'Generate Framework';
+                    const isDismissLoading = !!articleActionLoading[`dismiss:${article.id}`];
+                    const isDeepDiveLoading = !!articleActionLoading[`deep_dive:${article.id}`];
                     return wp.element.createElement(
                         'tr',
                         { key: `${article.headline || article.title || article.id}-${index}` },
-                        wp.element.createElement('td', null, article.headline || article.title || 'Untitled'),
+                        wp.element.createElement(
+                            'td',
+                            null,
+                            wp.element.createElement('strong', null, `#${priorityIndex + 1}`),
+                            ' ',
+                            article.headline || article.title || 'Untitled',
+                            wp.element.createElement(
+                                'div',
+                                { style: { fontSize: '11px', color: '#50575e', marginTop: '2px' } },
+                                `Priority score: ${(priorityScore * 100).toFixed(0)}`
+                            )
+                        ),
                         wp.element.createElement(
                             'td',
                             null,
@@ -1908,7 +2311,16 @@ const EditorialPlannerApp = () => {
                             null,
                             (article.keywords || article.tags || []).join(', ') || '—'
                         ),
-                        wp.element.createElement('td', null, volume),
+                        wp.element.createElement(
+                            'td',
+                            { title: `Search volume: ${volume}` },
+                            wp.element.createElement('strong', null, `${marketSignal}%`),
+                            wp.element.createElement(
+                                'div',
+                                { style: { fontSize: '11px', color: '#50575e', marginTop: '2px' } },
+                                `Vol: ${volume}`
+                            )
+                        ),
                         wp.element.createElement('td', null, citationsCount),
                         wp.element.createElement(
                             'td',
@@ -1976,6 +2388,49 @@ const EditorialPlannerApp = () => {
                             'td',
                             null,
                             wp.element.createElement(
+                                SelectControl,
+                                {
+                                    label: 'Author profile',
+                                    value: selectedProfile,
+                                    options: AUTHOR_PROFILE_OPTIONS,
+                                    onChange: (value) => {
+                                        setAuthorProfileSelection((prev) => ({
+                                            ...prev,
+                                            [article.id]: value,
+                                        }));
+                                    },
+                                    help: `Recommended: ${getAuthorProfileLabel(recommendedProfile)}`,
+                                }
+                            ),
+                            !meetsCitationThreshold &&
+                                wp.element.createElement(
+                                    Notice,
+                                    { status: 'warning', isDismissible: false },
+                                    `Requires at least ${MIN_CITATIONS_REQUIRED} citations before framework/author generation.`
+                                ),
+                            !meetsCitationThreshold &&
+                                wp.element.createElement(
+                                    Button,
+                                    {
+                                        isSecondary: true,
+                                        onClick: () => handleDeepDiveArticle(article),
+                                        style: { marginRight: '8px', marginBottom: '8px' },
+                                        disabled: isDeepDiveLoading,
+                                    },
+                                    isDeepDiveLoading ? wp.element.createElement(Spinner, null) : 'Deep Dive Research'
+                                ),
+                            !meetsCitationThreshold &&
+                                wp.element.createElement(
+                                    Button,
+                                    {
+                                        isSecondary: true,
+                                        onClick: () => handleDismissArticle(article),
+                                        style: { marginRight: '8px', marginBottom: '8px' },
+                                        disabled: isDismissLoading,
+                                    },
+                                    isDismissLoading ? wp.element.createElement(Spinner, null) : 'Dismiss'
+                                ),
+                            wp.element.createElement(
                                 Button,
                                 {
                                     isSecondary: true,
@@ -2011,7 +2466,7 @@ const EditorialPlannerApp = () => {
                                     isSecondary: true,
                                     onClick: () => handleRunAuthorAgent(article),
                                     style: { marginRight: '8px' },
-                                    disabled: !frameworkReady || isAuthorLoading || authorStatus === 'running' || authorStatus === 'queued',
+                                    disabled: !meetsCitationThreshold || !frameworkReady || isAuthorLoading || authorStatus === 'running' || authorStatus === 'queued',
                                 },
                                 isAuthorLoading ? wp.element.createElement(Spinner, null) : 'Run Author'
                             ),
@@ -2050,7 +2505,7 @@ const EditorialPlannerApp = () => {
                                 {
                                     isPrimary: true,
                                     onClick: () => handleRegenerateFramework(article, index),
-                                    disabled: !!frameworkLoading[index],
+                                    disabled: !meetsCitationThreshold || !!frameworkLoading[index],
                                 },
                                 frameworkLoading[index] ? wp.element.createElement(Spinner, null) : frameworkActionLabel
                             )
@@ -2058,14 +2513,39 @@ const EditorialPlannerApp = () => {
                     );
                 })
             )
+            )
         );
     };
 
     const renderFrameworks = () => {
-        const frameworks = sessionDetail?.meta?.frameworks || [];
+        const frameworks =
+            (sessionDetail?.meta?.frameworks || []).length > 0
+                ? sessionDetail.meta.frameworks
+                : (sessionDetail?.meta?.articles || [])
+                      .filter((article) => article?.framework?.output)
+                      .map((article, index) => ({
+                          job_id: article?.framework?.job_id || article?.id || `framework-${index}`,
+                          article_id: article?.id || null,
+                          article_title: article?.headline || article?.title || 'Framework',
+                          output: article?.framework?.output,
+                      }));
         if (!frameworks.length) {
             return null;
         }
+
+        const formatFrameworkOutput = (output) => {
+            if (!output) {
+                return 'No output captured.';
+            }
+            if (typeof output === 'string') {
+                return output;
+            }
+            try {
+                return JSON.stringify(output, null, 2);
+            } catch (error) {
+                return 'Framework output available but could not be formatted.';
+            }
+        };
 
         return wp.element.createElement(
             'div',
@@ -2082,7 +2562,7 @@ const EditorialPlannerApp = () => {
                         wp.element.createElement(
                             'pre',
                             { style: { whiteSpace: 'pre-wrap' } },
-                            framework.output || 'No output captured.'
+                            formatFrameworkOutput(framework.output)
                         )
                     )
                 )
@@ -2092,6 +2572,7 @@ const EditorialPlannerApp = () => {
 
     const phase1Complete = sessionDetail?.meta?.phases?.phase1?.status === 'completed';
     const phase2Complete = sessionDetail?.meta?.phases?.phase2?.status === 'completed';
+    const allPhasesExpanded = PHASE_ORDER.every((key) => !!expandedPhases[key]);
     const phase3Complete = sessionDetail?.meta?.phases?.phase3?.status === 'completed';
     const phase4Complete = sessionDetail?.meta?.phases?.phase4?.status === 'completed';
     const synopsisPlanTotal = Object.values(synopsisPlan).reduce(
@@ -2100,6 +2581,7 @@ const EditorialPlannerApp = () => {
     );
     const focusLabel = getFocusLabel(focusLevel);
     const synopsisEstimate = estimateSynopses(sessionDetail?.meta, focusLevel);
+    const authorValidationSummary = summarizeAuthorValidation(sessionDetail?.meta);
 
     // Render the detail page when viewing a session
     if (viewingSessionId && sessionDetail) {
@@ -2174,7 +2656,7 @@ const EditorialPlannerApp = () => {
                               'div',
                               null,
                               wp.element.createElement('h2', null, 'Phase Summaries'),
-                              thinkingPhraseIndex > 0 &&
+                              showThinkingIndicator &&
                                   wp.element.createElement(
                                       'div',
                                       {
@@ -2189,13 +2671,30 @@ const EditorialPlannerApp = () => {
                                           },
                                       },
                                       wp.element.createElement('span', null, '✨'),
-                                      wp.element.createElement('span', null, THINKING_PHRASES[thinkingPhraseIndex] + '...'),
-                                      wp.element.createElement(Spinner, null)
+                                      wp.element.createElement('span', null, `${activePhaseLabel || 'Working'} · ${THINKING_PHRASES[thinkingPhraseIndex]}...`)
                                   )
                           ),
                           wp.element.createElement(
                               'div',
                               null,
+                              wp.element.createElement(
+                                  Button,
+                                  {
+                                      isSecondary: true,
+                                      onClick: () => {
+                                          setExpandedPhases(
+                                              allPhasesExpanded
+                                                  ? {}
+                                                  : PHASE_ORDER.reduce((acc, key) => {
+                                                        acc[key] = true;
+                                                        return acc;
+                                                    }, {})
+                                          );
+                                      },
+                                      style: { marginRight: '8px' },
+                                  },
+                                  allPhasesExpanded ? 'Collapse All Phases' : 'Expand All Phases'
+                              ),
                               wp.element.createElement(
                                   Button,
                                   {
@@ -2288,10 +2787,94 @@ const EditorialPlannerApp = () => {
                                 wp.element.Fragment,
                                 null,
                                 wp.element.createElement('h2', { style: { marginTop: '16px' } }, 'Article Synopses'),
-                                renderArticlesTable()
+                                                                renderArticlesTable(),
+                                                                renderFrameworks()
                             )
                           : null
                   ),
+            diveDeeperModalOpen &&
+                wp.element.createElement(
+                    Modal,
+                    {
+                        title: 'Dive Deeper - Research Depth',
+                        onRequestClose: () => setDiveDeeperModalOpen(false),
+                    },
+                    wp.element.createElement(
+                        'div',
+                        { style: { marginBottom: '24px' } },
+                        wp.element.createElement(
+                            'p',
+                            { style: { marginBottom: '16px', color: '#50575e' } },
+                            'Select how much research depth you want. The slider controls how many citations and how recent the sources should be.'
+                        ),
+                        wp.element.createElement(RangeControl, {
+                            label: 'Depth Level',
+                            value: diveDeeperDepthSlider,
+                            onChange: setDiveDeeperDepthSlider,
+                            min: 0,
+                            max: 4,
+                            step: 1,
+                            marks: [
+                                { value: 0, label: 'A bit more' },
+                                { value: 1, label: '' },
+                                { value: 2, label: 'Default' },
+                                { value: 3, label: '' },
+                                { value: 4, label: 'Deep dive' },
+                            ],
+                        }),
+                        wp.element.createElement(
+                            'div',
+                            { style: { marginTop: '16px', padding: '12px', background: '#f0f0f0', borderRadius: '4px' } },
+                            wp.element.createElement(
+                                'strong',
+                                null,
+                                'Parameters:'
+                            ),
+                            (() => {
+                                const params = mapSliderToDepthParams(diveDeeperDepthSlider);
+                                return wp.element.createElement(
+                                    'ul',
+                                    { style: { margin: '8px 0 0', paddingLeft: '20px' } },
+                                    wp.element.createElement(
+                                        'li',
+                                        null,
+                                        `Target: ${params.target_min_citations} citations`
+                                    ),
+                                    wp.element.createElement(
+                                        'li',
+                                        null,
+                                        `Recency: Last ${params.recency_months} months`
+                                    ),
+                                    wp.element.createElement(
+                                        'li',
+                                        null,
+                                        `Sources: ${Object.keys(params.source_mix_minimums).join(', ')}`
+                                    )
+                                );
+                            })()
+                        )
+                    ),
+                    wp.element.createElement(
+                        'div',
+                        { style: { marginTop: '24px', display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+                        wp.element.createElement(
+                            Button,
+                            {
+                                isSecondary: true,
+                                onClick: () => setDiveDeeperModalOpen(false),
+                            },
+                            'Cancel'
+                        ),
+                        wp.element.createElement(
+                            Button,
+                            {
+                                isPrimary: true,
+                                onClick: handleDiveDeeperSubmit,
+                            },
+                            'Start Dive Deeper'
+                        )
+                    )
+                ),
             synopsisModalOpen &&
                 wp.element.createElement(
                     Modal,
@@ -2614,7 +3197,7 @@ const EditorialPlannerApp = () => {
                     },
                     wp.element.createElement(
                         'div',
-                        { style: { marginBottom: '12px', display: 'flex', gap: '8px' } },
+                        { style: { marginBottom: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' } },
                         wp.element.createElement(
                             Button,
                             {
@@ -2634,10 +3217,37 @@ const EditorialPlannerApp = () => {
                             'Open in Editor'
                         )
                     ),
-                    wp.element.createElement('p', null, authorPreview.title || 'Draft'),
                     wp.element.createElement(
                         'div',
-                        { style: { whiteSpace: 'pre-wrap' } },
+                        {
+                            style: {
+                                marginBottom: '12px',
+                                padding: '10px 12px',
+                                border: '1px solid #dcdcde',
+                                borderRadius: '6px',
+                                background: '#fff',
+                            },
+                        },
+                        wp.element.createElement('strong', null, authorPreview.title || 'Draft'),
+                        wp.element.createElement(
+                            'p',
+                            { style: { margin: '6px 0 0', color: '#50575e' } },
+                            `Profile: ${getAuthorProfileLabel(getSelectedAuthorProfile(authorPreview))} · Recommended: ${getAuthorProfileLabel(getRecommendedAuthorProfile(authorPreview))}`
+                        )
+                    ),
+                    wp.element.createElement(
+                        'div',
+                        {
+                            style: {
+                                whiteSpace: 'pre-wrap',
+                                maxHeight: '60vh',
+                                overflowY: 'auto',
+                                padding: '12px',
+                                border: '1px solid #dcdcde',
+                                borderRadius: '6px',
+                                background: '#fff',
+                            },
+                        },
                         authorPreview.author?.output?.draft ||
                             authorPreview.author?.output?.content ||
                             'No draft available.'
@@ -2728,7 +3338,7 @@ const EditorialPlannerApp = () => {
                 wp.element.createElement(SelectControl, {
                     label: 'Top-line Topic',
                     value: selectedTopic,
-                    options: TOPIC_OPTIONS,
+                    options: topicOptions,
                     onChange: setSelectedTopic,
                 }),
                 wp.element.createElement(FormTokenField, {
@@ -2768,7 +3378,7 @@ const EditorialPlannerApp = () => {
                 Modal,
                 {
                     title: sessionDetail?.title || 'Session Detail',
-                    onRequestClose: () => setDetailModalOpen(false),
+                    onRequestClose: navigateBack,
                     style: { minWidth: '70vw' },
                 },
                 detailLoading
@@ -2835,11 +3445,6 @@ const EditorialPlannerApp = () => {
                                             'p',
                                             { style: { margin: '8px 0 4px', color: '#50575e' } },
                                             `Recency: ${researchPolicyDetail?.recency_months ?? '—'} months · Source mix minimums: academic ${researchPolicyDetail?.source_mix_minimums?.academic ?? 0}, analyst ${researchPolicyDetail?.source_mix_minimums?.analyst ?? 0}, industry ${researchPolicyDetail?.source_mix_minimums?.industry ?? 0}, case study ${researchPolicyDetail?.source_mix_minimums?.case_study ?? 0}`
-                                        ),
-                                        wp.element.createElement(
-                                            'p',
-                                            { style: { margin: '4px 0', color: '#50575e' } },
-                                            `Allowed domains: ${formatPolicyDomainList(researchPolicyDetail?.allowed_domains)}`
                                         ),
                                         wp.element.createElement(
                                             'p',
@@ -2930,15 +3535,6 @@ const EditorialPlannerApp = () => {
                                   min: 0,
                                   max: 3,
                                   step: 1,
-                              }),
-                              wp.element.createElement(FormTokenField, {
-                                  label: 'Allowed Domains',
-                                  value: policyDraft?.allowed_domains || [],
-                                  onChange: (value) => {
-                                      setPolicyDirty(true);
-                                      setPolicyDraft((prev) => ({ ...prev, allowed_domains: value }));
-                                  },
-                                  placeholder: 'Add domains like example.com',
                               }),
                               wp.element.createElement(FormTokenField, {
                                   label: 'Blocked Domains',
@@ -3126,6 +3722,30 @@ const EditorialPlannerApp = () => {
                                   'p',
                                   { style: { margin: '6px 0 0', fontSize: '12px', color: '#50575e' } },
                                   'Saving author policy updates enforcement without re-running planner.'
+                              ),
+                              wp.element.createElement(
+                                  'p',
+                                  { style: { margin: '8px 0 4px', fontWeight: '500' } },
+                                  `Author Validation: ${authorValidationSummary.error_count} errors, ${authorValidationSummary.warning_count} warnings across ${authorValidationSummary.drafts_with_output} drafts${authorValidationSummary.drafts_failed > 0 ? ` · ${authorValidationSummary.drafts_failed} failed runs` : ''}`
+                              ),
+                              authorValidationSummary.issues.length > 0 &&
+                                  wp.element.createElement(
+                                      'ul',
+                                      { style: { margin: '0', paddingLeft: '18px' } },
+                                      authorValidationSummary.issues.slice(0, 5).map((issue, index) =>
+                                          wp.element.createElement(
+                                              'li',
+                                              { key: `author-issue-${index}`, style: { marginBottom: '4px' } },
+                                              `${issue.severity.toUpperCase()}: ${issue.message}`
+                                          )
+                                      )
+                                  ),
+                              authorValidationSummary.issues.length === 0 &&
+                                  wp.element.createElement(
+                                      'p',
+                                      { style: { margin: '4px 0', color: '#50575e' } },
+                                      'No author validation issues captured yet.'
+                                  )
                               )
                           ),
                           wp.element.createElement(
@@ -3134,25 +3754,7 @@ const EditorialPlannerApp = () => {
                               wp.element.createElement(
                                   'div',
                                   null,
-                                  wp.element.createElement('h2', null, 'Phase Summaries'),
-                                  thinkingPhraseIndex > 0 &&
-                                      wp.element.createElement(
-                                          'div',
-                                          {
-                                              style: {
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  gap: '8px',
-                                                  marginTop: '6px',
-                                                  fontSize: '14px',
-                                                  color: '#0073aa',
-                                                  fontStyle: 'italic',
-                                              },
-                                          },
-                                          wp.element.createElement('span', null, '✨'),
-                                          wp.element.createElement('span', null, THINKING_PHRASES[thinkingPhraseIndex] + '...'),
-                                          wp.element.createElement(Spinner, null)
-                                      )
+                                  wp.element.createElement('h2', null, 'Phase Summaries')
                               ),
                               wp.element.createElement(
                                   'div',
@@ -3249,10 +3851,59 @@ const EditorialPlannerApp = () => {
                                     wp.element.Fragment,
                                     null,
                                     wp.element.createElement('h2', { style: { marginTop: '16px' } }, 'Article Synopses'),
-                                    renderArticlesTable()
+                                                                        renderArticlesTable(),
+                                                                        renderFrameworks()
                                 )
                               : null
-                      )
+            ),
+        detailModalOpen &&
+            showThinkingIndicator &&
+            wp.element.createElement(
+                'div',
+                {
+                    style: {
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 100000,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(17, 24, 39, 0.28)',
+                        backdropFilter: 'blur(6px)',
+                        WebkitBackdropFilter: 'blur(6px)',
+                    },
+                },
+                wp.element.createElement(
+                    'div',
+                    {
+                        style: {
+                            minWidth: '320px',
+                            maxWidth: '560px',
+                            padding: '24px 28px',
+                            borderRadius: '14px',
+                            background: '#ffffff',
+                            boxShadow: '0 24px 60px rgba(15, 23, 42, 0.25)',
+                            textAlign: 'center',
+                        },
+                    },
+                    wp.element.createElement('div', { style: { fontSize: '30px', marginBottom: '8px' } }, '✨'),
+                    wp.element.createElement('h3', { style: { margin: '0 0 8px' } }, activePhaseLabel || 'Working'),
+                    wp.element.createElement(
+                        'p',
+                        { style: { margin: '0 0 16px', color: '#50575e', fontSize: '16px', fontStyle: 'italic' } },
+                        THINKING_PHRASES[thinkingPhraseIndex] + '...'
+                    ),
+                    wp.element.createElement(
+                        'div',
+                        { style: { display: 'flex', justifyContent: 'center', marginBottom: '12px' } },
+                        wp.element.createElement(Spinner, null)
+                    ),
+                    wp.element.createElement(
+                        'p',
+                        { style: { margin: 0, fontSize: '13px', color: '#6b7280' } },
+                        'Please wait while the planner updates this phase.'
+                    )
+                )
             ),
         synopsisModalOpen &&
             wp.element.createElement(
@@ -3268,10 +3919,16 @@ const EditorialPlannerApp = () => {
                       ? wp.element.createElement(
                             'div',
                             { style: { textAlign: 'center', padding: '24px' } },
+                            wp.element.createElement('div', { style: { fontSize: '28px', marginBottom: '10px' } }, '✨'),
                             wp.element.createElement(Spinner, null),
                             wp.element.createElement(
                                 'p',
-                                { style: { marginTop: '16px', fontSize: '14px', color: '#666' } },
+                                { style: { marginTop: '16px', fontSize: '18px', color: '#444', fontStyle: 'italic' } },
+                                `${THINKING_PHRASES[thinkingPhraseIndex]}...`
+                            ),
+                            wp.element.createElement(
+                                'p',
+                                { style: { marginTop: '10px', fontSize: '14px', color: '#666' } },
                                 'Generating article synopses from research data...'
                             ),
                             wp.element.createElement(
@@ -3576,7 +4233,7 @@ const EditorialPlannerApp = () => {
                 },
                 wp.element.createElement(
                     'div',
-                    { style: { marginBottom: '12px', display: 'flex', gap: '8px' } },
+                    { style: { marginBottom: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' } },
                     wp.element.createElement(
                         Button,
                         {
@@ -3596,10 +4253,37 @@ const EditorialPlannerApp = () => {
                         'Open in Editor'
                     )
                 ),
-                wp.element.createElement('p', null, authorPreview.title || 'Draft'),
                 wp.element.createElement(
                     'div',
-                    { style: { whiteSpace: 'pre-wrap' } },
+                    {
+                        style: {
+                            marginBottom: '12px',
+                            padding: '10px 12px',
+                            border: '1px solid #dcdcde',
+                            borderRadius: '6px',
+                            background: '#fff',
+                        },
+                    },
+                    wp.element.createElement('strong', null, authorPreview.title || 'Draft'),
+                    wp.element.createElement(
+                        'p',
+                        { style: { margin: '6px 0 0', color: '#50575e' } },
+                        `Profile: ${getAuthorProfileLabel(getSelectedAuthorProfile(authorPreview))} · Recommended: ${getAuthorProfileLabel(getRecommendedAuthorProfile(authorPreview))}`
+                    )
+                ),
+                wp.element.createElement(
+                    'div',
+                    {
+                        style: {
+                            whiteSpace: 'pre-wrap',
+                            maxHeight: '60vh',
+                            overflowY: 'auto',
+                            padding: '12px',
+                            border: '1px solid #dcdcde',
+                            borderRadius: '6px',
+                            background: '#fff',
+                        },
+                    },
                     authorPreview.author?.output?.draft ||
                         authorPreview.author?.output?.content ||
                         'No draft available.'

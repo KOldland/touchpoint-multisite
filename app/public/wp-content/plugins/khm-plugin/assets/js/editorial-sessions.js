@@ -240,9 +240,15 @@ const EditorialSessionsApp = () => {
     );
 };
 
-document.addEventListener('DOMContentLoaded', function () {
+const mountEditorialSessionsApp = () => {
     const container = document.getElementById('editorial-sessions-app');
     if (container) {
         wp.element.render(wp.element.createElement(EditorialSessionsApp), container);
     }
-});
+};
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', mountEditorialSessionsApp);
+} else {
+    mountEditorialSessionsApp();
+}

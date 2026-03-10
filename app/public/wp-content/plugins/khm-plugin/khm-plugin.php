@@ -2001,6 +2001,7 @@ add_action('admin_menu', function() {
     );
 
     add_submenu_page('editorial_planner', __('New Session','khm-membership'), __('New Session','khm-membership'), 'edit_posts', 'editorial_new_session', 'render_new_session_page');
+    add_submenu_page('editorial_planner', __('Top-Line Categories','khm-membership'), __('Top-Line Categories','khm-membership'), 'edit_posts', 'editorial_top_line_categories', 'render_top_line_categories_page');
     add_submenu_page('editorial_planner', __('Past Sessions','khm-membership'), __('Past Sessions','khm-membership'), 'edit_posts', 'editorial_sessions', 'render_sessions_page');
     add_submenu_page('editorial_planner', __('Article Frameworks','khm-membership'), __('Article Frameworks','khm-membership'), 'edit_posts', 'editorial_frameworks', 'render_frameworks_page');
     add_submenu_page('editorial_planner', __('Editorial Calendar','khm-membership'), __('Editorial Calendar','khm-membership'), 'edit_posts', 'editorial_calendar', 'render_editorial_calendar_page');
@@ -2049,11 +2050,6 @@ add_action('admin_menu', function() {
 }, 999);
 
 function render_editorial_planner_page() {
-    if ( empty($_GET['session_id']) ) {
-        wp_safe_redirect( admin_url('admin.php?page=editorial_sessions') );
-        exit;
-    }
-
     echo '<div id="editorial-planner-app"></div>';
     $planner_path = plugin_dir_path(__FILE__) . 'assets/js/editorial-planner.js';
     $planner_version = file_exists($planner_path) ? filemtime($planner_path) : '1.0';
@@ -2118,6 +2114,27 @@ function render_new_session_page() {
         'editorial-new-session',
         'admin_url',
         admin_url()
+    );
+}
+
+function render_top_line_categories_page() {
+    echo '<div id="editorial-top-line-categories-app"></div>';
+    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-top-line-categories.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
+    wp_enqueue_script(
+        'editorial-top-line-categories',
+        plugins_url('assets/js/editorial-top-line-categories.js', __FILE__),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
+        $version,
+        true
+    );
+    wp_localize_script(
+        'editorial-top-line-categories',
+        'dualGptData',
+        array(
+            'nonce' => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
     );
 }
 

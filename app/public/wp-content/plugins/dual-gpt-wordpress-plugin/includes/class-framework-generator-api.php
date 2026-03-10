@@ -214,7 +214,7 @@ class Framework_Generator_API {
         $job_data = array(
             'session_id' => $session_id,
             'model' => 'gpt-4o-mini',
-            'input_prompt' => wp_json_encode($params),
+            'input_prompt' => wp_json_encode($this->merge_session_policy_into_params($params, $session_id, $db)),
             'preset_id' => 'fg-framework-generator',
             'idempotency_key' => 'phase1-' . ($params['idempotency_key'] ?? wp_generate_uuid4()),
         );
@@ -256,6 +256,70 @@ class Framework_Generator_API {
         }
 
         return $session_owner_id && (int) $user_id === $session_owner_id;
+    }
+
+    /**
+     * Merge session research_policy.preferred_sources (and blocked_keywords) into the
+     * params focus object so the Phase 1 prompt builder injects them as agent instructions.
+     * Does not overwrite anything the caller explicitly supplied — session policy only
+     * populates fields that are empty or absent.
+     */
+    private function merge_session_policy_into_params($params, $session_id, $db) {
+        $session = $db->get_session($session_id);
+        if (!$session || empty($session['meta_json'])) {
+            return $params;
+        }
+
+        $meta = json_decode($session['meta_json'], true);
+        if (!is_array($meta) || empty($meta['research_policy'])) {
+            return $params;
+        }
+
+        $policy = $meta['research_policy'];
+
+        // Merge preferred_sources into focus.preferred_sources
+        $policy_preferred = is_array($policy['preferred_sources'] ?? null)
+            ? array_values(array_filter(array_map('sanitize_text_field', $policy['preferred_sources'])))
+            : array();
+
+        if (!empty($policy_preferred)) {
+            if (!isset($params['focus']) || !is_array($params['focus'])) {
+                $params['focus'] = array();
+            }
+            $caller_preferred = is_array($params['focus']['preferred_sources'] ?? null)
+                ? $params['focus']['preferred_sources']
+                : array();
+            // Union: caller-supplied first, then any policy additions not already listed
+            $existing_lower = array_map('strtolower', $caller_preferred);
+            foreach ($policy_preferred as $title) {
+                if (!in_array(strtolower($title), $existing_lower, true)) {
+                    $caller_preferred[] = $title;
+                    $existing_lower[] = strtolower($title);
+                }
+            }
+            $params['focus']['preferred_sources'] = $caller_preferred;
+        }
+
+        // Also surface blocked_keywords as focus exclusions (deduped)
+        $policy_blocked = is_array($policy['blocked_keywords'] ?? null)
+            ? array_values(array_filter(array_map('sanitize_text_field', $policy['blocked_keywords'])))
+            : array();
+
+        if (!empty($policy_blocked)) {
+            $caller_excl = is_array($params['focus']['exclusions'] ?? null)
+                ? $params['focus']['exclusions']
+                : array();
+            $excl_lower = array_map('strtolower', $caller_excl);
+            foreach ($policy_blocked as $kw) {
+                if (!in_array(strtolower($kw), $excl_lower, true)) {
+                    $caller_excl[] = $kw;
+                    $excl_lower[] = strtolower($kw);
+                }
+            }
+            $params['focus']['exclusions'] = $caller_excl;
+        }
+
+        return $params;
     }
 
     /**
