@@ -1,3 +1,4 @@
+(function () {
 // Editorial Planner Dashboard React App
 const { useState, useEffect, useRef } = wp.element;
 const {
@@ -23,6 +24,22 @@ const TOPIC_OPTIONS = [
     { label: 'Logistics', value: 'Logistics' },
     { label: 'Energy', value: 'Energy' },
     { label: 'Retail', value: 'Retail' },
+];
+
+const THINKING_PHRASES = [
+    'Thinking',
+    'Musing',
+    'Investigating',
+    'Digging',
+    'Digging Deeper',
+    'Permutating',
+    'Transmographying',
+    'Dotting Tees',
+    'Ruminating',
+    'Asphyxiating',
+    'Crossing Eyes',
+    'Geniusing',
+    'Almost there',
 ];
 
 const apiFetch = (options) =>
@@ -72,22 +89,38 @@ const EditorialPlannerApp = () => {
     const [synopsisTotal, setSynopsisTotal] = useState(20);
     const [focusLevel, setFocusLevel] = useState(50);
     const [focusDirty, setFocusDirty] = useState(false);
+    const [thinkingPhraseIndex, setThinkingPhraseIndex] = useState(0);
     const showFocusControls = true;
+
+    // URL-based routing: check if we're viewing a specific session detail
+    const params = new URLSearchParams(window.location.search);
+    const viewingSessionId = params.get('session') || params.get('session_id');
+
+    const navigateToSession = (sessionId) => {
+        if (!sessionId) {
+            return;
+        }
+        window.history.pushState(null, '', `?session_id=${sessionId}`);
+        openSessionDetail(sessionId);
+    };
+
+    const navigateBack = () => {
+        window.history.pushState(null, '', window.location.pathname);
+        setDetailModalOpen(false);
+        setSessionDetail(null);
+        loadSessions();
+    };
 
     useEffect(() => {
         loadSessions();
     }, []);
 
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const targetSessionId = params.get('session') || params.get('session_id');
-
-        if (!targetSessionId) {
+        if (!viewingSessionId) {
             return;
         }
-
-        openSessionDetail(targetSessionId, { silent: true });
-    }, []);
+        openSessionDetail(viewingSessionId, { silent: true });
+    }, [viewingSessionId]);
 
     useEffect(() => {
         if (!showFocusControls) {
@@ -330,7 +363,7 @@ const EditorialPlannerApp = () => {
         if (!detailModalOpen) {
             return undefined;
         }
-        const hasRunning =
+        const hasRunningArticles =
             sessionDetail?.meta?.articles?.some((article) =>
                 ['running', 'queued'].includes(article?.framework?.status)
             ) ||
@@ -338,6 +371,21 @@ const EditorialPlannerApp = () => {
                 ['running', 'queued'].includes(article?.author?.status)
             ) ||
             false;
+        const hasRunningPhase =
+            ['running', 'queued', 'processing'].includes(
+                sessionDetail?.meta?.phases?.phase1?.status
+            ) ||
+            ['running', 'queued', 'processing'].includes(
+                sessionDetail?.meta?.phases?.phase2?.status
+            ) ||
+            ['running', 'queued', 'processing'].includes(
+                sessionDetail?.meta?.phases?.phase3?.status
+            ) ||
+            ['running', 'queued', 'processing'].includes(
+                sessionDetail?.meta?.phases?.phase4?.status
+            ) ||
+            false;
+        const hasRunning = hasRunningArticles || hasRunningPhase;
         if (!hasRunning) {
             return undefined;
         }
@@ -348,12 +396,43 @@ const EditorialPlannerApp = () => {
             }
             await refreshSessionDetail();
         };
-        const interval = setInterval(poll, 30000);
+        // Poll faster (5s) for phases, slower (30s) for articles
+        const pollInterval = hasRunningPhase ? 5000 : 30000;
+        const interval = setInterval(poll, pollInterval);
         return () => {
             cancelled = true;
             clearInterval(interval);
         };
-    }, [detailModalOpen, autoRefreshEnabled, sessionDetail?.meta?.articles]);
+    }, [detailModalOpen, autoRefreshEnabled, sessionDetail?.meta?.articles, sessionDetail?.meta?.phases]);
+
+    useEffect(() => {
+        if (!detailModalOpen) {
+            return undefined;
+        }
+        const hasRunningPhase =
+            ['running', 'queued', 'processing'].includes(
+                sessionDetail?.meta?.phases?.phase1?.status
+            ) ||
+            ['running', 'queued', 'processing'].includes(
+                sessionDetail?.meta?.phases?.phase2?.status
+            ) ||
+            ['running', 'queued', 'processing'].includes(
+                sessionDetail?.meta?.phases?.phase3?.status
+            ) ||
+            ['running', 'queued', 'processing'].includes(
+                sessionDetail?.meta?.phases?.phase4?.status
+            ) ||
+            false;
+        const isSynopsisGenerating = synopsisGenerateLoading === true;
+        if (!hasRunningPhase && !isSynopsisGenerating) {
+            setThinkingPhraseIndex(0);
+            return undefined;
+        }
+        const interval = setInterval(() => {
+            setThinkingPhraseIndex((prev) => (prev + 1) % THINKING_PHRASES.length);
+        }, 1500);
+        return () => clearInterval(interval);
+    }, [detailModalOpen, sessionDetail?.meta?.phases, synopsisGenerateLoading]);
 
     const getFocusLabel = (value) => {
         if (value >= 70) {
@@ -661,12 +740,33 @@ const EditorialPlannerApp = () => {
 
             dispatch('core/notices').createNotice(
                 'success',
-                'Article synopses queued. Refresh shortly for results.',
+                'Article synopses queued. Refreshing to display results...',
                 { type: 'snackbar' }
             );
 
-            setSynopsisModalOpen(false);
-            await refreshSessionDetail();
+            // Keep the synopsis modal open with loading state while generating
+            // Poll for updates until synopses appear
+            let pollCount = 0;
+            const maxPolls = 120; // 120 * 2.5s = 5 minutes max
+            const pollSynopses = async () => {
+                pollCount++;
+                await refreshSessionDetail();
+                const articlesCount = sessionDetail?.meta?.articles?.length || 0;
+                if (articlesCount > 0 || pollCount >= maxPolls) {
+                    setSynopsisGenerateLoading(false);
+                    setSynopsisModalOpen(false);
+                    if (articlesCount > 0) {
+                        dispatch('core/notices').createNotice(
+                            'success',
+                            `${articlesCount} article synopses generated successfully.`,
+                            { type: 'snackbar' }
+                        );
+                    }
+                    return;
+                }
+                setTimeout(pollSynopses, 2500);
+            };
+            setTimeout(pollSynopses, 2500);
         } catch (error) {
             console.error('Synopsis generation failed:', error);
             dispatch('core/notices').createNotice(
@@ -674,7 +774,6 @@ const EditorialPlannerApp = () => {
                 error.message || 'Synopsis generation failed.',
                 { type: 'snackbar' }
             );
-        } finally {
             setSynopsisGenerateLoading(false);
         }
     };
@@ -1717,13 +1816,559 @@ const EditorialPlannerApp = () => {
     const focusLabel = getFocusLabel(focusLevel);
     const synopsisEstimate = estimateSynopses(sessionDetail?.meta, focusLevel);
 
+    // Render the detail page when viewing a session
+    if (viewingSessionId && sessionDetail) {
+        return wp.element.createElement(
+            'div',
+            { className: 'editorial-planner-dashboard' },
+            wp.element.createElement(
+                'div',
+                { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' } },
+                wp.element.createElement(
+                    'div',
+                    null,
+                    wp.element.createElement(
+                        Button,
+                        {
+                            isSecondary: true,
+                            onClick: navigateBack,
+                            style: { marginRight: '12px' },
+                        },
+                        '← Back to Sessions'
+                    ),
+                    wp.element.createElement('h1', { style: { display: 'inline-block', margin: '0' } }, sessionDetail?.title || 'Session Detail')
+                )
+            ),
+            detailLoading
+                ? wp.element.createElement(Spinner, null)
+                : wp.element.createElement(
+                      'div',
+                      null,
+                      detailError && wp.element.createElement(Notice, { status: 'error', isDismissible: false }, detailError),
+                      showFocusControls &&
+                          wp.element.createElement(
+                              'div',
+                              {
+                                  style: {
+                                      marginBottom: '12px',
+                                      padding: '12px',
+                                      border: '1px solid #dcdcde',
+                                      borderRadius: '6px',
+                                      background: '#f6f7f7',
+                                  },
+                              },
+                              wp.element.createElement('strong', null, 'Focus vs Breadth'),
+                              wp.element.createElement(
+                                  'p',
+                                  { style: { margin: '6px 0 8px', color: '#50575e' } },
+                                  `Current setting: ${focusLabel} (${focusLevel})`
+                              ),
+                              wp.element.createElement(RangeControl, {
+                                  value: focusLevel,
+                                  min: 0,
+                                  max: 100,
+                                  step: 5,
+                                  onChange: (value) => {
+                                      setFocusDirty(true);
+                                      setFocusLevel(value);
+                                  },
+                                  help: 'Lower = broader coverage; higher = tighter focus.',
+                              }),
+                              wp.element.createElement(
+                                  'p',
+                                  { style: { margin: '6px 0 0', fontSize: '12px', color: '#50575e' } },
+                                  synopsisEstimate.estimate > 0
+                                      ? `Estimated synopses: ${synopsisEstimate.min}–${synopsisEstimate.max} (target 20).`
+                                      : 'Estimated synopses available after Phase 2.'
+                              )
+                          ),
+                      wp.element.createElement(
+                          'div',
+                          { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+                          wp.element.createElement(
+                              'div',
+                              null,
+                              wp.element.createElement('h2', null, 'Phase Summaries'),
+                              thinkingPhraseIndex > 0 &&
+                                  wp.element.createElement(
+                                      'div',
+                                      {
+                                          style: {
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '8px',
+                                              marginTop: '6px',
+                                              fontSize: '14px',
+                                              color: '#0073aa',
+                                              fontStyle: 'italic',
+                                          },
+                                      },
+                                      wp.element.createElement('span', null, '✨'),
+                                      wp.element.createElement('span', null, THINKING_PHRASES[thinkingPhraseIndex] + '...'),
+                                      wp.element.createElement(Spinner, null)
+                                  )
+                          ),
+                          wp.element.createElement(
+                              'div',
+                              null,
+                              wp.element.createElement(
+                                  Button,
+                                  {
+                                      isSecondary: true,
+                                      onClick: handleRerunPhase1,
+                                      style: { marginRight: '8px' },
+                                      disabled: phase1RerunLoading,
+                                  },
+                                  phase1RerunLoading ? wp.element.createElement(Spinner, null) : 'Run Discovery'
+                              ),
+                              wp.element.createElement(
+                                  Button,
+                                  {
+                                      isSecondary: true,
+                                      onClick: handleRerunPhase2,
+                                      style: { marginRight: '8px' },
+                                      disabled: phase2RerunLoading,
+                                  },
+                                  phase2RerunLoading ? wp.element.createElement(Spinner, null) : 'Run Research Phase 2'
+                              ),
+                              wp.element.createElement(
+                                  Button,
+                                  {
+                                      isSecondary: true,
+                                      onClick: handleRerunPhase3,
+                                      style: { marginRight: '8px' },
+                                      disabled: phase3RerunLoading || !phase2Complete,
+                                  },
+                                  phase3RerunLoading ? wp.element.createElement(Spinner, null) : 'Run Research Phase 3'
+                              ),
+                              wp.element.createElement(
+                                  Button,
+                                  {
+                                      isSecondary: true,
+                                      onClick: handleRerunPhase4,
+                                      style: { marginRight: '8px' },
+                                      disabled: phase4RerunLoading || !phase3Complete,
+                                  },
+                                  phase4RerunLoading ? wp.element.createElement(Spinner, null) : 'Run Research Phase 4'
+                              ),
+                              wp.element.createElement(
+                                  Button,
+                                  {
+                                      isSecondary: true,
+                                      onClick: handleExportValidation,
+                                      style: { marginRight: '8px' },
+                                      disabled: !phase4Complete,
+                                  },
+                                  'Export Validation'
+                              ),
+                              wp.element.createElement(
+                                  Button,
+                                  {
+                                      isPrimary: true,
+                                      onClick: openSynopsisModal,
+                                      style: { marginRight: '8px' },
+                                      disabled: !phase4Complete,
+                                  },
+                                  'Generate Article Synopses'
+                              ),
+                              wp.element.createElement(
+                                  Button,
+                                  {
+                                      isSecondary: true,
+                                      onClick: handleExportSynopses,
+                                      style: { marginRight: '8px' },
+                                      disabled: !(sessionDetail?.meta?.articles || []).length,
+                                  },
+                                  'Export Synopses'
+                              ),
+                              wp.element.createElement(
+                                  ToggleControl,
+                                  {
+                                      label: 'Auto refresh',
+                                      checked: autoRefreshEnabled,
+                                      onChange: () => setAutoRefreshEnabled((prev) => !prev),
+                                      style: { marginRight: '12px' },
+                                  }
+                              ),
+                              wp.element.createElement(
+                                  Button,
+                                  { isSecondary: true, onClick: refreshSessionDetail },
+                                  'Refresh'
+                              )
+                          )
+                      ),
+                      renderPhaseSummaries(),
+                      (sessionDetail?.meta?.articles || []).length > 0
+                          ? wp.element.createElement(
+                                wp.element.Fragment,
+                                null,
+                                wp.element.createElement('h2', { style: { marginTop: '16px' } }, 'Article Synopses'),
+                                renderArticlesTable()
+                            )
+                          : null
+                  ),
+            synopsisModalOpen &&
+                wp.element.createElement(
+                    Modal,
+                    {
+                        title: 'Generate Article Synopses',
+                        onRequestClose: () => (!synopsisGenerateLoading ? setSynopsisModalOpen(false) : null),
+                        style: { minWidth: '60vw' },
+                    },
+                    synopsisPlanLoading
+                        ? wp.element.createElement(Spinner, null)
+                        : synopsisGenerateLoading
+                          ? wp.element.createElement(
+                                'div',
+                                { style: { textAlign: 'center', padding: '24px' } },
+                                wp.element.createElement(Spinner, null),
+                                wp.element.createElement(
+                                    'p',
+                                    { style: { marginTop: '16px', fontSize: '14px', color: '#666' } },
+                                    'Generating article synopses from research data...'
+                                ),
+                                wp.element.createElement(
+                                    'p',
+                                    { style: { fontSize: '12px', color: '#aaa', marginTop: '8px' } },
+                                    'This typically takes 1-5 minutes depending on topic complexity.'
+                                )
+                            )
+                          : wp.element.createElement(
+                              'div',
+                              null,
+                              synopsisPlanError &&
+                                  wp.element.createElement(Notice, { status: 'error', isDismissible: false }, synopsisPlanError),
+                              wp.element.createElement(
+                                  'p',
+                                  { style: { marginTop: '8px' } },
+                                  `Target synopses: ${synopsisTotal}. Current total: ${synopsisPlanTotal}.`
+                              ),
+                              synopsisPlanTotal !== synopsisTotal &&
+                                  wp.element.createElement(
+                                      Notice,
+                                      { status: 'warning', isDismissible: false },
+                                      `Total synopses do not match target (${synopsisTotal}). You can still generate, or adjust counts.`
+                                  ),
+                              wp.element.createElement(
+                                  'div',
+                                  { style: { marginTop: '12px', maxWidth: '240px' } },
+                                  wp.element.createElement(TextControl, {
+                                      label: 'Target total',
+                                      type: 'number',
+                                      min: 1,
+                                      value: synopsisTotal,
+                                      onChange: (value) => setSynopsisTotal(Math.max(1, parseInt(value || 0, 10))),
+                                  })
+                              ),
+                              Object.keys(synopsisPlan).length
+                                  ? wp.element.createElement(
+                                        'div',
+                                        { style: { marginTop: '12px' } },
+                                        Object.keys(synopsisPlan).map((topic) =>
+                                            wp.element.createElement(TextControl, {
+                                                key: topic,
+                                                type: 'number',
+                                                label: topic,
+                                                value: synopsisPlan[topic],
+                                                onChange: (value) => updateSynopsisCount(topic, value),
+                                                min: 0,
+                                            })
+                                        )
+                                    )
+                                  : wp.element.createElement('p', null, 'No validated topics available.'),
+                              wp.element.createElement(
+                                  'div',
+                                  { style: { marginTop: '16px', display: 'flex', justifyContent: 'flex-end' } },
+                                  wp.element.createElement(
+                                      Button,
+                                      { isSecondary: true, onClick: () => setSynopsisModalOpen(false) },
+                                      'Cancel'
+                                  ),
+                                  wp.element.createElement(
+                                      Button,
+                                      {
+                                          isPrimary: true,
+                                          onClick: handleGenerateSynopses,
+                                          disabled: synopsisGenerateLoading || synopsisPlanTotal === 0 || !sessionDetail?.id,
+                                          type: 'button',
+                                          style: { marginLeft: '8px' },
+                                      },
+                                      synopsisGenerateLoading ? wp.element.createElement(Spinner, null) : 'Generate Synopses'
+                                  )
+                              )
+                          )
+                ),
+            previewArticle &&
+                wp.element.createElement(
+                    Modal,
+                    {
+                        title: previewArticle.headline || previewArticle.title || 'Article Preview',
+                        onRequestClose: () => setPreviewArticle(null),
+                        isDismissible: true,
+                        shouldCloseOnClickOutside: false,
+                    },
+                    wp.element.createElement(
+                        'p',
+                        null,
+                        previewArticle.summary || previewArticle.brief || previewArticle.summary_two_sentences || 'No summary.'
+                    ),
+                    previewArticle.key_points &&
+                        previewArticle.key_points.length &&
+                        wp.element.createElement(
+                            'div',
+                            { style: { marginTop: '12px' } },
+                            wp.element.createElement('strong', null, 'Key Points'),
+                            wp.element.createElement(
+                                'ul',
+                                null,
+                                previewArticle.key_points.map((point, idx) =>
+                                    wp.element.createElement('li', { key: idx }, point)
+                                )
+                            )
+                        ),
+                    (previewArticle.keywords || previewArticle.tags) &&
+                        (previewArticle.keywords || previewArticle.tags).length &&
+                        wp.element.createElement(
+                            'p',
+                            { style: { marginTop: '8px', fontSize: '12px', color: '#50575e' } },
+                            `Keywords: ${(previewArticle.keywords || previewArticle.tags).join(', ')}`
+                        ),
+                    previewArticle.recommended_word_count &&
+                        wp.element.createElement(
+                            'p',
+                            { style: { marginTop: '8px', fontSize: '12px', color: '#50575e' } },
+                            `Recommended word count: ${previewArticle.recommended_word_count}`
+                        ),
+                    previewArticle.topic_coverage_level &&
+                        wp.element.createElement(
+                            'p',
+                            { style: { marginTop: '4px', fontSize: '12px', color: '#50575e' } },
+                            `Topic coverage level: ${previewArticle.topic_coverage_level}`
+                        ),
+                    previewArticle.citations &&
+                        previewArticle.citations.length > 0 &&
+                        wp.element.createElement(
+                            'div',
+                            { style: { marginTop: '12px' } },
+                            wp.element.createElement('strong', null, 'Supporting Citations'),
+                            wp.element.createElement(
+                                'ul',
+                                null,
+                                previewArticle.citations.map((citation, idx) =>
+                                    wp.element.createElement(
+                                        'li',
+                                        { key: idx },
+                                        citation.title || citation.url || 'Citation'
+                                    )
+                                )
+                            )
+                        )
+                ),
+            frameworkPreview &&
+                wp.element.createElement(
+                    Modal,
+                    {
+                        title: 'Framework Preview',
+                        onRequestClose: () => setFrameworkPreview(null),
+                        isDismissible: true,
+                        shouldCloseOnClickOutside: false,
+                    },
+                    wp.element.createElement(
+                        'div',
+                        { style: { marginBottom: '12px', display: 'flex', gap: '8px' } },
+                        wp.element.createElement(
+                            Button,
+                            {
+                                isSecondary: true,
+                                onClick: () => handleExportFramework(frameworkPreview),
+                                disabled: !(frameworkPreview?.framework?.output),
+                            },
+                            'Export Framework'
+                        ),
+                        wp.element.createElement(
+                            Button,
+                            {
+                                isSecondary: true,
+                                onClick: () => handleRunAuthorAgent(frameworkPreview),
+                                disabled: !(frameworkPreview?.framework?.output),
+                            },
+                            'Run Author Agent'
+                        )
+                    ),
+                    wp.element.createElement('p', null, frameworkPreview.title || 'Framework'),
+                    frameworkPreview.framework?.output?.title &&
+                        wp.element.createElement(
+                            'div',
+                            { style: { marginTop: '12px' } },
+                            wp.element.createElement('h3', null, frameworkPreview.framework.output.title),
+                            frameworkPreview.framework.output.overview &&
+                                wp.element.createElement(
+                                    'div',
+                                    { style: { marginTop: '8px' } },
+                                    wp.element.createElement('strong', null, 'Overview'),
+                                    wp.element.createElement('p', null, frameworkPreview.framework.output.overview)
+                                ),
+                            frameworkPreview.framework.output.context &&
+                                wp.element.createElement(
+                                    'div',
+                                    { style: { marginTop: '8px' } },
+                                    wp.element.createElement('strong', null, 'Context'),
+                                    wp.element.createElement('p', null, frameworkPreview.framework.output.context)
+                                ),
+                            frameworkPreview.framework.output.application &&
+                                wp.element.createElement(
+                                    'div',
+                                    { style: { marginTop: '8px' } },
+                                    wp.element.createElement('strong', null, 'Application'),
+                                    wp.element.createElement(
+                                        'p',
+                                        null,
+                                        frameworkPreview.framework.output.application.intended_reader
+                                            ? `Intended Reader: ${frameworkPreview.framework.output.application.intended_reader}`
+                                            : null
+                                    ),
+                                    wp.element.createElement(
+                                        'p',
+                                        null,
+                                        frameworkPreview.framework.output.application.use_case
+                                            ? `Use Case: ${frameworkPreview.framework.output.application.use_case}`
+                                            : null
+                                    )
+                                ),
+                            frameworkPreview.framework.output.observations &&
+                                frameworkPreview.framework.output.observations.length > 0 &&
+                                wp.element.createElement(
+                                    'div',
+                                    { style: { marginTop: '8px' } },
+                                    wp.element.createElement('strong', null, 'Observations'),
+                                    wp.element.createElement(
+                                        'ul',
+                                        null,
+                                        frameworkPreview.framework.output.observations.map((item, idx) =>
+                                            wp.element.createElement(
+                                                'li',
+                                                { key: idx },
+                                                wp.element.createElement('strong', null, item.headline || 'Observation'),
+                                                wp.element.createElement('p', null, item.detail || '')
+                                            )
+                                        )
+                                    )
+                                ),
+                            frameworkPreview.framework.output.key_themes &&
+                                frameworkPreview.framework.output.key_themes.length > 0 &&
+                                wp.element.createElement(
+                                    'div',
+                                    { style: { marginTop: '8px' } },
+                                    wp.element.createElement('strong', null, 'Key Themes'),
+                                    wp.element.createElement(
+                                        'ul',
+                                        null,
+                                        frameworkPreview.framework.output.key_themes.map((theme, idx) =>
+                                            wp.element.createElement('li', { key: idx }, theme)
+                                        )
+                                    )
+                                )
+                        ),
+                    !frameworkPreview.framework?.output?.title &&
+                        frameworkPreview.framework?.output?.h2_sections &&
+                        wp.element.createElement(
+                            'div',
+                            { style: { marginTop: '12px' } },
+                            wp.element.createElement('strong', null, 'Framework'),
+                            wp.element.createElement(
+                                'ul',
+                                null,
+                                frameworkPreview.framework.output.h2_sections.map((section, idx) =>
+                                    wp.element.createElement(
+                                        'li',
+                                        { key: idx },
+                                        section.title || 'Section',
+                                        section.h3_sections && section.h3_sections.length
+                                            ? wp.element.createElement(
+                                                  'ul',
+                                                  null,
+                                                  section.h3_sections.map((h3, h3Idx) =>
+                                                      wp.element.createElement('li', { key: h3Idx }, h3)
+                                                  )
+                                              )
+                                            : null
+                                    )
+                                )
+                            )
+                        ),
+                    frameworkPreview.citations &&
+                        frameworkPreview.citations.length > 0 &&
+                        wp.element.createElement(
+                            'div',
+                            { style: { marginTop: '12px' } },
+                            wp.element.createElement('strong', null, 'Citations'),
+                            wp.element.createElement(
+                                'ul',
+                                null,
+                                frameworkPreview.citations.map((citation, idx) =>
+                                    wp.element.createElement(
+                                        'li',
+                                        { key: idx },
+                                        citation.apa || citation.title || citation.url || 'Citation',
+                                        citation.relevance
+                                            ? wp.element.createElement('p', null, citation.relevance)
+                                            : null
+                                    )
+                                )
+                            )
+                        )
+                ),
+            authorPreview &&
+                wp.element.createElement(
+                    Modal,
+                    {
+                        title: 'Author Draft',
+                        onRequestClose: () => setAuthorPreview(null),
+                        isDismissible: true,
+                        shouldCloseOnClickOutside: false,
+                    },
+                    wp.element.createElement(
+                        'div',
+                        { style: { marginBottom: '12px', display: 'flex', gap: '8px' } },
+                        wp.element.createElement(
+                            Button,
+                            {
+                                isSecondary: true,
+                                onClick: () => handleExportAuthorDraft(authorPreview),
+                                disabled: !(authorPreview?.author?.output),
+                            },
+                            'Export Draft'
+                        ),
+                        wp.element.createElement(
+                            Button,
+                            {
+                                isSecondary: true,
+                                onClick: () => authorPreview?.author?.edit_url && window.open(authorPreview.author.edit_url, '_blank'),
+                                disabled: !(authorPreview?.author?.edit_url),
+                            },
+                            'Open in Editor'
+                        )
+                    ),
+                    wp.element.createElement('p', null, authorPreview.title || 'Draft'),
+                    wp.element.createElement(
+                        'div',
+                        { style: { whiteSpace: 'pre-wrap' } },
+                        authorPreview.author?.output?.draft ||
+                            authorPreview.author?.output?.content ||
+                            'No draft available.'
+                    )
+                )
+        );
+    }
+
+    // Render the sessions list page (default view)
     return wp.element.createElement(
         'div',
         { className: 'editorial-planner-dashboard' },
         wp.element.createElement(
             'div',
             { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-            wp.element.createElement('h1', null, 'Editorial Planner'),
+            wp.element.createElement('h1', null, 'Article Planner'),
             wp.element.createElement(
                 Button,
                 {
@@ -1776,7 +2421,7 @@ const EditorialPlannerApp = () => {
                                                     Button,
                                                     {
                                                         isSecondary: true,
-                                                        onClick: () => openSessionDetail(session.id),
+                                                        onClick: () => navigateToSession(session.id),
                                                     },
                                                     'View'
                                                 )
@@ -1887,7 +2532,29 @@ const EditorialPlannerApp = () => {
                           wp.element.createElement(
                               'div',
                               { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-                              wp.element.createElement('h2', null, 'Phase Summaries'),
+                              wp.element.createElement(
+                                  'div',
+                                  null,
+                                  wp.element.createElement('h2', null, 'Phase Summaries'),
+                                  thinkingPhraseIndex > 0 &&
+                                      wp.element.createElement(
+                                          'div',
+                                          {
+                                              style: {
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: '8px',
+                                                  marginTop: '6px',
+                                                  fontSize: '14px',
+                                                  color: '#0073aa',
+                                                  fontStyle: 'italic',
+                                              },
+                                          },
+                                          wp.element.createElement('span', null, '✨'),
+                                          wp.element.createElement('span', null, THINKING_PHRASES[thinkingPhraseIndex] + '...'),
+                                          wp.element.createElement(Spinner, null)
+                                      )
+                              ),
                               wp.element.createElement(
                                   'div',
                                   null,
@@ -1993,12 +2660,28 @@ const EditorialPlannerApp = () => {
                 Modal,
                 {
                     title: 'Generate Article Synopses',
-                    onRequestClose: () => setSynopsisModalOpen(false),
+                    onRequestClose: () => (!synopsisGenerateLoading ? setSynopsisModalOpen(false) : null),
                     style: { minWidth: '60vw' },
                 },
                 synopsisPlanLoading
                     ? wp.element.createElement(Spinner, null)
-                    : wp.element.createElement(
+                    : synopsisGenerateLoading
+                      ? wp.element.createElement(
+                            'div',
+                            { style: { textAlign: 'center', padding: '24px' } },
+                            wp.element.createElement(Spinner, null),
+                            wp.element.createElement(
+                                'p',
+                                { style: { marginTop: '16px', fontSize: '14px', color: '#666' } },
+                                'Generating article synopses from research data...'
+                            ),
+                            wp.element.createElement(
+                                'p',
+                                { style: { fontSize: '12px', color: '#aaa', marginTop: '8px' } },
+                                'This typically takes 1-5 minutes depending on topic complexity.'
+                            )
+                        )
+                      : wp.element.createElement(
                           'div',
                           null,
                           synopsisPlanError &&
@@ -2069,6 +2752,8 @@ const EditorialPlannerApp = () => {
                 {
                     title: previewArticle.headline || previewArticle.title || 'Article Preview',
                     onRequestClose: () => setPreviewArticle(null),
+                    isDismissible: true,
+                    shouldCloseOnClickOutside: false,
                 },
                 wp.element.createElement(
                     'p',
@@ -2133,6 +2818,8 @@ const EditorialPlannerApp = () => {
                 {
                     title: 'Framework Preview',
                     onRequestClose: () => setFrameworkPreview(null),
+                    isDismissible: true,
+                    shouldCloseOnClickOutside: false,
                 },
                 wp.element.createElement(
                     'div',
@@ -2285,6 +2972,8 @@ const EditorialPlannerApp = () => {
                 {
                     title: 'Author Draft',
                     onRequestClose: () => setAuthorPreview(null),
+                    isDismissible: true,
+                    shouldCloseOnClickOutside: false,
                 },
                 wp.element.createElement(
                     'div',
@@ -2324,3 +3013,5 @@ wp.element.render(
     wp.element.createElement(EditorialPlannerApp),
     document.getElementById('editorial-planner-app')
 );
+
+})();

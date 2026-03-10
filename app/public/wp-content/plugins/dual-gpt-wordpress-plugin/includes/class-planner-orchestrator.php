@@ -250,7 +250,7 @@ class Dual_GPT_Planner_Orchestrator {
         }
         $lines[] = 'Focus level: ' . intval($focus_level) . ' (0 = general, 100 = focused).';
         $lines[] = 'Analyze the supplied research inputs (SERP snapshots, keyword suggestions, and trend notes) to extract ' . $focus_profile['trend_range'] . ' distinct trends shaping this topic.';
-        $lines[] = 'Favor sources and phrasing from the last 12–18 months. Avoid older year-specific phrasing unless essential.';
+        $lines[] = 'Enforce 36-month recency window: extract publication dates from citation metadata and reject any sources older than 36 months. Do not accept article titles as publication dates; verify against schema metadata (datePublished, article:published_time, etc.).';
         $lines[] = 'For each trend, include: 2–4 insight_points; a clear why_it_matters; 2–3 editorial_angles; and 2–4 citations sourced only from the supplied inputs.';
         $lines[] = 'Apply only to: Field Service, Spare Parts, B2B E-Commerce, B2B Pricing, Servitization, or Aftermarket Strategy. For e-commerce and pricing, restrict to B2B manufacturing.';
         $lines[] = 'Return at least 12 candidate_keywords derived from the supplied inputs. Do not leave candidate_keywords empty.';
