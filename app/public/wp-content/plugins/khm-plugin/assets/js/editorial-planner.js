@@ -1545,12 +1545,12 @@ const EditorialPlannerApp = () => {
         const stops = [
             {
                 target_min_citations: 2,
-                recency_months: 36,
+                recency_months: 6,
                 source_mix_minimums: { industry: 1 },
             },
             {
                 target_min_citations: 3,
-                recency_months: 24,
+                recency_months: 12,
                 source_mix_minimums: { industry: 1, news: 1 },
             },
             {
@@ -1560,12 +1560,12 @@ const EditorialPlannerApp = () => {
             },
             {
                 target_min_citations: 6,
-                recency_months: 12,
+                recency_months: 24,
                 source_mix_minimums: { industry: 2, news: 1, research: 1 },
             },
             {
                 target_min_citations: 8,
-                recency_months: 6,
+                recency_months: 36,
                 source_mix_minimums: { industry: 2, news: 2, research: 2 },
             },
         ];
@@ -1577,11 +1577,20 @@ const EditorialPlannerApp = () => {
             return;
         }
         const params = mapSliderToDepthParams(diveDeeperDepthSlider);
-        setDiveDeeperModalOpen(false);
         await runArticleAction(
             diveDeeperArticle,
             'dive_deeper',
             'Dive deeper research initiated. Specialist is gathering additional citations...',
+            params
+        );
+    };
+
+    const handleOpinionPieceArticle = async (article) => {
+        const params = { allow_low_citations: true };
+        await runArticleAction(
+            article,
+            'opinion_piece',
+            'Opinion piece initiated. Author is generating perspective on this topic...',
             params
         );
     };
@@ -2282,6 +2291,7 @@ const EditorialPlannerApp = () => {
                         frameworkStatus === 'complete' ? 'Regenerate Framework' : 'Generate Framework';
                     const isDismissLoading = !!articleActionLoading[`dismiss:${article.id}`];
                     const isDeepDiveLoading = !!articleActionLoading[`deep_dive:${article.id}`];
+                    const isOpinionLoading = !!articleActionLoading[`opinion_piece:${article.id}`];
                     return wp.element.createElement(
                         'tr',
                         { key: `${article.headline || article.title || article.id}-${index}` },
@@ -2417,7 +2427,18 @@ const EditorialPlannerApp = () => {
                                         style: { marginRight: '8px', marginBottom: '8px' },
                                         disabled: isDeepDiveLoading,
                                     },
-                                    isDeepDiveLoading ? wp.element.createElement(Spinner, null) : 'Deep Dive Research'
+                                    isDeepDiveLoading ? wp.element.createElement(Spinner, null) : 'Dive Deeper'
+                                ),
+                            !meetsCitationThreshold &&
+                                wp.element.createElement(
+                                    Button,
+                                    {
+                                        isPrimary: true,
+                                        onClick: () => handleOpinionPieceArticle(article),
+                                        style: { marginRight: '8px', marginBottom: '8px' },
+                                        disabled: isOpinionLoading,
+                                    },
+                                    isOpinionLoading ? wp.element.createElement(Spinner, null) : 'Opinion Piece'
                                 ),
                             !meetsCitationThreshold &&
                                 wp.element.createElement(
@@ -2797,83 +2818,100 @@ const EditorialPlannerApp = () => {
                     Modal,
                     {
                         title: 'Dive Deeper - Research Depth',
-                        onRequestClose: () => setDiveDeeperModalOpen(false),
+                        onRequestClose: () => !isDeepDiveLoading && setDiveDeeperModalOpen(false),
                     },
-                    wp.element.createElement(
-                        'div',
-                        { style: { marginBottom: '24px' } },
-                        wp.element.createElement(
-                            'p',
-                            { style: { marginBottom: '16px', color: '#50575e' } },
-                            'Select how much research depth you want. The slider controls how many citations and how recent the sources should be.'
-                        ),
-                        wp.element.createElement(RangeControl, {
-                            label: 'Depth Level',
-                            value: diveDeeperDepthSlider,
-                            onChange: setDiveDeeperDepthSlider,
-                            min: 0,
-                            max: 4,
-                            step: 1,
-                            marks: [
-                                { value: 0, label: 'A bit more' },
-                                { value: 1, label: '' },
-                                { value: 2, label: 'Default' },
-                                { value: 3, label: '' },
-                                { value: 4, label: 'Deep dive' },
-                            ],
-                        }),
-                        wp.element.createElement(
-                            'div',
-                            { style: { marginTop: '16px', padding: '12px', background: '#f0f0f0', borderRadius: '4px' } },
-                            wp.element.createElement(
-                                'strong',
-                                null,
-                                'Parameters:'
-                            ),
-                            (() => {
-                                const params = mapSliderToDepthParams(diveDeeperDepthSlider);
-                                return wp.element.createElement(
-                                    'ul',
-                                    { style: { margin: '8px 0 0', paddingLeft: '20px' } },
-                                    wp.element.createElement(
-                                        'li',
-                                        null,
-                                        `Target: ${params.target_min_citations} citations`
-                                    ),
-                                    wp.element.createElement(
-                                        'li',
-                                        null,
-                                        `Recency: Last ${params.recency_months} months`
-                                    ),
-                                    wp.element.createElement(
-                                        'li',
-                                        null,
-                                        `Sources: ${Object.keys(params.source_mix_minimums).join(', ')}`
-                                    )
-                                );
-                            })()
-                        )
-                    ),
-                    wp.element.createElement(
-                        'div',
-                        { style: { marginTop: '24px', display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
-                        wp.element.createElement(
-                            Button,
-                            {
-                                isSecondary: true,
-                                onClick: () => setDiveDeeperModalOpen(false),
-                            },
-                            'Cancel'
-                        ),
-                        wp.element.createElement(
-                            Button,
-                            {
-                                isPrimary: true,
-                                onClick: handleDiveDeeperSubmit,
-                            },
-                            'Start Dive Deeper'
-                        )
-                    )
+                    isDeepDiveLoading
+                        ? wp.element.createElement(
+                              'div',
+                              { style: { textAlign: 'center', padding: '32px 24px' } },
+                              wp.element.createElement(Spinner, null),
+                              wp.element.createElement(
+                                  'p',
+                                  { style: { marginTop: '16px', fontSize: '14px', color: '#666' } },
+                                  `Specialist is ${THINKING_PHRASES[thinkingPhraseIndex]}...`
+                              ),
+                              wp.element.createElement(
+                                  'p',
+                                  { style: { marginTop: '8px', fontSize: '12px', color: '#999' } },
+                                  'This may take a few moments.'
+                              )
+                          )
+                        : wp.element.createElement(
+                              'div',
+                              { style: { marginBottom: '24px' } },
+                              wp.element.createElement(
+                                  'p',
+                                  { style: { marginBottom: '16px', color: '#50575e' } },
+                                  'Select how much research depth you want. The slider controls how many citations and how recent the sources should be.'
+                              ),
+                              wp.element.createElement(RangeControl, {
+                                  label: 'Depth Level',
+                                  value: diveDeeperDepthSlider,
+                                  onChange: setDiveDeeperDepthSlider,
+                                  min: 0,
+                                  max: 4,
+                                  step: 1,
+                                  marks: [
+                                      { value: 0, label: 'A bit more' },
+                                      { value: 1, label: '' },
+                                      { value: 2, label: 'Default' },
+                                      { value: 3, label: '' },
+                                      { value: 4, label: 'Deep dive' },
+                                  ],
+                              }),
+                              wp.element.createElement(
+                                  'div',
+                                  { style: { marginTop: '16px', padding: '12px', background: '#f0f0f0', borderRadius: '4px' } },
+                                  wp.element.createElement(
+                                      'strong',
+                                      null,
+                                      'Parameters:'
+                                  ),
+                                  (() => {
+                                      const params = mapSliderToDepthParams(diveDeeperDepthSlider);
+                                      return wp.element.createElement(
+                                          'ul',
+                                          { style: { margin: '8px 0 0', paddingLeft: '20px' } },
+                                          wp.element.createElement(
+                                              'li',
+                                              null,
+                                              `Target: ${params.target_min_citations} citations`
+                                          ),
+                                          wp.element.createElement(
+                                              'li',
+                                              null,
+                                              `Recency: Last ${params.recency_months} months`
+                                          ),
+                                          wp.element.createElement(
+                                              'li',
+                                              null,
+                                              `Sources: ${Object.keys(params.source_mix_minimums).join(', ')}`
+                                          )
+                                      );
+                                  })()
+                              ),
+                              wp.element.createElement(
+                                  'div',
+                                  { style: { marginTop: '24px', display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+                                  wp.element.createElement(
+                                      Button,
+                                      {
+                                          isSecondary: true,
+                                          onClick: () => setDiveDeeperModalOpen(false),
+                                      },
+                                      'Cancel'
+                                  ),
+                                  wp.element.createElement(
+                                      Button,
+                                      {
+                                          isPrimary: true,
+                                          onClick: handleDiveDeeperSubmit,
+                                          disabled: isDeepDiveLoading,
+                                      },
+                                      isDeepDiveLoading ? wp.element.createElement(Spinner, null) : 'Start Dive Deeper'
+                                  )
+                              )
+                          )
                 ),
             synopsisModalOpen &&
                 wp.element.createElement(
