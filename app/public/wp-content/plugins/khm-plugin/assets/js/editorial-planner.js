@@ -26,6 +26,18 @@ const TOPIC_OPTIONS = [
     { label: 'Retail', value: 'Retail' },
 ];
 
+const DEFAULT_RESEARCH_POLICY = {
+    recency_months: 36,
+    source_mix_minimums: {
+        academic: 1,
+        analyst: 1,
+        industry: 1,
+        case_study: 1,
+    },
+    blocked_domains: ['wikipedia.org', 'pinterest.com', 'reddit.com', 'quora.com'],
+    allowed_domains: [],
+};
+
 const THINKING_PHRASES = [
     'Thinking',
     'Musing',
@@ -66,6 +78,12 @@ const EditorialPlannerApp = () => {
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState('');
     const [sessionDetail, setSessionDetail] = useState(null);
+    const [researchPolicyDetail, setResearchPolicyDetail] = useState(null);
+    const [researchValidationDetail, setResearchValidationDetail] = useState(null);
+    const [researchValidationLoading, setResearchValidationLoading] = useState(false);
+    const [policyDraft, setPolicyDraft] = useState({ ...DEFAULT_RESEARCH_POLICY });
+    const [policyDirty, setPolicyDirty] = useState(false);
+    const [policySaving, setPolicySaving] = useState(false);
 
     const [previewArticle, setPreviewArticle] = useState(null);
     const [frameworkPreview, setFrameworkPreview] = useState(null);
@@ -108,6 +126,10 @@ const EditorialPlannerApp = () => {
         window.history.pushState(null, '', window.location.pathname);
         setDetailModalOpen(false);
         setSessionDetail(null);
+        setResearchPolicyDetail(null);
+        setResearchValidationDetail(null);
+        setPolicyDraft({ ...DEFAULT_RESEARCH_POLICY });
+        setPolicyDirty(false);
         loadSessions();
     };
 
@@ -130,6 +152,27 @@ const EditorialPlannerApp = () => {
             setFocusLevel(Number(sessionDetail.meta.focus_level));
         }
     }, [sessionDetail?.meta?.focus_level, focusDirty, showFocusControls]);
+
+    useEffect(() => {
+        if (!researchPolicyDetail || policyDirty) {
+            return;
+        }
+        setPolicyDraft({
+            recency_months: Number(researchPolicyDetail?.recency_months ?? DEFAULT_RESEARCH_POLICY.recency_months),
+            source_mix_minimums: {
+                academic: Number(researchPolicyDetail?.source_mix_minimums?.academic ?? DEFAULT_RESEARCH_POLICY.source_mix_minimums.academic),
+                analyst: Number(researchPolicyDetail?.source_mix_minimums?.analyst ?? DEFAULT_RESEARCH_POLICY.source_mix_minimums.analyst),
+                industry: Number(researchPolicyDetail?.source_mix_minimums?.industry ?? DEFAULT_RESEARCH_POLICY.source_mix_minimums.industry),
+                case_study: Number(researchPolicyDetail?.source_mix_minimums?.case_study ?? DEFAULT_RESEARCH_POLICY.source_mix_minimums.case_study),
+            },
+            allowed_domains: Array.isArray(researchPolicyDetail?.allowed_domains)
+                ? [...researchPolicyDetail.allowed_domains]
+                : [],
+            blocked_domains: Array.isArray(researchPolicyDetail?.blocked_domains)
+                ? [...researchPolicyDetail.blocked_domains]
+                : [...DEFAULT_RESEARCH_POLICY.blocked_domains],
+        });
+    }, [researchPolicyDetail, policyDirty]);
 
     const loadSessions = async () => {
         try {
@@ -167,6 +210,7 @@ const EditorialPlannerApp = () => {
                     includes,
                     excludes,
                     ...(showFocusControls ? { focus_level: focusLevel } : {}),
+                    research_policy: DEFAULT_RESEARCH_POLICY,
                 },
                 idempotency_key: `planner-${Date.now()}`,
             };
@@ -268,12 +312,27 @@ const EditorialPlannerApp = () => {
                 setDetailError('');
                 setFocusDirty(false);
             }
+            setResearchValidationLoading(true);
             const data = await apiFetch({
                 path: `dual-gpt/v1/sessions/${sessionId}`,
                 method: 'GET',
             });
             handleAuthorStatusTransitions(data);
             setSessionDetail(data);
+
+            try {
+                const validationData = await apiFetch({
+                    path: `dual-gpt/v1/planner/research-validation?session_id=${sessionId}`,
+                    method: 'GET',
+                });
+                setResearchPolicyDetail(validationData?.research_policy || data?.meta?.research_policy || null);
+                setResearchValidationDetail(validationData?.research_validation || null);
+            } catch (validationError) {
+                console.error('Failed to load research validation detail:', validationError);
+                setResearchPolicyDetail(data?.meta?.research_policy || null);
+                setResearchValidationDetail(null);
+            }
+
             if (data?.meta?.articles && Array.isArray(data.meta.articles)) {
                 setFrameworkProgress((prev) => {
                     const next = { ...prev };
@@ -309,7 +368,10 @@ const EditorialPlannerApp = () => {
             if (!silent) {
                 setDetailError(error.message || 'Failed to load session detail.');
             }
+            setResearchPolicyDetail(null);
+            setResearchValidationDetail(null);
         } finally {
+            setResearchValidationLoading(false);
             if (!silent) {
                 setDetailLoading(false);
             }
@@ -478,6 +540,96 @@ const EditorialPlannerApp = () => {
             min: Math.max(topics, estimate - variance),
             max: estimate + variance,
         };
+    };
+
+    const formatPolicyDomainList = (domains) => {
+        if (!Array.isArray(domains) || domains.length === 0) {
+            return '—';
+        }
+        return domains.join(', ');
+    };
+
+    const normalizeDomainTokens = (tokens) => {
+        if (!Array.isArray(tokens)) {
+            return [];
+        }
+        const seen = new Set();
+        return tokens
+            .map((domain) => String(domain || '').trim().toLowerCase())
+            .map((domain) => domain.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, ''))
+            .filter((domain) => {
+                if (!domain || seen.has(domain)) {
+                    return false;
+                }
+                seen.add(domain);
+                return true;
+            });
+    };
+
+    const handleSavePolicy = async () => {
+        if (!sessionDetail?.id) {
+            return;
+        }
+
+        try {
+            setPolicySaving(true);
+            const payload = {
+                recency_months: Number(policyDraft?.recency_months ?? DEFAULT_RESEARCH_POLICY.recency_months),
+                source_mix_minimums: {
+                    academic: Number(policyDraft?.source_mix_minimums?.academic ?? 0),
+                    analyst: Number(policyDraft?.source_mix_minimums?.analyst ?? 0),
+                    industry: Number(policyDraft?.source_mix_minimums?.industry ?? 0),
+                    case_study: Number(policyDraft?.source_mix_minimums?.case_study ?? 0),
+                },
+                allowed_domains: normalizeDomainTokens(policyDraft?.allowed_domains),
+                blocked_domains: normalizeDomainTokens(policyDraft?.blocked_domains),
+            };
+
+            const saveResponse = await apiFetch({
+                path: 'dual-gpt/v1/planner/policy',
+                method: 'POST',
+                data: {
+                    session_id: sessionDetail.id,
+                    research_policy: payload,
+                },
+            });
+
+            setPolicyDirty(false);
+            dispatch('core/notices').createNotice(
+                'success',
+                saveResponse?.changed ? 'Research policy saved.' : 'No policy changes detected.',
+                { type: 'snackbar' }
+            );
+
+            await openSessionDetail(sessionDetail.id, { silent: true });
+        } catch (error) {
+            console.error('Failed to save research policy:', error);
+            dispatch('core/notices').createNotice(
+                'error',
+                error.message || 'Failed to save research policy.',
+                { type: 'snackbar' }
+            );
+        } finally {
+            setPolicySaving(false);
+        }
+    };
+
+    const handleResetPolicyDraft = () => {
+        const source = researchPolicyDetail || DEFAULT_RESEARCH_POLICY;
+        setPolicyDraft({
+            recency_months: Number(source?.recency_months ?? DEFAULT_RESEARCH_POLICY.recency_months),
+            source_mix_minimums: {
+                academic: Number(source?.source_mix_minimums?.academic ?? DEFAULT_RESEARCH_POLICY.source_mix_minimums.academic),
+                analyst: Number(source?.source_mix_minimums?.analyst ?? DEFAULT_RESEARCH_POLICY.source_mix_minimums.analyst),
+                industry: Number(source?.source_mix_minimums?.industry ?? DEFAULT_RESEARCH_POLICY.source_mix_minimums.industry),
+                case_study: Number(source?.source_mix_minimums?.case_study ?? DEFAULT_RESEARCH_POLICY.source_mix_minimums.case_study),
+            },
+            allowed_domains: Array.isArray(source?.allowed_domains) ? [...source.allowed_domains] : [],
+            blocked_domains: Array.isArray(source?.blocked_domains)
+                ? [...source.blocked_domains]
+                : [...DEFAULT_RESEARCH_POLICY.blocked_domains],
+        });
+        setPolicyDirty(false);
     };
 
     const handleRegenerateFramework = async (article, index) => {
@@ -2529,6 +2681,186 @@ const EditorialPlannerApp = () => {
                                           : 'Estimated synopses available after Phase 2.'
                                   )
                               ),
+                          wp.element.createElement(
+                              'div',
+                              {
+                                  style: {
+                                      marginBottom: '12px',
+                                      padding: '12px',
+                                      border: '1px solid #dcdcde',
+                                      borderRadius: '6px',
+                                      background: '#fff',
+                                  },
+                              },
+                              wp.element.createElement('strong', null, 'Effective Research Policy'),
+                              researchValidationLoading
+                                  ? wp.element.createElement('p', { style: { margin: '8px 0 0' } }, 'Loading policy…')
+                                  : wp.element.createElement(
+                                        wp.element.Fragment,
+                                        null,
+                                        wp.element.createElement(
+                                            'p',
+                                            { style: { margin: '8px 0 4px', color: '#50575e' } },
+                                            `Recency: ${researchPolicyDetail?.recency_months ?? '—'} months · Source mix minimums: academic ${researchPolicyDetail?.source_mix_minimums?.academic ?? 0}, analyst ${researchPolicyDetail?.source_mix_minimums?.analyst ?? 0}, industry ${researchPolicyDetail?.source_mix_minimums?.industry ?? 0}, case study ${researchPolicyDetail?.source_mix_minimums?.case_study ?? 0}`
+                                        ),
+                                        wp.element.createElement(
+                                            'p',
+                                            { style: { margin: '4px 0', color: '#50575e' } },
+                                            `Allowed domains: ${formatPolicyDomainList(researchPolicyDetail?.allowed_domains)}`
+                                        ),
+                                        wp.element.createElement(
+                                            'p',
+                                            { style: { margin: '4px 0', color: '#50575e' } },
+                                            `Blocked domains: ${formatPolicyDomainList(researchPolicyDetail?.blocked_domains)}`
+                                        )
+                                    ),
+                              wp.element.createElement('h4', { style: { margin: '12px 0 8px' } }, 'Edit Policy'),
+                              wp.element.createElement(RangeControl, {
+                                  label: 'Recency Window (months)',
+                                  value: Number(policyDraft?.recency_months ?? DEFAULT_RESEARCH_POLICY.recency_months),
+                                  onChange: (value) => {
+                                      setPolicyDirty(true);
+                                      setPolicyDraft((prev) => ({
+                                          ...prev,
+                                          recency_months: Number(value || DEFAULT_RESEARCH_POLICY.recency_months),
+                                      }));
+                                  },
+                                  min: 1,
+                                  max: 60,
+                                  step: 1,
+                              }),
+                              wp.element.createElement('p', { style: { margin: '6px 0', fontWeight: '500' } }, 'Source Mix Minimums'),
+                              wp.element.createElement(RangeControl, {
+                                  label: 'Academic',
+                                  value: Number(policyDraft?.source_mix_minimums?.academic ?? 0),
+                                  onChange: (value) => {
+                                      setPolicyDirty(true);
+                                      setPolicyDraft((prev) => ({
+                                          ...prev,
+                                          source_mix_minimums: {
+                                              ...prev.source_mix_minimums,
+                                              academic: Number(value || 0),
+                                          },
+                                      }));
+                                  },
+                                  min: 0,
+                                  max: 3,
+                                  step: 1,
+                              }),
+                              wp.element.createElement(RangeControl, {
+                                  label: 'Analyst',
+                                  value: Number(policyDraft?.source_mix_minimums?.analyst ?? 0),
+                                  onChange: (value) => {
+                                      setPolicyDirty(true);
+                                      setPolicyDraft((prev) => ({
+                                          ...prev,
+                                          source_mix_minimums: {
+                                              ...prev.source_mix_minimums,
+                                              analyst: Number(value || 0),
+                                          },
+                                      }));
+                                  },
+                                  min: 0,
+                                  max: 3,
+                                  step: 1,
+                              }),
+                              wp.element.createElement(RangeControl, {
+                                  label: 'Industry',
+                                  value: Number(policyDraft?.source_mix_minimums?.industry ?? 0),
+                                  onChange: (value) => {
+                                      setPolicyDirty(true);
+                                      setPolicyDraft((prev) => ({
+                                          ...prev,
+                                          source_mix_minimums: {
+                                              ...prev.source_mix_minimums,
+                                              industry: Number(value || 0),
+                                          },
+                                      }));
+                                  },
+                                  min: 0,
+                                  max: 3,
+                                  step: 1,
+                              }),
+                              wp.element.createElement(RangeControl, {
+                                  label: 'Case Study',
+                                  value: Number(policyDraft?.source_mix_minimums?.case_study ?? 0),
+                                  onChange: (value) => {
+                                      setPolicyDirty(true);
+                                      setPolicyDraft((prev) => ({
+                                          ...prev,
+                                          source_mix_minimums: {
+                                              ...prev.source_mix_minimums,
+                                              case_study: Number(value || 0),
+                                          },
+                                      }));
+                                  },
+                                  min: 0,
+                                  max: 3,
+                                  step: 1,
+                              }),
+                              wp.element.createElement(FormTokenField, {
+                                  label: 'Allowed Domains',
+                                  value: policyDraft?.allowed_domains || [],
+                                  onChange: (value) => {
+                                      setPolicyDirty(true);
+                                      setPolicyDraft((prev) => ({ ...prev, allowed_domains: value }));
+                                  },
+                                  placeholder: 'Add domains like example.com',
+                              }),
+                              wp.element.createElement(FormTokenField, {
+                                  label: 'Blocked Domains',
+                                  value: policyDraft?.blocked_domains || [],
+                                  onChange: (value) => {
+                                      setPolicyDirty(true);
+                                      setPolicyDraft((prev) => ({ ...prev, blocked_domains: value }));
+                                  },
+                                  placeholder: 'Add domains like quora.com',
+                              }),
+                              wp.element.createElement(
+                                  'div',
+                                  { style: { marginTop: '8px', display: 'flex', gap: '8px' } },
+                                  wp.element.createElement(
+                                      Button,
+                                      {
+                                          isPrimary: true,
+                                          onClick: handleSavePolicy,
+                                          disabled: policySaving || !policyDirty,
+                                      },
+                                      policySaving ? wp.element.createElement(Spinner, null) : 'Save Policy'
+                                  ),
+                                  wp.element.createElement(
+                                      Button,
+                                      {
+                                          isSecondary: true,
+                                          onClick: handleResetPolicyDraft,
+                                          disabled: policySaving,
+                                      },
+                                      'Reset'
+                                  )
+                              ),
+                              wp.element.createElement(
+                                  'p',
+                                  { style: { margin: '6px 0 0', fontSize: '12px', color: '#50575e' } },
+                                  'Saving policy updates enforcement without re-running planner.'
+                              ),
+                              wp.element.createElement(
+                                  'p',
+                                  { style: { margin: '8px 0 4px', fontWeight: '500' } },
+                                  `Validation Issues: ${researchValidationDetail?.summary?.error_count ?? 0} errors, ${researchValidationDetail?.summary?.warning_count ?? 0} warnings`
+                              ),
+                              (researchValidationDetail?.issues || []).length > 0 &&
+                                  wp.element.createElement(
+                                      'ul',
+                                      { style: { margin: '0', paddingLeft: '18px' } },
+                                      (researchValidationDetail.issues || []).slice(0, 5).map((issue, index) =>
+                                          wp.element.createElement(
+                                              'li',
+                                              { key: `${issue.code || 'issue'}-${index}`, style: { marginBottom: '4px' } },
+                                              `${(issue.severity || 'warning').toUpperCase()}: ${issue.message || issue.code || 'Validation issue'}`
+                                          )
+                                      )
+                                  )
+                          ),
                           wp.element.createElement(
                               'div',
                               { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },

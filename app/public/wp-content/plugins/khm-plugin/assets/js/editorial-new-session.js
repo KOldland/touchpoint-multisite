@@ -22,6 +22,18 @@ const TOPIC_OPTIONS = [
     { label: 'Retail', value: 'Retail' },
 ];
 
+const RESEARCH_POLICY_DEFAULTS = {
+    recencyMonths: 36,
+    maxCitationsPerOrg: 2,
+    sourceMix: {
+        academic: 1,
+        analyst: 1,
+        industry: 1,
+        caseStudy: 1,
+    },
+    blockedDomains: ['wikipedia.org', 'pinterest.com', 'reddit.com', 'quora.com'],
+};
+
 const apiFetch = (options) =>
     wp.apiFetch({
         ...options,
@@ -53,6 +65,10 @@ const EditorialNewSessionApp = () => {
     const [researchPresets, setResearchPresets] = useState([]);
     const [authorPresets, setAuthorPresets] = useState([]);
     const [loadingPresets, setLoadingPresets] = useState(false);
+    const [policyRecencyMonths, setPolicyRecencyMonths] = useState(RESEARCH_POLICY_DEFAULTS.recencyMonths);
+    const [policySourceMix, setPolicySourceMix] = useState({ ...RESEARCH_POLICY_DEFAULTS.sourceMix });
+    const [policyAllowedDomains, setPolicyAllowedDomains] = useState([]);
+    const [policyBlockedDomains, setPolicyBlockedDomains] = useState([...RESEARCH_POLICY_DEFAULTS.blockedDomains]);
 
     // Load presets on mount
     useEffect(() => {
@@ -139,6 +155,17 @@ const EditorialNewSessionApp = () => {
                     includes,
                     excludes,
                     ...(showFocusControls ? { focus_level: focusLevel } : {}),
+                    research_policy: {
+                        recency_months: policyRecencyMonths,
+                        source_mix_minimums: {
+                            academic: policySourceMix.academic,
+                            analyst: policySourceMix.analyst,
+                            industry: policySourceMix.industry,
+                            case_study: policySourceMix.caseStudy,
+                        },
+                        allowed_domains: policyAllowedDomains,
+                        blocked_domains: policyBlockedDomains,
+                    },
                     // Add author profile to metadata (research profile is in preset_id)
                     author_profile: authorProfile || undefined,
                     is_sponsored: isSponsored,
@@ -192,6 +219,10 @@ const EditorialNewSessionApp = () => {
             setIsSponsored(false);
             setSelectedSponsor('');
             setSponsorWeighting(2);
+            setPolicyRecencyMonths(RESEARCH_POLICY_DEFAULTS.recencyMonths);
+            setPolicySourceMix({ ...RESEARCH_POLICY_DEFAULTS.sourceMix });
+            setPolicyAllowedDomains([]);
+            setPolicyBlockedDomains([...RESEARCH_POLICY_DEFAULTS.blockedDomains]);
 
             // Navigate to planner to view the session
             window.location.href = admin_url + 'admin.php?page=editorial_planner';
@@ -239,6 +270,87 @@ const EditorialNewSessionApp = () => {
                             onChange: setResearchProfile,
                             help: 'Optional: Research perspective from Dual GPT presets',
                         })
+                ),
+                wp.element.createElement(
+                    'div',
+                    {
+                        style: {
+                            marginTop: '10px',
+                            padding: '10px',
+                            backgroundColor: '#f6f7f7',
+                            border: '1px solid #dcdcde',
+                            borderRadius: '3px',
+                            fontSize: '12px',
+                            color: '#50575e',
+                        },
+                    },
+                    wp.element.createElement('strong', null, 'Research policy (server-enforced defaults): '),
+                    `Recency ${RESEARCH_POLICY_DEFAULTS.recencyMonths} months, max ${RESEARCH_POLICY_DEFAULTS.maxCitationsPerOrg} citations/org, source mix min (${RESEARCH_POLICY_DEFAULTS.sourceMix.academic} academic, ${RESEARCH_POLICY_DEFAULTS.sourceMix.analyst} analyst, ${RESEARCH_POLICY_DEFAULTS.sourceMix.industry} industry, ${RESEARCH_POLICY_DEFAULTS.sourceMix.caseStudy} case study), blocked domains: ${RESEARCH_POLICY_DEFAULTS.blockedDomains.join(', ')}.`
+                ),
+                wp.element.createElement(
+                    'div',
+                    {
+                        style: {
+                            marginTop: '10px',
+                            padding: '12px',
+                            border: '1px solid #dcdcde',
+                            borderRadius: '3px',
+                        },
+                    },
+                    wp.element.createElement('h4', { style: { margin: '0 0 10px' } }, 'Research Policy Overrides (Optional)'),
+                    wp.element.createElement(RangeControl, {
+                        label: 'Recency Window (months)',
+                        value: policyRecencyMonths,
+                        onChange: (value) => setPolicyRecencyMonths(Number(value || RESEARCH_POLICY_DEFAULTS.recencyMonths)),
+                        min: 1,
+                        max: 60,
+                        step: 1,
+                    }),
+                    wp.element.createElement('p', { style: { margin: '8px 0 4px', fontWeight: '500' } }, 'Source Mix Minimums'),
+                    wp.element.createElement(RangeControl, {
+                        label: 'Academic',
+                        value: policySourceMix.academic,
+                        onChange: (value) => setPolicySourceMix((prev) => ({ ...prev, academic: Number(value || 0) })),
+                        min: 0,
+                        max: 3,
+                        step: 1,
+                    }),
+                    wp.element.createElement(RangeControl, {
+                        label: 'Analyst',
+                        value: policySourceMix.analyst,
+                        onChange: (value) => setPolicySourceMix((prev) => ({ ...prev, analyst: Number(value || 0) })),
+                        min: 0,
+                        max: 3,
+                        step: 1,
+                    }),
+                    wp.element.createElement(RangeControl, {
+                        label: 'Industry',
+                        value: policySourceMix.industry,
+                        onChange: (value) => setPolicySourceMix((prev) => ({ ...prev, industry: Number(value || 0) })),
+                        min: 0,
+                        max: 3,
+                        step: 1,
+                    }),
+                    wp.element.createElement(RangeControl, {
+                        label: 'Case Study',
+                        value: policySourceMix.caseStudy,
+                        onChange: (value) => setPolicySourceMix((prev) => ({ ...prev, caseStudy: Number(value || 0) })),
+                        min: 0,
+                        max: 3,
+                        step: 1,
+                    }),
+                    wp.element.createElement(FormTokenField, {
+                        label: 'Allowed Domains (optional allowlist)',
+                        value: policyAllowedDomains,
+                        onChange: setPolicyAllowedDomains,
+                        placeholder: 'Add domains like example.com',
+                    }),
+                    wp.element.createElement(FormTokenField, {
+                        label: 'Blocked Domains',
+                        value: policyBlockedDomains,
+                        onChange: setPolicyBlockedDomains,
+                        placeholder: 'Add domains to block',
+                    })
                 ),
                 wp.element.createElement('div', { style: { marginTop: '20px' } },
                     loadingPresets ? 

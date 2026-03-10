@@ -215,6 +215,18 @@ class Dual_GPT_Plugin {
             'permission_callback' => array($this, 'check_permissions'),
         ));
 
+        register_rest_route('dual-gpt/v1', '/planner/research-validation', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_planner_research_validation'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/policy', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'update_planner_policy'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
         register_rest_route('dual-gpt/v1', '/planner/export', array(
             'methods' => 'POST',
             'callback' => array($this, 'export_planner_validation'),
@@ -587,7 +599,34 @@ class Dual_GPT_Plugin {
             $clean[$safe_key] = $this->sanitize_meta_value($value);
         }
 
+        if (!empty($clean['research_policy']) && is_array($clean['research_policy'])) {
+            $clean['research_policy'] = $this->sanitize_research_policy($clean['research_policy']);
+        }
+
         return $clean;
+    }
+
+    private function sanitize_research_policy($policy_input) {
+        $defaults = $this->default_research_policy();
+        $policy_input = is_array($policy_input) ? $policy_input : array();
+
+        $source_mix_input = is_array($policy_input['source_mix_minimums'] ?? null) ? $policy_input['source_mix_minimums'] : array();
+
+        return array(
+            'priority_domains' => $this->normalize_research_domain_list($policy_input['priority_domains'] ?? $defaults['priority_domains']),
+            'allowed_domains' => $this->normalize_research_domain_list($policy_input['allowed_domains'] ?? $defaults['allowed_domains']),
+            'blocked_domains' => $this->normalize_research_domain_list($policy_input['blocked_domains'] ?? $defaults['blocked_domains']),
+            'blocked_keywords' => $this->normalize_research_term_list($policy_input['blocked_keywords'] ?? $defaults['blocked_keywords']),
+            'source_mix_minimums' => array(
+                'academic' => max(0, intval($source_mix_input['academic'] ?? $defaults['source_mix_minimums']['academic'])),
+                'analyst' => max(0, intval($source_mix_input['analyst'] ?? $defaults['source_mix_minimums']['analyst'])),
+                'industry' => max(0, intval($source_mix_input['industry'] ?? $defaults['source_mix_minimums']['industry'])),
+                'case_study' => max(0, intval($source_mix_input['case_study'] ?? $defaults['source_mix_minimums']['case_study'])),
+            ),
+            'max_citations_per_org' => max(1, intval($policy_input['max_citations_per_org'] ?? $defaults['max_citations_per_org'])),
+            'recency_months' => max(1, intval($policy_input['recency_months'] ?? $defaults['recency_months'])),
+            'min_priority_domains_hit' => max(0, intval($policy_input['min_priority_domains_hit'] ?? $defaults['min_priority_domains_hit'])),
+        );
     }
 
     /**
@@ -689,6 +728,7 @@ class Dual_GPT_Plugin {
         }
 
         $meta = $this->hydrate_planner_meta_from_jobs($session_id, $meta);
+        $meta = $this->ensure_research_policy_in_meta($meta);
 
         $session['meta'] = $meta;
         unset($session['meta_json']);
@@ -743,6 +783,7 @@ class Dual_GPT_Plugin {
         $title = !empty($params['title']) ? sanitize_text_field($params['title']) : null;
         $post_id = !empty($params['post_id']) ? intval($params['post_id']) : null;
         $meta = isset($params['meta']) ? $this->sanitize_session_meta($params['meta']) : null;
+        $meta = $this->ensure_research_policy_in_meta($meta);
         $idempotency_key = !empty($params['idempotency_key']) ? sanitize_text_field($params['idempotency_key']) : null;
         if ($idempotency_key && strlen($idempotency_key) > 64) {
             $idempotency_key = substr($idempotency_key, 0, 64);
@@ -801,7 +842,8 @@ class Dual_GPT_Plugin {
         }
 
         $focus_level = $this->normalize_focus_level($request->get_param('focus_level'));
-        if ($focus_level !== null) {
+        $requested_policy = $request->get_param('research_policy');
+        if ($focus_level !== null || is_array($requested_policy)) {
             $db = new Dual_GPT_DB_Handler();
             $session = $db->get_session($session_id);
             if (!$session) {
@@ -811,7 +853,14 @@ class Dual_GPT_Plugin {
                 return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
             }
             $meta = $this->decode_session_meta($session['meta_json'] ?? null);
-            $meta['focus_level'] = $focus_level;
+            $meta = $this->ensure_research_policy_in_meta($meta);
+            if ($focus_level !== null) {
+                $meta['focus_level'] = $focus_level;
+            }
+            if (is_array($requested_policy)) {
+                $meta['research_policy'] = $this->sanitize_research_policy($requested_policy);
+            }
+            $meta = $this->ensure_research_policy_in_meta($meta);
             $db->update_session_meta($session_id, $meta);
         }
 
@@ -930,6 +979,7 @@ class Dual_GPT_Plugin {
         }
 
         $meta = $this->decode_session_meta($session['meta_json'] ?? null);
+        $meta = $this->ensure_research_policy_in_meta($meta);
         if ($focus_level !== null) {
             $meta['focus_level'] = $focus_level;
         }
@@ -995,6 +1045,7 @@ class Dual_GPT_Plugin {
         }
 
         $meta = $this->decode_session_meta($session['meta_json'] ?? null);
+        $meta = $this->ensure_research_policy_in_meta($meta);
         if ($focus_level !== null) {
             $meta['focus_level'] = $focus_level;
         }
@@ -1058,6 +1109,7 @@ class Dual_GPT_Plugin {
         }
 
         $meta = $this->decode_session_meta($session['meta_json'] ?? null);
+        $meta = $this->ensure_research_policy_in_meta($meta);
         if ($focus_level !== null) {
             $meta['focus_level'] = $focus_level;
         }
@@ -1100,15 +1152,18 @@ class Dual_GPT_Plugin {
         }
 
         $meta['phase2'] = $phase1_5;
+        $phase2_validation = $this->validate_research_phase_payload('phase2', $phase1_5, $meta);
         $phases = isset($meta['phases']) && is_array($meta['phases']) ? $meta['phases'] : array();
         $phases['phase2'] = array(
             'title' => 'Research Phase 2',
             'status' => 'completed',
             'completed_at' => current_time('mysql'),
             'payload' => $phase1_5,
+            'validation' => $phase2_validation,
             'summary' => $phase1_5['summary'] ?? '',
         );
         $meta['phases'] = $phases;
+        $meta = $this->refresh_research_validation_index($meta);
         $db->update_session_meta($session_id, $meta);
 
         return new WP_REST_Response(array(
@@ -1148,6 +1203,98 @@ class Dual_GPT_Plugin {
             'session_id' => $session_id,
             'total' => $total,
             'plan' => $plan,
+        ), 200);
+    }
+
+    public function get_planner_research_validation($request) {
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+
+        if (empty($session_id)) {
+            return new WP_Error('missing_session_id', 'Session ID is required', array('status' => 400));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($session_id);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $meta = $this->decode_session_meta($session['meta_json'] ?? null);
+        $meta = $this->hydrate_planner_meta_from_jobs($session_id, $meta);
+
+        $validation = $meta['research_validation'] ?? array(
+            'summary' => array(
+                'error_count' => 0,
+                'warning_count' => 0,
+                'has_errors' => false,
+                'generated_at' => current_time('mysql'),
+            ),
+            'policy' => $this->resolve_research_policy($meta),
+            'by_phase' => array(),
+            'issues' => array(),
+        );
+
+        return new WP_REST_Response(array(
+            'session_id' => $session_id,
+            'research_policy' => $this->resolve_research_policy($meta),
+            'research_validation' => $validation,
+        ), 200);
+    }
+
+    public function update_planner_policy($request) {
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+        $policy_input = $request->get_param('research_policy');
+
+        if (empty($session_id)) {
+            return new WP_Error('missing_session_id', 'Session ID is required', array('status' => 400));
+        }
+
+        if (!is_array($policy_input)) {
+            return new WP_Error('missing_policy', 'research_policy payload is required', array('status' => 400));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($session_id);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $meta = $this->decode_session_meta($session['meta_json'] ?? null);
+        $meta = $this->ensure_research_policy_in_meta($meta);
+
+        $old_policy = $this->resolve_research_policy($meta);
+        $meta['research_policy'] = $this->sanitize_research_policy($policy_input);
+        $meta = $this->ensure_research_policy_in_meta($meta);
+        $new_policy = $this->resolve_research_policy($meta);
+        $policy_changed = wp_json_encode($old_policy) !== wp_json_encode($new_policy);
+
+        $updated = $db->update_session_meta($session_id, $meta);
+        if (!$updated) {
+            return new WP_Error('policy_save_failed', 'Failed to save research policy', array('status' => 500));
+        }
+
+        if ($policy_changed) {
+            $db->insert_audit_log(null, 'planner_policy_updated', array(
+                'session_id' => $session_id,
+                'updated_by' => get_current_user_id(),
+                'updated_at' => current_time('mysql'),
+                'old_policy' => $old_policy,
+                'new_policy' => $new_policy,
+            ));
+        }
+
+        return new WP_REST_Response(array(
+            'session_id' => $session_id,
+            'changed' => $policy_changed,
+            'research_policy' => $new_policy,
         ), 200);
     }
 
@@ -2996,6 +3143,7 @@ class Dual_GPT_Plugin {
             );
             if (is_array($payload)) {
                 $phase_data['payload'] = $payload;
+                $phase_data['validation'] = $this->validate_research_phase_payload($storage_key, $payload, $meta);
             }
 
             $task_map = array(
@@ -3047,6 +3195,8 @@ class Dual_GPT_Plugin {
                 }
             }
 
+            $meta = $this->refresh_research_validation_index($meta);
+
             $updated = $db->update_session_meta($session['id'], $meta);
             if (!$updated) {
                 error_log('[PLANNER] Failed to update session meta for ' . $session['id']);
@@ -3059,13 +3209,16 @@ class Dual_GPT_Plugin {
                 $phase1_5 = $orchestrator->run_phase1_5($session['id'], $meta['phase1']['candidate_keywords'], $max_keywords);
                 if (!is_wp_error($phase1_5)) {
                     $meta['phase2'] = $phase1_5;
+                    $phase2_validation = $this->validate_research_phase_payload('phase2', $phase1_5, $meta);
                     $meta['phases']['phase2'] = array(
                         'title' => 'Research Phase 2',
                         'status' => 'completed',
                         'completed_at' => current_time('mysql'),
                         'payload' => $phase1_5,
+                        'validation' => $phase2_validation,
                         'summary' => $phase1_5['summary'] ?? '',
                     );
+                    $meta = $this->refresh_research_validation_index($meta);
                     $db->update_session_meta($session['id'], $meta);
 
                     $prompt = $orchestrator->build_phase2_prompt(
@@ -4374,12 +4527,474 @@ class Dual_GPT_Plugin {
         );
     }
 
+    private function validate_research_phase_payload($phase_key, $payload, $meta = array()) {
+        if (!is_array($payload)) {
+            return array(
+                'issues' => array(),
+                'summary' => array(
+                    'phase' => $phase_key,
+                    'error_count' => 0,
+                    'warning_count' => 0,
+                    'has_errors' => false,
+                    'generated_at' => current_time('mysql'),
+                ),
+            );
+        }
+
+        $policy = $this->resolve_research_policy($meta);
+        $issues = array();
+        $citations = $this->extract_research_citations_from_payload($phase_key, $payload);
+        $blocked_domains = $policy['blocked_domains'];
+        $allowed_domains = $policy['allowed_domains'];
+        $priority_domains = $policy['priority_domains'];
+        $blocked_terms = $policy['blocked_keywords'];
+        $max_citations_per_org = max(1, intval($policy['max_citations_per_org'] ?? 2));
+        $recency_months = max(1, intval($policy['recency_months'] ?? 36));
+        $source_mix_minimums = is_array($policy['source_mix_minimums'] ?? null) ? $policy['source_mix_minimums'] : array();
+        $source_mix_minimums = array_merge(array(
+            'academic' => 1,
+            'analyst' => 1,
+            'industry' => 1,
+            'case_study' => 1,
+        ), $source_mix_minimums);
+        $min_priority_domains_hit = max(0, intval($policy['min_priority_domains_hit'] ?? 0));
+        $org_counts = array();
+        $seen_keys = array();
+        $priority_domain_hits = array();
+        $type_counts = array(
+            'academic' => 0,
+            'analyst' => 0,
+            'industry' => 0,
+            'case_study' => 0,
+        );
+
+        foreach ($citations as $index => $citation) {
+            if (!is_array($citation)) {
+                continue;
+            }
+
+            $path = 'citations[' . $index . ']';
+            $url = trim((string) ($citation['url'] ?? ''));
+            $title = trim((string) ($citation['title'] ?? ''));
+            $org = trim((string) ($citation['organisation'] ?? $citation['organization'] ?? $citation['source'] ?? $citation['publication'] ?? ''));
+            $date_value = trim((string) (
+                $citation['publication_date']
+                ?? $citation['published_at']
+                ?? $citation['date']
+                ?? $citation['year']
+                ?? ''
+            ));
+
+            $dedupe_key = $url !== '' ? strtolower($url) : strtolower($title);
+            if ($dedupe_key !== '') {
+                if (isset($seen_keys[$dedupe_key])) {
+                    $issues[] = $this->build_research_issue(
+                        'error',
+                        'citation_duplicate',
+                        $phase_key,
+                        $path,
+                        'Citation appears more than once in phase output.',
+                        array('dedupe_key' => $dedupe_key)
+                    );
+                }
+                $seen_keys[$dedupe_key] = true;
+            }
+
+            if ($url !== '') {
+                $host = $this->normalize_research_domain((string) parse_url($url, PHP_URL_HOST));
+                foreach ($blocked_domains as $blocked_domain) {
+                    if ($this->research_domain_matches($host, $blocked_domain)) {
+                        $issues[] = $this->build_research_issue(
+                            'error',
+                            'blocked_domain',
+                            $phase_key,
+                            $path . '.url',
+                            'Citation domain is blocked by research policy.',
+                            array('domain' => $host)
+                        );
+                        break;
+                    }
+                }
+
+                if (!empty($allowed_domains) && !$this->research_domain_in_list($host, $allowed_domains)) {
+                    $issues[] = $this->build_research_issue(
+                        'warning',
+                        'domain_not_allowed',
+                        $phase_key,
+                        $path . '.url',
+                        'Citation domain is outside allowed domains for this persona policy.',
+                        array('domain' => $host)
+                    );
+                }
+
+                foreach ($priority_domains as $priority_domain) {
+                    if ($this->research_domain_matches($host, $priority_domain)) {
+                        $priority_domain_hits[$priority_domain] = true;
+                    }
+                }
+            }
+
+            $haystack = strtolower($title . ' ' . ($citation['snippet'] ?? '') . ' ' . ($citation['quote'] ?? ''));
+            foreach ($blocked_terms as $term) {
+                if ($haystack !== '' && strpos($haystack, strtolower($term)) !== false) {
+                    $issues[] = $this->build_research_issue(
+                        'warning',
+                        'blocked_term',
+                        $phase_key,
+                        $path,
+                        'Citation content includes a blocked or low-trust keyword.',
+                        array('term' => $term)
+                    );
+                    break;
+                }
+            }
+
+            if ($org !== '') {
+                $org_key = strtolower($org);
+                $org_counts[$org_key] = ($org_counts[$org_key] ?? 0) + 1;
+                if ($org_counts[$org_key] > $max_citations_per_org) {
+                    $issues[] = $this->build_research_issue(
+                        'error',
+                        'org_overrepresented',
+                        $phase_key,
+                        $path,
+                        'Citation count exceeds allowed maximum per organization.',
+                        array('organization' => $org, 'count' => $org_counts[$org_key], 'max_allowed' => $max_citations_per_org)
+                    );
+                }
+            }
+
+            $timestamp = $this->parse_research_citation_date($date_value);
+            if ($date_value === '' || $timestamp === null) {
+                $issues[] = $this->build_research_issue(
+                    'error',
+                    'citation_date_missing_or_invalid',
+                    $phase_key,
+                    $path . '.date',
+                    'Citation date is missing or cannot be parsed.',
+                    array('value' => $date_value)
+                );
+            } else {
+                $cutoff = strtotime('-' . $recency_months . ' months');
+                if ($timestamp < $cutoff) {
+                    $issues[] = $this->build_research_issue(
+                        'error',
+                        'citation_stale',
+                        $phase_key,
+                        $path . '.date',
+                        'Citation exceeds recency window.',
+                        array('value' => $date_value, 'recency_months' => $recency_months)
+                    );
+                }
+            }
+
+            $type_key = $this->classify_research_citation_type($citation);
+            if ($type_key !== null && isset($type_counts[$type_key])) {
+                $type_counts[$type_key]++;
+            }
+        }
+
+        if (in_array($phase_key, array('phase3', 'phase4'), true)) {
+            foreach ($type_counts as $type => $count) {
+                $required_minimum = max(0, intval($source_mix_minimums[$type] ?? 0));
+                if ($count < $required_minimum) {
+                    $issues[] = $this->build_research_issue(
+                        'warning',
+                        'source_mix_missing_' . $type,
+                        $phase_key,
+                        'citations',
+                        'Source mix minimum missing for required type: ' . $type . '.',
+                        array('required_minimum' => $required_minimum, 'actual' => $count)
+                    );
+                }
+            }
+
+            if ($min_priority_domains_hit > 0 && count($priority_domain_hits) < $min_priority_domains_hit) {
+                $issues[] = $this->build_research_issue(
+                    'warning',
+                    'priority_domain_coverage_low',
+                    $phase_key,
+                    'citations',
+                    'Priority domain coverage is below target.',
+                    array('required_minimum' => $min_priority_domains_hit, 'actual' => count($priority_domain_hits))
+                );
+            }
+        }
+
+        $error_count = 0;
+        $warning_count = 0;
+        foreach ($issues as $issue) {
+            if (($issue['severity'] ?? '') === 'error') {
+                $error_count++;
+            } else {
+                $warning_count++;
+            }
+        }
+
+        return array(
+            'issues' => $issues,
+            'summary' => array(
+                'phase' => $phase_key,
+                'citation_count' => count($citations),
+                'error_count' => $error_count,
+                'warning_count' => $warning_count,
+                'has_errors' => $error_count > 0,
+                'policy' => array(
+                    'recency_months' => $recency_months,
+                    'max_citations_per_org' => $max_citations_per_org,
+                    'source_mix_minimums' => $source_mix_minimums,
+                    'min_priority_domains_hit' => $min_priority_domains_hit,
+                ),
+                'generated_at' => current_time('mysql'),
+            ),
+        );
+    }
+
+    private function default_research_policy() {
+        return array(
+            'priority_domains' => array(),
+            'allowed_domains' => array(),
+            'blocked_domains' => array('wikipedia.org', 'pinterest.com', 'reddit.com', 'quora.com'),
+            'blocked_keywords' => array('chatgpt', 'gemini', 'claude', 'ai-generated', 'synthetic study'),
+            'source_mix_minimums' => array(
+                'academic' => 1,
+                'analyst' => 1,
+                'industry' => 1,
+                'case_study' => 1,
+            ),
+            'max_citations_per_org' => 2,
+            'recency_months' => 36,
+            'min_priority_domains_hit' => 0,
+        );
+    }
+
+    private function resolve_research_policy($meta) {
+        $defaults = $this->default_research_policy();
+        if (!is_array($meta)) {
+            return $defaults;
+        }
+
+        $candidate = array();
+        if (!empty($meta['research_policy']) && is_array($meta['research_policy'])) {
+            $candidate = $meta['research_policy'];
+        } elseif (!empty($meta['persona_policy']['research']) && is_array($meta['persona_policy']['research'])) {
+            $candidate = $meta['persona_policy']['research'];
+        }
+
+        return $this->sanitize_research_policy($candidate);
+    }
+
+    private function ensure_research_policy_in_meta($meta) {
+        if (!is_array($meta)) {
+            $meta = array();
+        }
+        $meta['research_policy'] = $this->resolve_research_policy($meta);
+        return $meta;
+    }
+
+    private function normalize_research_term_list($terms) {
+        if (is_string($terms)) {
+            $terms = array_filter(array_map('trim', explode(',', $terms)));
+        }
+        if (!is_array($terms)) {
+            return array();
+        }
+
+        $normalized = array();
+        foreach ($terms as $term) {
+            $term = strtolower(trim((string) $term));
+            if ($term === '') {
+                continue;
+            }
+            $normalized[$term] = true;
+        }
+
+        return array_keys($normalized);
+    }
+
+    private function normalize_research_domain_list($domains) {
+        if (is_string($domains)) {
+            $domains = array_filter(array_map('trim', explode(',', $domains)));
+        }
+        if (!is_array($domains)) {
+            return array();
+        }
+
+        $normalized = array();
+        foreach ($domains as $domain) {
+            $domain = $this->normalize_research_domain($domain);
+            if ($domain === '') {
+                continue;
+            }
+            $normalized[$domain] = true;
+        }
+
+        return array_keys($normalized);
+    }
+
+    private function normalize_research_domain($domain) {
+        $domain = strtolower(trim((string) $domain));
+        $domain = preg_replace('#^https?://#', '', $domain);
+        $domain = preg_replace('#/.*$#', '', $domain);
+        $domain = preg_replace('#^www\.#', '', $domain);
+        return trim($domain, '. ');
+    }
+
+    private function research_domain_matches($host, $domain) {
+        $host = $this->normalize_research_domain($host);
+        $domain = $this->normalize_research_domain($domain);
+        if ($host === '' || $domain === '') {
+            return false;
+        }
+        return $host === $domain || substr($host, -strlen('.' . $domain)) === '.' . $domain;
+    }
+
+    private function research_domain_in_list($host, $domains) {
+        foreach ((array) $domains as $domain) {
+            if ($this->research_domain_matches($host, $domain)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function build_research_issue($severity, $code, $phase_key, $path, $message, $meta = array()) {
+        return array(
+            'severity' => $severity,
+            'code' => $code,
+            'phase' => $phase_key,
+            'path' => $path,
+            'message' => $message,
+            'meta' => is_array($meta) ? $meta : array(),
+        );
+    }
+
+    private function extract_research_citations_from_payload($phase_key, $payload) {
+        $citations = array();
+        if (!is_array($payload)) {
+            return $citations;
+        }
+
+        if (!empty($payload['citations']) && is_array($payload['citations'])) {
+            $citations = array_merge($citations, $payload['citations']);
+        }
+
+        if ($phase_key === 'phase1' && !empty($payload['trends']) && is_array($payload['trends'])) {
+            foreach ($payload['trends'] as $trend) {
+                if (!is_array($trend)) {
+                    continue;
+                }
+                if (!empty($trend['citations']) && is_array($trend['citations'])) {
+                    $citations = array_merge($citations, $trend['citations']);
+                }
+            }
+        }
+
+        if ($phase_key === 'phase4' && !empty($payload['validated_topics']) && is_array($payload['validated_topics'])) {
+            foreach ($payload['validated_topics'] as $topic) {
+                if (!is_array($topic)) {
+                    continue;
+                }
+                if (!empty($topic['citations']) && is_array($topic['citations'])) {
+                    $citations = array_merge($citations, $topic['citations']);
+                }
+            }
+        }
+
+        return array_values(array_filter($citations, 'is_array'));
+    }
+
+    private function classify_research_citation_type($citation) {
+        $type_raw = strtolower(trim((string) ($citation['type'] ?? $citation['source_type'] ?? $citation['tier'] ?? '')));
+        $source_raw = strtolower(trim((string) ($citation['source'] ?? $citation['publication'] ?? $citation['organisation'] ?? '')));
+        $title_raw = strtolower(trim((string) ($citation['title'] ?? '')));
+        $combined = $type_raw . ' ' . $source_raw . ' ' . $title_raw;
+
+        if (preg_match('/academic|journal|conference|doi|arxiv/', $combined)) {
+            return 'academic';
+        }
+        if (preg_match('/analyst|gartner|forrester|idc|mckinsey|bain|bcg/', $combined)) {
+            return 'analyst';
+        }
+        if (preg_match('/case[_\s-]?study|customer story|success story/', $combined)) {
+            return 'case_study';
+        }
+        if (preg_match('/industry|trade|news|media|association/', $combined)) {
+            return 'industry';
+        }
+
+        return null;
+    }
+
+    private function parse_research_citation_date($value) {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^\d{4}$/', $value)) {
+            return strtotime($value . '-12-31');
+        }
+
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            return null;
+        }
+
+        return $timestamp;
+    }
+
+    private function refresh_research_validation_index($meta) {
+        if (!is_array($meta)) {
+            return $meta;
+        }
+
+        $policy = $this->resolve_research_policy($meta);
+        $phases = isset($meta['phases']) && is_array($meta['phases']) ? $meta['phases'] : array();
+        $by_phase = array();
+        $all_issues = array();
+        $error_count = 0;
+        $warning_count = 0;
+
+        foreach ($phases as $phase_key => $phase_data) {
+            if (!is_array($phase_data) || empty($phase_data['validation']) || !is_array($phase_data['validation'])) {
+                continue;
+            }
+            $validation = $phase_data['validation'];
+            $by_phase[$phase_key] = $validation;
+            $phase_issues = isset($validation['issues']) && is_array($validation['issues']) ? $validation['issues'] : array();
+            foreach ($phase_issues as $issue) {
+                $all_issues[] = $issue;
+                if (($issue['severity'] ?? '') === 'error') {
+                    $error_count++;
+                } else {
+                    $warning_count++;
+                }
+            }
+        }
+
+        $meta['research_validation'] = array(
+            'summary' => array(
+                'error_count' => $error_count,
+                'warning_count' => $warning_count,
+                'has_errors' => $error_count > 0,
+                'generated_at' => current_time('mysql'),
+            ),
+            'policy' => $policy,
+            'by_phase' => $by_phase,
+            'issues' => $all_issues,
+        );
+
+        return $meta;
+    }
+
     private function hydrate_planner_meta_from_jobs($session_id, $meta) {
         global $wpdb;
 
         if (!is_array($meta)) {
             $meta = array();
         }
+        $meta = $this->ensure_research_policy_in_meta($meta);
 
         $jobs = $wpdb->get_results(
             $wpdb->prepare(
@@ -4560,7 +5175,9 @@ class Dual_GPT_Plugin {
                 if (!empty($response_content)) {
                     $payload = $this->extract_json_from_content($response_content);
                     if (is_array($payload)) {
+                        $validation = $this->validate_research_phase_payload($phase_key, $payload, $meta);
                         $phase['payload'] = $payload;
+                        $phase['validation'] = $validation;
                         $phase['summary'] = $payload['summary'] ?? $phase['summary'] ?? '';
                         if (empty($phase['summary'])) {
                             $phase['summary'] = $payload['executive_summary']
@@ -4617,6 +5234,7 @@ class Dual_GPT_Plugin {
         }
 
         $meta['phases'] = $phases;
+        $meta = $this->refresh_research_validation_index($meta);
 
         if (!empty($meta['articles']) && is_array($meta['articles'])) {
             foreach ($meta['articles'] as $index => $article) {
