@@ -43,6 +43,10 @@ class Dual_GPT_Author_Agent_API {
                     'type' => 'object',
                     'required' => false,
                 ),
+                'author_policy' => array(
+                    'type' => 'object',
+                    'required' => false,
+                ),
             ),
         ));
     }
@@ -88,6 +92,7 @@ class Dual_GPT_Author_Agent {
         $draft_content = $payload['draft_content'] ?? '';
         $instructions = sanitize_textarea_field($payload['instructions'] ?? '');
         $core_settings = $this->normalize_core_settings($payload['core_settings'] ?? array());
+        $author_policy = $this->resolve_author_policy($payload, $planner_session_id);
 
         $warnings = array();
         $validation_errors = array();
@@ -138,13 +143,13 @@ class Dual_GPT_Author_Agent {
                 return $budget_check;
             }
 
-            $draft_result = $this->generate_draft($framework_brief, $planner_brief, $citations, $core_settings, $instructions, $user_id);
+            $draft_result = $this->generate_draft($framework_brief, $planner_brief, $citations, $core_settings, $author_policy, $instructions, $user_id);
             if (is_wp_error($draft_result)) {
                 return $draft_result;
             }
 
             $validation = $this->validate_citations_in_text($draft_result['text'] ?? '', $citations);
-            $constraint_validation = $this->validate_draft_constraints($draft_result['blocks'] ?? array(), $core_settings);
+            $constraint_validation = $this->validate_draft_constraints($draft_result['blocks'] ?? array(), $core_settings, $author_policy);
             $warnings = array_merge($warnings, $validation['warnings']);
             $validation_errors = array_merge($validation_errors, $validation['errors']);
             $warnings = array_merge($warnings, $constraint_validation['warnings']);
@@ -156,6 +161,7 @@ class Dual_GPT_Author_Agent {
                 'warnings' => $warnings,
                 'validation_errors' => $validation_errors,
                 'citations' => $citations,
+                'author_policy' => $author_policy,
                 'usage' => $draft_result['usage'] ?? null,
             );
         }
@@ -185,6 +191,7 @@ class Dual_GPT_Author_Agent {
                 'warnings' => $warnings,
                 'validation_errors' => $validation_errors,
                 'citations' => $citations,
+                'author_policy' => $author_policy,
                 'usage' => $abstract_result['usage'] ?? null,
             );
         }
@@ -203,6 +210,7 @@ class Dual_GPT_Author_Agent {
             'warnings' => $warnings,
             'validation_errors' => $validation_errors,
             'citations' => $citations,
+            'author_policy' => $author_policy,
         );
     }
 
@@ -227,6 +235,87 @@ class Dual_GPT_Author_Agent {
             'risk_tolerance' => sanitize_text_field($settings['risk_tolerance'] ?? $defaults['risk_tolerance']),
             'brand_profile' => sanitize_text_field($settings['brand_profile'] ?? $defaults['brand_profile']),
         );
+    }
+
+    private function default_author_policy() {
+        return array(
+            'reporter_voice_required' => true,
+            'disallow_first_person' => true,
+            'disallow_em_dash' => true,
+            'disallow_rhetorical_binaries' => true,
+            'disallow_listicle_framing' => true,
+            'disallow_tidy_conclusion' => true,
+            'min_words' => 1200,
+            'max_words' => 2600,
+            'banned_phrases' => array(),
+        );
+    }
+
+    private function sanitize_author_policy($policy) {
+        $defaults = $this->default_author_policy();
+        $policy = is_array($policy) ? $policy : array();
+
+        $banned_phrases = $policy['banned_phrases'] ?? $defaults['banned_phrases'];
+        if (is_string($banned_phrases)) {
+            $banned_phrases = array_filter(array_map('trim', explode(',', $banned_phrases)));
+        }
+        if (!is_array($banned_phrases)) {
+            $banned_phrases = array();
+        }
+        $banned_phrases = array_values(array_unique(array_filter(array_map(function ($phrase) {
+            return strtolower(trim((string) $phrase));
+        }, $banned_phrases))));
+
+        $min_words = max(300, intval($policy['min_words'] ?? $defaults['min_words']));
+        $max_words = max($min_words, intval($policy['max_words'] ?? $defaults['max_words']));
+
+        return array(
+            'reporter_voice_required' => (bool) ($policy['reporter_voice_required'] ?? $defaults['reporter_voice_required']),
+            'disallow_first_person' => (bool) ($policy['disallow_first_person'] ?? $defaults['disallow_first_person']),
+            'disallow_em_dash' => (bool) ($policy['disallow_em_dash'] ?? $defaults['disallow_em_dash']),
+            'disallow_rhetorical_binaries' => (bool) ($policy['disallow_rhetorical_binaries'] ?? $defaults['disallow_rhetorical_binaries']),
+            'disallow_listicle_framing' => (bool) ($policy['disallow_listicle_framing'] ?? $defaults['disallow_listicle_framing']),
+            'disallow_tidy_conclusion' => (bool) ($policy['disallow_tidy_conclusion'] ?? $defaults['disallow_tidy_conclusion']),
+            'min_words' => $min_words,
+            'max_words' => $max_words,
+            'banned_phrases' => $banned_phrases,
+        );
+    }
+
+    private function resolve_author_policy($payload, $planner_session_id) {
+        if (!empty($payload['author_policy']) && is_array($payload['author_policy'])) {
+            return $this->sanitize_author_policy($payload['author_policy']);
+        }
+
+        $session_policy = $this->load_author_policy_from_session($planner_session_id);
+        return $this->sanitize_author_policy($session_policy);
+    }
+
+    private function load_author_policy_from_session($planner_session_id) {
+        if (empty($planner_session_id)) {
+            return array();
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($planner_session_id);
+        if (!$session || empty($session['meta_json'])) {
+            return array();
+        }
+
+        $meta = json_decode($session['meta_json'], true);
+        if (!is_array($meta)) {
+            return array();
+        }
+
+        if (!empty($meta['author_policy']) && is_array($meta['author_policy'])) {
+            return $meta['author_policy'];
+        }
+
+        if (!empty($meta['persona_policy']['author']) && is_array($meta['persona_policy']['author'])) {
+            return $meta['persona_policy']['author'];
+        }
+
+        return array();
     }
 
     /**
@@ -409,7 +498,7 @@ class Dual_GPT_Author_Agent {
     /**
      * Generate draft content
      */
-    private function generate_draft($framework_brief, $planner_brief, $citations, $core_settings, $instructions, $user_id) {
+    private function generate_draft($framework_brief, $planner_brief, $citations, $core_settings, $author_policy, $instructions, $user_id) {
         $llm_client = new \Dual_GPT\Dual_GPT_LLM_Client();
         if (!$llm_client->has_api_key()) {
             return new WP_Error('no_api_key', 'OpenAI API key not configured.', array('status' => 500));
@@ -418,8 +507,8 @@ class Dual_GPT_Author_Agent {
         $model_config = class_exists('Dual_GPT_Model_Config') ? new Dual_GPT_Model_Config() : null;
         $model = $model_config ? $model_config->get_model_for_task('author') : $llm_client->get_model_name();
 
-        $system_prompt = $this->build_draft_system_prompt($core_settings);
-        $user_prompt = $this->build_draft_user_prompt($framework_brief, $planner_brief, $citations, $instructions, $core_settings);
+        $system_prompt = $this->build_draft_system_prompt($core_settings, $author_policy);
+        $user_prompt = $this->build_draft_user_prompt($framework_brief, $planner_brief, $citations, $instructions, $core_settings, $author_policy);
 
         $response = $llm_client->call($system_prompt, $user_prompt, array(
             'temperature' => 0.4,
@@ -602,29 +691,38 @@ class Dual_GPT_Author_Agent {
     /**
      * Build draft system prompt
      */
-    private function build_draft_system_prompt($core_settings) {
+    private function build_draft_system_prompt($core_settings, $author_policy) {
         $brand_profile = $core_settings['brand_profile'] ?? 'Brand A (FSI)';
         $em_dash_guidance = $this->get_em_dash_guidance($brand_profile);
+        $author_policy = $this->sanitize_author_policy($author_policy);
 
-        return implode("\n", array(
+        $lines = array(
             'You are the Author Agent. You execute an approved editorial plan and framework without adding new strategy, SEO, or distribution logic.',
             'You must not introduce new citations, entities, or claims beyond provided materials.',
             'Do not modify the topic scope or angle.',
-            'Persona: Experienced Analyst / Senior Journalist.',
+            'Persona: ' . ($author_policy['reporter_voice_required'] ? 'Experienced Analyst / Senior Journalist.' : 'Professional B2B analyst writer.'),
             'Industry focus: ' . $core_settings['industry_focus'],
             'Audience tier: ' . $core_settings['audience_tier'],
             'Risk tolerance: ' . $core_settings['risk_tolerance'],
             'Brand profile: ' . $brand_profile,
-            $em_dash_guidance,
-            'No tidy conclusions. No omniscient voice. Allow tonal variation and friction.',
+            $author_policy['disallow_em_dash'] ? 'No em dashes (—) or double hyphens (--).' : $em_dash_guidance,
+            $author_policy['disallow_tidy_conclusion'] ? 'No tidy conclusions. No omniscient voice. Allow tonal variation and friction.' : 'Avoid definitive resolution unless source-backed.',
+            $author_policy['disallow_first_person'] ? 'Do not use first-person pronouns (I, we, our, us).' : 'Prefer third-person perspective.',
             'Output must be JSON only (no markdown or commentary).',
-        ));
+        );
+
+        if (!empty($author_policy['banned_phrases'])) {
+            $lines[] = 'Do not use these banned phrases: ' . implode(', ', $author_policy['banned_phrases']) . '.';
+        }
+
+        return implode("\n", $lines);
     }
 
     /**
      * Build draft user prompt
      */
-    private function build_draft_user_prompt($framework_brief, $planner_brief, $citations, $instructions, $core_settings) {
+    private function build_draft_user_prompt($framework_brief, $planner_brief, $citations, $instructions, $core_settings, $author_policy) {
+        $author_policy = $this->sanitize_author_policy($author_policy);
         $prompt = array();
 
         $prompt[] = 'Editorial Planner Output (read-only):';
@@ -665,17 +763,30 @@ class Dual_GPT_Author_Agent {
         $prompt[] = '- No listicle framing.';
         $prompt[] = '- No punchline one-liners.';
         $prompt[] = '- No over-smoothed transitions.';
-        $prompt[] = '- Em-dash usage per brand profile: ' . $this->get_em_dash_guidance($core_settings['brand_profile'] ?? 'Brand A (FSI)');
+        if ($author_policy['disallow_em_dash']) {
+            $prompt[] = '- No em dashes (—) or double hyphens (--).';
+        } else {
+            $prompt[] = '- Em-dash usage per brand profile: ' . $this->get_em_dash_guidance($core_settings['brand_profile'] ?? 'Brand A (FSI)');
+        }
         $prompt[] = '- Every paragraph: at least one sentence >20 words and one sentence <8 words.';
         $prompt[] = '- At least one contradiction or self-correction per 500 words.';
         $prompt[] = '- Paragraphs broken by thought, not template.';
         $prompt[] = '- Preserve ambiguity, temporal drift, unresolved tension.';
         $prompt[] = '- Observational, reported, investigative stance.';
-        $prompt[] = '- No tidy conclusions or definitive resolution.';
+        if ($author_policy['disallow_tidy_conclusion']) {
+            $prompt[] = '- No tidy conclusions or definitive resolution.';
+        }
+        if ($author_policy['disallow_first_person']) {
+            $prompt[] = '- No first-person pronouns (I, we, our, us).';
+        }
         $prompt[] = '- No fabricated data, names, or quotes.';
         $prompt[] = '- No inferred academic claims.';
         $prompt[] = '- All claims must be attributable or framed with humility.';
         $prompt[] = '- Do not add SEO keywords or optimize copy.';
+        $prompt[] = sprintf('- Target word count range: %d-%d words.', intval($author_policy['min_words']), intval($author_policy['max_words']));
+        if (!empty($author_policy['banned_phrases'])) {
+            $prompt[] = '- Banned phrases: ' . implode(', ', $author_policy['banned_phrases']) . '.';
+        }
 
         $prompt[] = '';
         $prompt[] = 'Output JSON schema:';
@@ -778,9 +889,10 @@ class Dual_GPT_Author_Agent {
     /**
      * Validate draft against core constraints
      */
-    private function validate_draft_constraints($blocks, $core_settings) {
+    private function validate_draft_constraints($blocks, $core_settings, $author_policy = array()) {
         $warnings = array();
         $errors = array();
+        $author_policy = $this->sanitize_author_policy($author_policy);
 
         if (empty($blocks) || !is_array($blocks)) {
             return array('warnings' => $warnings, 'errors' => $errors);
@@ -789,10 +901,32 @@ class Dual_GPT_Author_Agent {
         $text = $this->blocks_to_text($blocks);
         $word_count = str_word_count($text);
 
+        if ($word_count > 0 && $word_count < intval($author_policy['min_words'])) {
+            $warnings[] = sprintf('Draft is below policy minimum word count (%d < %d).', $word_count, intval($author_policy['min_words']));
+        }
+        if ($word_count > intval($author_policy['max_words'])) {
+            $warnings[] = sprintf('Draft exceeds policy maximum word count (%d > %d).', $word_count, intval($author_policy['max_words']));
+        }
+
         $em_dash_count = preg_match_all('/\x{2014}|--/u', $text);
-        $em_dash_limit = $this->get_em_dash_limit($core_settings['brand_profile'] ?? 'Brand A (FSI)', $word_count);
-        if ($em_dash_limit > 0 && $em_dash_count > $em_dash_limit) {
-            $warnings[] = sprintf('Em dash usage exceeds guidance (%d used, max %d for this length).', $em_dash_count, $em_dash_limit);
+        if ($author_policy['disallow_em_dash']) {
+            if ($em_dash_count > 0) {
+                $warnings[] = sprintf('Em dash usage violates policy (%d detected).', $em_dash_count);
+            }
+        } else {
+            $em_dash_limit = $this->get_em_dash_limit($core_settings['brand_profile'] ?? 'Brand A (FSI)', $word_count);
+            if ($em_dash_limit > 0 && $em_dash_count > $em_dash_limit) {
+                $warnings[] = sprintf('Em dash usage exceeds guidance (%d used, max %d for this length).', $em_dash_count, $em_dash_limit);
+            }
+        }
+
+        if ($author_policy['disallow_first_person'] && $this->contains_first_person($text)) {
+            $warnings[] = 'First-person perspective detected but disallowed by policy.';
+        }
+
+        $banned_hits = $this->find_banned_phrase_hits($text, $author_policy['banned_phrases']);
+        foreach ($banned_hits as $hit) {
+            $warnings[] = 'Banned phrase detected: ' . $hit;
         }
 
         $paragraphs = $this->extract_paragraphs_from_blocks($blocks);
@@ -813,13 +947,13 @@ class Dual_GPT_Author_Agent {
             $warnings[] = sprintf('Contradiction/self-correction density is low (%d found, expected %d).', $contradiction_count, $required_contradictions);
         }
 
-        if ($this->contains_rhetorical_binary($text)) {
+        if ($author_policy['disallow_rhetorical_binaries'] && $this->contains_rhetorical_binary($text)) {
             $warnings[] = 'Rhetorical binary detected ("not X but Y").';
         }
-        if ($this->contains_listicle_framing($text)) {
+        if ($author_policy['disallow_listicle_framing'] && $this->contains_listicle_framing($text)) {
             $warnings[] = 'Listicle-style framing detected.';
         }
-        if ($this->has_tidy_conclusion($blocks)) {
+        if ($author_policy['disallow_tidy_conclusion'] && $this->has_tidy_conclusion($blocks)) {
             $warnings[] = 'Draft may include a tidy conclusion (avoid definitive wrap-ups).';
         }
 
@@ -1171,6 +1305,30 @@ class Dual_GPT_Author_Agent {
      */
     private function contains_listicle_framing($text) {
         return preg_match('/\b(top|best)\s+\d+\b|\b\d+\s+(ways|reasons|tips|steps)\b/i', $text) === 1;
+    }
+
+    private function contains_first_person($text) {
+        return preg_match('/\b(i|we|our|ours|us|my|mine)\b/i', (string) $text) === 1;
+    }
+
+    private function find_banned_phrase_hits($text, $banned_phrases) {
+        if (!is_array($banned_phrases) || empty($banned_phrases)) {
+            return array();
+        }
+
+        $hits = array();
+        $haystack = strtolower((string) $text);
+        foreach ($banned_phrases as $phrase) {
+            $phrase = strtolower(trim((string) $phrase));
+            if ($phrase === '') {
+                continue;
+            }
+            if (strpos($haystack, $phrase) !== false) {
+                $hits[] = $phrase;
+            }
+        }
+
+        return array_values(array_unique($hits));
     }
 
     /**

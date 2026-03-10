@@ -38,6 +38,18 @@ const DEFAULT_RESEARCH_POLICY = {
     allowed_domains: [],
 };
 
+const DEFAULT_AUTHOR_POLICY = {
+    reporter_voice_required: true,
+    disallow_first_person: true,
+    disallow_em_dash: true,
+    disallow_rhetorical_binaries: true,
+    disallow_listicle_framing: true,
+    disallow_tidy_conclusion: true,
+    min_words: 1200,
+    max_words: 2600,
+    banned_phrases: [],
+};
+
 const THINKING_PHRASES = [
     'Thinking',
     'Musing',
@@ -84,6 +96,11 @@ const EditorialPlannerApp = () => {
     const [policyDraft, setPolicyDraft] = useState({ ...DEFAULT_RESEARCH_POLICY });
     const [policyDirty, setPolicyDirty] = useState(false);
     const [policySaving, setPolicySaving] = useState(false);
+    const [authorPolicyDetail, setAuthorPolicyDetail] = useState(null);
+    const [authorPolicyLoading, setAuthorPolicyLoading] = useState(false);
+    const [authorPolicyDraft, setAuthorPolicyDraft] = useState({ ...DEFAULT_AUTHOR_POLICY });
+    const [authorPolicyDirty, setAuthorPolicyDirty] = useState(false);
+    const [authorPolicySaving, setAuthorPolicySaving] = useState(false);
 
     const [previewArticle, setPreviewArticle] = useState(null);
     const [frameworkPreview, setFrameworkPreview] = useState(null);
@@ -130,6 +147,9 @@ const EditorialPlannerApp = () => {
         setResearchValidationDetail(null);
         setPolicyDraft({ ...DEFAULT_RESEARCH_POLICY });
         setPolicyDirty(false);
+        setAuthorPolicyDetail(null);
+        setAuthorPolicyDraft({ ...DEFAULT_AUTHOR_POLICY });
+        setAuthorPolicyDirty(false);
         loadSessions();
     };
 
@@ -173,6 +193,25 @@ const EditorialPlannerApp = () => {
                 : [...DEFAULT_RESEARCH_POLICY.blocked_domains],
         });
     }, [researchPolicyDetail, policyDirty]);
+
+    useEffect(() => {
+        if (!authorPolicyDetail || authorPolicyDirty) {
+            return;
+        }
+        setAuthorPolicyDraft({
+            reporter_voice_required: Boolean(authorPolicyDetail?.reporter_voice_required ?? DEFAULT_AUTHOR_POLICY.reporter_voice_required),
+            disallow_first_person: Boolean(authorPolicyDetail?.disallow_first_person ?? DEFAULT_AUTHOR_POLICY.disallow_first_person),
+            disallow_em_dash: Boolean(authorPolicyDetail?.disallow_em_dash ?? DEFAULT_AUTHOR_POLICY.disallow_em_dash),
+            disallow_rhetorical_binaries: Boolean(authorPolicyDetail?.disallow_rhetorical_binaries ?? DEFAULT_AUTHOR_POLICY.disallow_rhetorical_binaries),
+            disallow_listicle_framing: Boolean(authorPolicyDetail?.disallow_listicle_framing ?? DEFAULT_AUTHOR_POLICY.disallow_listicle_framing),
+            disallow_tidy_conclusion: Boolean(authorPolicyDetail?.disallow_tidy_conclusion ?? DEFAULT_AUTHOR_POLICY.disallow_tidy_conclusion),
+            min_words: Number(authorPolicyDetail?.min_words ?? DEFAULT_AUTHOR_POLICY.min_words),
+            max_words: Number(authorPolicyDetail?.max_words ?? DEFAULT_AUTHOR_POLICY.max_words),
+            banned_phrases: Array.isArray(authorPolicyDetail?.banned_phrases)
+                ? [...authorPolicyDetail.banned_phrases]
+                : [],
+        });
+    }, [authorPolicyDetail, authorPolicyDirty]);
 
     const loadSessions = async () => {
         try {
@@ -313,6 +352,7 @@ const EditorialPlannerApp = () => {
                 setFocusDirty(false);
             }
             setResearchValidationLoading(true);
+            setAuthorPolicyLoading(true);
             const data = await apiFetch({
                 path: `dual-gpt/v1/sessions/${sessionId}`,
                 method: 'GET',
@@ -331,6 +371,17 @@ const EditorialPlannerApp = () => {
                 console.error('Failed to load research validation detail:', validationError);
                 setResearchPolicyDetail(data?.meta?.research_policy || null);
                 setResearchValidationDetail(null);
+            }
+
+            try {
+                const authorPolicyResponse = await apiFetch({
+                    path: `dual-gpt/v1/planner/author-policy?session_id=${sessionId}`,
+                    method: 'GET',
+                });
+                setAuthorPolicyDetail(authorPolicyResponse?.author_policy || data?.meta?.author_policy || null);
+            } catch (authorPolicyError) {
+                console.error('Failed to load author policy detail:', authorPolicyError);
+                setAuthorPolicyDetail(data?.meta?.author_policy || null);
             }
 
             if (data?.meta?.articles && Array.isArray(data.meta.articles)) {
@@ -370,8 +421,10 @@ const EditorialPlannerApp = () => {
             }
             setResearchPolicyDetail(null);
             setResearchValidationDetail(null);
+            setAuthorPolicyDetail(null);
         } finally {
             setResearchValidationLoading(false);
+            setAuthorPolicyLoading(false);
             if (!silent) {
                 setDetailLoading(false);
             }
@@ -566,6 +619,22 @@ const EditorialPlannerApp = () => {
             });
     };
 
+    const normalizePhraseTokens = (tokens) => {
+        if (!Array.isArray(tokens)) {
+            return [];
+        }
+        const seen = new Set();
+        return tokens
+            .map((phrase) => String(phrase || '').trim().toLowerCase())
+            .filter((phrase) => {
+                if (!phrase || seen.has(phrase)) {
+                    return false;
+                }
+                seen.add(phrase);
+                return true;
+            });
+    };
+
     const handleSavePolicy = async () => {
         if (!sessionDetail?.id) {
             return;
@@ -630,6 +699,70 @@ const EditorialPlannerApp = () => {
                 : [...DEFAULT_RESEARCH_POLICY.blocked_domains],
         });
         setPolicyDirty(false);
+    };
+
+    const handleSaveAuthorPolicy = async () => {
+        if (!sessionDetail?.id) {
+            return;
+        }
+
+        try {
+            setAuthorPolicySaving(true);
+            const payload = {
+                reporter_voice_required: Boolean(authorPolicyDraft?.reporter_voice_required),
+                disallow_first_person: Boolean(authorPolicyDraft?.disallow_first_person),
+                disallow_em_dash: Boolean(authorPolicyDraft?.disallow_em_dash),
+                disallow_rhetorical_binaries: Boolean(authorPolicyDraft?.disallow_rhetorical_binaries),
+                disallow_listicle_framing: Boolean(authorPolicyDraft?.disallow_listicle_framing),
+                disallow_tidy_conclusion: Boolean(authorPolicyDraft?.disallow_tidy_conclusion),
+                min_words: Number(authorPolicyDraft?.min_words ?? DEFAULT_AUTHOR_POLICY.min_words),
+                max_words: Number(authorPolicyDraft?.max_words ?? DEFAULT_AUTHOR_POLICY.max_words),
+                banned_phrases: normalizePhraseTokens(authorPolicyDraft?.banned_phrases || []),
+            };
+
+            const saveResponse = await apiFetch({
+                path: 'dual-gpt/v1/planner/author-policy',
+                method: 'POST',
+                data: {
+                    session_id: sessionDetail.id,
+                    author_policy: payload,
+                },
+            });
+
+            setAuthorPolicyDirty(false);
+            dispatch('core/notices').createNotice(
+                'success',
+                saveResponse?.changed ? 'Author policy saved.' : 'No author policy changes detected.',
+                { type: 'snackbar' }
+            );
+
+            await openSessionDetail(sessionDetail.id, { silent: true });
+        } catch (error) {
+            console.error('Failed to save author policy:', error);
+            dispatch('core/notices').createNotice(
+                'error',
+                error.message || 'Failed to save author policy.',
+                { type: 'snackbar' }
+            );
+        } finally {
+            setAuthorPolicySaving(false);
+        }
+    };
+
+    const handleResetAuthorPolicyDraft = () => {
+        const source = authorPolicyDetail || DEFAULT_AUTHOR_POLICY;
+        setAuthorPolicyDraft({
+            reporter_voice_required: Boolean(source?.reporter_voice_required ?? DEFAULT_AUTHOR_POLICY.reporter_voice_required),
+            disallow_first_person: Boolean(source?.disallow_first_person ?? DEFAULT_AUTHOR_POLICY.disallow_first_person),
+            disallow_em_dash: Boolean(source?.disallow_em_dash ?? DEFAULT_AUTHOR_POLICY.disallow_em_dash),
+            disallow_rhetorical_binaries: Boolean(source?.disallow_rhetorical_binaries ?? DEFAULT_AUTHOR_POLICY.disallow_rhetorical_binaries),
+            disallow_listicle_framing: Boolean(source?.disallow_listicle_framing ?? DEFAULT_AUTHOR_POLICY.disallow_listicle_framing),
+            disallow_tidy_conclusion: Boolean(source?.disallow_tidy_conclusion ?? DEFAULT_AUTHOR_POLICY.disallow_tidy_conclusion),
+            min_words: Number(source?.min_words ?? DEFAULT_AUTHOR_POLICY.min_words),
+            max_words: Number(source?.max_words ?? DEFAULT_AUTHOR_POLICY.max_words),
+            banned_phrases: Array.isArray(source?.banned_phrases) ? [...source.banned_phrases] : [],
+        });
+        setAuthorPolicyDirty(false);
     };
 
     const handleRegenerateFramework = async (article, index) => {
@@ -2860,6 +2993,140 @@ const EditorialPlannerApp = () => {
                                           )
                                       )
                                   )
+                          ),
+                          wp.element.createElement(
+                              'div',
+                              {
+                                  style: {
+                                      marginBottom: '12px',
+                                      padding: '12px',
+                                      border: '1px solid #dcdcde',
+                                      borderRadius: '6px',
+                                      background: '#fff',
+                                  },
+                              },
+                              wp.element.createElement('strong', null, 'Effective Author Policy'),
+                              authorPolicyLoading
+                                  ? wp.element.createElement('p', { style: { margin: '8px 0 0' } }, 'Loading author policy…')
+                                  : wp.element.createElement(
+                                        wp.element.Fragment,
+                                        null,
+                                        wp.element.createElement(
+                                            'p',
+                                            { style: { margin: '8px 0 4px', color: '#50575e' } },
+                                            `Word range: ${authorPolicyDetail?.min_words ?? DEFAULT_AUTHOR_POLICY.min_words}-${authorPolicyDetail?.max_words ?? DEFAULT_AUTHOR_POLICY.max_words} · Reporter voice: ${(authorPolicyDetail?.reporter_voice_required ?? true) ? 'required' : 'optional'} · First-person: ${(authorPolicyDetail?.disallow_first_person ?? true) ? 'disallowed' : 'allowed'}`
+                                        ),
+                                        wp.element.createElement(
+                                            'p',
+                                            { style: { margin: '4px 0', color: '#50575e' } },
+                                            `Em dash: ${(authorPolicyDetail?.disallow_em_dash ?? true) ? 'disallowed' : 'allowed'} · Rhetorical binaries: ${(authorPolicyDetail?.disallow_rhetorical_binaries ?? true) ? 'disallowed' : 'allowed'} · Listicle framing: ${(authorPolicyDetail?.disallow_listicle_framing ?? true) ? 'disallowed' : 'allowed'} · Tidy conclusions: ${(authorPolicyDetail?.disallow_tidy_conclusion ?? true) ? 'disallowed' : 'allowed'}`
+                                        )
+                                    ),
+                              wp.element.createElement('h4', { style: { margin: '12px 0 8px' } }, 'Edit Author Policy'),
+                              wp.element.createElement(ToggleControl, {
+                                  label: 'Require reporter voice',
+                                  checked: Boolean(authorPolicyDraft?.reporter_voice_required),
+                                  onChange: (value) => {
+                                      setAuthorPolicyDirty(true);
+                                      setAuthorPolicyDraft((prev) => ({ ...prev, reporter_voice_required: Boolean(value) }));
+                                  },
+                              }),
+                              wp.element.createElement(ToggleControl, {
+                                  label: 'Disallow first-person pronouns',
+                                  checked: Boolean(authorPolicyDraft?.disallow_first_person),
+                                  onChange: (value) => {
+                                      setAuthorPolicyDirty(true);
+                                      setAuthorPolicyDraft((prev) => ({ ...prev, disallow_first_person: Boolean(value) }));
+                                  },
+                              }),
+                              wp.element.createElement(ToggleControl, {
+                                  label: 'Disallow em dashes',
+                                  checked: Boolean(authorPolicyDraft?.disallow_em_dash),
+                                  onChange: (value) => {
+                                      setAuthorPolicyDirty(true);
+                                      setAuthorPolicyDraft((prev) => ({ ...prev, disallow_em_dash: Boolean(value) }));
+                                  },
+                              }),
+                              wp.element.createElement(ToggleControl, {
+                                  label: 'Disallow rhetorical binaries',
+                                  checked: Boolean(authorPolicyDraft?.disallow_rhetorical_binaries),
+                                  onChange: (value) => {
+                                      setAuthorPolicyDirty(true);
+                                      setAuthorPolicyDraft((prev) => ({ ...prev, disallow_rhetorical_binaries: Boolean(value) }));
+                                  },
+                              }),
+                              wp.element.createElement(ToggleControl, {
+                                  label: 'Disallow listicle framing',
+                                  checked: Boolean(authorPolicyDraft?.disallow_listicle_framing),
+                                  onChange: (value) => {
+                                      setAuthorPolicyDirty(true);
+                                      setAuthorPolicyDraft((prev) => ({ ...prev, disallow_listicle_framing: Boolean(value) }));
+                                  },
+                              }),
+                              wp.element.createElement(ToggleControl, {
+                                  label: 'Disallow tidy conclusions',
+                                  checked: Boolean(authorPolicyDraft?.disallow_tidy_conclusion),
+                                  onChange: (value) => {
+                                      setAuthorPolicyDirty(true);
+                                      setAuthorPolicyDraft((prev) => ({ ...prev, disallow_tidy_conclusion: Boolean(value) }));
+                                  },
+                              }),
+                              wp.element.createElement(TextControl, {
+                                  label: 'Minimum words',
+                                  type: 'number',
+                                  min: 300,
+                                  value: Number(authorPolicyDraft?.min_words ?? DEFAULT_AUTHOR_POLICY.min_words),
+                                  onChange: (value) => {
+                                      setAuthorPolicyDirty(true);
+                                      setAuthorPolicyDraft((prev) => ({ ...prev, min_words: Number(value || DEFAULT_AUTHOR_POLICY.min_words) }));
+                                  },
+                              }),
+                              wp.element.createElement(TextControl, {
+                                  label: 'Maximum words',
+                                  type: 'number',
+                                  min: 300,
+                                  value: Number(authorPolicyDraft?.max_words ?? DEFAULT_AUTHOR_POLICY.max_words),
+                                  onChange: (value) => {
+                                      setAuthorPolicyDirty(true);
+                                      setAuthorPolicyDraft((prev) => ({ ...prev, max_words: Number(value || DEFAULT_AUTHOR_POLICY.max_words) }));
+                                  },
+                              }),
+                              wp.element.createElement(FormTokenField, {
+                                  label: 'Banned phrases',
+                                  value: authorPolicyDraft?.banned_phrases || [],
+                                  onChange: (value) => {
+                                      setAuthorPolicyDirty(true);
+                                      setAuthorPolicyDraft((prev) => ({ ...prev, banned_phrases: value }));
+                                  },
+                                  placeholder: 'Add banned words/phrases',
+                              }),
+                              wp.element.createElement(
+                                  'div',
+                                  { style: { marginTop: '8px', display: 'flex', gap: '8px' } },
+                                  wp.element.createElement(
+                                      Button,
+                                      {
+                                          isPrimary: true,
+                                          onClick: handleSaveAuthorPolicy,
+                                          disabled: authorPolicySaving || !authorPolicyDirty,
+                                      },
+                                      authorPolicySaving ? wp.element.createElement(Spinner, null) : 'Save Author Policy'
+                                  ),
+                                  wp.element.createElement(
+                                      Button,
+                                      {
+                                          isSecondary: true,
+                                          onClick: handleResetAuthorPolicyDraft,
+                                          disabled: authorPolicySaving,
+                                      },
+                                      'Reset'
+                                  )
+                              ),
+                              wp.element.createElement(
+                                  'p',
+                                  { style: { margin: '6px 0 0', fontSize: '12px', color: '#50575e' } },
+                                  'Saving author policy updates enforcement without re-running planner.'
+                              )
                           ),
                           wp.element.createElement(
                               'div',

@@ -227,6 +227,19 @@ class Dual_GPT_Plugin {
             'permission_callback' => array($this, 'check_permissions'),
         ));
 
+        register_rest_route('dual-gpt/v1', '/planner/author-policy', array(
+            array(
+                'methods' => 'GET',
+                'callback' => array($this, 'get_planner_author_policy'),
+                'permission_callback' => array($this, 'check_permissions'),
+            ),
+            array(
+                'methods' => 'POST',
+                'callback' => array($this, 'update_planner_author_policy'),
+                'permission_callback' => array($this, 'check_permissions'),
+            ),
+        ));
+
         register_rest_route('dual-gpt/v1', '/planner/export', array(
             'methods' => 'POST',
             'callback' => array($this, 'export_planner_validation'),
@@ -603,6 +616,10 @@ class Dual_GPT_Plugin {
             $clean['research_policy'] = $this->sanitize_research_policy($clean['research_policy']);
         }
 
+        if (!empty($clean['author_policy']) && is_array($clean['author_policy'])) {
+            $clean['author_policy'] = $this->sanitize_author_policy($clean['author_policy']);
+        }
+
         return $clean;
     }
 
@@ -626,6 +643,51 @@ class Dual_GPT_Plugin {
             'max_citations_per_org' => max(1, intval($policy_input['max_citations_per_org'] ?? $defaults['max_citations_per_org'])),
             'recency_months' => max(1, intval($policy_input['recency_months'] ?? $defaults['recency_months'])),
             'min_priority_domains_hit' => max(0, intval($policy_input['min_priority_domains_hit'] ?? $defaults['min_priority_domains_hit'])),
+        );
+    }
+
+    private function default_author_policy() {
+        return array(
+            'reporter_voice_required' => true,
+            'disallow_first_person' => true,
+            'disallow_em_dash' => true,
+            'disallow_rhetorical_binaries' => true,
+            'disallow_listicle_framing' => true,
+            'disallow_tidy_conclusion' => true,
+            'min_words' => 1200,
+            'max_words' => 2600,
+            'banned_phrases' => array(),
+        );
+    }
+
+    private function sanitize_author_policy($policy_input) {
+        $defaults = $this->default_author_policy();
+        $policy_input = is_array($policy_input) ? $policy_input : array();
+
+        $banned_phrases = $policy_input['banned_phrases'] ?? $defaults['banned_phrases'];
+        if (is_string($banned_phrases)) {
+            $banned_phrases = array_filter(array_map('trim', explode(',', $banned_phrases)));
+        }
+        if (!is_array($banned_phrases)) {
+            $banned_phrases = array();
+        }
+        $banned_phrases = array_values(array_unique(array_filter(array_map(function ($phrase) {
+            return strtolower(trim((string) $phrase));
+        }, $banned_phrases))));
+
+        $min_words = max(300, intval($policy_input['min_words'] ?? $defaults['min_words']));
+        $max_words = max($min_words, intval($policy_input['max_words'] ?? $defaults['max_words']));
+
+        return array(
+            'reporter_voice_required' => (bool) ($policy_input['reporter_voice_required'] ?? $defaults['reporter_voice_required']),
+            'disallow_first_person' => (bool) ($policy_input['disallow_first_person'] ?? $defaults['disallow_first_person']),
+            'disallow_em_dash' => (bool) ($policy_input['disallow_em_dash'] ?? $defaults['disallow_em_dash']),
+            'disallow_rhetorical_binaries' => (bool) ($policy_input['disallow_rhetorical_binaries'] ?? $defaults['disallow_rhetorical_binaries']),
+            'disallow_listicle_framing' => (bool) ($policy_input['disallow_listicle_framing'] ?? $defaults['disallow_listicle_framing']),
+            'disallow_tidy_conclusion' => (bool) ($policy_input['disallow_tidy_conclusion'] ?? $defaults['disallow_tidy_conclusion']),
+            'min_words' => $min_words,
+            'max_words' => $max_words,
+            'banned_phrases' => $banned_phrases,
         );
     }
 
@@ -729,6 +791,7 @@ class Dual_GPT_Plugin {
 
         $meta = $this->hydrate_planner_meta_from_jobs($session_id, $meta);
         $meta = $this->ensure_research_policy_in_meta($meta);
+        $meta = $this->ensure_author_policy_in_meta($meta);
 
         $session['meta'] = $meta;
         unset($session['meta_json']);
@@ -784,6 +847,7 @@ class Dual_GPT_Plugin {
         $post_id = !empty($params['post_id']) ? intval($params['post_id']) : null;
         $meta = isset($params['meta']) ? $this->sanitize_session_meta($params['meta']) : null;
         $meta = $this->ensure_research_policy_in_meta($meta);
+        $meta = $this->ensure_author_policy_in_meta($meta);
         $idempotency_key = !empty($params['idempotency_key']) ? sanitize_text_field($params['idempotency_key']) : null;
         if ($idempotency_key && strlen($idempotency_key) > 64) {
             $idempotency_key = substr($idempotency_key, 0, 64);
@@ -854,6 +918,7 @@ class Dual_GPT_Plugin {
             }
             $meta = $this->decode_session_meta($session['meta_json'] ?? null);
             $meta = $this->ensure_research_policy_in_meta($meta);
+            $meta = $this->ensure_author_policy_in_meta($meta);
             if ($focus_level !== null) {
                 $meta['focus_level'] = $focus_level;
             }
@@ -861,6 +926,7 @@ class Dual_GPT_Plugin {
                 $meta['research_policy'] = $this->sanitize_research_policy($requested_policy);
             }
             $meta = $this->ensure_research_policy_in_meta($meta);
+            $meta = $this->ensure_author_policy_in_meta($meta);
             $db->update_session_meta($session_id, $meta);
         }
 
@@ -1225,6 +1291,7 @@ class Dual_GPT_Plugin {
 
         $meta = $this->decode_session_meta($session['meta_json'] ?? null);
         $meta = $this->hydrate_planner_meta_from_jobs($session_id, $meta);
+        $meta = $this->ensure_author_policy_in_meta($meta);
 
         $validation = $meta['research_validation'] ?? array(
             'summary' => array(
@@ -1269,6 +1336,7 @@ class Dual_GPT_Plugin {
 
         $meta = $this->decode_session_meta($session['meta_json'] ?? null);
         $meta = $this->ensure_research_policy_in_meta($meta);
+        $meta = $this->ensure_author_policy_in_meta($meta);
 
         $old_policy = $this->resolve_research_policy($meta);
         $meta['research_policy'] = $this->sanitize_research_policy($policy_input);
@@ -1295,6 +1363,85 @@ class Dual_GPT_Plugin {
             'session_id' => $session_id,
             'changed' => $policy_changed,
             'research_policy' => $new_policy,
+        ), 200);
+    }
+
+    public function get_planner_author_policy($request) {
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+
+        if (empty($session_id)) {
+            return new WP_Error('missing_session_id', 'Session ID is required', array('status' => 400));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($session_id);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $meta = $this->decode_session_meta($session['meta_json'] ?? null);
+        $meta = $this->ensure_author_policy_in_meta($meta);
+
+        return new WP_REST_Response(array(
+            'session_id' => $session_id,
+            'author_policy' => $this->resolve_author_policy($meta),
+        ), 200);
+    }
+
+    public function update_planner_author_policy($request) {
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+        $policy_input = $request->get_param('author_policy');
+
+        if (empty($session_id)) {
+            return new WP_Error('missing_session_id', 'Session ID is required', array('status' => 400));
+        }
+
+        if (!is_array($policy_input)) {
+            return new WP_Error('missing_policy', 'author_policy payload is required', array('status' => 400));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($session_id);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $meta = $this->decode_session_meta($session['meta_json'] ?? null);
+        $meta = $this->ensure_author_policy_in_meta($meta);
+
+        $old_policy = $this->resolve_author_policy($meta);
+        $meta['author_policy'] = $this->sanitize_author_policy($policy_input);
+        $meta = $this->ensure_author_policy_in_meta($meta);
+        $new_policy = $this->resolve_author_policy($meta);
+        $policy_changed = wp_json_encode($old_policy) !== wp_json_encode($new_policy);
+
+        $updated = $db->update_session_meta($session_id, $meta);
+        if (!$updated) {
+            return new WP_Error('policy_save_failed', 'Failed to save author policy', array('status' => 500));
+        }
+
+        if ($policy_changed) {
+            $db->insert_audit_log(null, 'planner_author_policy_updated', array(
+                'session_id' => $session_id,
+                'updated_by' => get_current_user_id(),
+                'updated_at' => current_time('mysql'),
+                'old_policy' => $old_policy,
+                'new_policy' => $new_policy,
+            ));
+        }
+
+        return new WP_REST_Response(array(
+            'session_id' => $session_id,
+            'changed' => $policy_changed,
+            'author_policy' => $new_policy,
         ), 200);
     }
 
@@ -4784,11 +4931,35 @@ class Dual_GPT_Plugin {
         return $this->sanitize_research_policy($candidate);
     }
 
+    private function resolve_author_policy($meta) {
+        $defaults = $this->default_author_policy();
+        if (!is_array($meta)) {
+            return $defaults;
+        }
+
+        $candidate = array();
+        if (!empty($meta['author_policy']) && is_array($meta['author_policy'])) {
+            $candidate = $meta['author_policy'];
+        } elseif (!empty($meta['persona_policy']['author']) && is_array($meta['persona_policy']['author'])) {
+            $candidate = $meta['persona_policy']['author'];
+        }
+
+        return $this->sanitize_author_policy($candidate);
+    }
+
     private function ensure_research_policy_in_meta($meta) {
         if (!is_array($meta)) {
             $meta = array();
         }
         $meta['research_policy'] = $this->resolve_research_policy($meta);
+        return $meta;
+    }
+
+    private function ensure_author_policy_in_meta($meta) {
+        if (!is_array($meta)) {
+            $meta = array();
+        }
+        $meta['author_policy'] = $this->resolve_author_policy($meta);
         return $meta;
     }
 
@@ -4995,6 +5166,7 @@ class Dual_GPT_Plugin {
             $meta = array();
         }
         $meta = $this->ensure_research_policy_in_meta($meta);
+        $meta = $this->ensure_author_policy_in_meta($meta);
 
         $jobs = $wpdb->get_results(
             $wpdb->prepare(
