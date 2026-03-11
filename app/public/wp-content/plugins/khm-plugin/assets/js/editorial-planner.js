@@ -1584,6 +1584,7 @@ const EditorialPlannerApp = () => {
             'Dive deeper research initiated. Specialist is gathering additional citations...',
             params
         );
+        setDiveDeeperModalOpen(false);
     };
 
     const handleOpinionPieceArticle = async (article) => {
