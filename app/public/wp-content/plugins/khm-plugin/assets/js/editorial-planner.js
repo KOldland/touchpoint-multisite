@@ -2828,7 +2828,7 @@ const EditorialPlannerApp = () => {
                               wp.element.createElement(
                                   'p',
                                   { style: { marginTop: '16px', fontSize: '14px', color: '#666' } },
-                                  `Specialist is ${THINKING_PHRASES[thinkingPhraseIndex]}...`
+                                  'Specialist is researching additional citations...'
                               ),
                               wp.element.createElement(
                                   'p',
