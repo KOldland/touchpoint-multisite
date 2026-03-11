@@ -75,6 +75,15 @@ const AUTHOR_PROFILE_OPTIONS = [
 
 const MIN_CITATIONS_REQUIRED = 2;
 const PHASE_ORDER = ['phase1', 'phase2', 'phase3', 'phase4'];
+const DIVE_DEEPER_STALL_SECONDS = 90;
+const DIVE_DEEPER_STAGE_META = {
+    queued: { label: 'Queued', progress: 20, detail: 'Waiting for the queue worker to pick up the job.' },
+    running: { label: 'Running', progress: 55, detail: 'Analyzing sources and collecting evidence.' },
+    processing: { label: 'Processing', progress: 85, detail: 'Applying citations to this article.' },
+    completed: { label: 'Complete', progress: 100, detail: 'Source-check finished successfully.' },
+    failed: { label: 'Failed', progress: 100, detail: 'Source-check failed. You can retry.' },
+    starting: { label: 'Starting', progress: 10, detail: 'Preparing the source-check request.' },
+};
 
 const apiFetch = (options) =>
     wp.apiFetch({
@@ -123,6 +132,7 @@ const EditorialPlannerApp = () => {
     const [authorProgress, setAuthorProgress] = useState({});
     const [authorLoading, setAuthorLoading] = useState({});
     const authorStatusRef = useRef({});
+    const queueStatusRef = useRef({});
     const [phase4RerunLoading, setPhase4RerunLoading] = useState(false);
     const [phase3RerunLoading, setPhase3RerunLoading] = useState(false);
     const [phase2RerunLoading, setPhase2RerunLoading] = useState(false);
@@ -145,9 +155,29 @@ const EditorialPlannerApp = () => {
     const [diveDeeperJobId, setDiveDeeperJobId] = useState('');
     const [diveDeeperJobStatus, setDiveDeeperJobStatus] = useState('');
     const [diveDeeperJobError, setDiveDeeperJobError] = useState('');
+    const [diveDeeperElapsedSeconds, setDiveDeeperElapsedSeconds] = useState(0);
+    const [queueModalOpen, setQueueModalOpen] = useState(false);
+    const [queueLoading, setQueueLoading] = useState(false);
+    const [queueClearing, setQueueClearing] = useState(false);
+    const [queueError, setQueueError] = useState('');
+    const [queueCounts, setQueueCounts] = useState({ queued: 0, running: 0, completed: 0, failed: 0 });
+    const [queueItems, setQueueItems] = useState([]);
+    const [queueActionLoading, setQueueActionLoading] = useState({});
+    const [diveDeeperQueueLoading, setDiveDeeperQueueLoading] = useState(false);
+    const [selectedQueueItems, setSelectedQueueItems] = useState([]);
+    const [draggedQueueItemId, setDraggedQueueItemId] = useState('');
+    const [queueReorderLoading, setQueueReorderLoading] = useState(false);
+    const [queueStatusFilter, setQueueStatusFilter] = useState('all');
+    const [queueTaskTypeFilter, setQueueTaskTypeFilter] = useState('all');
     const isDeepDiveLoading = diveDeeperArticle ? !!articleActionLoading[`dive_deeper:${diveDeeperArticle.id}`] : false;
     const isDiveDeeperJobRunning = ['queued', 'running', 'processing'].includes(diveDeeperJobStatus);
     const isDiveDeeperWorking = isDeepDiveLoading || isDiveDeeperJobRunning;
+    const diveDeeperStageKey = diveDeeperJobStatus || (isDeepDiveLoading ? 'starting' : 'queued');
+    const diveDeeperStageMeta = DIVE_DEEPER_STAGE_META[diveDeeperStageKey] || DIVE_DEEPER_STAGE_META.queued;
+    const isDiveDeeperStalled =
+        diveDeeperStageKey === 'queued' &&
+        isDiveDeeperJobRunning &&
+        diveDeeperElapsedSeconds >= DIVE_DEEPER_STALL_SECONDS;
     const showFocusControls = true;
     // URL-based routing: check if we're viewing a specific session detail
     const params = new URLSearchParams(window.location.search);
@@ -408,8 +438,9 @@ const EditorialPlannerApp = () => {
             }
             setResearchValidationLoading(true);
             setAuthorPolicyLoading(true);
+            const cacheBuster = new Date().getTime();
             const data = await apiFetch({
-                path: `dual-gpt/v1/sessions/${sessionId}`,
+                path: `dual-gpt/v1/sessions/${sessionId}?_t=${cacheBuster}`,
                 method: 'GET',
             });
             handleAuthorStatusTransitions(data);
@@ -417,7 +448,7 @@ const EditorialPlannerApp = () => {
 
             try {
                 const validationData = await apiFetch({
-                    path: `dual-gpt/v1/planner/research-validation?session_id=${sessionId}`,
+                    path: `dual-gpt/v1/planner/research-validation?session_id=${sessionId}&_t=${cacheBuster}`,
                     method: 'GET',
                 });
                 setResearchPolicyDetail(validationData?.research_policy || data?.meta?.research_policy || null);
@@ -430,7 +461,7 @@ const EditorialPlannerApp = () => {
 
             try {
                 const authorPolicyResponse = await apiFetch({
-                    path: `dual-gpt/v1/planner/author-policy?session_id=${sessionId}`,
+                    path: `dual-gpt/v1/planner/author-policy?session_id=${sessionId}&_t=${cacheBuster}`,
                     method: 'GET',
                 });
                 setAuthorPolicyDetail(authorPolicyResponse?.author_policy || data?.meta?.author_policy || null);
@@ -469,6 +500,8 @@ const EditorialPlannerApp = () => {
                     return next;
                 });
             }
+
+            return data;
         } catch (error) {
             console.error('Failed to load session detail:', error);
             if (!silent) {
@@ -477,6 +510,7 @@ const EditorialPlannerApp = () => {
             setResearchPolicyDetail(null);
             setResearchValidationDetail(null);
             setAuthorPolicyDetail(null);
+            return null;
         } finally {
             setResearchValidationLoading(false);
             setAuthorPolicyLoading(false);
@@ -488,9 +522,473 @@ const EditorialPlannerApp = () => {
 
     const refreshSessionDetail = async () => {
         if (!sessionDetail || !sessionDetail.id) {
+            return null;
+        }
+        return openSessionDetail(sessionDetail.id, { silent: true });
+    };
+
+    const loadPlannerQueue = async ({ silent = false } = {}) => {
+        try {
+            if (!silent) {
+                setQueueLoading(true);
+            }
+            setQueueError('');
+            // Add cache-busting timestamp to force fresh data
+            const cacheBuster = new Date().getTime();
+            const response = await apiFetch({
+                path: `dual-gpt/v1/planner/queue?_t=${cacheBuster}`,
+                method: 'GET',
+            });
+            console.log('[QUEUE] Loaded queue:', response);
+            setQueueCounts(response?.counts || { queued: 0, running: 0, completed: 0, failed: 0 });
+            const nextItems = Array.isArray(response?.active_items) ? response.active_items : [];
+            const previousStatuses = queueStatusRef.current || {};
+            const nextStatuses = {};
+            nextItems.forEach((item) => {
+                if (!item?.id) {
+                    return;
+                }
+                const currentStatus = item.status || 'queued';
+                nextStatuses[item.id] = currentStatus;
+                const previousStatus = previousStatuses[item.id];
+                if (!previousStatus || previousStatus === currentStatus) {
+                    return;
+                }
+                console.log(`[QUEUE] Status changed: ${item.id} ${previousStatus} → ${currentStatus}`);
+                if (currentStatus === 'running') {
+                    dispatch('core/notices').createNotice('info', `${taskTypeLabel(item.task_type)} is processing.`, { type: 'snackbar' });
+                } else if (currentStatus === 'dispatched') {
+                    dispatch('core/notices').createNotice('info', `${taskTypeLabel(item.task_type)} dispatched.`, { type: 'snackbar' });
+                } else if (currentStatus === 'completed') {
+                    dispatch('core/notices').createNotice('success', `${taskTypeLabel(item.task_type)} ready.`, { type: 'snackbar' });
+                } else if (currentStatus === 'failed') {
+                    dispatch('core/notices').createNotice('error', item.error_message || `${taskTypeLabel(item.task_type)} failed.`, { type: 'snackbar' });
+                }
+            });
+            queueStatusRef.current = nextStatuses;
+            setQueueItems(nextItems);
+        } catch (error) {
+            console.error('[QUEUE] Failed to load planner queue:', error);
+            setQueueError(error?.message || 'Failed to load queue status.');
+        } finally {
+            if (!silent) {
+                setQueueLoading(false);
+            }
+        }
+    };
+
+    const queueStatusLabel = (status) => {
+        if (status === 'running') {
+            return 'Processing';
+        }
+        if (status === 'completed') {
+            return 'Ready';
+        }
+        if (status === 'dispatched') {
+            return 'Dispatched';
+        }
+        if (status === 'failed') {
+            return 'Failed';
+        }
+        return 'Queued';
+    };
+
+    const taskTypeLabel = (taskType) => {
+        if (taskType === 'dive_deeper') {
+            return 'Deeper Dives';
+        }
+        if (taskType === 'framework_generation') {
+            return 'Framework Generation';
+        }
+        if (taskType === 'article_creation') {
+            return 'Article Creation';
+        }
+        return taskType || 'Task';
+    };
+
+    const scheduleQueueFollowUpSync = () => {
+        setTimeout(() => {
+            loadPlannerQueue();
+            refreshSessionDetail();
+        }, 4000);
+        setTimeout(() => {
+            loadPlannerQueue();
+            refreshSessionDetail();
+        }, 10000);
+    };
+
+    const enqueuePlannerTask = async ({ taskType, articleId = '', payload = null, successMessage = 'Added to queue.' }) => {
+        if (!sessionDetail?.id) {
+            return null;
+        }
+        const loadingKey = `enqueue:${taskType}:${articleId || 'session'}`;
+        try {
+            setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
+            const response = await apiFetch({
+                path: 'dual-gpt/v1/planner/queue/add',
+                method: 'POST',
+                data: {
+                    session_id: sessionDetail.id,
+                    article_id: articleId || undefined,
+                    task_type: taskType,
+                    ...(payload ? { payload } : {}),
+                },
+            });
+            dispatch('core/notices').createNotice('success', successMessage, { type: 'snackbar' });
+            await loadPlannerQueue();
+            return response;
+        } catch (error) {
+            console.error('Failed to enqueue planner task:', error);
+            dispatch('core/notices').createNotice('error', error?.message || 'Failed to add task to queue.', {
+                type: 'snackbar',
+            });
+            return null;
+        } finally {
+            setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: false }));
+        }
+    };
+
+    const runPlannerQueueItem = async (queueId, options = {}) => {
+        if (!queueId) {
             return;
         }
-        await openSessionDetail(sessionDetail.id, { silent: true });
+        const { retryFailed = false, retryPayload = {} } = options;
+        const loadingKey = `run:${queueId}`;
+        try {
+            console.log('[QUEUE] Running item:', queueId);
+            setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
+            const response = await apiFetch({
+                path: 'dual-gpt/v1/planner/queue/run',
+                method: 'POST',
+                data: {
+                    queue_id: queueId,
+                    ...(retryFailed ? { retry_failed: true } : {}),
+                    ...(retryFailed && retryPayload && Object.keys(retryPayload).length
+                        ? { retry_payload: retryPayload }
+                        : {}),
+                },
+            });
+            console.log('[QUEUE] Run response:', response);
+            dispatch('core/notices').createNotice('success', response?.job_id ? `Queued job ${response.job_id} started.` : 'Queued task started.', {
+                type: 'snackbar',
+            });
+            await loadPlannerQueue();
+            await refreshSessionDetail();
+            scheduleQueueFollowUpSync();
+        } catch (error) {
+            console.error('[QUEUE] Failed to run queued task:', error);
+            dispatch('core/notices').createNotice('error', error?.message || 'Failed to run queued task.', {
+                type: 'snackbar',
+            });
+            await loadPlannerQueue();
+        } finally {
+            setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: false }));
+        }
+    };
+
+    const runPlannerQueueBulk = async ({ queueIds = null, runAllQueued = false } = {}) => {
+        if (!sessionDetail?.id) {
+            return;
+        }
+        const loadingKey = runAllQueued ? 'run:all' : 'run:selected';
+        try {
+            setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
+            const response = await apiFetch({
+                path: 'dual-gpt/v1/planner/queue/run-bulk',
+                method: 'POST',
+                data: runAllQueued
+                    ? { run_all_queued: true, session_id: sessionDetail.id }
+                    : { queue_ids: queueIds || [] },
+            });
+            const startedCount = Number(response?.started || 0);
+            const failedCount = Number(response?.failed || 0);
+            if (startedCount === 0) {
+                dispatch('core/notices').createNotice(
+                    'warning',
+                    'No queued items were started. Items may already be dispatched/completed or filtered out.',
+                    { type: 'snackbar' }
+                );
+            } else {
+                dispatch('core/notices').createNotice(
+                    'success',
+                    `Started ${startedCount} queued item(s).${failedCount ? ` ${failedCount} failed.` : ''}`,
+                    { type: 'snackbar' }
+                );
+            }
+            setSelectedQueueItems([]);
+            await loadPlannerQueue();
+            await refreshSessionDetail();
+            scheduleQueueFollowUpSync();
+        } catch (error) {
+            console.error('Failed to bulk run queued tasks:', error);
+            dispatch('core/notices').createNotice('error', error?.message || 'Failed to start queued tasks.', {
+                type: 'snackbar',
+            });
+            await loadPlannerQueue();
+        } finally {
+            setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: false }));
+        }
+    };
+
+    const toggleQueueItemSelection = (queueId, checked) => {
+        setSelectedQueueItems((prev) => {
+            if (checked) {
+                return prev.includes(queueId) ? prev : [...prev, queueId];
+            }
+            return prev.filter((item) => item !== queueId);
+        });
+    };
+
+    const reorderPlannerQueue = async (orderedIds) => {
+        if (!sessionDetail?.id || !Array.isArray(orderedIds) || !orderedIds.length) {
+            return;
+        }
+        try {
+            setQueueReorderLoading(true);
+            await apiFetch({
+                path: 'dual-gpt/v1/planner/queue/reorder',
+                method: 'POST',
+                data: {
+                    session_id: sessionDetail.id,
+                    ordered_ids: orderedIds,
+                },
+            });
+            await loadPlannerQueue();
+        } catch (error) {
+            console.error('Failed to reorder planner queue:', error);
+            dispatch('core/notices').createNotice('error', error?.message || 'Failed to reorder queue.', {
+                type: 'snackbar',
+            });
+            await loadPlannerQueue();
+        } finally {
+            setQueueReorderLoading(false);
+        }
+    };
+
+    const removePlannerQueueItem = async (queueId) => {
+        if (!queueId) {
+            return;
+        }
+        const loadingKey = `remove:${queueId}`;
+        try {
+            setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
+            await apiFetch({
+                path: 'dual-gpt/v1/planner/queue/remove',
+                method: 'POST',
+                data: { queue_id: queueId },
+            });
+            setSelectedQueueItems((prev) => prev.filter((id) => id !== queueId));
+            await loadPlannerQueue();
+        } catch (error) {
+            console.error('Failed to remove queue item:', error);
+            dispatch('core/notices').createNotice('error', error?.message || 'Failed to remove queue item.', {
+                type: 'snackbar',
+            });
+        } finally {
+            setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: false }));
+        }
+    };
+
+    const stopPlannerQueueItem = async (queueId) => {
+        if (!queueId) {
+            return;
+        }
+        const loadingKey = `stop:${queueId}`;
+        try {
+            setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
+            await apiFetch({
+                path: 'dual-gpt/v1/planner/queue/stop',
+                method: 'POST',
+                data: {
+                    queue_id: queueId,
+                    reason: 'Stopped by operator (manual cancel).',
+                },
+            });
+            dispatch('core/notices').createNotice('warning', 'Queue item stopped.', { type: 'snackbar' });
+            await loadPlannerQueue();
+            await refreshSessionDetail();
+        } catch (error) {
+            console.error('Failed to stop queue item:', error);
+            dispatch('core/notices').createNotice('error', error?.message || 'Failed to stop queue item.', {
+                type: 'snackbar',
+            });
+        } finally {
+            setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: false }));
+        }
+    };
+
+    const handleQueuePreview = (item) => {
+        const articles = sessionDetail?.meta?.articles || [];
+        const article = articles.find((entry) => entry?.id === item?.article_id);
+        if (!article) {
+            dispatch('core/notices').createNotice('warning', 'No article data available to preview for this queue item.', {
+                type: 'snackbar',
+            });
+            return;
+        }
+
+        if (item.task_type === 'framework_generation') {
+            setFrameworkPreview(article);
+            return;
+        }
+        if (item.task_type === 'article_creation') {
+            if (article?.author?.output) {
+                setAuthorPreview(article);
+                return;
+            }
+            setPreviewArticle(article);
+            return;
+        }
+        setPreviewArticle(article);
+    };
+
+    const rerunPlannerQueueItem = async (item) => {
+        if (!sessionDetail?.id || !item?.task_type) {
+            return;
+        }
+        const loadingKey = `rerun:${item.id}`;
+        if (item.status === 'failed') {
+            const retryPayload =
+                item.task_type === 'article_creation' && /prompt exceeds maximum length|prompt too long/i.test(item.error_message || '')
+                    ? { retry_compact_prompt: true }
+                    : {};
+            try {
+                setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
+                await runPlannerQueueItem(item.id, { retryFailed: true, retryPayload });
+            } finally {
+                setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: false }));
+            }
+            return;
+        }
+        try {
+            setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
+            const addResponse = await apiFetch({
+                path: 'dual-gpt/v1/planner/queue/add',
+                method: 'POST',
+                data: {
+                    session_id: sessionDetail.id,
+                    article_id: item.article_id || undefined,
+                    task_type: item.task_type,
+                    ...(item.payload ? { payload: item.payload } : {}),
+                },
+            });
+
+            const newQueueId = addResponse?.queue_id;
+            if (!newQueueId) {
+                throw new Error('Could not create rerun queue item.');
+            }
+
+            await apiFetch({
+                path: 'dual-gpt/v1/planner/queue/run',
+                method: 'POST',
+                data: { queue_id: newQueueId },
+            });
+
+            dispatch('core/notices').createNotice('success', `${taskTypeLabel(item.task_type)} re-run started.`, {
+                type: 'snackbar',
+            });
+            await loadPlannerQueue();
+        } catch (error) {
+            console.error('Failed to re-run queue item:', error);
+            dispatch('core/notices').createNotice('error', error?.message || 'Failed to re-run queue item.', {
+                type: 'snackbar',
+            });
+        } finally {
+            setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: false }));
+        }
+    };
+
+    const handleQueueRowDrop = async (targetQueueId) => {
+        if (!draggedQueueItemId || !targetQueueId || draggedQueueItemId === targetQueueId) {
+            setDraggedQueueItemId('');
+            return;
+        }
+
+        const currentIds = queueItems.map((item) => item.id);
+        const fromIndex = currentIds.indexOf(draggedQueueItemId);
+        const toIndex = currentIds.indexOf(targetQueueId);
+        if (fromIndex < 0 || toIndex < 0) {
+            setDraggedQueueItemId('');
+            return;
+        }
+
+        const reordered = [...queueItems];
+        const [moved] = reordered.splice(fromIndex, 1);
+        reordered.splice(toIndex, 0, moved);
+        const withPositions = reordered.map((item, index) => ({ ...item, position: index + 1 }));
+        setQueueItems(withPositions);
+        setDraggedQueueItemId('');
+        await reorderPlannerQueue(withPositions.map((item) => item.id));
+    };
+
+    const parseQueueDate = (value) => {
+        if (!value) {
+            return 0;
+        }
+        const unix = Date.parse(String(value).replace(' ', 'T'));
+        return Number.isFinite(unix) ? unix : 0;
+    };
+
+    const formatQueueElapsed = (value) => {
+        const startedAt = parseQueueDate(value);
+        if (!startedAt) {
+            return '';
+        }
+        const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+        if (elapsedSeconds < 60) {
+            return `${elapsedSeconds}s elapsed`;
+        }
+        const minutes = Math.floor(elapsedSeconds / 60);
+        const seconds = elapsedSeconds % 60;
+        return `${minutes}m ${String(seconds).padStart(2, '0')}s elapsed`;
+    };
+
+    const getQueueProgressDetail = (item) => {
+        const status = item?.status || 'queued';
+        const elapsed = formatQueueElapsed(item?.updated_at || item?.created_at);
+        if (status === 'dispatched') {
+            return elapsed ? `Job sent to backend · ${elapsed}` : 'Job sent to backend';
+        }
+        if (status === 'running') {
+            return elapsed ? `Backend processing · ${elapsed}` : 'Backend processing';
+        }
+        if (status === 'queued') {
+            return elapsed ? `Waiting in queue · ${elapsed}` : 'Waiting in queue';
+        }
+        if (status === 'completed') {
+            return item?.updated_at ? `Completed at ${item.updated_at}` : 'Completed';
+        }
+        if (status === 'failed') {
+            return item?.updated_at ? `Failed at ${item.updated_at}` : 'Failed';
+        }
+        return elapsed;
+    };
+
+    const openQueueModal = async () => {
+        setQueueModalOpen(true);
+        await loadPlannerQueue();
+    };
+
+    const clearQueuedJobs = async () => {
+        const confirmed = window.confirm('Clear all queued jobs? Running jobs will not be affected.');
+        if (!confirmed) {
+            return;
+        }
+        try {
+            setQueueClearing(true);
+            const response = await apiFetch({
+                path: 'dual-gpt/v1/planner/queue/clear',
+                method: 'POST',
+                data: { older_than_seconds: 0 },
+            });
+            dispatch('core/notices').createNotice('success', response?.message || 'Queued jobs cleared.', { type: 'snackbar' });
+            await loadPlannerQueue();
+        } catch (error) {
+            console.error('Failed to clear queue:', error);
+            dispatch('core/notices').createNotice('error', error?.message || 'Failed to clear queue.', { type: 'snackbar' });
+        } finally {
+            setQueueClearing(false);
+        }
     };
 
     useEffect(() => {
@@ -614,7 +1112,7 @@ const EditorialPlannerApp = () => {
         if (!article || !Array.isArray(article.dive_deeper_jobs)) {
             return;
         }
-        const job = article.dive_deeper_jobs.find((item) => item?.job_id === diveDeeperJobId);
+        const job = [...article.dive_deeper_jobs].reverse().find((item) => item?.job_id === diveDeeperJobId);
         if (!job) {
             return;
         }
@@ -644,6 +1142,91 @@ const EditorialPlannerApp = () => {
         };
     }, [diveDeeperModalOpen, diveDeeperJobId, isDiveDeeperJobRunning]);
 
+    useEffect(() => {
+        if (!diveDeeperModalOpen || !isDiveDeeperWorking) {
+            setDiveDeeperElapsedSeconds(0);
+            return undefined;
+        }
+        setDiveDeeperElapsedSeconds(0);
+        const startedAt = Date.now();
+        const interval = setInterval(() => {
+            setDiveDeeperElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [diveDeeperModalOpen, isDiveDeeperWorking, diveDeeperJobId]);
+
+    useEffect(() => {
+        if (!detailModalOpen || !sessionDetail?.id) {
+            return undefined;
+        }
+        loadPlannerQueue();
+        return undefined;
+    }, [detailModalOpen, sessionDetail?.id]);
+
+    useEffect(() => {
+        if (!detailModalOpen || !sessionDetail?.id) {
+            return undefined;
+        }
+
+        const hasActiveQueueItems = queueItems.some((item) =>
+            ['queued', 'running', 'dispatched'].includes(item?.status || '')
+        );
+
+        if (!hasActiveQueueItems) {
+            return undefined;
+        }
+
+        let cancelled = false;
+        const interval = setInterval(async () => {
+            if (cancelled || queueReorderLoading) {
+                return;
+            }
+            await loadPlannerQueue({ silent: true });
+            await refreshSessionDetail();
+        }, 4000);
+
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
+    }, [detailModalOpen, sessionDetail?.id, queueItems, queueReorderLoading]);
+
+    useEffect(() => {
+        if (!detailModalOpen || !sessionDetail?.id) {
+            return undefined;
+        }
+
+        const articles = sessionDetail?.meta?.articles || [];
+        const hasActiveDeepDiveJobs = articles.some((article) =>
+            Array.isArray(article?.dive_deeper_jobs) &&
+            article.dive_deeper_jobs.some((job) =>
+                ['queued', 'running', 'processing', 'dispatched'].includes(job?.status || '')
+            )
+        );
+
+        if (!hasActiveDeepDiveJobs) {
+            return undefined;
+        }
+
+        let cancelled = false;
+        const interval = setInterval(async () => {
+            if (cancelled) {
+                return;
+            }
+            await refreshSessionDetail();
+        }, 5000);
+
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
+    }, [detailModalOpen, sessionDetail?.id, sessionDetail?.meta?.articles]);
+
+    useEffect(() => {
+        const validQueuedIds = new Set(queueItems.filter((item) => item.status === 'queued').map((item) => item.id));
+        setSelectedQueueItems((prev) => prev.filter((id) => validQueuedIds.has(id)));
+    }, [queueItems]);
+
     const getFocusLabel = (value) => {
         if (value >= 70) {
             return 'Focused';
@@ -656,10 +1239,8 @@ const EditorialPlannerApp = () => {
 
     const getCitationCount = (article) => {
         const explicitCount = Number(article?.citation_count || 0);
-        if (explicitCount > 0) {
-            return explicitCount;
-        }
-        return Array.isArray(article?.citations) ? article.citations.length : 0;
+        const citationsLength = Array.isArray(article?.citations) ? article.citations.length : 0;
+        return Math.max(explicitCount, citationsLength);
     };
 
     const getRecommendedAuthorProfile = (article) => {
@@ -1097,6 +1678,28 @@ const EditorialPlannerApp = () => {
         }
     };
 
+    const handleQueueFrameworkGeneration = async (article) => {
+        if (!article?.id || !sessionDetail?.id) {
+            return;
+        }
+        const citationCount = getCitationCount(article);
+        if (citationCount < MIN_CITATIONS_REQUIRED) {
+            dispatch('core/notices').createNotice(
+                'error',
+                `Framework generation requires at least ${MIN_CITATIONS_REQUIRED} citations. This article has ${citationCount}.`,
+                { type: 'snackbar' }
+            );
+            return;
+        }
+
+        await enqueuePlannerTask({
+            taskType: 'framework_generation',
+            articleId: article.id,
+            payload: { force: article?.framework?.status !== 'pending' },
+            successMessage: 'Framework generation added to queue.',
+        });
+    };
+
     const handleRerunPhase4 = async () => {
         if (!sessionDetail || !sessionDetail.id) {
             return;
@@ -1525,6 +2128,29 @@ const EditorialPlannerApp = () => {
         }
     };
 
+    const handleQueueAuthorAgent = async (article) => {
+        if (!article?.id || !sessionDetail?.id) {
+            return;
+        }
+        const citationCount = getCitationCount(article);
+        if (citationCount < MIN_CITATIONS_REQUIRED) {
+            dispatch('core/notices').createNotice(
+                'error',
+                `Author generation requires at least ${MIN_CITATIONS_REQUIRED} citations. This article has ${citationCount}.`,
+                { type: 'snackbar' }
+            );
+            return;
+        }
+
+        const selectedProfile = getSelectedAuthorProfile(article);
+        await enqueuePlannerTask({
+            taskType: 'article_creation',
+            articleId: article.id,
+            payload: { author_profile: selectedProfile },
+            successMessage: 'Article creation added to queue.',
+        });
+    };
+
     const handleExportAuthorDraft = (article) => {
         if (!article?.author?.output) {
             return;
@@ -1550,17 +2176,42 @@ const EditorialPlannerApp = () => {
                 ...(showFocusControls ? { focus_level: focusLevel } : {}),
                 ...(params ? { params } : {}),
             };
-            const response = await apiFetch({
+            
+            console.log(`[Planner] Starting article action: ${action} for article ${article.id}`, payload);
+            
+            // Create a timeout promise that rejects after 12 seconds
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Request timeout after 12 seconds')), 12000)
+            );
+            
+            const fetchPromise = apiFetch({
                 path: 'dual-gpt/v1/planner/article-action',
                 method: 'POST',
                 data: payload,
             });
-
+            
+            let response;
+            try {
+                // Race between fetch and timeout
+                response = await Promise.race([fetchPromise, timeoutPromise]);
+                console.log(`[Planner] Article action succeeded:`, response);
+            } catch (raceError) {
+                // If timeout, refresh to get the job that was likely queued on backend
+                if (raceError.message.includes('timeout')) {
+                    console.warn(`[Planner] Article action timed out (${action}), refreshing to pick up job...`);
+                    dispatch('core/notices').createNotice('success', successMessage, { type: 'snackbar' });
+                    // Refresh immediately to fetch the newly queued job
+                    await refreshSessionDetail();
+                    return { queued_async: true };
+                }
+                throw raceError;
+            }
+            
             dispatch('core/notices').createNotice('success', successMessage, { type: 'snackbar' });
             await refreshSessionDetail();
             return response;
         } catch (error) {
-            console.error(`Article action failed (${action}):`, error);
+            console.error(`[Planner] Article action failed (${action}):`, error);
             dispatch('core/notices').createNotice(
                 'error',
                 error.message || 'Article action failed.',
@@ -1633,15 +2284,71 @@ const EditorialPlannerApp = () => {
         const result = await runArticleAction(
             diveDeeperArticle,
             'dive_deeper',
-            'Specialist source-check queued. Supporting evidence will be added after processing.',
+            'Source-check queued. Progress will appear in this window until it completes.',
             params
         );
-        const queuedJobId = result?.job_id || '';
         setDiveDeeperSuccess(false);
         setDiveDeeperJobError('');
+        
+        // Try to get job_id from response first
+        let queuedJobId = result?.job_id || '';
+        let queuedJobStatus = result?.status || '';
+        
+        const refreshedDetail = await refreshSessionDetail();
+
+        const refreshedArticles = refreshedDetail?.meta?.articles || [];
+        const refreshedArticle = refreshedArticles.find((a) => a?.id === diveDeeperArticle.id);
+        if (refreshedArticle?.dive_deeper_jobs && refreshedArticle.dive_deeper_jobs.length > 0) {
+            const jobsNewestFirst = [...refreshedArticle.dive_deeper_jobs].reverse();
+            const matchedJob = queuedJobId
+                ? jobsNewestFirst.find((item) => item?.job_id === queuedJobId)
+                : jobsNewestFirst.find((item) => !!item?.job_id);
+
+            if (matchedJob?.job_id) {
+                queuedJobId = matchedJob.job_id;
+                queuedJobStatus = matchedJob.status || queuedJobStatus;
+                console.log(`[Planner] Bound dive_deeper job from refreshed session: ${queuedJobId} (${queuedJobStatus || 'unknown'})`);
+            }
+        }
+
         setDiveDeeperJobId(queuedJobId);
-        setDiveDeeperJobStatus(queuedJobId ? 'queued' : '');
-        await refreshSessionDetail();
+        setDiveDeeperJobStatus(queuedJobId ? (queuedJobStatus || 'queued') : '');
+    };
+
+    const handleDiveDeeperQueueSubmit = async () => {
+        if (!diveDeeperArticle?.id || !sessionDetail?.id) {
+            return;
+        }
+        try {
+            setDiveDeeperQueueLoading(true);
+            const payload = mapSliderToDepthParams(diveDeeperDepthSlider);
+            await enqueuePlannerTask({
+                taskType: 'dive_deeper',
+                articleId: diveDeeperArticle.id,
+                payload,
+                successMessage: 'Dive deeper task added to queue.',
+            });
+            setDiveDeeperModalOpen(false);
+            setDiveDeeperSuccess(false);
+        } finally {
+            setDiveDeeperQueueLoading(false);
+        }
+    };
+
+    const handleDiveDeeperRetry = async () => {
+        if (!diveDeeperArticle || isDeepDiveLoading) {
+            return;
+        }
+        await handleDiveDeeperSubmit();
+    };
+
+    const closeDiveDeeperModal = () => {
+        setDiveDeeperModalOpen(false);
+        setDiveDeeperSuccess(false);
+        setDiveDeeperJobId('');
+        setDiveDeeperJobStatus('');
+        setDiveDeeperJobError('');
+        setDiveDeeperElapsedSeconds(0);
     };
 
     const handleOpinionPieceArticle = async (article) => {
@@ -2158,33 +2865,13 @@ const EditorialPlannerApp = () => {
                 wp.element.createElement(
                     CardBody,
                     null,
-                    wp.element.createElement('p', null, hasSummary ? phaseSummary : statusText),
-                    hasError &&
-                        wp.element.createElement(
-                            'p',
-                            { style: { marginTop: '8px', color: '#b32d2e' } },
-                            'Phase failed.'
-                        ),
-                    phase.error &&
-                        wp.element.createElement(
-                            'p',
-                            { style: { marginTop: '6px', color: '#b32d2e' } },
-                            phase.error
-                        ),
-                    (referencedLinks.length || citationsCount)
-                        ? wp.element.createElement(
-                              'p',
-                              { style: { marginTop: '8px', fontSize: '12px', color: '#50575e' } },
-                              `Links checked: ${referencedLinks.length || citationsCount}`
-                          )
-                        : null,
                     wp.element.createElement(
                         Button,
                         {
                             isSecondary: true,
                             onClick: () =>
                                 setExpandedPhases((prev) => ({ ...prev, [key]: !prev[key] })),
-                            style: { marginTop: '8px' },
+                            style: { marginTop: '2px' },
                         },
                         isExpanded ? 'Hide details' : 'View details'
                     ),
@@ -2192,9 +2879,29 @@ const EditorialPlannerApp = () => {
                         wp.element.createElement(
                             'div',
                             { style: { marginTop: '12px' } },
+                            wp.element.createElement('p', null, hasSummary ? phaseSummary : statusText),
+                            hasError &&
+                                wp.element.createElement(
+                                    'p',
+                                    { style: { marginTop: '8px', color: '#b32d2e' } },
+                                    'Phase failed.'
+                                ),
+                            phase.error &&
+                                wp.element.createElement(
+                                    'p',
+                                    { style: { marginTop: '6px', color: '#b32d2e' } },
+                                    phase.error
+                                ),
+                            (referencedLinks.length || citationsCount)
+                                ? wp.element.createElement(
+                                      'p',
+                                      { style: { marginTop: '8px', fontSize: '12px', color: '#50575e' } },
+                                      `Links checked: ${referencedLinks.length || citationsCount}`
+                                  )
+                                : null,
                             ...detailBlocks
                         ),
-                    phase.payload?.next_step_question &&
+                    isExpanded && phase.payload?.next_step_question &&
                         wp.element.createElement(
                             'div',
                             { style: { marginTop: '8px' } },
@@ -2234,7 +2941,7 @@ const EditorialPlannerApp = () => {
                                     'Generate Article Synopses'
                                 )
                         ),
-                    key === 'phase2' &&
+                    isExpanded && key === 'phase2' &&
                         wp.element.createElement(
                             'div',
                             { style: { marginTop: '8px' } },
@@ -2401,6 +3108,8 @@ const EditorialPlannerApp = () => {
                     const isDismissLoading = !!articleActionLoading[`dismiss:${article.id}`];
                     const isDeepDiveLoading = !!articleActionLoading[`dive_deeper:${article.id}`];
                     const isOpinionLoading = !!articleActionLoading[`opinion_piece:${article.id}`];
+                    const isQueueFrameworkLoading = !!queueActionLoading[`enqueue:framework_generation:${article.id}`];
+                    const isQueueArticleLoading = !!queueActionLoading[`enqueue:article_creation:${article.id}`];
                     return wp.element.createElement(
                         'tr',
                         { key: `${article.headline || article.title || article.id}-${index}` },
@@ -2604,6 +3313,16 @@ const EditorialPlannerApp = () => {
                                 Button,
                                 {
                                     isSecondary: true,
+                                    onClick: () => handleQueueAuthorAgent(article),
+                                    style: { marginRight: '8px' },
+                                    disabled: !meetsCitationThreshold || !frameworkReady || isQueueArticleLoading || authorStatus === 'running' || authorStatus === 'queued',
+                                },
+                                isQueueArticleLoading ? wp.element.createElement(Spinner, null) : 'Queue Article'
+                            ),
+                            wp.element.createElement(
+                                Button,
+                                {
+                                    isSecondary: true,
                                     onClick: () => setAuthorPreview(article),
                                     style: { marginRight: '8px' },
                                     disabled: !(authorStatus === 'complete' && article.author?.output),
@@ -2633,6 +3352,16 @@ const EditorialPlannerApp = () => {
                             wp.element.createElement(
                                 Button,
                                 {
+                                    isSecondary: true,
+                                    onClick: () => handleQueueFrameworkGeneration(article),
+                                    style: { marginRight: '8px' },
+                                    disabled: !meetsCitationThreshold || isQueueFrameworkLoading,
+                                },
+                                isQueueFrameworkLoading ? wp.element.createElement(Spinner, null) : 'Queue Framework'
+                            ),
+                            wp.element.createElement(
+                                Button,
+                                {
                                     isPrimary: true,
                                     onClick: () => handleRegenerateFramework(article, index),
                                     disabled: !meetsCitationThreshold || !!frameworkLoading[index],
@@ -2644,6 +3373,362 @@ const EditorialPlannerApp = () => {
                 })
             )
             )
+        );
+    };
+
+    const renderEditorQueueTable = () => {
+        const articles = sessionDetail?.meta?.articles || [];
+        const filteredQueueItems = queueItems.filter((item) => {
+            const matchesStatus = queueStatusFilter === 'all' ? true : item.status === queueStatusFilter;
+            const matchesTaskType = queueTaskTypeFilter === 'all' ? true : item.task_type === queueTaskTypeFilter;
+            return matchesStatus && matchesTaskType;
+        });
+        const sortedQueueItems = [...filteredQueueItems].sort((a, b) => {
+            const aQueued = (a?.status || '') === 'queued';
+            const bQueued = (b?.status || '') === 'queued';
+
+            if (queueStatusFilter === 'queued') {
+                return Number(a?.position || 0) - Number(b?.position || 0);
+            }
+            if (queueStatusFilter !== 'all') {
+                return parseQueueDate(b?.updated_at || b?.created_at) - parseQueueDate(a?.updated_at || a?.created_at);
+            }
+
+            if (aQueued && bQueued) {
+                return Number(a?.position || 0) - Number(b?.position || 0);
+            }
+            if (aQueued) {
+                return -1;
+            }
+            if (bQueued) {
+                return 1;
+            }
+
+            return parseQueueDate(b?.updated_at || b?.created_at) - parseQueueDate(a?.updated_at || a?.created_at);
+        });
+        const queuedItems = queueItems.filter((item) => item.status === 'queued');
+        const activeQueueItems = queueItems.filter((item) => ['queued', 'running', 'dispatched'].includes(item.status || ''));
+        const hiddenActiveItems = activeQueueItems.filter((item) => !filteredQueueItems.some((filtered) => filtered.id === item.id));
+        const tableEntries = [
+            ...hiddenActiveItems.map((item) => ({ type: 'item', item, pinned: true })),
+            ...(hiddenActiveItems.length
+                ? [{ type: 'separator', id: 'filtered-results-separator' }]
+                : []),
+            ...sortedQueueItems.map((item) => ({ type: 'item', item, pinned: false })),
+        ];
+        const selectedQueuedItems = queuedItems.filter((item) => selectedQueueItems.includes(item.id));
+        const articleTitleById = articles.reduce((acc, article) => {
+            acc[article.id] = article.headline || article.title || article.id;
+            return acc;
+        }, {});
+
+        const canRemoveQueueItem = (status) => !['running', 'dispatched'].includes(status || '');
+
+        return wp.element.createElement(
+            'div',
+            { style: { marginTop: '16px' } },
+            wp.element.createElement('h2', null, 'Editor Queue'),
+            queueError && wp.element.createElement(Notice, { status: 'error', isDismissible: false }, queueError),
+            wp.element.createElement(
+                'p',
+                { style: { margin: '8px 0', fontSize: '12px', color: '#50575e' } },
+                `Queued: ${queueCounts?.queued || 0} · Running: ${queueCounts?.running || 0} · Completed: ${queueCounts?.completed || 0} · Failed: ${queueCounts?.failed || 0}`
+            ),
+            wp.element.createElement(
+                'p',
+                { style: { margin: '0 0 8px', fontSize: '12px', color: '#666' } },
+                'Drag queued rows to reorder priority, then run selected items or run all queued items.'
+            ),
+            wp.element.createElement(
+                'div',
+                { style: { display: 'flex', gap: '8px', marginBottom: '10px' } },
+                wp.element.createElement(SelectControl, {
+                    label: 'Status filter',
+                    value: queueStatusFilter,
+                    options: [
+                        { label: 'All statuses', value: 'all' },
+                        { label: 'Queued', value: 'queued' },
+                        { label: 'Running', value: 'running' },
+                        { label: 'Dispatched', value: 'dispatched' },
+                        { label: 'Completed', value: 'completed' },
+                        { label: 'Failed', value: 'failed' },
+                    ],
+                    onChange: setQueueStatusFilter,
+                }),
+                wp.element.createElement(SelectControl, {
+                    label: 'Category filter',
+                    value: queueTaskTypeFilter,
+                    options: [
+                        { label: 'All categories', value: 'all' },
+                        { label: 'Deeper Dives', value: 'dive_deeper' },
+                        { label: 'Framework Generation', value: 'framework_generation' },
+                        { label: 'Article Creation', value: 'article_creation' },
+                    ],
+                    onChange: setQueueTaskTypeFilter,
+                }),
+            ),
+            wp.element.createElement(
+                'div',
+                { style: { display: 'flex', gap: '8px', marginBottom: '10px' } },
+                wp.element.createElement(
+                    Button,
+                    { isSecondary: true, onClick: loadPlannerQueue, disabled: queueLoading || queueClearing },
+                    queueLoading ? wp.element.createElement(Spinner, null) : 'Refresh Queue'
+                ),
+                wp.element.createElement(
+                    Button,
+                    {
+                        isSecondary: true,
+                        onClick: () => runPlannerQueueBulk({ queueIds: selectedQueuedItems.map((item) => item.id) }),
+                        disabled: !selectedQueuedItems.length || !!queueActionLoading['run:selected'] || queueLoading || queueReorderLoading,
+                    },
+                    queueActionLoading['run:selected'] ? wp.element.createElement(Spinner, null) : `Run Selected (${selectedQueuedItems.length})`
+                ),
+                wp.element.createElement(
+                    Button,
+                    {
+                        isPrimary: true,
+                        onClick: () => runPlannerQueueBulk({ runAllQueued: true }),
+                        disabled: !queuedItems.length || !!queueActionLoading['run:all'] || queueLoading || queueReorderLoading,
+                    },
+                    queueActionLoading['run:all'] ? wp.element.createElement(Spinner, null) : `Run All Queued (${queuedItems.length})`
+                ),
+                wp.element.createElement(
+                    Button,
+                    { isDestructive: true, onClick: clearQueuedJobs, disabled: queueLoading || queueClearing },
+                    queueClearing ? wp.element.createElement(Spinner, null) : 'Clear Queued'
+                )
+            ),
+            queueLoading &&
+                wp.element.createElement(
+                    'p',
+                    { style: { margin: '6px 0', fontSize: '12px', color: '#666' } },
+                    'Refreshing queue…'
+                ),
+            hiddenActiveItems.length > 0 &&
+                wp.element.createElement(
+                    Notice,
+                    { status: 'info', isDismissible: false },
+                    `${hiddenActiveItems.length} active queue item(s) are pinned above the filtered results so controls stay available in every view.`
+                ),
+            wp.element.createElement(
+                      'table',
+                      { className: 'widefat striped' },
+                      wp.element.createElement(
+                          'thead',
+                          null,
+                          wp.element.createElement(
+                              'tr',
+                              null,
+                              wp.element.createElement('th', null, ''),
+                              wp.element.createElement('th', null, ''),
+                              wp.element.createElement('th', null, 'Order'),
+                              wp.element.createElement('th', null, 'Task'),
+                              wp.element.createElement('th', null, 'Article'),
+                              wp.element.createElement('th', null, 'Status'),
+                              wp.element.createElement('th', null, 'Created'),
+                              wp.element.createElement('th', null, 'Action'),
+                              wp.element.createElement('th', null, 'Remove')
+                          )
+                      ),
+                      wp.element.createElement(
+                          'tbody',
+                          null,
+                          tableEntries.length
+                              ? tableEntries.map((entry) => {
+                                    if (entry.type === 'separator') {
+                                        return wp.element.createElement(
+                                            'tr',
+                                            { key: entry.id },
+                                            wp.element.createElement(
+                                                'td',
+                                                {
+                                                    colSpan: 9,
+                                                    style: {
+                                                        background: '#f6f7f7',
+                                                        color: '#50575e',
+                                                        fontSize: '12px',
+                                                        fontWeight: 600,
+                                                    },
+                                                },
+                                                'Filtered results'
+                                            )
+                                        );
+                                    }
+
+                                    const item = entry.item;
+                                    const runKey = `run:${item.id}`;
+                                    const removeKey = `remove:${item.id}`;
+                                                                        const stopKey = `stop:${item.id}`;
+                                    const isRunningAction = !!queueActionLoading[runKey];
+                                    const isRemoveAction = !!queueActionLoading[removeKey];
+                                                                        const isStopAction = !!queueActionLoading[stopKey];
+                                    const rerunKey = `rerun:${item.id}`;
+                                    const isRerunAction = !!queueActionLoading[rerunKey];
+                                    const isQueued = item.status === 'queued';
+                                    const isCompleted = item.status === 'completed';
+                                    const isFailed = item.status === 'failed';
+                                                                        const isStoppable = ['queued', 'running', 'dispatched'].includes(item.status || '');
+                                    const isSelected = selectedQueueItems.includes(item.id);
+                                    const articleTitle = articleTitleById[item.article_id] || item.article_id || '—';
+                                    const failureReason = isFailed ? String(item.error_message || '').trim() : '';
+                                    const progressDetail = getQueueProgressDetail(item);
+                                    return wp.element.createElement(
+                                        'tr',
+                                        {
+                                            key: item.id,
+                                            draggable: isQueued && !queueReorderLoading,
+                                            onDragStart: () => setDraggedQueueItemId(item.id),
+                                            onDragOver: (event) => {
+                                                if (!isQueued) {
+                                                    return;
+                                                }
+                                                event.preventDefault();
+                                            },
+                                            onDrop: (event) => {
+                                                event.preventDefault();
+                                                handleQueueRowDrop(item.id);
+                                            },
+                                            style: {
+                                                cursor: isQueued ? 'move' : 'default',
+                                                opacity: draggedQueueItemId === item.id ? 0.6 : 1,
+                                                background: entry.pinned ? '#fffbe6' : undefined,
+                                            },
+                                        },
+                                        wp.element.createElement(
+                                            'td',
+                                            { style: { color: isQueued ? '#666' : '#bbb', width: '28px', textAlign: 'center' } },
+                                            isQueued ? '⋮⋮' : '•'
+                                        ),
+                                        wp.element.createElement(
+                                            'td',
+                                            null,
+                                            wp.element.createElement('input', {
+                                                type: 'checkbox',
+                                                checked: isSelected,
+                                                disabled: !isQueued,
+                                                onChange: (event) => toggleQueueItemSelection(item.id, !!event?.target?.checked),
+                                            })
+                                        ),
+                                        wp.element.createElement('td', null, item.position || '—'),
+                                        wp.element.createElement('td', null, taskTypeLabel(item.task_type)),
+                                        wp.element.createElement('td', null, articleTitle),
+                                        wp.element.createElement(
+                                            'td',
+                                            null,
+                                            queueStatusLabel(item.status || 'queued'),
+                                            progressDetail &&
+                                                wp.element.createElement(
+                                                    'div',
+                                                    {
+                                                        style: {
+                                                            marginTop: '4px',
+                                                            fontSize: '11px',
+                                                            color: isFailed ? '#666' : '#666',
+                                                            lineHeight: 1.35,
+                                                        },
+                                                    },
+                                                    progressDetail
+                                                ),
+                                            failureReason &&
+                                                wp.element.createElement(
+                                                    'div',
+                                                    {
+                                                        style: {
+                                                            marginTop: '4px',
+                                                            fontSize: '11px',
+                                                            color: '#a00',
+                                                            maxWidth: '260px',
+                                                            lineHeight: 1.35,
+                                                        },
+                                                        title: failureReason,
+                                                    },
+                                                    failureReason.length > 120 ? `${failureReason.slice(0, 120)}…` : failureReason
+                                                )
+                                        ),
+                                        wp.element.createElement('td', null, item.created_at || '—'),
+                                        wp.element.createElement(
+                                            'td',
+                                            null,
+                                            wp.element.createElement(
+                                                'div',
+                                                { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
+                                                wp.element.createElement(
+                                                    Button,
+                                                    {
+                                                        isSecondary: true,
+                                                        onClick: () => runPlannerQueueItem(item.id),
+                                                        disabled: !isQueued || isRunningAction || queueReorderLoading,
+                                                    },
+                                                    isRunningAction ? wp.element.createElement(Spinner, null) : 'Run Now'
+                                                ),
+                                                isCompleted &&
+                                                    wp.element.createElement(
+                                                        Button,
+                                                        {
+                                                            isSecondary: true,
+                                                            onClick: () => handleQueuePreview(item),
+                                                        },
+                                                        'Preview'
+                                                    ),
+                                                isCompleted &&
+                                                    wp.element.createElement(
+                                                        Button,
+                                                        {
+                                                            isSecondary: true,
+                                                            onClick: () => rerunPlannerQueueItem(item),
+                                                            disabled: isRerunAction || queueReorderLoading,
+                                                        },
+                                                        isRerunAction ? wp.element.createElement(Spinner, null) : 'Re-run'
+                                                    ),
+                                                isFailed &&
+                                                    wp.element.createElement(
+                                                        Button,
+                                                        {
+                                                            isSecondary: true,
+                                                            onClick: () => rerunPlannerQueueItem(item),
+                                                            disabled: isRerunAction || isRunningAction || queueReorderLoading,
+                                                        },
+                                                        isRerunAction ? wp.element.createElement(Spinner, null) : 'Retry'
+                                                    ),
+                                                isStoppable &&
+                                                    wp.element.createElement(
+                                                        Button,
+                                                        {
+                                                            isDestructive: true,
+                                                            onClick: () => stopPlannerQueueItem(item.id),
+                                                            disabled: isStopAction,
+                                                        },
+                                                        isStopAction ? wp.element.createElement(Spinner, null) : 'Stop'
+                                                    )
+                                            )
+                                        ),
+                                        wp.element.createElement(
+                                            'td',
+                                            null,
+                                            wp.element.createElement(
+                                                Button,
+                                                {
+                                                    isSecondary: true,
+                                                    onClick: () => removePlannerQueueItem(item.id),
+                                                    disabled: !canRemoveQueueItem(item.status) || isRemoveAction,
+                                                },
+                                                isRemoveAction ? wp.element.createElement(Spinner, null) : 'Remove'
+                                            )
+                                        )
+                                    );
+                                })
+                              : wp.element.createElement(
+                                    'tr',
+                                    null,
+                                    wp.element.createElement(
+                                        'td',
+                                        { colSpan: 9, style: { color: '#666' } },
+                                        'No queue items match the current filters.'
+                                    )
+                                )
+                      )
+                  )
         );
     };
 
@@ -2906,12 +3991,22 @@ const EditorialPlannerApp = () => {
                               ),
                               wp.element.createElement(
                                   Button,
+                                  {
+                                      isSecondary: true,
+                                      onClick: openQueueModal,
+                                      style: { marginRight: '8px' },
+                                  },
+                                  `Queue (${queueCounts?.queued || 0})`
+                              ),
+                              wp.element.createElement(
+                                  Button,
                                   { isSecondary: true, onClick: refreshSessionDetail },
                                   'Refresh'
                               )
                           )
                       ),
                       renderPhaseSummaries(),
+                      renderEditorQueueTable(),
                       (sessionDetail?.meta?.articles || []).length > 0
                           ? wp.element.createElement(
                                 wp.element.Fragment,
@@ -2927,7 +4022,7 @@ const EditorialPlannerApp = () => {
                     Modal,
                     {
                         title: 'Dive Deeper - Research Depth',
-                        onRequestClose: () => !isDiveDeeperWorking && setDiveDeeperModalOpen(false),
+                        onRequestClose: closeDiveDeeperModal,
                     },
                     diveDeeperSuccess
                         ? wp.element.createElement(
@@ -2957,13 +4052,53 @@ const EditorialPlannerApp = () => {
                               wp.element.createElement(
                                   'p',
                                   { style: { marginTop: '16px', fontSize: '14px', color: '#666' } },
-                                  `Specialist is ${THINKING_PHRASES[thinkingPhraseIndex]} additional citations...`
+                                  `${diveDeeperStageMeta.label} · ${THINKING_PHRASES[thinkingPhraseIndex]}...`
+                              ),
+                              wp.element.createElement(
+                                  'div',
+                                  { style: { marginTop: '14px', marginBottom: '10px' } },
+                                  wp.element.createElement(ProgressBar, { value: diveDeeperStageMeta.progress })
                               ),
                               wp.element.createElement(
                                   'p',
-                                  { style: { marginTop: '8px', fontSize: '12px', color: '#999' } },
-                                                                    `Job status: ${diveDeeperJobStatus || 'starting'}...`
-                              )
+                                  { style: { marginTop: '8px', fontSize: '12px', color: '#666' } },
+                                  diveDeeperStageMeta.detail
+                              ),
+                              wp.element.createElement(
+                                  'p',
+                                  { style: { marginTop: '6px', fontSize: '12px', color: '#999' } },
+                                  `Status: ${diveDeeperStageKey}${diveDeeperElapsedSeconds > 0 ? ` · ${diveDeeperElapsedSeconds}s elapsed` : ''}`
+                              ),
+                              isDiveDeeperStalled &&
+                                  wp.element.createElement(
+                                      Notice,
+                                      { status: 'warning', isDismissible: false },
+                                      wp.element.createElement(
+                                          'div',
+                                          {
+                                              style: {
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'space-between',
+                                                  gap: '10px',
+                                              },
+                                          },
+                                          wp.element.createElement(
+                                              'span',
+                                              null,
+                                              'This job has been queued longer than expected. You can retry now.'
+                                          ),
+                                          wp.element.createElement(
+                                              Button,
+                                              {
+                                                  isSecondary: true,
+                                                  onClick: handleDiveDeeperRetry,
+                                                  disabled: isDeepDiveLoading,
+                                              },
+                                              isDeepDiveLoading ? wp.element.createElement(Spinner, null) : 'Retry'
+                                          )
+                                      )
+                                  )
                           )
                         : wp.element.createElement(
                               'div',
@@ -3032,24 +4167,141 @@ const EditorialPlannerApp = () => {
                                       Button,
                                       {
                                           isSecondary: true,
-                                          onClick: () => {
-                                              setDiveDeeperModalOpen(false);
-                                              setDiveDeeperSuccess(false);
-                                          },
+                                          onClick: closeDiveDeeperModal,
                                       },
                                       'Cancel'
                                   ),
                                   wp.element.createElement(
                                       Button,
                                       {
+                                          isSecondary: true,
+                                          onClick: handleDiveDeeperQueueSubmit,
+                                          disabled: isDiveDeeperWorking || diveDeeperQueueLoading,
+                                      },
+                                      diveDeeperQueueLoading ? wp.element.createElement(Spinner, null) : 'Add to Queue'
+                                  ),
+                                  wp.element.createElement(
+                                      Button,
+                                      {
                                           isPrimary: true,
                                           onClick: handleDiveDeeperSubmit,
-                                          disabled: isDiveDeeperWorking,
+                                          disabled: isDiveDeeperWorking || diveDeeperQueueLoading,
                                       },
-                                      isDiveDeeperWorking ? wp.element.createElement(Spinner, null) : 'Start'
+                                      isDiveDeeperWorking ? wp.element.createElement(Spinner, null) : 'Run Now'
                                   )
                               )
                           )
+                ),
+            queueModalOpen &&
+                wp.element.createElement(
+                    Modal,
+                    {
+                        title: 'Planner Queue',
+                        onRequestClose: () => !queueClearing && setQueueModalOpen(false),
+                    },
+                    queueError && wp.element.createElement(Notice, { status: 'error', isDismissible: false }, queueError),
+                    wp.element.createElement(
+                        'p',
+                        { style: { marginTop: 0, color: '#50575e' } },
+                        `Queued: ${queueCounts?.queued || 0} · Running: ${queueCounts?.running || 0} · Failed: ${queueCounts?.failed || 0}`
+                    ),
+                    queueLoading
+                        ? wp.element.createElement(Spinner, null)
+                        : wp.element.createElement(
+                              'div',
+                              {
+                                  style: {
+                                      maxHeight: '320px',
+                                      overflowY: 'auto',
+                                      border: '1px solid #ddd',
+                                      borderRadius: '4px',
+                                      padding: '8px',
+                                  },
+                              },
+                              queueItems.length
+                                  ? queueItems.map((item) =>
+                                        wp.element.createElement(
+                                            'div',
+                                            {
+                                                key: item.id,
+                                                style: {
+                                                    padding: '8px 6px',
+                                                    borderBottom: '1px solid #eee',
+                                                    fontSize: '12px',
+                                                },
+                                            },
+                                            wp.element.createElement(
+                                                'div',
+                                                { style: { fontWeight: 600 } },
+                                                `${(item.task_type || 'task').replace(/_/g, ' ')} · ${item.status.toUpperCase()} · ${item.created_at}`
+                                            ),
+                                            wp.element.createElement(
+                                                'div',
+                                                { style: { color: '#666', marginTop: '4px' } },
+                                                item.article_id || item.id
+                                            ),
+                                            wp.element.createElement(
+                                                'div',
+                                                { style: { color: '#666', marginTop: '4px', fontSize: '11px' } },
+                                                getQueueProgressDetail(item) || 'No progress detail yet.'
+                                            ),
+                                            wp.element.createElement(
+                                                'div',
+                                                { style: { marginTop: '6px' } },
+                                                wp.element.createElement(
+                                                    Button,
+                                                    {
+                                                        isSecondary: true,
+                                                        onClick: () => runPlannerQueueItem(item.id),
+                                                        disabled: item.status !== 'queued' || !!queueActionLoading[`run:${item.id}`],
+                                                    },
+                                                    queueActionLoading[`run:${item.id}`] ? wp.element.createElement(Spinner, null) : 'Run Now'
+                                                ),
+                                                item.status === 'failed' &&
+                                                    wp.element.createElement(
+                                                        Button,
+                                                        {
+                                                            isSecondary: true,
+                                                            onClick: () => rerunPlannerQueueItem(item),
+                                                            disabled: !!queueActionLoading[`rerun:${item.id}`],
+                                                            style: { marginLeft: '6px' },
+                                                        },
+                                                        queueActionLoading[`rerun:${item.id}`] ? wp.element.createElement(Spinner, null) : 'Retry'
+                                                    ),
+                                                ['queued', 'running', 'dispatched'].includes(item.status || '') &&
+                                                    wp.element.createElement(
+                                                        Button,
+                                                        {
+                                                            isDestructive: true,
+                                                            onClick: () => stopPlannerQueueItem(item.id),
+                                                            disabled: !!queueActionLoading[`stop:${item.id}`],
+                                                            style: { marginLeft: '6px' },
+                                                        },
+                                                        queueActionLoading[`stop:${item.id}`] ? wp.element.createElement(Spinner, null) : 'Stop'
+                                                    )
+                                            )
+                                        )
+                                    )
+                                  : wp.element.createElement(
+                                        'p',
+                                        { style: { margin: 0, color: '#666' } },
+                                        'No queued/running jobs.'
+                                    )
+                          ),
+                    wp.element.createElement(
+                        'div',
+                        { style: { marginTop: '16px', display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+                        wp.element.createElement(
+                            Button,
+                            { isSecondary: true, onClick: loadPlannerQueue, disabled: queueLoading || queueClearing },
+                            queueLoading ? wp.element.createElement(Spinner, null) : 'Refresh Queue'
+                        ),
+                        wp.element.createElement(
+                            Button,
+                            { isDestructive: true, onClick: clearQueuedJobs, disabled: queueLoading || queueClearing },
+                            queueClearing ? wp.element.createElement(Spinner, null) : 'Clear Queued'
+                        )
+                    )
                 ),
             synopsisModalOpen &&
                 wp.element.createElement(

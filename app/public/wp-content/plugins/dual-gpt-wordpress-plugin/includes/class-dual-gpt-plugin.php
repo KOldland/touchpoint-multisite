@@ -277,6 +277,54 @@ class Dual_GPT_Plugin {
             'permission_callback' => array($this, 'check_permissions'),
         ));
 
+        register_rest_route('dual-gpt/v1', '/planner/queue', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_planner_queue_status'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/queue/add', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'add_planner_queue_item'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/queue/run', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'run_planner_queue_item'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/queue/run-bulk', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'run_planner_queue_bulk'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/queue/reorder', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'reorder_planner_queue'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/queue/remove', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'remove_planner_queue_item'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/queue/stop', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'stop_planner_queue_item'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/queue/clear', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'clear_planner_queue'),
+            'permission_callback' => array($this, 'check_admin_permissions'),
+        ));
+
         register_rest_route('dual-gpt/v1', '/planner/run-author', array(
             'methods' => 'POST',
             'callback' => array($this, 'run_planner_author'),
@@ -1134,7 +1182,7 @@ class Dual_GPT_Plugin {
                 'action' => 'dive_deeper',
                 'job_id' => $job_id,
                 'status' => 'queued',
-                'message' => 'Specialist source-check job queued. Results will be applied when completed.',
+                'message' => 'Source-check job queued. Results will be applied when completed.',
             ), 200);
         }
 
@@ -1222,16 +1270,44 @@ class Dual_GPT_Plugin {
             ));
         }
 
-        if (!isset($article['dive_deeper_jobs'])) {
+        if (!isset($article['dive_deeper_jobs']) || !is_array($article['dive_deeper_jobs'])) {
             $article['dive_deeper_jobs'] = array();
         }
-        $article['dive_deeper_jobs'][] = array(
-            'job_id' => is_wp_error($job_id) ? null : $job_id,
-            'status' => 'queued',
+
+        $resolved_job_id = is_wp_error($job_id) ? null : (string) $job_id;
+        $resolved_status = 'queued';
+        if ($resolved_job_id) {
+            $job_row = $db->get_job($resolved_job_id);
+            if ($job_row && !empty($job_row['status'])) {
+                $resolved_status = sanitize_key((string) $job_row['status']);
+            }
+        } elseif (is_wp_error($job_id)) {
+            $resolved_status = 'failed';
+        }
+
+        $job_payload = array(
+            'job_id' => $resolved_job_id,
+            'status' => $resolved_status,
             'requested_at' => gmdate('c'),
             'params' => $params,
             'keyword_anchors' => $keywords,
         );
+
+        $updated_existing = false;
+        if ($resolved_job_id) {
+            foreach ($article['dive_deeper_jobs'] as $job_index => $existing_job) {
+                if (($existing_job['job_id'] ?? '') !== $resolved_job_id) {
+                    continue;
+                }
+                $article['dive_deeper_jobs'][$job_index] = array_merge($existing_job, $job_payload);
+                $updated_existing = true;
+                break;
+            }
+        }
+
+        if (!$updated_existing) {
+            $article['dive_deeper_jobs'][] = $job_payload;
+        }
 
         // Persist job metadata on the session article.
         if ($article_id !== null) {
@@ -1797,6 +1873,682 @@ class Dual_GPT_Plugin {
         ), 200);
     }
 
+    public function get_planner_queue_status($request) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'planner_task_queue';
+        $this->sync_planner_queue_linked_job_statuses();
+        $counts = array(
+            'queued' => 0,
+            'running' => 0,
+            'dispatched' => 0,
+            'completed' => 0,
+            'failed' => 0,
+        );
+
+        $count_rows = $wpdb->get_results("SELECT status, COUNT(*) AS c FROM {$table} GROUP BY status", ARRAY_A);
+        if (is_array($count_rows)) {
+            foreach ($count_rows as $row) {
+                $status = sanitize_key($row['status'] ?? '');
+                if (array_key_exists($status, $counts)) {
+                    $counts[$status] = intval($row['c'] ?? 0);
+                }
+            }
+        }
+
+        $items = $wpdb->get_results(
+            "SELECT id, session_id, article_id, task_type, status, payload_json, linked_job_id, position, created_at, updated_at, error_message
+             FROM {$table}
+             ORDER BY FIELD(status, 'queued', 'running', 'dispatched', 'failed', 'completed'), position ASC, created_at ASC
+             LIMIT 250",
+            ARRAY_A
+        );
+
+        $active_items = array();
+        if (is_array($items)) {
+            foreach ($items as $item) {
+                $active_items[] = array(
+                    'id' => (string) ($item['id'] ?? ''),
+                    'session_id' => (string) ($item['session_id'] ?? ''),
+                    'article_id' => (string) ($item['article_id'] ?? ''),
+                    'task_type' => (string) ($item['task_type'] ?? ''),
+                    'status' => (string) ($item['status'] ?? ''),
+                    'payload' => !empty($item['payload_json']) ? json_decode($item['payload_json'], true) : null,
+                    'linked_job_id' => (string) ($item['linked_job_id'] ?? ''),
+                    'position' => intval($item['position'] ?? 0),
+                    'created_at' => (string) ($item['created_at'] ?? ''),
+                    'updated_at' => (string) ($item['updated_at'] ?? ''),
+                    'error_message' => (string) ($item['error_message'] ?? ''),
+                );
+            }
+        }
+
+        return new WP_REST_Response(array(
+            'counts' => $counts,
+            'active_items' => $active_items,
+        ), 200);
+    }
+
+    private function sync_planner_queue_linked_job_statuses() {
+        global $wpdb;
+
+        $queue_table = $wpdb->prefix . 'planner_task_queue';
+        $jobs_table = $wpdb->prefix . 'ai_jobs';
+        $rows = $wpdb->get_results(
+            "SELECT id, linked_job_id, status FROM {$queue_table} WHERE linked_job_id IS NOT NULL AND linked_job_id != '' AND status IN ('running', 'dispatched')",
+            ARRAY_A
+        );
+
+        if (!is_array($rows) || empty($rows)) {
+            return;
+        }
+
+        foreach ($rows as $row) {
+            $job_id = (string) ($row['linked_job_id'] ?? '');
+            if ($job_id === '') {
+                continue;
+            }
+            $job = $wpdb->get_row(
+                $wpdb->prepare("SELECT status, error_message, idempotency_key, created_at FROM {$jobs_table} WHERE id = %s", $job_id),
+                ARRAY_A
+            );
+            if (!$job) {
+                continue;
+            }
+
+            $job_status = (string) ($job['status'] ?? '');
+            $job_idempotency = (string) ($job['idempotency_key'] ?? '');
+            $job_created_at = (string) ($job['created_at'] ?? '');
+
+            $is_planner_framework_job = strpos($job_idempotency, 'planner-framework-') === 0 || strpos($job_idempotency, 'planner-fw-') === 0;
+            if ($job_status === 'running' && $is_planner_framework_job && $job_created_at !== '') {
+                $job_age_seconds = time() - strtotime($job_created_at);
+                if ($job_age_seconds > 120) {
+                    $timeout_message = 'Framework job timed out. Please retry.';
+                    error_log('[PLANNER][JOB] Auto-timeout for framework job ' . $job_id . ' after ' . $job_age_seconds . 's');
+                    $wpdb->update(
+                        $jobs_table,
+                        array(
+                            'status' => 'failed',
+                            'error_message' => $timeout_message,
+                            'finished_at' => current_time('mysql'),
+                        ),
+                        array('id' => $job_id),
+                        array('%s', '%s', '%s'),
+                        array('%s')
+                    );
+                    $job_status = 'failed';
+                    $job['error_message'] = $timeout_message;
+                }
+            }
+
+            $next_status = null;
+            if ($job_status === 'completed') {
+                $next_status = 'completed';
+            } elseif ($job_status === 'failed') {
+                $next_status = 'failed';
+            } elseif (in_array($job_status, array('queued', 'running'), true)) {
+                $next_status = 'dispatched';
+            }
+
+            if ($next_status && $next_status !== ($row['status'] ?? '')) {
+                $wpdb->update(
+                    $queue_table,
+                    array(
+                        'status' => $next_status,
+                        'error_message' => $next_status === 'failed' ? (string) ($job['error_message'] ?? '') : null,
+                        'updated_at' => current_time('mysql'),
+                    ),
+                    array('id' => $row['id']),
+                    array('%s', '%s', '%s'),
+                    array('%s')
+                );
+            }
+        }
+    }
+
+    public function add_planner_queue_item($request) {
+        global $wpdb;
+
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+        $article_id = sanitize_text_field($request->get_param('article_id'));
+        $task_type = sanitize_key($request->get_param('task_type'));
+        $payload = $request->get_param('payload');
+
+        if (empty($session_id) || empty($task_type)) {
+            return new WP_Error('missing_params', 'Session ID and task type are required.', array('status' => 400));
+        }
+
+        if (!in_array($task_type, array('dive_deeper', 'framework_generation', 'article_creation'), true)) {
+            return new WP_Error('invalid_task_type', 'Unsupported task type.', array('status' => 400));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($session_id);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $table = $wpdb->prefix . 'planner_task_queue';
+        $next_position = intval($wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COALESCE(MAX(position), 0) + 1 FROM {$table} WHERE session_id = %s",
+                $session_id
+            )
+        ));
+        if ($next_position < 1) {
+            $next_position = 1;
+        }
+
+        $queue_id = wp_generate_uuid4();
+        $inserted = $wpdb->insert(
+            $table,
+            array(
+                'id' => $queue_id,
+                'session_id' => $session_id,
+                'article_id' => $article_id ?: null,
+                'task_type' => $task_type,
+                'status' => 'queued',
+                'payload_json' => is_array($payload) ? wp_json_encode($payload) : null,
+                'position' => $next_position,
+                'created_by' => get_current_user_id(),
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql'),
+            ),
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s')
+        );
+
+        if ($inserted === false) {
+            return new WP_Error('queue_insert_failed', 'Failed to add item to planner queue.', array('status' => 500));
+        }
+
+        return new WP_REST_Response(array(
+            'queue_id' => $queue_id,
+            'status' => 'queued',
+        ), 200);
+    }
+
+    public function run_planner_queue_item($request) {
+        $queue_id = sanitize_text_field($request->get_param('queue_id'));
+        $retry_failed = (bool) $request->get_param('retry_failed');
+        $retry_payload = $request->get_param('retry_payload');
+        if (!is_array($retry_payload)) {
+            $retry_payload = array();
+        }
+        if (empty($queue_id)) {
+            return new WP_Error('missing_queue_id', 'Queue item ID is required.', array('status' => 400));
+        }
+
+        return $this->execute_planner_queue_item($queue_id, $retry_failed, $retry_payload);
+    }
+
+    public function run_planner_queue_bulk($request) {
+        global $wpdb;
+
+        $queue_ids = $request->get_param('queue_ids');
+        $run_all_queued = (bool) $request->get_param('run_all_queued');
+        $session_id = sanitize_text_field((string) $request->get_param('session_id'));
+        $table = $wpdb->prefix . 'planner_task_queue';
+
+        if ($run_all_queued) {
+            if ($session_id === '') {
+                return new WP_Error('missing_session_id', 'Session ID is required to run all queued items.', array('status' => 400));
+            }
+            $queue_ids = $wpdb->get_col(
+                $wpdb->prepare(
+                    "SELECT id FROM {$table} WHERE session_id = %s AND status = 'queued' ORDER BY position ASC, created_at ASC",
+                    $session_id
+                )
+            );
+        }
+
+        if (!is_array($queue_ids) || empty($queue_ids)) {
+            return new WP_Error('missing_queue_ids', 'At least one queued item is required.', array('status' => 400));
+        }
+
+        $results = array();
+        $started = 0;
+        $failed = 0;
+        foreach ($queue_ids as $queue_id) {
+            $queue_id = sanitize_text_field((string) $queue_id);
+            if ($queue_id === '') {
+                continue;
+            }
+            $result = $this->execute_planner_queue_item($queue_id);
+            if (is_wp_error($result)) {
+                $failed++;
+                $results[] = array(
+                    'queue_id' => $queue_id,
+                    'status' => 'failed',
+                    'error' => $result->get_error_message(),
+                );
+                continue;
+            }
+
+            $data = $result instanceof WP_REST_Response ? $result->get_data() : (array) $result;
+            $started++;
+            $results[] = array(
+                'queue_id' => $queue_id,
+                'status' => (string) ($data['status'] ?? 'completed'),
+                'job_id' => (string) ($data['job_id'] ?? ''),
+            );
+        }
+
+        return new WP_REST_Response(array(
+            'started' => $started,
+            'failed' => $failed,
+            'results' => $results,
+        ), 200);
+    }
+
+    public function reorder_planner_queue($request) {
+        global $wpdb;
+
+        $session_id = sanitize_text_field((string) $request->get_param('session_id'));
+        $ordered_ids = $request->get_param('ordered_ids');
+        if ($session_id === '' || !is_array($ordered_ids) || empty($ordered_ids)) {
+            return new WP_Error('missing_params', 'Session ID and ordered queue IDs are required.', array('status' => 400));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($session_id);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $table = $wpdb->prefix . 'planner_task_queue';
+        $valid_ids = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT id FROM {$table} WHERE session_id = %s",
+                $session_id
+            )
+        );
+        $valid_lookup = array_fill_keys(array_map('strval', $valid_ids ?: array()), true);
+
+        $position = 1;
+        foreach ($ordered_ids as $queue_id) {
+            $queue_id = sanitize_text_field((string) $queue_id);
+            if ($queue_id === '' || !isset($valid_lookup[$queue_id])) {
+                continue;
+            }
+            $wpdb->update(
+                $table,
+                array(
+                    'position' => $position,
+                    'updated_at' => current_time('mysql'),
+                ),
+                array('id' => $queue_id),
+                array('%d', '%s'),
+                array('%s')
+            );
+            $position++;
+            unset($valid_lookup[$queue_id]);
+        }
+
+        if (!empty($valid_lookup)) {
+            foreach (array_keys($valid_lookup) as $queue_id) {
+                $wpdb->update(
+                    $table,
+                    array(
+                        'position' => $position,
+                        'updated_at' => current_time('mysql'),
+                    ),
+                    array('id' => $queue_id),
+                    array('%d', '%s'),
+                    array('%s')
+                );
+                $position++;
+            }
+        }
+
+        return new WP_REST_Response(array(
+            'reordered' => true,
+        ), 200);
+    }
+
+    private function execute_planner_queue_item($queue_id, $retry_failed = false, $retry_payload = array()) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'planner_task_queue';
+        $item = $wpdb->get_row(
+            $wpdb->prepare("SELECT * FROM {$table} WHERE id = %s", $queue_id),
+            ARRAY_A
+        );
+        if (!$item) {
+            return new WP_Error('queue_item_not_found', 'Queue item not found.', array('status' => 404));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($item['session_id']);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $current_status = (string) ($item['status'] ?? '');
+        if ($current_status !== 'queued' && !($retry_failed && $current_status === 'failed')) {
+            return new WP_Error('queue_item_not_queued', 'Only queued items can be started.', array('status' => 400));
+        }
+
+        $wpdb->update(
+            $table,
+            array(
+                'status' => 'running',
+                'error_message' => null,
+                'updated_at' => current_time('mysql'),
+            ),
+            array('id' => $queue_id),
+            array('%s', '%s', '%s'),
+            array('%s')
+        );
+
+        $payload = !empty($item['payload_json']) ? json_decode($item['payload_json'], true) : array();
+        if (!is_array($payload)) {
+            $payload = array();
+        }
+        if (!empty($retry_payload)) {
+            $payload = array_merge($payload, $retry_payload);
+            $wpdb->update(
+                $table,
+                array(
+                    'payload_json' => wp_json_encode($payload),
+                    'updated_at' => current_time('mysql'),
+                ),
+                array('id' => $queue_id),
+                array('%s', '%s'),
+                array('%s')
+            );
+        }
+
+        $dispatch = $this->dispatch_planner_queue_task($item, $payload);
+        if (is_wp_error($dispatch)) {
+            $error_message = $this->normalize_queue_error_message($dispatch);
+            $wpdb->update(
+                $table,
+                array(
+                    'status' => 'failed',
+                    'error_message' => $error_message,
+                    'updated_at' => current_time('mysql'),
+                ),
+                array('id' => $queue_id),
+                array('%s', '%s', '%s'),
+                array('%s')
+            );
+            return $dispatch;
+        }
+
+        $linked_job_id = sanitize_text_field((string) ($dispatch['job_id'] ?? ''));
+        $wpdb->update(
+            $table,
+            array(
+                'status' => 'dispatched',
+                'linked_job_id' => $linked_job_id,
+                'updated_at' => current_time('mysql'),
+            ),
+            array('id' => $queue_id),
+            array('%s', '%s', '%s'),
+            array('%s')
+        );
+
+        return new WP_REST_Response(array(
+            'queue_id' => $queue_id,
+            'status' => 'dispatched',
+            'job_id' => $linked_job_id,
+        ), 200);
+    }
+
+    private function normalize_queue_error_message($error) {
+        if (!is_wp_error($error)) {
+            return 'Queue task failed.';
+        }
+        $code = (string) $error->get_error_code();
+        $message = (string) $error->get_error_message();
+
+        if ($code === 'prompt_too_long' || stripos($message, 'Prompt exceeds maximum length') !== false) {
+            return 'Prompt too long.';
+        }
+        if ($code === 'budget_exceeded' || stripos($message, 'Token budget exceeded') !== false) {
+            return 'Token limit reached - speak to admin.';
+        }
+        if ($code === 'rate_limited') {
+            return 'Rate limited. Please retry shortly.';
+        }
+        if ($message === '') {
+            return 'Queue task failed.';
+        }
+
+        return $message;
+    }
+
+    public function remove_planner_queue_item($request) {
+        global $wpdb;
+
+        $queue_id = sanitize_text_field((string) $request->get_param('queue_id'));
+        if ($queue_id === '') {
+            return new WP_Error('missing_queue_id', 'Queue item ID is required.', array('status' => 400));
+        }
+
+        $table = $wpdb->prefix . 'planner_task_queue';
+        $item = $wpdb->get_row(
+            $wpdb->prepare("SELECT * FROM {$table} WHERE id = %s", $queue_id),
+            ARRAY_A
+        );
+        if (!$item) {
+            return new WP_Error('queue_item_not_found', 'Queue item not found.', array('status' => 404));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($item['session_id']);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        if (in_array((string) ($item['status'] ?? ''), array('running', 'dispatched'), true)) {
+            return new WP_Error('queue_item_locked', 'This queue item has already been dispatched and cannot be removed.', array('status' => 400));
+        }
+
+        $deleted = $wpdb->delete($table, array('id' => $queue_id), array('%s'));
+        if ($deleted === false) {
+            return new WP_Error('queue_remove_failed', 'Failed to remove queue item.', array('status' => 500));
+        }
+
+        return new WP_REST_Response(array(
+            'removed' => $deleted > 0,
+            'queue_id' => $queue_id,
+        ), 200);
+    }
+
+    public function stop_planner_queue_item($request) {
+        global $wpdb;
+
+        $queue_id = sanitize_text_field((string) $request->get_param('queue_id'));
+        $reason = sanitize_text_field((string) $request->get_param('reason'));
+        if ($queue_id === '') {
+            return new WP_Error('missing_queue_id', 'Queue item ID is required.', array('status' => 400));
+        }
+        if ($reason === '') {
+            $reason = 'Stopped by operator (manual cancel).';
+        }
+
+        $table = $wpdb->prefix . 'planner_task_queue';
+        $item = $wpdb->get_row(
+            $wpdb->prepare("SELECT * FROM {$table} WHERE id = %s", $queue_id),
+            ARRAY_A
+        );
+        if (!$item) {
+            return new WP_Error('queue_item_not_found', 'Queue item not found.', array('status' => 404));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($item['session_id']);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $current_status = sanitize_key((string) ($item['status'] ?? ''));
+        if (in_array($current_status, array('completed', 'failed'), true)) {
+            return new WP_Error('queue_item_not_stoppable', 'Only queued, running, or dispatched items can be stopped.', array('status' => 400));
+        }
+
+        $linked_job_id = sanitize_text_field((string) ($item['linked_job_id'] ?? ''));
+        if ($linked_job_id !== '') {
+            wp_clear_scheduled_hook('dual_gpt_process_job', array($linked_job_id));
+            $job = $db->get_job($linked_job_id);
+            $job_status = sanitize_key((string) ($job['status'] ?? ''));
+            if (in_array($job_status, array('queued', 'running'), true)) {
+                $db->update_job_status($linked_job_id, 'failed', array(
+                    'error_message' => $reason,
+                ));
+            }
+        }
+
+        $updated = $wpdb->update(
+            $table,
+            array(
+                'status' => 'failed',
+                'error_message' => $reason,
+                'updated_at' => current_time('mysql'),
+            ),
+            array('id' => $queue_id),
+            array('%s', '%s', '%s'),
+            array('%s')
+        );
+
+        if ($updated === false) {
+            return new WP_Error('queue_stop_failed', 'Failed to stop queue item.', array('status' => 500));
+        }
+
+        return new WP_REST_Response(array(
+            'stopped' => true,
+            'queue_id' => $queue_id,
+            'previous_status' => $current_status,
+            'linked_job_id' => $linked_job_id,
+        ), 200);
+    }
+
+    private function dispatch_planner_queue_task($item, $payload) {
+        $task_type = sanitize_key($item['task_type'] ?? '');
+        $session_id = sanitize_text_field($item['session_id'] ?? '');
+        $article_id = sanitize_text_field($item['article_id'] ?? '');
+
+        if ($task_type === 'dive_deeper') {
+            $request = new WP_REST_Request('POST');
+            $request->set_param('session_id', $session_id);
+            $request->set_param('article_id', $article_id);
+            $request->set_param('action', 'dive_deeper');
+            $request->set_param('params', is_array($payload) ? $payload : array());
+            $response = $this->planner_article_action($request);
+            return $this->extract_job_id_from_rest_result($response);
+        }
+
+        if ($task_type === 'framework_generation') {
+            $request = new WP_REST_Request('POST');
+            $request->set_param('session_id', $session_id);
+            $request->set_param('article_id', $article_id);
+            $request->set_param('force', !empty($payload['force']));
+            $response = $this->run_planner_framework($request);
+            return $this->extract_job_id_from_rest_result($response);
+        }
+
+        if ($task_type === 'article_creation') {
+            $request = new WP_REST_Request('POST');
+            $request->set_param('session_id', $session_id);
+            $request->set_param('article_id', $article_id);
+            $request->set_param('author_profile', sanitize_key((string) ($payload['author_profile'] ?? '')));
+            $response = $this->run_planner_author($request);
+            return $this->extract_job_id_from_rest_result($response);
+        }
+
+        return new WP_Error('unsupported_queue_task', 'Unsupported queued task type.', array('status' => 400));
+    }
+
+    private function extract_job_id_from_rest_result($response) {
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        if ($response instanceof WP_REST_Response) {
+            $data = $response->get_data();
+        } elseif (is_array($response)) {
+            $data = $response;
+        } else {
+            $data = array();
+        }
+
+        $job_id = sanitize_text_field((string) ($data['job_id'] ?? ''));
+        if ($job_id === '') {
+            return new WP_Error('missing_job_id', 'Task was dispatched but no job ID was returned.', array('status' => 500));
+        }
+
+        return array('job_id' => $job_id);
+    }
+
+    public function clear_planner_queue($request) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'planner_task_queue';
+        $params = $request->get_params();
+        $older_than_seconds = max(0, intval($params['older_than_seconds'] ?? 0));
+
+        if ($older_than_seconds > 0) {
+            $cutoff = gmdate('Y-m-d H:i:s', time() - $older_than_seconds);
+            $queued_ids = $wpdb->get_col(
+                $wpdb->prepare(
+                    "SELECT id FROM {$table} WHERE status = 'queued' AND created_at <= %s",
+                    $cutoff
+                )
+            );
+        } else {
+            $queued_ids = $wpdb->get_col("SELECT id FROM {$table} WHERE status = 'queued'");
+        }
+
+        if (!is_array($queued_ids) || empty($queued_ids)) {
+            return new WP_REST_Response(array(
+                'cleared' => 0,
+                'message' => 'No queued jobs found.',
+            ), 200);
+        }
+
+        $cleared = 0;
+        foreach ($queued_ids as $job_id) {
+            $updated = $wpdb->update(
+                $table,
+                array(
+                    'status' => 'failed',
+                    'error_message' => 'Job cleared manually from planner queue.',
+                    'updated_at' => current_time('mysql'),
+                ),
+                array('id' => $job_id),
+                array('%s', '%s', '%s'),
+                array('%s')
+            );
+
+            if ($updated !== false && intval($updated) > 0) {
+                $cleared++;
+            }
+
+        }
+
+        return new WP_REST_Response(array(
+            'cleared' => $cleared,
+            'message' => sprintf('Cleared %d queued job(s).', $cleared),
+        ), 200);
+    }
+
     /**
      * Export Phase 4 validation output as HTML for download/print
      */
@@ -1917,6 +2669,7 @@ class Dual_GPT_Plugin {
         $session_id = sanitize_text_field($request->get_param('session_id'));
         $article_id = sanitize_text_field($request->get_param('article_id'));
         $author_profile = sanitize_key((string) $request->get_param('author_profile'));
+        $retry_compact_prompt = (bool) $request->get_param('retry_compact_prompt');
 
         error_log('[PLANNER][AUTHOR] Run requested for session ' . $session_id . ' article ' . $article_id);
 
@@ -1964,10 +2717,16 @@ class Dual_GPT_Plugin {
         }
         $edit_url = $post_id ? get_edit_post_link($post_id, 'raw') : '';
 
-        $prompt = $this->build_author_prompt($article, $framework, $author_profile);
+        $prompt = $this->build_author_prompt($article, $framework, $author_profile, $retry_compact_prompt);
         $idempotency = 'planner-author-' . substr(md5($session_id), 0, 8) . '-' . substr(md5($article_id), 0, 8) . '-' . time();
         $orchestrator = new Dual_GPT_Planner_Orchestrator($this);
         $job_id = $orchestrator->run_job($session_id, $idempotency, $prompt, 'author');
+        if (is_wp_error($job_id) && (string) $job_id->get_error_code() === 'prompt_too_long' && !$retry_compact_prompt) {
+            error_log('[PLANNER][AUTHOR] Prompt too long, retrying compact prompt for session ' . $session_id . ' article ' . $article_id);
+            $compact_prompt = $this->build_author_prompt($article, $framework, $author_profile, true);
+            $compact_idempotency = $idempotency . '-c';
+            $job_id = $orchestrator->run_job($session_id, $compact_idempotency, $compact_prompt, 'author');
+        }
         if (is_wp_error($job_id)) {
             error_log('[PLANNER][AUTHOR] Run failed for session ' . $session_id . ' article ' . $article_id . ': ' . $job_id->get_error_message());
             return $job_id;
@@ -2269,7 +3028,7 @@ class Dual_GPT_Plugin {
 
         // Enhanced prompt validation
         if (strlen($prompt) > 10000) {
-            return new WP_Error('prompt_too_long', 'Prompt exceeds maximum length of 10,000 characters', array('status' => 400));
+            return new WP_Error('prompt_too_long', 'Prompt too long.', array('status' => 400));
         }
 
         if (strlen($prompt) < 10) {
@@ -2306,14 +3065,7 @@ class Dual_GPT_Plugin {
         $user_id = get_current_user_id();
         $budget = $db->check_user_budget($user_id);
         if ($budget['token_used'] >= $budget['token_limit']) {
-            return new WP_Error('budget_exceeded',
-                sprintf('Token budget exceeded. Current usage: %s/%s tokens. Reset date: %s',
-                    number_format($budget['token_used']),
-                    number_format($budget['token_limit']),
-                    $budget['reset_at'] ? date('M j, Y', strtotime($budget['reset_at'])) : 'Never'
-                ),
-                array('status' => 429)
-            );
+            return new WP_Error('budget_exceeded', 'Token limit reached - speak to admin.', array('status' => 429));
         }
 
         // Validate API key with better error message
@@ -2334,12 +3086,37 @@ class Dual_GPT_Plugin {
         if ($idempotency_key) {
             $existing_job = $db->get_job_by_idempotency($session_id, $idempotency_key);
             if ($existing_job) {
-                return new WP_REST_Response(array(
-                    'job_id' => $existing_job['id'],
-                    'status' => $existing_job['status'],
-                    'message' => 'Existing job returned via idempotency key',
-                    'idempotent' => true,
-                ), 200);
+                $existing_status = sanitize_key((string) ($existing_job['status'] ?? ''));
+                $existing_created = strtotime((string) ($existing_job['created_at'] ?? ''));
+                $existing_age_seconds = $existing_created ? max(0, time() - $existing_created) : PHP_INT_MAX;
+
+                $is_active = in_array($existing_status, array('queued', 'running', 'processing'), true);
+                $is_fresh_active = $is_active && $existing_age_seconds <= 120;
+
+                if ($is_fresh_active) {
+                    if ($existing_status === 'queued') {
+                        $this->process_job_async($existing_job['id']);
+                        error_log('[PLANNER][JOB] nudged existing queued idempotent job ' . $existing_job['id']);
+                    }
+
+                    return new WP_REST_Response(array(
+                        'job_id' => $existing_job['id'],
+                        'status' => $existing_job['status'],
+                        'message' => 'Existing active job returned via idempotency key',
+                        'idempotent' => true,
+                    ), 200);
+                }
+
+                $idempotency_key = substr($idempotency_key . '-r' . time(), 0, 64);
+                error_log(sprintf(
+                    '[PLANNER][JOB] stale idempotent job bypassed old_job=%s status=%s age=%ds new_key=%s',
+                    (string) ($existing_job['id'] ?? ''),
+                    $existing_status,
+                    (int) $existing_age_seconds,
+                    $idempotency_key
+                ));
+
+                $job_data['idempotency_key'] = $idempotency_key;
             }
         }
 
@@ -2666,6 +3443,24 @@ class Dual_GPT_Plugin {
                     if (function_exists('spawn_cron')) {
                         spawn_cron();
                     }
+
+                    if (!function_exists('wp_doing_cron') || !wp_doing_cron()) {
+                        add_action('shutdown', function() use ($job_id) {
+                            if (function_exists('fastcgi_finish_request')) {
+                                @fastcgi_finish_request();
+                            }
+
+                            $db = new Dual_GPT_DB_Handler();
+                            $job = $db->get_job($job_id);
+                            if (!$job || (($job['status'] ?? '') !== 'queued')) {
+                                return;
+                            }
+
+                            error_log('[PLANNER][JOB] shutdown fallback processing queued job ' . $job_id);
+                            $this->process_job($job_id);
+                        }, 99);
+                    }
+
                     return;
                 }
             }
@@ -2684,6 +3479,10 @@ class Dual_GPT_Plugin {
         $job = $db->get_job($job_id);
         if (!$job) {
             $this->log_error('Job not found', array('job_id' => $job_id));
+            return;
+        }
+
+        if (($job['status'] ?? '') !== 'queued') {
             return;
         }
 
@@ -2709,6 +3508,16 @@ class Dual_GPT_Plugin {
 
         while ($retry_count <= $max_retries) {
             try {
+                $latest_job = $db->get_job($job_id);
+                $latest_status = sanitize_key((string) ($latest_job['status'] ?? ''));
+                $latest_error = (string) ($latest_job['error_message'] ?? '');
+                if ($latest_status === 'failed' && stripos($latest_error, 'Stopped by operator') !== false) {
+                    return;
+                }
+                if (!in_array($latest_status, array('queued', 'running'), true)) {
+                    return;
+                }
+
                 // Get session and preset info
                 $session = $db->get_session($job['session_id']);
                 if (!$session) {
@@ -2736,7 +3545,12 @@ class Dual_GPT_Plugin {
 
                 // Prepare tools based on role
                 $tools = array();
-                if ($session && $session['role'] === 'research') {
+                $idempotency_key = (string) ($job['idempotency_key'] ?? '');
+                $is_planner_framework_job = strpos($idempotency_key, 'planner-fw-') === 0 || strpos($idempotency_key, 'planner-framework-') === 0;
+
+                if ($is_planner_framework_job) {
+                    $tools = array();
+                } elseif ($session && $session['role'] === 'research') {
                     $research_tools = new Dual_GPT_Research_Tools();
                     $tools = $research_tools->get_tool_definitions();
                 } elseif ($session && $session['role'] === 'author') {
@@ -2747,15 +3561,25 @@ class Dual_GPT_Plugin {
                     $tools = $seo_tools->get_tool_definitions();
                 }
 
+                $planner_request_options = array(
+                    'timeout' => 90,
+                    'max_retries' => 0,
+                    'retry_on_rate_limit' => false,
+                );
+
                 // Make OpenAI call with timeout handling
                 $start_time = microtime(true);
-                $response = $openai->create_chat_completion($messages, $job['model'], $tools);
+                $response = $openai->create_chat_completion($messages, $job['model'], $tools, 'auto', $planner_request_options);
                 $duration_ms = round((microtime(true) - $start_time) * 1000);
 
                 if (is_wp_error($response)) {
                     $error_code = $response->get_error_code();
                     $error_message = $response->get_error_message();
                     error_log('[PLANNER][JOB] OpenAI call failed for job ' . $job_id . ' in ' . $duration_ms . 'ms: ' . $error_code . ' ' . $error_message);
+
+                    if ($this->is_rate_limited_error($error_code, $error_message)) {
+                        throw new Exception('Rate limit exceeded. Please retry shortly.');
+                    }
 
                     // Check if this is a retryable error
                     if ($this->is_retryable_error($error_code) && $retry_count < $max_retries) {
@@ -2797,7 +3621,7 @@ class Dual_GPT_Plugin {
 
                     if (!empty($tool_calls)) {
                         // Force a final response without further tool calls
-                        $final_response = $openai->create_chat_completion($messages, $job['model'], array(), 'none');
+                        $final_response = $openai->create_chat_completion($messages, $job['model'], array(), 'none', $planner_request_options);
                     }
                 }
 
@@ -2850,6 +3674,7 @@ class Dual_GPT_Plugin {
             } catch (Exception $e) {
                 $last_error = $e;
                 $retry_count++;
+                $is_rate_limited = $this->is_rate_limited_error('', $e->getMessage());
 
                 // Log the error with context
                 $this->log_error('Job processing error', array(
@@ -2861,7 +3686,7 @@ class Dual_GPT_Plugin {
                 ));
 
                 // If we've exhausted retries or it's not a retryable error, fail the job
-                if ($retry_count > $max_retries || !$this->is_retryable_error($e->getMessage())) {
+                if ($retry_count > $max_retries || $is_rate_limited || !$this->is_retryable_error($e->getMessage())) {
                     $db->update_job_status($job_id, 'failed', array(
                         'error_message' => $e->getMessage(),
                         'retry_count' => $retry_count,
@@ -2878,6 +3703,13 @@ class Dual_GPT_Plugin {
                     // Send notification if configured
                     $this->send_error_notification($job_id, $e->getMessage());
                     break;
+                }
+
+                $latest_job = $db->get_job($job_id);
+                $latest_status = sanitize_key((string) ($latest_job['status'] ?? ''));
+                $latest_error = (string) ($latest_job['error_message'] ?? '');
+                if ($latest_status === 'failed' && stripos($latest_error, 'Stopped by operator') !== false) {
+                    return;
                 }
 
                 // Wait before retrying
@@ -3008,7 +3840,11 @@ class Dual_GPT_Plugin {
         }
 
         // Make final call with tool results
-        return $openai->create_chat_completion($messages, $job['model']);
+        return $openai->create_chat_completion($messages, $job['model'], array(), 'auto', array(
+            'timeout' => 90,
+            'max_retries' => 0,
+            'retry_on_rate_limit' => false,
+        ));
     }
 
     /**
@@ -3397,6 +4233,15 @@ class Dual_GPT_Plugin {
         }
 
         return false;
+    }
+
+    private function is_rate_limited_error($error_code, $error_message) {
+        $code = strtolower((string) $error_code);
+        $message = strtolower((string) $error_message);
+        if ($code === 'rate_limited') {
+            return true;
+        }
+        return strpos($message, 'rate limit') !== false || strpos($message, '429') !== false;
     }
 
     /**
@@ -4423,7 +5268,7 @@ class Dual_GPT_Plugin {
         return $html;
     }
 
-    private function build_author_prompt($article, $framework, $author_profile = 'balanced') {
+    private function build_author_prompt($article, $framework, $author_profile = 'balanced', $compact_mode = false) {
         $headline = $article['title'] ?? 'Untitled';
         $summary = $article['summary'] ?? ($article['brief'] ?? '');
         $keywords = isset($article['keywords']) && is_array($article['keywords']) ? $article['keywords'] : array();
@@ -4431,6 +5276,18 @@ class Dual_GPT_Plugin {
 
         $author_profile = sanitize_key((string) $author_profile);
         $author_style_guidance = $this->get_author_profile_guidance($author_profile);
+
+        $framework_json = wp_json_encode($framework);
+        $citation_json = wp_json_encode(array_slice($citations, 0, $compact_mode ? 3 : 5));
+        if (!is_string($framework_json)) {
+            $framework_json = '{}';
+        }
+        if (!is_string($citation_json)) {
+            $citation_json = '[]';
+        }
+        if ($compact_mode && strlen($framework_json) > 3000) {
+            $framework_json = substr($framework_json, 0, 3000) . '...';
+        }
 
         $lines = array(
             'You are the Author Agent. Write a draft article based on the provided framework.',
@@ -4460,11 +5317,16 @@ class Dual_GPT_Plugin {
             $lines[] = 'Keywords: ' . implode(', ', array_slice($keywords, 0, 6));
         }
         $lines[] = 'Framework:';
-        $lines[] = wp_json_encode($framework);
+        $lines[] = $framework_json;
         $lines[] = 'Citations:';
-        $lines[] = wp_json_encode(array_slice($citations, 0, 5));
+        $lines[] = $citation_json;
 
-        return implode("\n", $lines);
+        $prompt = implode("\n", $lines);
+        if ($compact_mode && strlen($prompt) > 9800) {
+            $prompt = substr($prompt, 0, 9800);
+        }
+
+        return $prompt;
     }
 
     private function get_author_profile_guidance($profile) {
@@ -5818,7 +6680,7 @@ class Dual_GPT_Plugin {
 
         $jobs = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT id, status, idempotency_key, response_json, error_message, created_at FROM {$wpdb->prefix}ai_jobs WHERE session_id = %s AND (idempotency_key LIKE %s OR idempotency_key LIKE %s OR idempotency_key LIKE %s OR idempotency_key LIKE %s OR idempotency_key LIKE %s) ORDER BY created_at ASC",
+                "SELECT id, status, idempotency_key, response_json, error_message, created_at FROM {$wpdb->prefix}ai_jobs WHERE session_id = %s AND (idempotency_key LIKE %s OR idempotency_key LIKE %s OR idempotency_key LIKE %s OR idempotency_key LIKE %s OR idempotency_key LIKE %s OR idempotency_key LIKE %s) ORDER BY created_at ASC",
                 $session_id,
                 'planner-phase%',
                 'planner-framework%',
@@ -6218,7 +7080,13 @@ class Dual_GPT_Plugin {
 
         $table = $wpdb->prefix . 'ai_sessions';
         $column = $wpdb->get_results($wpdb->prepare("SHOW COLUMNS FROM $table LIKE %s", 'meta_json'));
-        if (empty($column)) {
+        $queue_table = $wpdb->prefix . 'planner_task_queue';
+        $queue_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $queue_table));
+        $queue_status_column = $queue_exists === $queue_table
+            ? $wpdb->get_row("SHOW COLUMNS FROM {$queue_table} LIKE 'status'", ARRAY_A)
+            : null;
+        $needs_queue_upgrade = !$queue_status_column || strpos((string) ($queue_status_column['Type'] ?? ''), 'dispatched') === false;
+        if (empty($column) || $queue_exists !== $queue_table || $needs_queue_upgrade) {
             $this->create_tables();
         }
     }
@@ -6450,6 +7318,26 @@ class Dual_GPT_Plugin {
             INDEX idx_session_id (session_id)
         ) $charset_collate;";
 
+        // Planner editor-managed task queue table
+        $table_planner_queue = $wpdb->prefix . 'planner_task_queue';
+        $sql_planner_queue = "CREATE TABLE $table_planner_queue (
+            id VARCHAR(36) NOT NULL PRIMARY KEY,
+            session_id VARCHAR(36) NOT NULL,
+            article_id VARCHAR(36) NULL,
+            task_type ENUM('dive_deeper','framework_generation','article_creation') NOT NULL,
+            status ENUM('queued','running','dispatched','completed','failed') NOT NULL DEFAULT 'queued',
+            payload_json LONGTEXT NULL,
+            linked_job_id VARCHAR(36) NULL,
+            position INT NOT NULL DEFAULT 1,
+            error_message TEXT NULL,
+            created_by BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_session_status (session_id, status),
+            INDEX idx_position (position),
+            INDEX idx_task_type (task_type)
+        ) $charset_collate;";
+
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_sessions);
         dbDelta($sql_jobs);
@@ -6462,6 +7350,7 @@ class Dual_GPT_Plugin {
         dbDelta($sql_fg_raw_articles);
         dbDelta($sql_fg_exclusions);
         dbDelta($sql_fg_keywords);
+        dbDelta($sql_planner_queue);
     }
 
     /**

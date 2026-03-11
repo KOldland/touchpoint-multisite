@@ -202,6 +202,11 @@ class Dual_GPT_Planner_Orchestrator {
         $fallback_map = $model_config ? $model_config->get_fallback_map() : array();
         $fallback_model = $fallback_map[$task] ?? 'gpt-4o-mini';
 
+        if ($this->should_use_fallback_model($task, $model, $fallback_model)) {
+            error_log('[PLANNER][MODEL] Auto-selected fallback model for task ' . $task . ': ' . $model . ' -> ' . $fallback_model);
+            $model = $fallback_model;
+        }
+
         $request = new WP_REST_Request('POST', '/dual-gpt/v1/jobs');
         $request->set_param('session_id', $session_id);
         $request->set_param('prompt', $prompt);
@@ -230,6 +235,43 @@ class Dual_GPT_Planner_Orchestrator {
         }
 
         return $job_id;
+    }
+
+    private function should_use_fallback_model($task, $model, $fallback_model) {
+        if ($task !== 'framework') {
+            return false;
+        }
+
+        if ($fallback_model === '' || $fallback_model === $model) {
+            return false;
+        }
+
+        global $wpdb;
+        $jobs_table = $wpdb->prefix . 'ai_jobs';
+        $user_id = get_current_user_id();
+        if ($user_id <= 0) {
+            return false;
+        }
+
+        $recent_rate_limited = intval($wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*)
+                 FROM {$jobs_table}
+                 WHERE created_by = %d
+                   AND model = %s
+                   AND idempotency_key LIKE %s
+                   AND status = 'failed'
+                   AND created_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+                   AND (error_message LIKE %s OR error_message LIKE %s)",
+                $user_id,
+                $model,
+                'planner-fw-%',
+                '%Rate limit%',
+                '%rate limit%'
+            )
+        ));
+
+        return $recent_rate_limited >= 1;
     }
 
     public function build_phase1_prompt($topic, $includes, $excludes, $context_summary = '', $focus_level = 50) {
