@@ -589,7 +589,8 @@ const EditorialPlannerApp = () => {
             ) ||
             false;
         const isSynopsisGenerating = synopsisGenerateLoading === true;
-        if (!hasRunningPhase && !isSynopsisGenerating) {
+        const isDiveDeeperGenerating = diveDeeperModalOpen && isDeepDiveLoading;
+        if (!hasRunningPhase && !isSynopsisGenerating && !isDiveDeeperGenerating) {
             setThinkingPhraseIndex(0);
             return undefined;
         }
@@ -597,7 +598,7 @@ const EditorialPlannerApp = () => {
             setThinkingPhraseIndex((prev) => (prev + 1) % THINKING_PHRASES.length);
         }, 1500);
         return () => clearInterval(interval);
-    }, [detailModalOpen, sessionDetail?.meta?.phases, synopsisGenerateLoading]);
+    }, [detailModalOpen, sessionDetail?.meta?.phases, synopsisGenerateLoading, diveDeeperModalOpen, isDeepDiveLoading]);
 
     const getFocusLabel = (value) => {
         if (value >= 70) {
@@ -2857,7 +2858,7 @@ const EditorialPlannerApp = () => {
                               wp.element.createElement(
                                   'p',
                                   { style: { marginTop: '16px', fontSize: '14px', color: '#666' } },
-                                  'Specialist is researching additional citations...'
+                                  `Specialist is ${THINKING_PHRASES[thinkingPhraseIndex]} additional citations...`
                               ),
                               wp.element.createElement(
                                   'p',
