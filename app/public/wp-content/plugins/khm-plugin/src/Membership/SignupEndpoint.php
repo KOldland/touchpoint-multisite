@@ -687,15 +687,6 @@ class SignupEndpoint {
         if ( array_key_exists( 'profile_marketing_optin', $payload ) && null !== $payload['profile_marketing_optin'] ) {
             $params['metadata']['profile_marketing_optin'] = ! empty( $payload['profile_marketing_optin'] ) ? '1' : '0';
         }
-        $validatedPromo = is_array( $payload['validated_promo'] ?? null ) ? $payload['validated_promo'] : [];
-        $promoCodeObject = is_object( $validatedPromo['code'] ?? null ) ? $validatedPromo['code'] : null;
-        if ( $promoCodeObject && ! empty( $promoCodeObject->stripe_promotion_code ) ) {
-            $params['discounts'] = [
-                [
-                    'promotion_code' => sanitize_text_field( (string) $promoCodeObject->stripe_promotion_code ),
-                ],
-            ];
-        }
 
         try {
             $session = $this->create_stripe_checkout_session( $params, [
@@ -890,14 +881,5 @@ class SignupEndpoint {
             ],
             400
         );
-    }
-
-    /**
-     * @param array<string,mixed> $params
-     * @param array<string,mixed> $options
-     * @return object
-     */
-    protected function create_stripe_checkout_session( array $params, array $options = [] ) {
-        return \Stripe\Checkout\Session::create( $params, $options );
     }
 }

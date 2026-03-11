@@ -38,11 +38,7 @@ class CheckoutController {
             return new WP_REST_Response([ 'message' => __( 'Invalid membership level.', 'khm-membership' ) ], 400);
         }
 
-        if ( ! function_exists('khm_get_membership_level') ) {
-            return new WP_REST_Response([ 'message' => __( 'Membership system unavailable.', 'khm-membership' ) ], 500);
-        }
-
-        $level = khm_get_membership_level($levelId);
+        $level = $this->resolve_membership_level( $levelId, $request );
         if ( ! $level ) {
             return new WP_REST_Response([ 'message' => __( 'Membership level not found.', 'khm-membership' ) ], 404);
         }
@@ -178,6 +174,18 @@ class CheckoutController {
         return null;
     }
 
+    /**
+     * @return mixed
+     */
+    protected function resolve_membership_level( int $levelId, WP_REST_Request $request ) {
+        $level = null;
+        if ( function_exists( 'khm_get_membership_level' ) ) {
+            $level = khm_get_membership_level( $levelId );
+        }
+
+        return apply_filters( 'khm_checkout_membership_level_override', $level, $levelId, $request );
+    }
+
     private function resolve_allow_promotion_codes( int $levelId ): bool {
         $meta = $this->levels->getMeta( $levelId, 'khm_level_meta', [] );
         if ( is_string( $meta ) ) {
@@ -277,19 +285,5 @@ class CheckoutController {
      */
     protected function create_stripe_checkout_session( array $params ) {
         return \Stripe\Checkout\Session::create( $params );
-    }
-
-    /**
-     * @param mixed $value
-     */
-    private function normalize_bool_metadata( $value ): string {
-        if ( is_bool( $value ) ) {
-            return $value ? '1' : '0';
-        }
-        if ( is_numeric( $value ) ) {
-            return (int) $value === 1 ? '1' : '0';
-        }
-        $normalized = strtolower( trim( (string) $value ) );
-        return in_array( $normalized, [ '1', 'true', 'yes', 'on' ], true ) ? '1' : '0';
     }
 }
