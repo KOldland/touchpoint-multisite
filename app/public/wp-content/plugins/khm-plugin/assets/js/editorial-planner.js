@@ -1583,10 +1583,10 @@ const EditorialPlannerApp = () => {
         await runArticleAction(
             diveDeeperArticle,
             'dive_deeper',
-            'Citations enriched. Specialist research job queued for additional sources.',
+            'Specialist source-check queued. Supporting evidence will be added after processing.',
             params
         );
-        // Refresh session immediately so citation count + ranking update in the table
+        // Refresh session immediately so queued job metadata is visible
         await refreshSessionDetail();
         setDiveDeeperSuccess(true);
         setTimeout(() => {
@@ -2842,12 +2842,12 @@ const EditorialPlannerApp = () => {
                               wp.element.createElement(
                                   'p',
                                   { style: { fontSize: '16px', fontWeight: '600', color: '#1e7e34', margin: '0 0 8px' } },
-                                  'Citations enriched, ranking updated'
+                                  'Source-check job queued'
                               ),
                               wp.element.createElement(
                                   'p',
                                   { style: { fontSize: '13px', color: '#666', margin: 0 } },
-                                  'Available Phase 4 sources have been merged. A specialist research job is also running in the background for additional citations.'
+                                  'The specialist is now checking sources against the article summary and keywords to find truly relevant supporting evidence.'
                               )
                           )
                         : isDeepDiveLoading

@@ -1115,10 +1115,18 @@ class Dual_GPT_Plugin {
             ), 200);
         }
 
-        // Handle dive_deeper: enrich citations synchronously from Phase 4, then queue specialist job
+        // Handle dive_deeper: queue specialist evidence-check job (no synthetic citation merge)
         if ($action === 'dive_deeper') {
             $article = $articles[$article_index];
             $job_id = $this->queue_dive_deeper_job($article, $session_id, $meta, $params);
+
+            error_log(sprintf(
+                '[PLANNER][DIVE_DEEPER] session=%s article=%s job_id=%s status=%s',
+                (string) $session_id,
+                (string) $article_id,
+                (string) ($job_id ?? 'null'),
+                $job_id ? 'queued' : 'queue_failed'
+            ));
 
             return new WP_REST_Response(array(
                 'session_id' => $session_id,
@@ -1126,7 +1134,7 @@ class Dual_GPT_Plugin {
                 'action' => 'dive_deeper',
                 'job_id' => $job_id,
                 'status' => 'queued',
-                'message' => 'Citations enriched from session data. Specialist research job queued for additional sources.',
+                'message' => 'Specialist source-check job queued. Results will be applied when completed.',
             ), 200);
         }
 
@@ -1161,33 +1169,59 @@ class Dual_GPT_Plugin {
         $headline = $article['headline'] ?? $article['title'] ?? 'Article';
         $summary = $article['summary'] ?? $article['brief'] ?? '';
 
-        // Step 1: Immediate synchronous enrichment from Phase 4 data already in session.
-        // This gives an instant citation boost without waiting for the specialist job.
-        $before_count = isset($article['citations']) && is_array($article['citations']) ? count($article['citations']) : 0;
-        $article = $this->enrich_article_citations_from_phase4($article, $meta);
-        $after_count = isset($article['citations']) && is_array($article['citations']) ? count($article['citations']) : 0;
-        $citations_added_sync = max(0, $after_count - $before_count);
-
-        // Step 2: Build specialist research prompt with correct arguments.
+        // Build specialist source-check prompt using article summary/headline keywords.
         $target_min = intval($params['target_min_citations'] ?? 4);
         $recency = intval($params['recency_months'] ?? 18);
         $source_mix = $params['source_mix_minimums'] ?? array('industry' => 1, 'news' => 1, 'research' => 1);
+        $keyword_seed = strtolower(trim(($headline . ' ' . $summary)));
+        $keyword_seed = preg_replace('/[^a-z0-9\s]/', ' ', $keyword_seed);
+        $tokens = array_values(array_filter(array_map('trim', explode(' ', $keyword_seed))));
+        $stopwords = array('the', 'and', 'for', 'with', 'this', 'that', 'from', 'into', 'about', 'what', 'when', 'where', 'will', 'would', 'could', 'should', 'are', 'is', 'was', 'were', 'has', 'have', 'had', 'your', 'their', 'our', 'its', 'you');
+        $tokens = array_values(array_filter($tokens, function($token) use ($stopwords) {
+            return strlen($token) >= 4 && !in_array($token, $stopwords, true);
+        }));
+        $keywords = array_slice(array_values(array_unique($tokens)), 0, 12);
+        $keyword_text = !empty($keywords) ? implode(', ', $keywords) : 'none';
 
         $prompt = sprintf(
-            'Research specialist: Find high-quality sources for "%s". Target: %d citations from last %d months. Prioritize: %s. %s Return ONLY valid JSON: {"citations":[{"title":"...","url":"...","source":"...","published_date":"..."}]}',
+            'Research specialist: perform a source-check for this article and return supporting evidence for its argumentation. Headline: "%s". Summary: "%s". Keyword anchors: %s. Target: %d relevant citations from last %d months. Source mix preference: %s. Requirements: (1) citation must directly support or challenge a concrete claim implied by the summary, (2) avoid generic background links, (3) prefer primary/authoritative sources, (4) include a short relevance_note for each citation that ties it to the article argument. Return ONLY valid JSON: {"citations":[{"title":"...","url":"...","source":"...","published_date":"...","relevance_note":"..."}]}.',
             $headline,
+            $summary,
+            $keyword_text,
             $target_min,
             $recency,
-            implode(', ', array_keys($source_mix)),
-            $summary ? 'Context: ' . $summary : ''
+            implode(', ', array_keys($source_mix))
         );
 
-        // Step 3: Queue specialist job with CORRECT argument order: (session_id, idempotency_key, prompt, task).
+        error_log(sprintf(
+            '[PLANNER][DIVE_DEEPER] queue_start session=%s article=%s target_min=%d recency=%d keywords=%s',
+            (string) $session_id,
+            (string) ($article_id ?? 'unknown'),
+            (int) $target_min,
+            (int) $recency,
+            $keyword_text
+        ));
+
         $orchestrator = new Dual_GPT_Planner_Orchestrator($this);
         $idempotency_key = 'planner-dive-deeper-' . md5($session_id . ':' . ($article_id ?? 'unknown') . ':' . json_encode($params));
         $job_id = $orchestrator->run_job($session_id, $idempotency_key, $prompt, 'verify');
 
-        // Step 4: Record job metadata on the article.
+        if (is_wp_error($job_id)) {
+            error_log(sprintf(
+                '[PLANNER][DIVE_DEEPER] queue_error session=%s article=%s error=%s',
+                (string) $session_id,
+                (string) ($article_id ?? 'unknown'),
+                $job_id->get_error_message()
+            ));
+        } else {
+            error_log(sprintf(
+                '[PLANNER][DIVE_DEEPER] queue_ok session=%s article=%s job_id=%s',
+                (string) $session_id,
+                (string) ($article_id ?? 'unknown'),
+                (string) $job_id
+            ));
+        }
+
         if (!isset($article['dive_deeper_jobs'])) {
             $article['dive_deeper_jobs'] = array();
         }
@@ -1196,17 +1230,10 @@ class Dual_GPT_Plugin {
             'status' => 'queued',
             'requested_at' => gmdate('c'),
             'params' => $params,
-            'citations_added_sync' => $citations_added_sync,
+            'keyword_anchors' => $keywords,
         );
 
-        // Step 5: Regenerate the article brief inline from updated citations.
-        $citations = $article['citations'] ?? array();
-        if (!empty($citations)) {
-            $article['brief'] = $this->build_dive_deeper_brief($headline, $citations);
-            $article['dive_deeper_enriched_at'] = gmdate('c');
-        }
-
-        // Step 6: Write updated article (citations + brief + job record) back to session DB.
+        // Persist job metadata on the session article.
         if ($article_id !== null) {
             $articles = $meta['articles'] ?? array();
             foreach ($articles as $idx => $a) {
@@ -1220,30 +1247,6 @@ class Dual_GPT_Plugin {
         }
 
         return is_wp_error($job_id) ? null : $job_id;
-    }
-
-    /**
-     * Build an updated article brief from its current citations after a Dive Deeper enrichment.
-     * This is a simple inline summary — no LLM call, instant.
-     */
-    private function build_dive_deeper_brief($headline, $citations) {
-        $count = count($citations);
-        $sources = array();
-        foreach (array_slice($citations, 0, 4) as $c) {
-            $title = trim($c['title'] ?? '');
-            $source = trim($c['source'] ?? '');
-            if ($title) {
-                $sources[] = $source ? "{$title} ({$source})" : $title;
-            }
-        }
-        $source_list = !empty($sources) ? implode('; ', $sources) : 'multiple sources';
-        return sprintf(
-            'Research for "%s" now draws on %d source%s, including %s. Additional specialist research is running in the background.',
-            $headline,
-            $count,
-            $count === 1 ? '' : 's',
-            $source_list
-        );
     }
 
     private function enrich_article_citations_from_phase4($article, $meta) {
