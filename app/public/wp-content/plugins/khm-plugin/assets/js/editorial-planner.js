@@ -141,6 +141,7 @@ const EditorialPlannerApp = () => {
     const [diveDeeperModalOpen, setDiveDeeperModalOpen] = useState(false);
     const [diveDeeperArticle, setDiveDeeperArticle] = useState(null);
     const [diveDeeperDepthSlider, setDiveDeeperDepthSlider] = useState(2);
+    const [diveDeeperSuccess, setDiveDeeperSuccess] = useState(false);
     const isDeepDiveLoading = diveDeeperArticle ? !!articleActionLoading[`dive_deeper:${diveDeeperArticle.id}`] : false;
     const showFocusControls = true;
     // URL-based routing: check if we're viewing a specific session detail
@@ -1584,7 +1585,11 @@ const EditorialPlannerApp = () => {
             'Dive deeper research initiated. Specialist is gathering additional citations...',
             params
         );
-        setDiveDeeperModalOpen(false);
+        setDiveDeeperSuccess(true);
+        setTimeout(() => {
+            setDiveDeeperModalOpen(false);
+            setDiveDeeperSuccess(false);
+        }, 2500);
     };
 
     const handleOpinionPieceArticle = async (article) => {
@@ -2820,9 +2825,29 @@ const EditorialPlannerApp = () => {
                     Modal,
                     {
                         title: 'Dive Deeper - Research Depth',
-                        onRequestClose: () => !isDeepDiveLoading && setDiveDeeperModalOpen(false),
+                        onRequestClose: () => !isDeepDiveLoading && !diveDeeperSuccess && setDiveDeeperModalOpen(false),
                     },
-                    isDeepDiveLoading
+                    diveDeeperSuccess
+                        ? wp.element.createElement(
+                              'div',
+                              { style: { textAlign: 'center', padding: '32px 24px' } },
+                              wp.element.createElement(
+                                  'div',
+                                  { style: { fontSize: '48px', lineHeight: 1, marginBottom: '12px' } },
+                                  '✓'
+                              ),
+                              wp.element.createElement(
+                                  'p',
+                                  { style: { fontSize: '16px', fontWeight: '600', color: '#1e7e34', margin: '0 0 8px' } },
+                                  'Job queued successfully'
+                              ),
+                              wp.element.createElement(
+                                  'p',
+                                  { style: { fontSize: '13px', color: '#666', margin: 0 } },
+                                  'The specialist will gather additional citations in the background. Refresh the session to see results.'
+                              )
+                          )
+                        : isDeepDiveLoading
                         ? wp.element.createElement(
                               'div',
                               { style: { textAlign: 'center', padding: '32px 24px' } },
