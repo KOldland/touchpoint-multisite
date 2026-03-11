@@ -1839,7 +1839,7 @@ const EditorialPlannerApp = () => {
             });
         };
 
-        return phaseOrder.map((key) => {
+        const phaseCards = phaseOrder.map((key) => {
             const phase = phases[key];
             if (!phase) {
                 return null;
@@ -2251,6 +2251,40 @@ const EditorialPlannerApp = () => {
                 )
             );
         });
+
+        const phaseKeysPresent = phaseOrder.filter((key) => !!phases[key]);
+        return wp.element.createElement(
+            'div',
+            null,
+            phaseKeysPresent.length > 0 &&
+                wp.element.createElement(
+                    'div',
+                    { style: { marginBottom: '8px', display: 'flex', gap: '8px' } },
+                    wp.element.createElement(
+                        Button,
+                        {
+                            isSecondary: true,
+                            onClick: () => {
+                                const next = {};
+                                phaseKeysPresent.forEach((key) => {
+                                    next[key] = true;
+                                });
+                                setExpandedPhases(next);
+                            },
+                        },
+                        'Expand all phases'
+                    ),
+                    wp.element.createElement(
+                        Button,
+                        {
+                            isSecondary: true,
+                            onClick: () => setExpandedPhases({}),
+                        },
+                        'Collapse all phases'
+                    )
+                ),
+            ...phaseCards
+        );
     };
 
     const renderArticlesTable = () => {
@@ -2270,7 +2304,13 @@ const EditorialPlannerApp = () => {
         const rows = articles.map((article, index) => {
             const metric = findMetric(article.keywords || []);
             const volumeValue = Number(metric?.search_volume ?? 0);
-            const rankingSignal = Number(metric?.priority_score ?? metric?.rank ?? 0);
+            const prioritySignal = Number(metric?.priority_score ?? 0);
+            const rankValue = Number(metric?.rank ?? 0);
+            const rankingSignal = Number.isFinite(prioritySignal) && prioritySignal > 0
+                ? prioritySignal
+                : Number.isFinite(rankValue) && rankValue > 0
+                ? 1 / rankValue
+                : 0;
             const citationsCount = getCitationCount(article);
             return {
                 article,
@@ -2287,11 +2327,21 @@ const EditorialPlannerApp = () => {
         const maxCitations = Math.max(1, ...rows.map((item) => item.citationsCount || 0));
         const scoredRows = rows
             .map((item) => {
+                const hasMarketData = !!item.metric;
+                const volumeSignal = maxVolume > 1
+                    ? Math.log1p(item.volumeValue) / Math.log1p(maxVolume)
+                    : item.volumeValue > 0
+                    ? 1
+                    : 0;
+                const rankingSignalNorm = maxRankingSignal > 0 ? item.rankingSignal / maxRankingSignal : 0;
+                const marketSignalRaw = (volumeSignal * 0.7) + (rankingSignalNorm * 0.3);
+                const marketSignal = hasMarketData
+                    ? Math.round(Math.max(5, Math.min(95, marketSignalRaw * 100)))
+                    : null;
                 const priorityScore =
                     ((item.volumeValue / maxVolume) * 0.45) +
                     ((item.citationsCount / maxCitations) * 0.35) +
                     ((item.rankingSignal / maxRankingSignal) * 0.2);
-                const marketSignal = Math.round((item.volumeValue / maxVolume) * 100);
                 return { ...item, priorityScore, marketSignal };
             })
             .sort((a, b) => b.priorityScore - a.priorityScore);
@@ -2383,11 +2433,11 @@ const EditorialPlannerApp = () => {
                         wp.element.createElement(
                             'td',
                             { title: `Search volume: ${volume}` },
-                            wp.element.createElement('strong', null, `${marketSignal}%`),
+                            wp.element.createElement('strong', null, marketSignal == null ? '—' : `${marketSignal}%`),
                             wp.element.createElement(
                                 'div',
                                 { style: { fontSize: '11px', color: '#50575e', marginTop: '2px' } },
-                                `Vol: ${volume}`
+                                `Vol: ${volume}${metric?.priority_score != null ? ` · Priority: ${metric.priority_score}` : ''}`
                             )
                         ),
                         wp.element.createElement('td', null, citationsCount),
