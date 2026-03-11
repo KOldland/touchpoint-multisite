@@ -5824,7 +5824,8 @@ class Dual_GPT_Plugin {
                 'planner-framework%',
                 'planner-fw%',
                 'planner-synopses-%',
-                'planner-author-%'
+                'planner-author-%',
+                'planner-dive-deeper-%'
             ),
             ARRAY_A
         );
@@ -5917,6 +5918,75 @@ class Dual_GPT_Plugin {
                     break;
                 }
                 $meta['articles'] = $articles;
+                continue;
+            }
+
+            if (strpos($idempotency, 'planner-dive-deeper-') === 0) {
+                $articles = isset($meta['articles']) && is_array($meta['articles']) ? $meta['articles'] : array();
+                foreach ($articles as $index => $article) {
+                    $jobs_list = isset($article['dive_deeper_jobs']) && is_array($article['dive_deeper_jobs'])
+                        ? $article['dive_deeper_jobs']
+                        : array();
+
+                    $matched = false;
+                    foreach ($jobs_list as $job_index => $dive_job) {
+                        if (($dive_job['job_id'] ?? '') !== ($job['id'] ?? '')) {
+                            continue;
+                        }
+                        $matched = true;
+                        $jobs_list[$job_index]['status'] = $job['status'] ?? 'queued';
+                        if (($job['status'] ?? '') === 'failed') {
+                            $jobs_list[$job_index]['error_message'] = $job['error_message'] ?? 'Dive Deeper job failed.';
+                        }
+
+                        if (!empty($job['response_json']) && ($job['status'] ?? '') === 'completed') {
+                            $response_content = $this->extract_response_content_from_job_json($job['response_json']);
+                            $payload = $this->extract_json_from_content($response_content);
+                            $new_citations = isset($payload['citations']) && is_array($payload['citations'])
+                                ? $payload['citations']
+                                : array();
+
+                            $existing = isset($article['citations']) && is_array($article['citations'])
+                                ? $article['citations']
+                                : array();
+                            $seen = array();
+                            foreach ($existing as $citation) {
+                                $key = strtolower(trim(($citation['url'] ?? '') . '|' . ($citation['title'] ?? '')));
+                                if ($key !== '|') {
+                                    $seen[$key] = true;
+                                }
+                            }
+
+                            foreach ($new_citations as $citation) {
+                                if (!is_array($citation)) {
+                                    continue;
+                                }
+                                $key = strtolower(trim(($citation['url'] ?? '') . '|' . ($citation['title'] ?? '')));
+                                if ($key === '|' || isset($seen[$key])) {
+                                    continue;
+                                }
+                                $existing[] = $citation;
+                                $seen[$key] = true;
+                            }
+
+                            $article['citations'] = $existing;
+                            $article['citation_count'] = count($existing);
+                            $article['dive_deeper_last_completed_at'] = gmdate('c');
+                            $jobs_list[$job_index]['applied_citations'] = count($new_citations);
+                        }
+
+                        break;
+                    }
+
+                    if ($matched) {
+                        $article['dive_deeper_jobs'] = $jobs_list;
+                        $articles[$index] = $article;
+                        break;
+                    }
+                }
+
+                $meta['articles'] = $articles;
+                $db->update_session_meta($session_id, $meta);
                 continue;
             }
 

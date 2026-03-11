@@ -142,7 +142,12 @@ const EditorialPlannerApp = () => {
     const [diveDeeperArticle, setDiveDeeperArticle] = useState(null);
     const [diveDeeperDepthSlider, setDiveDeeperDepthSlider] = useState(2);
     const [diveDeeperSuccess, setDiveDeeperSuccess] = useState(false);
+    const [diveDeeperJobId, setDiveDeeperJobId] = useState('');
+    const [diveDeeperJobStatus, setDiveDeeperJobStatus] = useState('');
+    const [diveDeeperJobError, setDiveDeeperJobError] = useState('');
     const isDeepDiveLoading = diveDeeperArticle ? !!articleActionLoading[`dive_deeper:${diveDeeperArticle.id}`] : false;
+    const isDiveDeeperJobRunning = ['queued', 'running', 'processing'].includes(diveDeeperJobStatus);
+    const isDiveDeeperWorking = isDeepDiveLoading || isDiveDeeperJobRunning;
     const showFocusControls = true;
     // URL-based routing: check if we're viewing a specific session detail
     const params = new URLSearchParams(window.location.search);
@@ -589,7 +594,7 @@ const EditorialPlannerApp = () => {
             ) ||
             false;
         const isSynopsisGenerating = synopsisGenerateLoading === true;
-        const isDiveDeeperGenerating = diveDeeperModalOpen && isDeepDiveLoading;
+        const isDiveDeeperGenerating = diveDeeperModalOpen && isDiveDeeperWorking;
         if (!hasRunningPhase && !isSynopsisGenerating && !isDiveDeeperGenerating) {
             setThinkingPhraseIndex(0);
             return undefined;
@@ -598,7 +603,46 @@ const EditorialPlannerApp = () => {
             setThinkingPhraseIndex((prev) => (prev + 1) % THINKING_PHRASES.length);
         }, 1500);
         return () => clearInterval(interval);
-    }, [detailModalOpen, sessionDetail?.meta?.phases, synopsisGenerateLoading, diveDeeperModalOpen, isDeepDiveLoading]);
+    }, [detailModalOpen, sessionDetail?.meta?.phases, synopsisGenerateLoading, diveDeeperModalOpen, isDiveDeeperWorking]);
+
+    useEffect(() => {
+        if (!diveDeeperModalOpen || !diveDeeperJobId || !diveDeeperArticle?.id) {
+            return;
+        }
+        const articles = sessionDetail?.meta?.articles || [];
+        const article = articles.find((item) => item?.id === diveDeeperArticle.id);
+        if (!article || !Array.isArray(article.dive_deeper_jobs)) {
+            return;
+        }
+        const job = article.dive_deeper_jobs.find((item) => item?.job_id === diveDeeperJobId);
+        if (!job) {
+            return;
+        }
+        const status = job.status || 'queued';
+        setDiveDeeperJobStatus(status);
+        setDiveDeeperJobError(job.error_message || '');
+        if (status === 'completed') {
+            setDiveDeeperSuccess(true);
+        }
+    }, [diveDeeperModalOpen, diveDeeperJobId, diveDeeperArticle?.id, sessionDetail?.meta?.articles]);
+
+    useEffect(() => {
+        if (!diveDeeperModalOpen || !diveDeeperJobId || !isDiveDeeperJobRunning) {
+            return undefined;
+        }
+        let cancelled = false;
+        const poll = async () => {
+            if (cancelled) {
+                return;
+            }
+            await refreshSessionDetail();
+        };
+        const interval = setInterval(poll, 3000);
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
+    }, [diveDeeperModalOpen, diveDeeperJobId, isDiveDeeperJobRunning]);
 
     const getFocusLabel = (value) => {
         if (value >= 70) {
@@ -1506,7 +1550,7 @@ const EditorialPlannerApp = () => {
                 ...(showFocusControls ? { focus_level: focusLevel } : {}),
                 ...(params ? { params } : {}),
             };
-            await apiFetch({
+            const response = await apiFetch({
                 path: 'dual-gpt/v1/planner/article-action',
                 method: 'POST',
                 data: payload,
@@ -1514,6 +1558,7 @@ const EditorialPlannerApp = () => {
 
             dispatch('core/notices').createNotice('success', successMessage, { type: 'snackbar' });
             await refreshSessionDetail();
+            return response;
         } catch (error) {
             console.error(`Article action failed (${action}):`, error);
             dispatch('core/notices').createNotice(
@@ -1521,6 +1566,7 @@ const EditorialPlannerApp = () => {
                 error.message || 'Article action failed.',
                 { type: 'snackbar' }
             );
+            return null;
         } finally {
             setArticleActionLoading((prev) => ({ ...prev, [loadingKey]: false }));
         }
@@ -1541,6 +1587,10 @@ const EditorialPlannerApp = () => {
     const handleDeepDiveArticle = (article) => {
         setDiveDeeperArticle(article);
         setDiveDeeperDepthSlider(2);
+        setDiveDeeperSuccess(false);
+        setDiveDeeperJobId('');
+        setDiveDeeperJobStatus('');
+        setDiveDeeperJobError('');
         setDiveDeeperModalOpen(true);
     };
 
@@ -1580,19 +1630,18 @@ const EditorialPlannerApp = () => {
             return;
         }
         const params = mapSliderToDepthParams(diveDeeperDepthSlider);
-        await runArticleAction(
+        const result = await runArticleAction(
             diveDeeperArticle,
             'dive_deeper',
             'Specialist source-check queued. Supporting evidence will be added after processing.',
             params
         );
-        // Refresh session immediately so queued job metadata is visible
+        const queuedJobId = result?.job_id || '';
+        setDiveDeeperSuccess(false);
+        setDiveDeeperJobError('');
+        setDiveDeeperJobId(queuedJobId);
+        setDiveDeeperJobStatus(queuedJobId ? 'queued' : '');
         await refreshSessionDetail();
-        setDiveDeeperSuccess(true);
-        setTimeout(() => {
-            setDiveDeeperModalOpen(false);
-            setDiveDeeperSuccess(false);
-        }, 2500);
     };
 
     const handleOpinionPieceArticle = async (article) => {
@@ -2300,7 +2349,7 @@ const EditorialPlannerApp = () => {
                     const frameworkActionLabel =
                         frameworkStatus === 'complete' ? 'Regenerate Framework' : 'Generate Framework';
                     const isDismissLoading = !!articleActionLoading[`dismiss:${article.id}`];
-                    const isDeepDiveLoading = !!articleActionLoading[`deep_dive:${article.id}`];
+                    const isDeepDiveLoading = !!articleActionLoading[`dive_deeper:${article.id}`];
                     const isOpinionLoading = !!articleActionLoading[`opinion_piece:${article.id}`];
                     return wp.element.createElement(
                         'tr',
@@ -2828,7 +2877,7 @@ const EditorialPlannerApp = () => {
                     Modal,
                     {
                         title: 'Dive Deeper - Research Depth',
-                        onRequestClose: () => !isDeepDiveLoading && !diveDeeperSuccess && setDiveDeeperModalOpen(false),
+                        onRequestClose: () => !isDiveDeeperWorking && setDiveDeeperModalOpen(false),
                     },
                     diveDeeperSuccess
                         ? wp.element.createElement(
@@ -2842,15 +2891,15 @@ const EditorialPlannerApp = () => {
                               wp.element.createElement(
                                   'p',
                                   { style: { fontSize: '16px', fontWeight: '600', color: '#1e7e34', margin: '0 0 8px' } },
-                                  'Source-check job queued'
+                                  'Source-check complete'
                               ),
                               wp.element.createElement(
                                   'p',
                                   { style: { fontSize: '13px', color: '#666', margin: 0 } },
-                                  'The specialist is now checking sources against the article summary and keywords to find truly relevant supporting evidence.'
+                                  'Supporting evidence has been processed for this article. You can now review updated citations.'
                               )
                           )
-                        : isDeepDiveLoading
+                        : isDiveDeeperWorking
                         ? wp.element.createElement(
                               'div',
                               { style: { textAlign: 'center', padding: '32px 24px' } },
@@ -2863,12 +2912,18 @@ const EditorialPlannerApp = () => {
                               wp.element.createElement(
                                   'p',
                                   { style: { marginTop: '8px', fontSize: '12px', color: '#999' } },
-                                  'This may take a few moments.'
+                                                                    `Job status: ${diveDeeperJobStatus || 'starting'}...`
                               )
                           )
                         : wp.element.createElement(
                               'div',
                               { style: { marginBottom: '24px' } },
+                              diveDeeperJobError &&
+                                  wp.element.createElement(
+                                      Notice,
+                                      { status: 'error', isDismissible: false },
+                                      diveDeeperJobError
+                                  ),
                               wp.element.createElement(
                                   'p',
                                   { style: { marginBottom: '16px', color: '#50575e' } },
@@ -2927,7 +2982,10 @@ const EditorialPlannerApp = () => {
                                       Button,
                                       {
                                           isSecondary: true,
-                                          onClick: () => setDiveDeeperModalOpen(false),
+                                          onClick: () => {
+                                              setDiveDeeperModalOpen(false);
+                                              setDiveDeeperSuccess(false);
+                                          },
                                       },
                                       'Cancel'
                                   ),
@@ -2936,9 +2994,9 @@ const EditorialPlannerApp = () => {
                                       {
                                           isPrimary: true,
                                           onClick: handleDiveDeeperSubmit,
-                                          disabled: isDeepDiveLoading,
+                                          disabled: isDiveDeeperWorking,
                                       },
-                                      isDeepDiveLoading ? wp.element.createElement(Spinner, null) : 'Start'
+                                      isDiveDeeperWorking ? wp.element.createElement(Spinner, null) : 'Start'
                                   )
                               )
                           )
