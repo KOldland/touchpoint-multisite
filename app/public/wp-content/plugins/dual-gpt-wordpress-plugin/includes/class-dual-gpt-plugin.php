@@ -1115,7 +1115,7 @@ class Dual_GPT_Plugin {
             ), 200);
         }
 
-        // Handle dive_deeper: queue specialist job instead of simple enrichment
+        // Handle dive_deeper: enrich citations synchronously from Phase 4, then queue specialist job
         if ($action === 'dive_deeper') {
             $article = $articles[$article_index];
             $job_id = $this->queue_dive_deeper_job($article, $session_id, $meta, $params);
@@ -1126,7 +1126,7 @@ class Dual_GPT_Plugin {
                 'action' => 'dive_deeper',
                 'job_id' => $job_id,
                 'status' => 'queued',
-                'message' => 'Dive Deeper specialist job queued. Check back for results.',
+                'message' => 'Citations enriched from session data. Specialist research job queued for additional sources.',
             ), 200);
         }
 
@@ -1156,53 +1156,94 @@ class Dual_GPT_Plugin {
     }
 
     private function queue_dive_deeper_job($article, $session_id, $meta, $params) {
+        $db = new Dual_GPT_DB_Handler();
+        $article_id = $article['id'] ?? null;
         $headline = $article['headline'] ?? $article['title'] ?? 'Article';
         $summary = $article['summary'] ?? $article['brief'] ?? '';
-        
-        // Build specialized research query for the specialist model
+
+        // Step 1: Immediate synchronous enrichment from Phase 4 data already in session.
+        // This gives an instant citation boost without waiting for the specialist job.
+        $before_count = isset($article['citations']) && is_array($article['citations']) ? count($article['citations']) : 0;
+        $article = $this->enrich_article_citations_from_phase4($article, $meta);
+        $after_count = isset($article['citations']) && is_array($article['citations']) ? count($article['citations']) : 0;
+        $citations_added_sync = max(0, $after_count - $before_count);
+
+        // Step 2: Build specialist research prompt with correct arguments.
         $target_min = intval($params['target_min_citations'] ?? 4);
         $recency = intval($params['recency_months'] ?? 18);
-        
-        $specialist_focus = sprintf(
-            'Research specialist: Find high-quality sources for "%s". Target: %d citations from last %d months. %s',
+        $source_mix = $params['source_mix_minimums'] ?? array('industry' => 1, 'news' => 1, 'research' => 1);
+
+        $prompt = sprintf(
+            'Research specialist: Find high-quality sources for "%s". Target: %d citations from last %d months. Prioritize: %s. %s Return ONLY valid JSON: {"citations":[{"title":"...","url":"...","source":"...","published_date":"..."}]}',
             $headline,
             $target_min,
             $recency,
-            $summary ? "Context: $summary" : ''
-        );
-        
-        // Build source constraints from params
-        $source_mix = $params['source_mix_minimums'] ?? array('industry' => 1, 'news' => 1, 'research' => 1);
-        $source_constraint = 'Prioritize sources: ' . implode(', ', array_keys($source_mix));
-        
-        // Queue verify task via orchestrator with dive_deeper framing
-        $orchestrator = new Dual_GPT_Planner_Orchestrator($this);
-        $job_id = $orchestrator->run_job(
-            'verify',
-            array(
-                'article_id' => $article['id'] ?? 'unknown',
-                'session_id' => $session_id,
-                'query' => $specialist_focus . '. ' . $source_constraint,
-                'dive_deeper_params' => $params,
-                'article_headline' => $headline,
-                'article_summary' => $summary,
-            ),
-            'planner-dive-deeper-' . md5($session_id . ':' . $article['id'] ?? 'unknown' . ':' . json_encode($params))
+            implode(', ', array_keys($source_mix)),
+            $summary ? 'Context: ' . $summary : ''
         );
 
-        // Store job metadata on article for tracking
+        // Step 3: Queue specialist job with CORRECT argument order: (session_id, idempotency_key, prompt, task).
+        $orchestrator = new Dual_GPT_Planner_Orchestrator($this);
+        $idempotency_key = 'planner-dive-deeper-' . md5($session_id . ':' . ($article_id ?? 'unknown') . ':' . json_encode($params));
+        $job_id = $orchestrator->run_job($session_id, $idempotency_key, $prompt, 'verify');
+
+        // Step 4: Record job metadata on the article.
         if (!isset($article['dive_deeper_jobs'])) {
             $article['dive_deeper_jobs'] = array();
         }
-        
         $article['dive_deeper_jobs'][] = array(
-            'job_id' => $job_id,
+            'job_id' => is_wp_error($job_id) ? null : $job_id,
             'status' => 'queued',
             'requested_at' => gmdate('c'),
             'params' => $params,
+            'citations_added_sync' => $citations_added_sync,
         );
 
-        return $job_id;
+        // Step 5: Regenerate the article brief inline from updated citations.
+        $citations = $article['citations'] ?? array();
+        if (!empty($citations)) {
+            $article['brief'] = $this->build_dive_deeper_brief($headline, $citations);
+            $article['dive_deeper_enriched_at'] = gmdate('c');
+        }
+
+        // Step 6: Write updated article (citations + brief + job record) back to session DB.
+        if ($article_id !== null) {
+            $articles = $meta['articles'] ?? array();
+            foreach ($articles as $idx => $a) {
+                if (($a['id'] ?? null) == $article_id) {
+                    $articles[$idx] = $article;
+                    break;
+                }
+            }
+            $meta['articles'] = $articles;
+            $db->update_session_meta($session_id, $meta);
+        }
+
+        return is_wp_error($job_id) ? null : $job_id;
+    }
+
+    /**
+     * Build an updated article brief from its current citations after a Dive Deeper enrichment.
+     * This is a simple inline summary — no LLM call, instant.
+     */
+    private function build_dive_deeper_brief($headline, $citations) {
+        $count = count($citations);
+        $sources = array();
+        foreach (array_slice($citations, 0, 4) as $c) {
+            $title = trim($c['title'] ?? '');
+            $source = trim($c['source'] ?? '');
+            if ($title) {
+                $sources[] = $source ? "{$title} ({$source})" : $title;
+            }
+        }
+        $source_list = !empty($sources) ? implode('; ', $sources) : 'multiple sources';
+        return sprintf(
+            'Research for "%s" now draws on %d source%s, including %s. Additional specialist research is running in the background.',
+            $headline,
+            $count,
+            $count === 1 ? '' : 's',
+            $source_list
+        );
     }
 
     private function enrich_article_citations_from_phase4($article, $meta) {
