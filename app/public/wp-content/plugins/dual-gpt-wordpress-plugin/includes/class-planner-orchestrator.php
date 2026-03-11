@@ -45,13 +45,48 @@ class Dual_GPT_Planner_Orchestrator {
 
         $meta['phase1'] = $phase1_data;
 
+        // Encode and validate JSON size to prevent prompt length issues
+        $context_json = wp_json_encode($phase1_data);
+        $json_length = strlen($context_json);
+        
+        // If JSON is too large, aggressively truncate
+        if ($json_length > 5000) {
+            error_log('[PLANNER] Phase 1 context JSON is large (' . $json_length . ' chars), truncating...');
+            
+            // Further reduce SERP results
+            if (isset($phase1_data['serp_snapshot']) && is_array($phase1_data['serp_snapshot'])) {
+                foreach ($phase1_data['serp_snapshot'] as $query => $results) {
+                    if (is_array($results)) {
+                        $phase1_data['serp_snapshot'][$query] = array_slice($results, 0, 3);
+                        foreach ($phase1_data['serp_snapshot'][$query] as $idx => $result) {
+                            if (isset($result['snippet'])) {
+                                $phase1_data['serp_snapshot'][$query][$idx]['snippet'] = $this->truncate_text($result['snippet'], 100);
+                            }
+                            if (isset($result['description'])) {
+                                $phase1_data['serp_snapshot'][$query][$idx]['description'] = $this->truncate_text($result['description'], 100);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Limit keywords further
+            if (isset($phase1_data['candidate_keywords']) && is_array($phase1_data['candidate_keywords'])) {
+                $phase1_data['candidate_keywords'] = array_slice($phase1_data['candidate_keywords'], 0, 40);
+            }
+            
+            $context_json = wp_json_encode($phase1_data);
+            $new_length = strlen($context_json);
+            error_log('[PLANNER] After truncation: ' . $new_length . ' chars (saved ' . ($json_length - $new_length) . ' chars)');
+        }
+
         $phase1_job_id = $this->enqueue_phase_job(
             $session_id,
             'phase1',
             $topic,
             $includes,
             $excludes,
-            wp_json_encode($phase1_data),
+            $context_json,
             $focus_level
         );
         if (is_wp_error($phase1_job_id)) {
@@ -167,6 +202,11 @@ class Dual_GPT_Planner_Orchestrator {
         $fallback_map = $model_config ? $model_config->get_fallback_map() : array();
         $fallback_model = $fallback_map[$task] ?? 'gpt-4o-mini';
 
+        if ($this->should_use_fallback_model($task, $model, $fallback_model)) {
+            error_log('[PLANNER][MODEL] Auto-selected fallback model for task ' . $task . ': ' . $model . ' -> ' . $fallback_model);
+            $model = $fallback_model;
+        }
+
         $request = new WP_REST_Request('POST', '/dual-gpt/v1/jobs');
         $request->set_param('session_id', $session_id);
         $request->set_param('prompt', $prompt);
@@ -197,6 +237,43 @@ class Dual_GPT_Planner_Orchestrator {
         return $job_id;
     }
 
+    private function should_use_fallback_model($task, $model, $fallback_model) {
+        if ($task !== 'framework') {
+            return false;
+        }
+
+        if ($fallback_model === '' || $fallback_model === $model) {
+            return false;
+        }
+
+        global $wpdb;
+        $jobs_table = $wpdb->prefix . 'ai_jobs';
+        $user_id = get_current_user_id();
+        if ($user_id <= 0) {
+            return false;
+        }
+
+        $recent_rate_limited = intval($wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*)
+                 FROM {$jobs_table}
+                 WHERE created_by = %d
+                   AND model = %s
+                   AND idempotency_key LIKE %s
+                   AND status = 'failed'
+                   AND created_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+                   AND (error_message LIKE %s OR error_message LIKE %s)",
+                $user_id,
+                $model,
+                'planner-fw-%',
+                '%Rate limit%',
+                '%rate limit%'
+            )
+        ));
+
+        return $recent_rate_limited >= 1;
+    }
+
     public function build_phase1_prompt($topic, $includes, $excludes, $context_summary = '', $focus_level = 50) {
         $focus_profile = $this->focus_profile($focus_level);
         $lines = array(
@@ -215,7 +292,7 @@ class Dual_GPT_Planner_Orchestrator {
         }
         $lines[] = 'Focus level: ' . intval($focus_level) . ' (0 = general, 100 = focused).';
         $lines[] = 'Analyze the supplied research inputs (SERP snapshots, keyword suggestions, and trend notes) to extract ' . $focus_profile['trend_range'] . ' distinct trends shaping this topic.';
-        $lines[] = 'Favor sources and phrasing from the last 12–18 months. Avoid older year-specific phrasing unless essential.';
+        $lines[] = 'Enforce 36-month recency window: extract publication dates from citation metadata and reject any sources older than 36 months. Do not accept article titles as publication dates; verify against schema metadata (datePublished, article:published_time, etc.).';
         $lines[] = 'For each trend, include: 2–4 insight_points; a clear why_it_matters; 2–3 editorial_angles; and 2–4 citations sourced only from the supplied inputs.';
         $lines[] = 'Apply only to: Field Service, Spare Parts, B2B E-Commerce, B2B Pricing, Servitization, or Aftermarket Strategy. For e-commerce and pricing, restrict to B2B manufacturing.';
         $lines[] = 'Return at least 12 candidate_keywords derived from the supplied inputs. Do not leave candidate_keywords empty.';
@@ -1251,19 +1328,35 @@ class Dual_GPT_Planner_Orchestrator {
             $topic . ' industry report',
             $topic . ' market outlook',
         );
-        foreach ($includes as $include) {
+        // Limit additional queries from includes to prevent prompt bloat
+        $limited_includes = array_slice($includes, 0, 2);
+        foreach ($limited_includes as $include) {
             $queries[] = $include . ' trends';
         }
 
         $serp_snapshot = array();
         foreach ($queries as $query) {
-            $serp_snapshot[$query] = $research_tools->web_search($query, 8);
+            // Reduce from 8 to 5 results per query
+            $results = $research_tools->web_search($query, 5);
+            // Truncate snippets in SERP results to reduce size
+            if (is_array($results)) {
+                foreach ($results as $idx => $result) {
+                    if (isset($result['snippet'])) {
+                        $results[$idx]['snippet'] = $this->truncate_text($result['snippet'], 200);
+                    }
+                    if (isset($result['description'])) {
+                        $results[$idx]['description'] = $this->truncate_text($result['description'], 200);
+                    }
+                }
+            }
+            $serp_snapshot[$query] = $results;
         }
 
         $keyword_candidates = array();
-        $seed_terms = array_merge(array($topic), $includes);
+        $seed_terms = array_merge(array($topic), $limited_includes);
         foreach ($seed_terms as $seed) {
-            $suggestions = $keyword_provider->keyword_suggestions($seed, 25);
+            // Reduce from 25 to 15 suggestions per seed
+            $suggestions = $keyword_provider->keyword_suggestions($seed, 15);
             if (is_wp_error($suggestions)) {
                 continue;
             }
@@ -1274,7 +1367,8 @@ class Dual_GPT_Planner_Orchestrator {
             }
         }
 
-        $candidate_keywords = array_keys($keyword_candidates);
+        // Limit total candidate keywords to 75 to prevent prompt bloat
+        $candidate_keywords = array_slice(array_keys($keyword_candidates), 0, 75);
 
         $trend_summary = array();
         $trend_keywords = array_slice($candidate_keywords, 0, 5);

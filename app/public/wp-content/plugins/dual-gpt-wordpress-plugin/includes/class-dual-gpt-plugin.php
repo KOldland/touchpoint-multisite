@@ -185,6 +185,12 @@ class Dual_GPT_Plugin {
             'permission_callback' => array($this, 'check_permissions'),
         ));
 
+        register_rest_route('dual-gpt/v1', '/planner/article-action', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'planner_article_action'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
         register_rest_route('dual-gpt/v1', '/planner/phase3', array(
             'methods' => 'POST',
             'callback' => array($this, 'rerun_planner_phase3'),
@@ -215,6 +221,44 @@ class Dual_GPT_Plugin {
             'permission_callback' => array($this, 'check_permissions'),
         ));
 
+        register_rest_route('dual-gpt/v1', '/planner/research-validation', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_planner_research_validation'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/policy', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'update_planner_policy'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/author-policy', array(
+            array(
+                'methods' => 'GET',
+                'callback' => array($this, 'get_planner_author_policy'),
+                'permission_callback' => array($this, 'check_permissions'),
+            ),
+            array(
+                'methods' => 'POST',
+                'callback' => array($this, 'update_planner_author_policy'),
+                'permission_callback' => array($this, 'check_permissions'),
+            ),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/top-line-categories', array(
+            array(
+                'methods' => 'GET',
+                'callback' => array($this, 'get_planner_top_line_categories'),
+                'permission_callback' => array($this, 'check_permissions'),
+            ),
+            array(
+                'methods' => 'POST',
+                'callback' => array($this, 'upsert_planner_top_line_category'),
+                'permission_callback' => array($this, 'check_permissions'),
+            ),
+        ));
+
         register_rest_route('dual-gpt/v1', '/planner/export', array(
             'methods' => 'POST',
             'callback' => array($this, 'export_planner_validation'),
@@ -231,6 +275,54 @@ class Dual_GPT_Plugin {
             'methods' => 'POST',
             'callback' => array($this, 'export_planner_framework'),
             'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/queue', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_planner_queue_status'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/queue/add', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'add_planner_queue_item'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/queue/run', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'run_planner_queue_item'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/queue/run-bulk', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'run_planner_queue_bulk'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/queue/reorder', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'reorder_planner_queue'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/queue/remove', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'remove_planner_queue_item'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/queue/stop', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'stop_planner_queue_item'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/planner/queue/clear', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'clear_planner_queue'),
+            'permission_callback' => array($this, 'check_admin_permissions'),
         ));
 
         register_rest_route('dual-gpt/v1', '/planner/run-author', array(
@@ -587,7 +679,83 @@ class Dual_GPT_Plugin {
             $clean[$safe_key] = $this->sanitize_meta_value($value);
         }
 
+        if (!empty($clean['research_policy']) && is_array($clean['research_policy'])) {
+            $clean['research_policy'] = $this->sanitize_research_policy($clean['research_policy']);
+        }
+
+        if (!empty($clean['author_policy']) && is_array($clean['author_policy'])) {
+            $clean['author_policy'] = $this->sanitize_author_policy($clean['author_policy']);
+        }
+
         return $clean;
+    }
+
+    private function sanitize_research_policy($policy_input) {
+        $defaults = $this->default_research_policy();
+        $policy_input = is_array($policy_input) ? $policy_input : array();
+
+        $source_mix_input = is_array($policy_input['source_mix_minimums'] ?? null) ? $policy_input['source_mix_minimums'] : array();
+
+        return array(
+            'priority_domains' => $this->normalize_research_domain_list($policy_input['priority_domains'] ?? $defaults['priority_domains']),
+            'blocked_domains' => $this->normalize_research_domain_list($policy_input['blocked_domains'] ?? $defaults['blocked_domains']),
+            'blocked_keywords' => $this->normalize_research_term_list($policy_input['blocked_keywords'] ?? $defaults['blocked_keywords']),
+            'preferred_sources' => $this->normalize_research_title_list($policy_input['preferred_sources'] ?? $defaults['preferred_sources']),
+            'source_mix_minimums' => array(
+                'academic' => max(0, intval($source_mix_input['academic'] ?? $defaults['source_mix_minimums']['academic'])),
+                'analyst' => max(0, intval($source_mix_input['analyst'] ?? $defaults['source_mix_minimums']['analyst'])),
+                'industry' => max(0, intval($source_mix_input['industry'] ?? $defaults['source_mix_minimums']['industry'])),
+                'case_study' => max(0, intval($source_mix_input['case_study'] ?? $defaults['source_mix_minimums']['case_study'])),
+            ),
+            'max_citations_per_org' => max(1, intval($policy_input['max_citations_per_org'] ?? $defaults['max_citations_per_org'])),
+            'recency_months' => max(1, intval($policy_input['recency_months'] ?? $defaults['recency_months'])),
+            'min_priority_domains_hit' => max(0, intval($policy_input['min_priority_domains_hit'] ?? $defaults['min_priority_domains_hit'])),
+        );
+    }
+
+    private function default_author_policy() {
+        return array(
+            'reporter_voice_required' => true,
+            'disallow_first_person' => true,
+            'disallow_em_dash' => true,
+            'disallow_rhetorical_binaries' => true,
+            'disallow_listicle_framing' => true,
+            'disallow_tidy_conclusion' => true,
+            'min_words' => 1200,
+            'max_words' => 2600,
+            'banned_phrases' => array(),
+        );
+    }
+
+    private function sanitize_author_policy($policy_input) {
+        $defaults = $this->default_author_policy();
+        $policy_input = is_array($policy_input) ? $policy_input : array();
+
+        $banned_phrases = $policy_input['banned_phrases'] ?? $defaults['banned_phrases'];
+        if (is_string($banned_phrases)) {
+            $banned_phrases = array_filter(array_map('trim', explode(',', $banned_phrases)));
+        }
+        if (!is_array($banned_phrases)) {
+            $banned_phrases = array();
+        }
+        $banned_phrases = array_values(array_unique(array_filter(array_map(function ($phrase) {
+            return strtolower(trim((string) $phrase));
+        }, $banned_phrases))));
+
+        $min_words = max(300, intval($policy_input['min_words'] ?? $defaults['min_words']));
+        $max_words = max($min_words, intval($policy_input['max_words'] ?? $defaults['max_words']));
+
+        return array(
+            'reporter_voice_required' => (bool) ($policy_input['reporter_voice_required'] ?? $defaults['reporter_voice_required']),
+            'disallow_first_person' => (bool) ($policy_input['disallow_first_person'] ?? $defaults['disallow_first_person']),
+            'disallow_em_dash' => (bool) ($policy_input['disallow_em_dash'] ?? $defaults['disallow_em_dash']),
+            'disallow_rhetorical_binaries' => (bool) ($policy_input['disallow_rhetorical_binaries'] ?? $defaults['disallow_rhetorical_binaries']),
+            'disallow_listicle_framing' => (bool) ($policy_input['disallow_listicle_framing'] ?? $defaults['disallow_listicle_framing']),
+            'disallow_tidy_conclusion' => (bool) ($policy_input['disallow_tidy_conclusion'] ?? $defaults['disallow_tidy_conclusion']),
+            'min_words' => $min_words,
+            'max_words' => $max_words,
+            'banned_phrases' => $banned_phrases,
+        );
     }
 
     /**
@@ -689,6 +857,8 @@ class Dual_GPT_Plugin {
         }
 
         $meta = $this->hydrate_planner_meta_from_jobs($session_id, $meta);
+        $meta = $this->ensure_research_policy_in_meta($meta);
+        $meta = $this->ensure_author_policy_in_meta($meta);
 
         $session['meta'] = $meta;
         unset($session['meta_json']);
@@ -742,7 +912,23 @@ class Dual_GPT_Plugin {
         $preset_id = !empty($params['preset_id']) ? sanitize_text_field($params['preset_id']) : null;
         $title = !empty($params['title']) ? sanitize_text_field($params['title']) : null;
         $post_id = !empty($params['post_id']) ? intval($params['post_id']) : null;
+        $meta_input = isset($params['meta']) && is_array($params['meta']) ? $params['meta'] : array();
         $meta = isset($params['meta']) ? $this->sanitize_session_meta($params['meta']) : null;
+        if (!is_array($meta)) {
+            $meta = array();
+        }
+
+        $topic = sanitize_text_field((string) ($meta['topic'] ?? $title ?? ''));
+        $category = $this->find_top_line_category_by_topic($topic);
+        if (is_array($category)) {
+            $meta['lead_category'] = $category['name'];
+            $category_policy = is_array($category['research_policy'] ?? null) ? $category['research_policy'] : array();
+            $policy_override = is_array($meta_input['research_policy'] ?? null) ? $meta_input['research_policy'] : array();
+            $meta['research_policy'] = $this->merge_research_policy($category_policy, $policy_override);
+        }
+
+        $meta = $this->ensure_research_policy_in_meta($meta);
+        $meta = $this->ensure_author_policy_in_meta($meta);
         $idempotency_key = !empty($params['idempotency_key']) ? sanitize_text_field($params['idempotency_key']) : null;
         if ($idempotency_key && strlen($idempotency_key) > 64) {
             $idempotency_key = substr($idempotency_key, 0, 64);
@@ -801,7 +987,8 @@ class Dual_GPT_Plugin {
         }
 
         $focus_level = $this->normalize_focus_level($request->get_param('focus_level'));
-        if ($focus_level !== null) {
+        $requested_policy = $request->get_param('research_policy');
+        if ($focus_level !== null || is_array($requested_policy)) {
             $db = new Dual_GPT_DB_Handler();
             $session = $db->get_session($session_id);
             if (!$session) {
@@ -811,7 +998,16 @@ class Dual_GPT_Plugin {
                 return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
             }
             $meta = $this->decode_session_meta($session['meta_json'] ?? null);
-            $meta['focus_level'] = $focus_level;
+            $meta = $this->ensure_research_policy_in_meta($meta);
+            $meta = $this->ensure_author_policy_in_meta($meta);
+            if ($focus_level !== null) {
+                $meta['focus_level'] = $focus_level;
+            }
+            if (is_array($requested_policy)) {
+                $meta['research_policy'] = $this->sanitize_research_policy($requested_policy);
+            }
+            $meta = $this->ensure_research_policy_in_meta($meta);
+            $meta = $this->ensure_author_policy_in_meta($meta);
             $db->update_session_meta($session_id, $meta);
         }
 
@@ -909,6 +1105,350 @@ class Dual_GPT_Plugin {
     }
 
     /**
+     * Perform planner article-level actions (dismiss, deep_dive)
+     */
+    public function planner_article_action($request) {
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+        $article_id = sanitize_text_field($request->get_param('article_id'));
+        $action = sanitize_key($request->get_param('action'));
+        $params = $request->get_param('params');
+
+        if (empty($session_id) || empty($article_id) || empty($action)) {
+            return new WP_Error('missing_params', 'Session ID, article ID, and action are required', array('status' => 400));
+        }
+
+        if (!in_array($action, array('dismiss', 'deep_dive', 'dive_deeper', 'opinion_piece'), true)) {
+            return new WP_Error('invalid_action', 'Unsupported article action', array('status' => 400));
+        }
+
+        if ($action === 'dive_deeper' && empty($params)) {
+            return new WP_Error('missing_params', 'Dive Deeper action requires params object', array('status' => 400));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($session_id);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $meta = $this->decode_session_meta($session['meta_json'] ?? null);
+        $articles = isset($meta['articles']) && is_array($meta['articles']) ? $meta['articles'] : array();
+
+        $article_index = -1;
+        foreach ($articles as $index => $article) {
+            if (($article['id'] ?? '') === $article_id) {
+                $article_index = $index;
+                break;
+            }
+        }
+
+        if ($article_index < 0) {
+            return new WP_Error('article_not_found', 'Article not found', array('status' => 404));
+        }
+
+        if ($action === 'dismiss') {
+            unset($articles[$article_index]);
+            $meta['articles'] = array_values($articles);
+            $db->update_session_meta($session_id, $meta);
+
+            return new WP_REST_Response(array(
+                'session_id' => $session_id,
+                'article_id' => $article_id,
+                'action' => 'dismiss',
+                'remaining_articles' => count($meta['articles']),
+            ), 200);
+        }
+
+        if ($action === 'opinion_piece') {
+            error_log('[PLANNER][OPINION] Run requested for session ' . $session_id . ' article ' . $article_id);
+            $opinion_article = $articles[$article_index] ?? array();
+            $existing_framework = $opinion_article['framework']['output'] ?? null;
+            $lite_framework_generated = false;
+            if (empty($existing_framework)) {
+                $lite_framework = $this->build_opinion_lite_framework($opinion_article);
+                $existing_framework_meta = isset($opinion_article['framework']) && is_array($opinion_article['framework']) ? $opinion_article['framework'] : array();
+                $articles[$article_index]['framework'] = array_merge(
+                    $existing_framework_meta,
+                    array(
+                        'status' => 'completed',
+                        'output' => $lite_framework,
+                        'generated_at' => current_time('mysql'),
+                        'lite_mode' => 'opinion',
+                        'is_lite_framework' => true,
+                        'error_message' => '',
+                    )
+                );
+                $meta['articles'] = $articles;
+                $db->update_session_meta($session_id, $meta);
+                $lite_framework_generated = true;
+                error_log('[PLANNER][OPINION] Lite framework generated for session ' . $session_id . ' article ' . $article_id);
+            }
+
+            $opinion_request = new WP_REST_Request('POST');
+            $opinion_request->set_param('session_id', $session_id);
+            $opinion_request->set_param('article_id', $article_id);
+            $opinion_request->set_param('author_profile', 'journalistic');
+            $response = $this->run_planner_author($opinion_request);
+            if (is_wp_error($response)) {
+                error_log('[PLANNER][OPINION] Run failed for session ' . $session_id . ' article ' . $article_id . ': ' . $response->get_error_message());
+                return $response;
+            }
+
+            $data = $response instanceof WP_REST_Response ? $response->get_data() : (is_array($response) ? $response : array());
+            $opinion_job_id = sanitize_text_field((string) ($data['job_id'] ?? ''));
+            error_log('[PLANNER][OPINION] Run queued for session ' . $session_id . ' article ' . $article_id . ' job ' . ($opinion_job_id ?: 'unknown'));
+            return new WP_REST_Response(array(
+                'session_id' => $session_id,
+                'article_id' => $article_id,
+                'action' => 'opinion_piece',
+                'job_id' => $opinion_job_id,
+                'lite_framework_generated' => $lite_framework_generated,
+                'status' => 'queued',
+            ), 200);
+        }
+
+        // Handle dive_deeper: queue specialist evidence-check job (no synthetic citation merge)
+        if ($action === 'dive_deeper') {
+            $article = $articles[$article_index];
+            $job_id = $this->queue_dive_deeper_job($article, $session_id, $meta, $params);
+
+            error_log(sprintf(
+                '[PLANNER][DIVE_DEEPER] session=%s article=%s job_id=%s status=%s',
+                (string) $session_id,
+                (string) $article_id,
+                (string) ($job_id ?? 'null'),
+                $job_id ? 'queued' : 'queue_failed'
+            ));
+
+            return new WP_REST_Response(array(
+                'session_id' => $session_id,
+                'article_id' => $article_id,
+                'action' => 'dive_deeper',
+                'job_id' => $job_id,
+                'status' => 'queued',
+                'message' => 'Source-check job queued. Results will be applied when completed.',
+            ), 200);
+        }
+
+        // Legacy deep_dive handling (simple enrichment)
+        $article = $articles[$article_index];
+        $before_count = isset($article['citations']) && is_array($article['citations']) ? count($article['citations']) : 0;
+        $article = $this->enrich_article_citations_from_phase4($article, $meta);
+        $after_count = isset($article['citations']) && is_array($article['citations']) ? count($article['citations']) : 0;
+
+        $article['deep_dive'] = array(
+            'requested_at' => gmdate('c'),
+            'citations_added' => max(0, $after_count - $before_count),
+        );
+
+        $articles[$article_index] = $article;
+        $meta['articles'] = $articles;
+        $db->update_session_meta($session_id, $meta);
+
+        return new WP_REST_Response(array(
+            'session_id' => $session_id,
+            'article_id' => $article_id,
+            'action' => 'deep_dive',
+            'citations_before' => $before_count,
+            'citations_after' => $after_count,
+            'citations_added' => max(0, $after_count - $before_count),
+        ), 200);
+    }
+
+    private function queue_dive_deeper_job($article, $session_id, $meta, $params) {
+        $db = new Dual_GPT_DB_Handler();
+        $article_id = $article['id'] ?? null;
+        $headline = $article['headline'] ?? $article['title'] ?? 'Article';
+        $summary = $article['summary'] ?? $article['brief'] ?? '';
+
+        // Build specialist source-check prompt using article summary/headline keywords.
+        $target_min = intval($params['target_min_citations'] ?? 4);
+        $recency = intval($params['recency_months'] ?? 18);
+        $source_mix = $params['source_mix_minimums'] ?? array('industry' => 1, 'news' => 1, 'research' => 1);
+        $keyword_seed = strtolower(trim(($headline . ' ' . $summary)));
+        $keyword_seed = preg_replace('/[^a-z0-9\s]/', ' ', $keyword_seed);
+        $tokens = array_values(array_filter(array_map('trim', explode(' ', $keyword_seed))));
+        $stopwords = array('the', 'and', 'for', 'with', 'this', 'that', 'from', 'into', 'about', 'what', 'when', 'where', 'will', 'would', 'could', 'should', 'are', 'is', 'was', 'were', 'has', 'have', 'had', 'your', 'their', 'our', 'its', 'you');
+        $tokens = array_values(array_filter($tokens, function($token) use ($stopwords) {
+            return strlen($token) >= 4 && !in_array($token, $stopwords, true);
+        }));
+        $keywords = array_slice(array_values(array_unique($tokens)), 0, 12);
+        $keyword_text = !empty($keywords) ? implode(', ', $keywords) : 'none';
+
+        $prompt = sprintf(
+            'Research specialist: perform a source-check for this article and return supporting evidence for its argumentation. Headline: "%s". Summary: "%s". Keyword anchors: %s. Target: %d relevant citations from last %d months. Source mix preference: %s. Requirements: (1) citation must directly support or challenge a concrete claim implied by the summary, (2) avoid generic background links, (3) prefer primary/authoritative sources, (4) include a short relevance_note for each citation that ties it to the article argument. Return ONLY valid JSON: {"citations":[{"title":"...","url":"...","source":"...","published_date":"...","relevance_note":"..."}]}.',
+            $headline,
+            $summary,
+            $keyword_text,
+            $target_min,
+            $recency,
+            implode(', ', array_keys($source_mix))
+        );
+
+        error_log(sprintf(
+            '[PLANNER][DIVE_DEEPER] queue_start session=%s article=%s target_min=%d recency=%d keywords=%s',
+            (string) $session_id,
+            (string) ($article_id ?? 'unknown'),
+            (int) $target_min,
+            (int) $recency,
+            $keyword_text
+        ));
+
+        $orchestrator = new Dual_GPT_Planner_Orchestrator($this);
+        $idempotency_key = 'planner-dive-deeper-' . md5($session_id . ':' . ($article_id ?? 'unknown') . ':' . json_encode($params));
+        $job_id = $orchestrator->run_job($session_id, $idempotency_key, $prompt, 'verify');
+
+        if (is_wp_error($job_id)) {
+            error_log(sprintf(
+                '[PLANNER][DIVE_DEEPER] queue_error session=%s article=%s error=%s',
+                (string) $session_id,
+                (string) ($article_id ?? 'unknown'),
+                $job_id->get_error_message()
+            ));
+        } else {
+            error_log(sprintf(
+                '[PLANNER][DIVE_DEEPER] queue_ok session=%s article=%s job_id=%s',
+                (string) $session_id,
+                (string) ($article_id ?? 'unknown'),
+                (string) $job_id
+            ));
+        }
+
+        if (!isset($article['dive_deeper_jobs']) || !is_array($article['dive_deeper_jobs'])) {
+            $article['dive_deeper_jobs'] = array();
+        }
+
+        $resolved_job_id = is_wp_error($job_id) ? null : (string) $job_id;
+        $resolved_status = 'queued';
+        if ($resolved_job_id) {
+            $job_row = $db->get_job($resolved_job_id);
+            if ($job_row && !empty($job_row['status'])) {
+                $resolved_status = sanitize_key((string) $job_row['status']);
+            }
+        } elseif (is_wp_error($job_id)) {
+            $resolved_status = 'failed';
+        }
+
+        $job_payload = array(
+            'job_id' => $resolved_job_id,
+            'status' => $resolved_status,
+            'requested_at' => gmdate('c'),
+            'params' => $params,
+            'keyword_anchors' => $keywords,
+        );
+
+        $updated_existing = false;
+        if ($resolved_job_id) {
+            foreach ($article['dive_deeper_jobs'] as $job_index => $existing_job) {
+                if (($existing_job['job_id'] ?? '') !== $resolved_job_id) {
+                    continue;
+                }
+                $article['dive_deeper_jobs'][$job_index] = array_merge($existing_job, $job_payload);
+                $updated_existing = true;
+                break;
+            }
+        }
+
+        if (!$updated_existing) {
+            $article['dive_deeper_jobs'][] = $job_payload;
+        }
+
+        // Persist job metadata on the session article.
+        if ($article_id !== null) {
+            $articles = $meta['articles'] ?? array();
+            foreach ($articles as $idx => $a) {
+                if (($a['id'] ?? null) == $article_id) {
+                    $articles[$idx] = $article;
+                    break;
+                }
+            }
+            $meta['articles'] = $articles;
+            $db->update_session_meta($session_id, $meta);
+        }
+
+        return is_wp_error($job_id) ? null : $job_id;
+    }
+
+    private function enrich_article_citations_from_phase4($article, $meta) {
+        $existing = isset($article['citations']) && is_array($article['citations']) ? $article['citations'] : array();
+        $existing_map = array();
+
+        foreach ($existing as $citation) {
+            $key = strtolower(trim(($citation['url'] ?? '') . '|' . ($citation['title'] ?? '')));
+            if ($key !== '|') {
+                $existing_map[$key] = true;
+            }
+        }
+
+        $article_blob = strtolower(
+            implode(' ', array_filter(array(
+                (string) ($article['headline'] ?? ''),
+                (string) ($article['title'] ?? ''),
+                (string) ($article['summary'] ?? ''),
+                (string) ($article['brief'] ?? ''),
+                implode(' ', isset($article['keywords']) && is_array($article['keywords']) ? $article['keywords'] : array()),
+            )))
+        );
+
+        $validated_topics = $meta['phases']['phase4']['payload']['validated_topics'] ?? array();
+        if (!is_array($validated_topics) || empty($validated_topics)) {
+            $article['citation_count'] = count($existing);
+            return $article;
+        }
+
+        $merged = $existing;
+        foreach ($validated_topics as $topic) {
+            $topic_blob = strtolower(
+                implode(' ', array_filter(array(
+                    (string) ($topic['topic'] ?? ''),
+                    (string) ($topic['title'] ?? ''),
+                    implode(' ', isset($topic['keywords']) && is_array($topic['keywords']) ? $topic['keywords'] : array()),
+                )))
+            );
+
+            $is_related = false;
+            if ($topic_blob !== '' && $article_blob !== '') {
+                $topic_tokens = preg_split('/\\s+/', $topic_blob);
+                foreach ($topic_tokens as $token) {
+                    $token = trim((string) $token);
+                    if (strlen($token) < 5) {
+                        continue;
+                    }
+                    if (strpos($article_blob, $token) !== false) {
+                        $is_related = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!$is_related) {
+                continue;
+            }
+
+            $topic_citations = isset($topic['citations']) && is_array($topic['citations']) ? $topic['citations'] : array();
+            foreach ($topic_citations as $citation) {
+                if (!is_array($citation)) {
+                    continue;
+                }
+                $key = strtolower(trim(($citation['url'] ?? '') . '|' . ($citation['title'] ?? '')));
+                if ($key === '|' || isset($existing_map[$key])) {
+                    continue;
+                }
+                $existing_map[$key] = true;
+                $merged[] = $citation;
+            }
+        }
+
+        $article['citations'] = $merged;
+        $article['citation_count'] = count($merged);
+        return $article;
+    }
+
+    /**
      * Re-run planner Phase 3 for a session
      */
     public function rerun_planner_phase3($request) {
@@ -930,6 +1470,7 @@ class Dual_GPT_Plugin {
         }
 
         $meta = $this->decode_session_meta($session['meta_json'] ?? null);
+        $meta = $this->ensure_research_policy_in_meta($meta);
         if ($focus_level !== null) {
             $meta['focus_level'] = $focus_level;
         }
@@ -995,6 +1536,7 @@ class Dual_GPT_Plugin {
         }
 
         $meta = $this->decode_session_meta($session['meta_json'] ?? null);
+        $meta = $this->ensure_research_policy_in_meta($meta);
         if ($focus_level !== null) {
             $meta['focus_level'] = $focus_level;
         }
@@ -1058,6 +1600,7 @@ class Dual_GPT_Plugin {
         }
 
         $meta = $this->decode_session_meta($session['meta_json'] ?? null);
+        $meta = $this->ensure_research_policy_in_meta($meta);
         if ($focus_level !== null) {
             $meta['focus_level'] = $focus_level;
         }
@@ -1100,15 +1643,18 @@ class Dual_GPT_Plugin {
         }
 
         $meta['phase2'] = $phase1_5;
+        $phase2_validation = $this->validate_research_phase_payload('phase2', $phase1_5, $meta);
         $phases = isset($meta['phases']) && is_array($meta['phases']) ? $meta['phases'] : array();
         $phases['phase2'] = array(
             'title' => 'Research Phase 2',
             'status' => 'completed',
             'completed_at' => current_time('mysql'),
             'payload' => $phase1_5,
+            'validation' => $phase2_validation,
             'summary' => $phase1_5['summary'] ?? '',
         );
         $meta['phases'] = $phases;
+        $meta = $this->refresh_research_validation_index($meta);
         $db->update_session_meta($session_id, $meta);
 
         return new WP_REST_Response(array(
@@ -1148,6 +1694,906 @@ class Dual_GPT_Plugin {
             'session_id' => $session_id,
             'total' => $total,
             'plan' => $plan,
+        ), 200);
+    }
+
+    public function get_planner_research_validation($request) {
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+
+        if (empty($session_id)) {
+            return new WP_Error('missing_session_id', 'Session ID is required', array('status' => 400));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($session_id);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $meta = $this->decode_session_meta($session['meta_json'] ?? null);
+        $meta = $this->hydrate_planner_meta_from_jobs($session_id, $meta);
+        $meta = $this->ensure_author_policy_in_meta($meta);
+
+        $validation = $meta['research_validation'] ?? array(
+            'summary' => array(
+                'error_count' => 0,
+                'warning_count' => 0,
+                'has_errors' => false,
+                'generated_at' => current_time('mysql'),
+            ),
+            'policy' => $this->resolve_research_policy($meta),
+            'by_phase' => array(),
+            'issues' => array(),
+        );
+
+        return new WP_REST_Response(array(
+            'session_id' => $session_id,
+            'research_policy' => $this->resolve_research_policy($meta),
+            'research_validation' => $validation,
+        ), 200);
+    }
+
+    public function update_planner_policy($request) {
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+        $policy_input = $request->get_param('research_policy');
+
+        if (empty($session_id)) {
+            return new WP_Error('missing_session_id', 'Session ID is required', array('status' => 400));
+        }
+
+        if (!is_array($policy_input)) {
+            return new WP_Error('missing_policy', 'research_policy payload is required', array('status' => 400));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($session_id);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $meta = $this->decode_session_meta($session['meta_json'] ?? null);
+        $meta = $this->ensure_research_policy_in_meta($meta);
+        $meta = $this->ensure_author_policy_in_meta($meta);
+
+        $old_policy = $this->resolve_research_policy($meta);
+        $meta['research_policy'] = $this->sanitize_research_policy($policy_input);
+        $meta = $this->ensure_research_policy_in_meta($meta);
+        $new_policy = $this->resolve_research_policy($meta);
+        $policy_changed = wp_json_encode($old_policy) !== wp_json_encode($new_policy);
+
+        $updated = $db->update_session_meta($session_id, $meta);
+        if (!$updated) {
+            return new WP_Error('policy_save_failed', 'Failed to save research policy', array('status' => 500));
+        }
+
+        if ($policy_changed) {
+            $db->insert_audit_log(null, 'planner_policy_updated', array(
+                'session_id' => $session_id,
+                'updated_by' => get_current_user_id(),
+                'updated_at' => current_time('mysql'),
+                'old_policy' => $old_policy,
+                'new_policy' => $new_policy,
+            ));
+        }
+
+        return new WP_REST_Response(array(
+            'session_id' => $session_id,
+            'changed' => $policy_changed,
+            'research_policy' => $new_policy,
+        ), 200);
+    }
+
+    public function get_planner_author_policy($request) {
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+
+        if (empty($session_id)) {
+            return new WP_Error('missing_session_id', 'Session ID is required', array('status' => 400));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($session_id);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $meta = $this->decode_session_meta($session['meta_json'] ?? null);
+        $meta = $this->ensure_author_policy_in_meta($meta);
+
+        return new WP_REST_Response(array(
+            'session_id' => $session_id,
+            'author_policy' => $this->resolve_author_policy($meta),
+        ), 200);
+    }
+
+    public function update_planner_author_policy($request) {
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+        $policy_input = $request->get_param('author_policy');
+
+        if (empty($session_id)) {
+            return new WP_Error('missing_session_id', 'Session ID is required', array('status' => 400));
+        }
+
+        if (!is_array($policy_input)) {
+            return new WP_Error('missing_policy', 'author_policy payload is required', array('status' => 400));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($session_id);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $meta = $this->decode_session_meta($session['meta_json'] ?? null);
+        $meta = $this->ensure_author_policy_in_meta($meta);
+
+        $old_policy = $this->resolve_author_policy($meta);
+        $meta['author_policy'] = $this->sanitize_author_policy($policy_input);
+        $meta = $this->ensure_author_policy_in_meta($meta);
+        $new_policy = $this->resolve_author_policy($meta);
+        $policy_changed = wp_json_encode($old_policy) !== wp_json_encode($new_policy);
+
+        $updated = $db->update_session_meta($session_id, $meta);
+        if (!$updated) {
+            return new WP_Error('policy_save_failed', 'Failed to save author policy', array('status' => 500));
+        }
+
+        if ($policy_changed) {
+            $db->insert_audit_log(null, 'planner_author_policy_updated', array(
+                'session_id' => $session_id,
+                'updated_by' => get_current_user_id(),
+                'updated_at' => current_time('mysql'),
+                'old_policy' => $old_policy,
+                'new_policy' => $new_policy,
+            ));
+        }
+
+        return new WP_REST_Response(array(
+            'session_id' => $session_id,
+            'changed' => $policy_changed,
+            'author_policy' => $new_policy,
+        ), 200);
+    }
+
+    public function get_planner_top_line_categories($request) {
+        $categories = array_values($this->get_top_line_categories());
+
+        return new WP_REST_Response(array(
+            'top_line_categories' => $categories,
+        ), 200);
+    }
+
+    public function upsert_planner_top_line_category($request) {
+        $payload = $request->get_param('top_line_category');
+        if (!is_array($payload)) {
+            return new WP_Error('missing_category', 'top_line_category payload is required', array('status' => 400));
+        }
+
+        $existing = $this->get_top_line_categories();
+        $sanitized = $this->sanitize_top_line_category($payload);
+
+        if ($sanitized['name'] === '') {
+            return new WP_Error('invalid_name', 'Category name is required', array('status' => 400));
+        }
+
+        $slug = $this->normalize_top_line_category_slug($payload['slug'] ?? $sanitized['name']);
+        if ($slug === '') {
+            return new WP_Error('invalid_slug', 'Unable to derive a category slug', array('status' => 400));
+        }
+
+        if (!empty($payload['name']) && is_string($payload['name'])) {
+            foreach ($existing as $existing_slug => $row) {
+                if ($existing_slug === $slug) {
+                    continue;
+                }
+                if (strcasecmp((string) ($row['name'] ?? ''), (string) $payload['name']) === 0) {
+                    $slug = $existing_slug;
+                    break;
+                }
+            }
+        }
+
+        $sanitized['slug'] = $slug;
+        $existing[$slug] = $sanitized;
+
+        if (!$this->save_top_line_categories($existing)) {
+            return new WP_Error('save_failed', 'Unable to save top-line category', array('status' => 500));
+        }
+
+        return new WP_REST_Response(array(
+            'top_line_category' => $sanitized,
+            'updated' => true,
+        ), 200);
+    }
+
+    public function get_planner_queue_status($request) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'planner_task_queue';
+        $this->sync_planner_queue_linked_job_statuses();
+        $counts = array(
+            'queued' => 0,
+            'running' => 0,
+            'dispatched' => 0,
+            'completed' => 0,
+            'failed' => 0,
+        );
+
+        $count_rows = $wpdb->get_results("SELECT status, COUNT(*) AS c FROM {$table} GROUP BY status", ARRAY_A);
+        if (is_array($count_rows)) {
+            foreach ($count_rows as $row) {
+                $status = sanitize_key($row['status'] ?? '');
+                if (array_key_exists($status, $counts)) {
+                    $counts[$status] = intval($row['c'] ?? 0);
+                }
+            }
+        }
+
+        $items = $wpdb->get_results(
+            "SELECT id, session_id, article_id, task_type, status, payload_json, linked_job_id, position, created_at, updated_at, error_message
+             FROM {$table}
+             ORDER BY FIELD(status, 'queued', 'running', 'dispatched', 'failed', 'completed'), position ASC, created_at ASC
+             LIMIT 250",
+            ARRAY_A
+        );
+
+        $active_items = array();
+        if (is_array($items)) {
+            foreach ($items as $item) {
+                $active_items[] = array(
+                    'id' => (string) ($item['id'] ?? ''),
+                    'session_id' => (string) ($item['session_id'] ?? ''),
+                    'article_id' => (string) ($item['article_id'] ?? ''),
+                    'task_type' => (string) ($item['task_type'] ?? ''),
+                    'status' => (string) ($item['status'] ?? ''),
+                    'payload' => !empty($item['payload_json']) ? json_decode($item['payload_json'], true) : null,
+                    'linked_job_id' => (string) ($item['linked_job_id'] ?? ''),
+                    'position' => intval($item['position'] ?? 0),
+                    'created_at' => (string) ($item['created_at'] ?? ''),
+                    'updated_at' => (string) ($item['updated_at'] ?? ''),
+                    'error_message' => (string) ($item['error_message'] ?? ''),
+                );
+            }
+        }
+
+        return new WP_REST_Response(array(
+            'counts' => $counts,
+            'active_items' => $active_items,
+        ), 200);
+    }
+
+    private function sync_planner_queue_linked_job_statuses() {
+        global $wpdb;
+
+        $queue_table = $wpdb->prefix . 'planner_task_queue';
+        $jobs_table = $wpdb->prefix . 'ai_jobs';
+        $rows = $wpdb->get_results(
+            "SELECT id, linked_job_id, status FROM {$queue_table} WHERE linked_job_id IS NOT NULL AND linked_job_id != '' AND status IN ('running', 'dispatched')",
+            ARRAY_A
+        );
+
+        if (!is_array($rows) || empty($rows)) {
+            return;
+        }
+
+        foreach ($rows as $row) {
+            $job_id = (string) ($row['linked_job_id'] ?? '');
+            if ($job_id === '') {
+                continue;
+            }
+            $job = $wpdb->get_row(
+                $wpdb->prepare("SELECT status, error_message, idempotency_key, created_at FROM {$jobs_table} WHERE id = %s", $job_id),
+                ARRAY_A
+            );
+            if (!$job) {
+                continue;
+            }
+
+            $job_status = (string) ($job['status'] ?? '');
+            $job_idempotency = (string) ($job['idempotency_key'] ?? '');
+            $job_created_at = (string) ($job['created_at'] ?? '');
+
+            $is_planner_framework_job = strpos($job_idempotency, 'planner-framework-') === 0 || strpos($job_idempotency, 'planner-fw-') === 0;
+            if ($job_status === 'running' && $is_planner_framework_job && $job_created_at !== '') {
+                $job_age_seconds = time() - strtotime($job_created_at);
+                if ($job_age_seconds > 120) {
+                    $timeout_message = 'Framework job timed out. Please retry.';
+                    error_log('[PLANNER][JOB] Auto-timeout for framework job ' . $job_id . ' after ' . $job_age_seconds . 's');
+                    $wpdb->update(
+                        $jobs_table,
+                        array(
+                            'status' => 'failed',
+                            'error_message' => $timeout_message,
+                            'finished_at' => current_time('mysql'),
+                        ),
+                        array('id' => $job_id),
+                        array('%s', '%s', '%s'),
+                        array('%s')
+                    );
+                    $job_status = 'failed';
+                    $job['error_message'] = $timeout_message;
+                }
+            }
+
+            $next_status = null;
+            if ($job_status === 'completed') {
+                $next_status = 'completed';
+            } elseif ($job_status === 'failed') {
+                $next_status = 'failed';
+            } elseif (in_array($job_status, array('queued', 'running'), true)) {
+                $next_status = 'dispatched';
+            }
+
+            if ($next_status && $next_status !== ($row['status'] ?? '')) {
+                $wpdb->update(
+                    $queue_table,
+                    array(
+                        'status' => $next_status,
+                        'error_message' => $next_status === 'failed' ? (string) ($job['error_message'] ?? '') : null,
+                        'updated_at' => current_time('mysql'),
+                    ),
+                    array('id' => $row['id']),
+                    array('%s', '%s', '%s'),
+                    array('%s')
+                );
+            }
+        }
+    }
+
+    public function add_planner_queue_item($request) {
+        global $wpdb;
+
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+        $article_id = sanitize_text_field($request->get_param('article_id'));
+        $task_type = sanitize_key($request->get_param('task_type'));
+        $payload = $request->get_param('payload');
+
+        if (empty($session_id) || empty($task_type)) {
+            return new WP_Error('missing_params', 'Session ID and task type are required.', array('status' => 400));
+        }
+
+        if (!in_array($task_type, array('dive_deeper', 'framework_generation', 'article_creation'), true)) {
+            return new WP_Error('invalid_task_type', 'Unsupported task type.', array('status' => 400));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($session_id);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $table = $wpdb->prefix . 'planner_task_queue';
+        $next_position = intval($wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COALESCE(MAX(position), 0) + 1 FROM {$table} WHERE session_id = %s",
+                $session_id
+            )
+        ));
+        if ($next_position < 1) {
+            $next_position = 1;
+        }
+
+        $queue_id = wp_generate_uuid4();
+        $inserted = $wpdb->insert(
+            $table,
+            array(
+                'id' => $queue_id,
+                'session_id' => $session_id,
+                'article_id' => $article_id ?: null,
+                'task_type' => $task_type,
+                'status' => 'queued',
+                'payload_json' => is_array($payload) ? wp_json_encode($payload) : null,
+                'position' => $next_position,
+                'created_by' => get_current_user_id(),
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql'),
+            ),
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s')
+        );
+
+        if ($inserted === false) {
+            return new WP_Error('queue_insert_failed', 'Failed to add item to planner queue.', array('status' => 500));
+        }
+
+        return new WP_REST_Response(array(
+            'queue_id' => $queue_id,
+            'status' => 'queued',
+        ), 200);
+    }
+
+    public function run_planner_queue_item($request) {
+        $queue_id = sanitize_text_field($request->get_param('queue_id'));
+        $retry_failed = (bool) $request->get_param('retry_failed');
+        $retry_payload = $request->get_param('retry_payload');
+        if (!is_array($retry_payload)) {
+            $retry_payload = array();
+        }
+        if (empty($queue_id)) {
+            return new WP_Error('missing_queue_id', 'Queue item ID is required.', array('status' => 400));
+        }
+
+        return $this->execute_planner_queue_item($queue_id, $retry_failed, $retry_payload);
+    }
+
+    public function run_planner_queue_bulk($request) {
+        global $wpdb;
+
+        $queue_ids = $request->get_param('queue_ids');
+        $run_all_queued = (bool) $request->get_param('run_all_queued');
+        $session_id = sanitize_text_field((string) $request->get_param('session_id'));
+        $table = $wpdb->prefix . 'planner_task_queue';
+
+        if ($run_all_queued) {
+            if ($session_id === '') {
+                return new WP_Error('missing_session_id', 'Session ID is required to run all queued items.', array('status' => 400));
+            }
+            $queue_ids = $wpdb->get_col(
+                $wpdb->prepare(
+                    "SELECT id FROM {$table} WHERE session_id = %s AND status = 'queued' ORDER BY position ASC, created_at ASC",
+                    $session_id
+                )
+            );
+        }
+
+        if (!is_array($queue_ids) || empty($queue_ids)) {
+            return new WP_Error('missing_queue_ids', 'At least one queued item is required.', array('status' => 400));
+        }
+
+        $results = array();
+        $started = 0;
+        $failed = 0;
+        foreach ($queue_ids as $queue_id) {
+            $queue_id = sanitize_text_field((string) $queue_id);
+            if ($queue_id === '') {
+                continue;
+            }
+            $result = $this->execute_planner_queue_item($queue_id);
+            if (is_wp_error($result)) {
+                $failed++;
+                $results[] = array(
+                    'queue_id' => $queue_id,
+                    'status' => 'failed',
+                    'error' => $result->get_error_message(),
+                );
+                continue;
+            }
+
+            $data = $result instanceof WP_REST_Response ? $result->get_data() : (array) $result;
+            $started++;
+            $results[] = array(
+                'queue_id' => $queue_id,
+                'status' => (string) ($data['status'] ?? 'completed'),
+                'job_id' => (string) ($data['job_id'] ?? ''),
+            );
+        }
+
+        return new WP_REST_Response(array(
+            'started' => $started,
+            'failed' => $failed,
+            'results' => $results,
+        ), 200);
+    }
+
+    public function reorder_planner_queue($request) {
+        global $wpdb;
+
+        $session_id = sanitize_text_field((string) $request->get_param('session_id'));
+        $ordered_ids = $request->get_param('ordered_ids');
+        if ($session_id === '' || !is_array($ordered_ids) || empty($ordered_ids)) {
+            return new WP_Error('missing_params', 'Session ID and ordered queue IDs are required.', array('status' => 400));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($session_id);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $table = $wpdb->prefix . 'planner_task_queue';
+        $valid_ids = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT id FROM {$table} WHERE session_id = %s",
+                $session_id
+            )
+        );
+        $valid_lookup = array_fill_keys(array_map('strval', $valid_ids ?: array()), true);
+
+        $position = 1;
+        foreach ($ordered_ids as $queue_id) {
+            $queue_id = sanitize_text_field((string) $queue_id);
+            if ($queue_id === '' || !isset($valid_lookup[$queue_id])) {
+                continue;
+            }
+            $wpdb->update(
+                $table,
+                array(
+                    'position' => $position,
+                    'updated_at' => current_time('mysql'),
+                ),
+                array('id' => $queue_id),
+                array('%d', '%s'),
+                array('%s')
+            );
+            $position++;
+            unset($valid_lookup[$queue_id]);
+        }
+
+        if (!empty($valid_lookup)) {
+            foreach (array_keys($valid_lookup) as $queue_id) {
+                $wpdb->update(
+                    $table,
+                    array(
+                        'position' => $position,
+                        'updated_at' => current_time('mysql'),
+                    ),
+                    array('id' => $queue_id),
+                    array('%d', '%s'),
+                    array('%s')
+                );
+                $position++;
+            }
+        }
+
+        return new WP_REST_Response(array(
+            'reordered' => true,
+        ), 200);
+    }
+
+    private function execute_planner_queue_item($queue_id, $retry_failed = false, $retry_payload = array()) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'planner_task_queue';
+        $item = $wpdb->get_row(
+            $wpdb->prepare("SELECT * FROM {$table} WHERE id = %s", $queue_id),
+            ARRAY_A
+        );
+        if (!$item) {
+            return new WP_Error('queue_item_not_found', 'Queue item not found.', array('status' => 404));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($item['session_id']);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $current_status = (string) ($item['status'] ?? '');
+        if ($current_status !== 'queued' && !($retry_failed && $current_status === 'failed')) {
+            return new WP_Error('queue_item_not_queued', 'Only queued items can be started.', array('status' => 400));
+        }
+
+        $wpdb->update(
+            $table,
+            array(
+                'status' => 'running',
+                'error_message' => null,
+                'updated_at' => current_time('mysql'),
+            ),
+            array('id' => $queue_id),
+            array('%s', '%s', '%s'),
+            array('%s')
+        );
+
+        $payload = !empty($item['payload_json']) ? json_decode($item['payload_json'], true) : array();
+        if (!is_array($payload)) {
+            $payload = array();
+        }
+        if (!empty($retry_payload)) {
+            $payload = array_merge($payload, $retry_payload);
+            $wpdb->update(
+                $table,
+                array(
+                    'payload_json' => wp_json_encode($payload),
+                    'updated_at' => current_time('mysql'),
+                ),
+                array('id' => $queue_id),
+                array('%s', '%s'),
+                array('%s')
+            );
+        }
+
+        $dispatch = $this->dispatch_planner_queue_task($item, $payload);
+        if (is_wp_error($dispatch)) {
+            $error_message = $this->normalize_queue_error_message($dispatch);
+            $wpdb->update(
+                $table,
+                array(
+                    'status' => 'failed',
+                    'error_message' => $error_message,
+                    'updated_at' => current_time('mysql'),
+                ),
+                array('id' => $queue_id),
+                array('%s', '%s', '%s'),
+                array('%s')
+            );
+            return $dispatch;
+        }
+
+        $linked_job_id = sanitize_text_field((string) ($dispatch['job_id'] ?? ''));
+        $wpdb->update(
+            $table,
+            array(
+                'status' => 'dispatched',
+                'linked_job_id' => $linked_job_id,
+                'updated_at' => current_time('mysql'),
+            ),
+            array('id' => $queue_id),
+            array('%s', '%s', '%s'),
+            array('%s')
+        );
+
+        return new WP_REST_Response(array(
+            'queue_id' => $queue_id,
+            'status' => 'dispatched',
+            'job_id' => $linked_job_id,
+        ), 200);
+    }
+
+    private function normalize_queue_error_message($error) {
+        if (!is_wp_error($error)) {
+            return 'Queue task failed.';
+        }
+        $code = (string) $error->get_error_code();
+        $message = (string) $error->get_error_message();
+
+        if ($code === 'prompt_too_long' || stripos($message, 'Prompt exceeds maximum length') !== false) {
+            return 'Prompt too long.';
+        }
+        if ($code === 'budget_exceeded' || stripos($message, 'Token budget exceeded') !== false) {
+            return 'Token limit reached - speak to admin.';
+        }
+        if ($code === 'rate_limited') {
+            return 'Rate limited. Please retry shortly.';
+        }
+        if ($message === '') {
+            return 'Queue task failed.';
+        }
+
+        return $message;
+    }
+
+    public function remove_planner_queue_item($request) {
+        global $wpdb;
+
+        $queue_id = sanitize_text_field((string) $request->get_param('queue_id'));
+        if ($queue_id === '') {
+            return new WP_Error('missing_queue_id', 'Queue item ID is required.', array('status' => 400));
+        }
+
+        $table = $wpdb->prefix . 'planner_task_queue';
+        $item = $wpdb->get_row(
+            $wpdb->prepare("SELECT * FROM {$table} WHERE id = %s", $queue_id),
+            ARRAY_A
+        );
+        if (!$item) {
+            return new WP_Error('queue_item_not_found', 'Queue item not found.', array('status' => 404));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($item['session_id']);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        if (in_array((string) ($item['status'] ?? ''), array('running', 'dispatched'), true)) {
+            return new WP_Error('queue_item_locked', 'This queue item has already been dispatched and cannot be removed.', array('status' => 400));
+        }
+
+        $deleted = $wpdb->delete($table, array('id' => $queue_id), array('%s'));
+        if ($deleted === false) {
+            return new WP_Error('queue_remove_failed', 'Failed to remove queue item.', array('status' => 500));
+        }
+
+        return new WP_REST_Response(array(
+            'removed' => $deleted > 0,
+            'queue_id' => $queue_id,
+        ), 200);
+    }
+
+    public function stop_planner_queue_item($request) {
+        global $wpdb;
+
+        $queue_id = sanitize_text_field((string) $request->get_param('queue_id'));
+        $reason = sanitize_text_field((string) $request->get_param('reason'));
+        if ($queue_id === '') {
+            return new WP_Error('missing_queue_id', 'Queue item ID is required.', array('status' => 400));
+        }
+        if ($reason === '') {
+            $reason = 'Stopped by operator (manual cancel).';
+        }
+
+        $table = $wpdb->prefix . 'planner_task_queue';
+        $item = $wpdb->get_row(
+            $wpdb->prepare("SELECT * FROM {$table} WHERE id = %s", $queue_id),
+            ARRAY_A
+        );
+        if (!$item) {
+            return new WP_Error('queue_item_not_found', 'Queue item not found.', array('status' => 404));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($item['session_id']);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $current_status = sanitize_key((string) ($item['status'] ?? ''));
+        if (in_array($current_status, array('completed', 'failed'), true)) {
+            return new WP_Error('queue_item_not_stoppable', 'Only queued, running, or dispatched items can be stopped.', array('status' => 400));
+        }
+
+        $linked_job_id = sanitize_text_field((string) ($item['linked_job_id'] ?? ''));
+        if ($linked_job_id !== '') {
+            wp_clear_scheduled_hook('dual_gpt_process_job', array($linked_job_id));
+            $job = $db->get_job($linked_job_id);
+            $job_status = sanitize_key((string) ($job['status'] ?? ''));
+            if (in_array($job_status, array('queued', 'running'), true)) {
+                $db->update_job_status($linked_job_id, 'failed', array(
+                    'error_message' => $reason,
+                ));
+            }
+        }
+
+        $updated = $wpdb->update(
+            $table,
+            array(
+                'status' => 'failed',
+                'error_message' => $reason,
+                'updated_at' => current_time('mysql'),
+            ),
+            array('id' => $queue_id),
+            array('%s', '%s', '%s'),
+            array('%s')
+        );
+
+        if ($updated === false) {
+            return new WP_Error('queue_stop_failed', 'Failed to stop queue item.', array('status' => 500));
+        }
+
+        return new WP_REST_Response(array(
+            'stopped' => true,
+            'queue_id' => $queue_id,
+            'previous_status' => $current_status,
+            'linked_job_id' => $linked_job_id,
+        ), 200);
+    }
+
+    private function dispatch_planner_queue_task($item, $payload) {
+        $task_type = sanitize_key($item['task_type'] ?? '');
+        $session_id = sanitize_text_field($item['session_id'] ?? '');
+        $article_id = sanitize_text_field($item['article_id'] ?? '');
+
+        if ($task_type === 'dive_deeper') {
+            $request = new WP_REST_Request('POST');
+            $request->set_param('session_id', $session_id);
+            $request->set_param('article_id', $article_id);
+            $request->set_param('action', 'dive_deeper');
+            $request->set_param('params', is_array($payload) ? $payload : array());
+            $response = $this->planner_article_action($request);
+            return $this->extract_job_id_from_rest_result($response);
+        }
+
+        if ($task_type === 'framework_generation') {
+            $request = new WP_REST_Request('POST');
+            $request->set_param('session_id', $session_id);
+            $request->set_param('article_id', $article_id);
+            $request->set_param('force', !empty($payload['force']));
+            $response = $this->run_planner_framework($request);
+            return $this->extract_job_id_from_rest_result($response);
+        }
+
+        if ($task_type === 'article_creation') {
+            $request = new WP_REST_Request('POST');
+            $request->set_param('session_id', $session_id);
+            $request->set_param('article_id', $article_id);
+            $request->set_param('author_profile', sanitize_key((string) ($payload['author_profile'] ?? '')));
+            $response = $this->run_planner_author($request);
+            return $this->extract_job_id_from_rest_result($response);
+        }
+
+        return new WP_Error('unsupported_queue_task', 'Unsupported queued task type.', array('status' => 400));
+    }
+
+    private function extract_job_id_from_rest_result($response) {
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        if ($response instanceof WP_REST_Response) {
+            $data = $response->get_data();
+        } elseif (is_array($response)) {
+            $data = $response;
+        } else {
+            $data = array();
+        }
+
+        $job_id = sanitize_text_field((string) ($data['job_id'] ?? ''));
+        if ($job_id === '') {
+            return new WP_Error('missing_job_id', 'Task was dispatched but no job ID was returned.', array('status' => 500));
+        }
+
+        return array('job_id' => $job_id);
+    }
+
+    public function clear_planner_queue($request) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'planner_task_queue';
+        $params = $request->get_params();
+        $older_than_seconds = max(0, intval($params['older_than_seconds'] ?? 0));
+
+        if ($older_than_seconds > 0) {
+            $cutoff = gmdate('Y-m-d H:i:s', time() - $older_than_seconds);
+            $queued_ids = $wpdb->get_col(
+                $wpdb->prepare(
+                    "SELECT id FROM {$table} WHERE status = 'queued' AND created_at <= %s",
+                    $cutoff
+                )
+            );
+        } else {
+            $queued_ids = $wpdb->get_col("SELECT id FROM {$table} WHERE status = 'queued'");
+        }
+
+        if (!is_array($queued_ids) || empty($queued_ids)) {
+            return new WP_REST_Response(array(
+                'cleared' => 0,
+                'message' => 'No queued jobs found.',
+            ), 200);
+        }
+
+        $cleared = 0;
+        foreach ($queued_ids as $job_id) {
+            $updated = $wpdb->update(
+                $table,
+                array(
+                    'status' => 'failed',
+                    'error_message' => 'Job cleared manually from planner queue.',
+                    'updated_at' => current_time('mysql'),
+                ),
+                array('id' => $job_id),
+                array('%s', '%s', '%s'),
+                array('%s')
+            );
+
+            if ($updated !== false && intval($updated) > 0) {
+                $cleared++;
+            }
+
+        }
+
+        return new WP_REST_Response(array(
+            'cleared' => $cleared,
+            'message' => sprintf('Cleared %d queued job(s).', $cleared),
         ), 200);
     }
 
@@ -1270,6 +2716,8 @@ class Dual_GPT_Plugin {
     public function run_planner_author($request) {
         $session_id = sanitize_text_field($request->get_param('session_id'));
         $article_id = sanitize_text_field($request->get_param('article_id'));
+        $author_profile = sanitize_key((string) $request->get_param('author_profile'));
+        $retry_compact_prompt = (bool) $request->get_param('retry_compact_prompt');
 
         error_log('[PLANNER][AUTHOR] Run requested for session ' . $session_id . ' article ' . $article_id);
 
@@ -1306,16 +2754,27 @@ class Dual_GPT_Plugin {
             return new WP_Error('missing_framework', 'Framework output is required before running author.', array('status' => 400));
         }
 
+        $allowed_profiles = array('balanced', 'journalistic', 'analytical', 'executive');
+        if (!in_array($author_profile, $allowed_profiles, true)) {
+            $author_profile = $this->recommend_author_profile($article, $framework);
+        }
+
         $post_id = $article['author']['post_id'] ?? null;
         if (empty($post_id)) {
             $post_id = $this->create_author_post($session, $article);
         }
         $edit_url = $post_id ? get_edit_post_link($post_id, 'raw') : '';
 
-        $prompt = $this->build_author_prompt($article, $framework);
+        $prompt = $this->build_author_prompt($article, $framework, $author_profile, $retry_compact_prompt);
         $idempotency = 'planner-author-' . substr(md5($session_id), 0, 8) . '-' . substr(md5($article_id), 0, 8) . '-' . time();
         $orchestrator = new Dual_GPT_Planner_Orchestrator($this);
         $job_id = $orchestrator->run_job($session_id, $idempotency, $prompt, 'author');
+        if (is_wp_error($job_id) && (string) $job_id->get_error_code() === 'prompt_too_long' && !$retry_compact_prompt) {
+            error_log('[PLANNER][AUTHOR] Prompt too long, retrying compact prompt for session ' . $session_id . ' article ' . $article_id);
+            $compact_prompt = $this->build_author_prompt($article, $framework, $author_profile, true);
+            $compact_idempotency = $idempotency . '-c';
+            $job_id = $orchestrator->run_job($session_id, $compact_idempotency, $compact_prompt, 'author');
+        }
         if (is_wp_error($job_id)) {
             error_log('[PLANNER][AUTHOR] Run failed for session ' . $session_id . ' article ' . $article_id . ': ' . $job_id->get_error_message());
             return $job_id;
@@ -1331,6 +2790,7 @@ class Dual_GPT_Plugin {
                 'started_at' => current_time('mysql'),
                 'post_id' => $post_id,
                 'edit_url' => $edit_url,
+                'profile' => $author_profile,
             );
             break;
         }
@@ -1341,7 +2801,74 @@ class Dual_GPT_Plugin {
 
         return new WP_REST_Response(array(
             'job_id' => $job_id,
+            'author_profile' => $author_profile,
         ), 200);
+    }
+
+    private function build_opinion_lite_framework($article) {
+        $headline = trim((string) ($article['title'] ?? $article['headline'] ?? 'Untitled'));
+        $summary = trim((string) ($article['summary'] ?? $article['brief'] ?? ''));
+        $keywords = isset($article['keywords']) && is_array($article['keywords']) ? array_values(array_filter(array_map('strval', $article['keywords']))) : array();
+        $citations = isset($article['citations']) && is_array($article['citations']) ? $article['citations'] : array();
+
+        $reader = 'Operators, engineering leads, and technical decision-makers';
+        $use_case = 'Publish an evidence-based opinion article with clear trade-offs and practical implications';
+        $overview = $summary;
+        if ($overview === '') {
+            $overview = 'This opinion examines practical implications, evidence strength, and execution trade-offs for teams working on ' . $headline . '.';
+        }
+        if (strlen($overview) > 280) {
+            $overview = substr($overview, 0, 277);
+            $overview = rtrim($overview, " \t\n\r\0\x0B,.;:-") . '...';
+        }
+        $context = $summary !== ''
+            ? $summary
+            : ('This opinion addresses the practical implications of ' . $headline . ' for real-world teams.');
+
+        $key_themes = array_slice($keywords, 0, 5);
+        if (empty($key_themes)) {
+            $key_themes = array('Operational context', 'Evidence quality', 'Decision trade-offs');
+        }
+
+        $observations = array();
+        foreach (array_slice($citations, 0, 3) as $citation) {
+            $source_title = trim((string) ($citation['title'] ?? $citation['apa'] ?? $citation['url'] ?? 'Source'));
+            if ($source_title !== '') {
+                $observations[] = 'Ground arguments in evidence from: ' . $source_title;
+            }
+        }
+        if (empty($observations)) {
+            $observations[] = 'State uncertainty explicitly where source coverage is limited.';
+            $observations[] = 'Prioritize operationally testable claims over broad generalizations.';
+        }
+
+        return array(
+            'title' => $headline,
+            'overview' => $overview,
+            'context' => $context,
+            'application' => array(
+                'intended_reader' => $reader,
+                'use_case' => $use_case,
+            ),
+            'observations' => $observations,
+            'key_themes' => $key_themes,
+            'h2_sections' => array(
+                array(
+                    'heading' => 'What the Evidence Actually Says',
+                    'h3_sections' => array('Source quality and relevance', 'Key findings with constraints'),
+                ),
+                array(
+                    'heading' => 'Where the Trade-offs Sit',
+                    'h3_sections' => array('Operational costs and risks', 'Who benefits and who absorbs downside'),
+                ),
+                array(
+                    'heading' => 'A Defensible Opinion and Next Steps',
+                    'h3_sections' => array('Clear position statement', 'Practical actions for teams'),
+                ),
+            ),
+            'is_lite_framework' => true,
+            'lite_mode' => 'opinion',
+        );
     }
 
     /**
@@ -1615,7 +3142,7 @@ class Dual_GPT_Plugin {
 
         // Enhanced prompt validation
         if (strlen($prompt) > 10000) {
-            return new WP_Error('prompt_too_long', 'Prompt exceeds maximum length of 10,000 characters', array('status' => 400));
+            return new WP_Error('prompt_too_long', 'Prompt too long.', array('status' => 400));
         }
 
         if (strlen($prompt) < 10) {
@@ -1652,14 +3179,7 @@ class Dual_GPT_Plugin {
         $user_id = get_current_user_id();
         $budget = $db->check_user_budget($user_id);
         if ($budget['token_used'] >= $budget['token_limit']) {
-            return new WP_Error('budget_exceeded',
-                sprintf('Token budget exceeded. Current usage: %s/%s tokens. Reset date: %s',
-                    number_format($budget['token_used']),
-                    number_format($budget['token_limit']),
-                    $budget['reset_at'] ? date('M j, Y', strtotime($budget['reset_at'])) : 'Never'
-                ),
-                array('status' => 429)
-            );
+            return new WP_Error('budget_exceeded', 'Token limit reached - speak to admin.', array('status' => 429));
         }
 
         // Validate API key with better error message
@@ -1680,12 +3200,37 @@ class Dual_GPT_Plugin {
         if ($idempotency_key) {
             $existing_job = $db->get_job_by_idempotency($session_id, $idempotency_key);
             if ($existing_job) {
-                return new WP_REST_Response(array(
-                    'job_id' => $existing_job['id'],
-                    'status' => $existing_job['status'],
-                    'message' => 'Existing job returned via idempotency key',
-                    'idempotent' => true,
-                ), 200);
+                $existing_status = sanitize_key((string) ($existing_job['status'] ?? ''));
+                $existing_created = strtotime((string) ($existing_job['created_at'] ?? ''));
+                $existing_age_seconds = $existing_created ? max(0, time() - $existing_created) : PHP_INT_MAX;
+
+                $is_active = in_array($existing_status, array('queued', 'running', 'processing'), true);
+                $is_fresh_active = $is_active && $existing_age_seconds <= 120;
+
+                if ($is_fresh_active) {
+                    if ($existing_status === 'queued') {
+                        $this->process_job_async($existing_job['id']);
+                        error_log('[PLANNER][JOB] nudged existing queued idempotent job ' . $existing_job['id']);
+                    }
+
+                    return new WP_REST_Response(array(
+                        'job_id' => $existing_job['id'],
+                        'status' => $existing_job['status'],
+                        'message' => 'Existing active job returned via idempotency key',
+                        'idempotent' => true,
+                    ), 200);
+                }
+
+                $idempotency_key = substr($idempotency_key . '-r' . time(), 0, 64);
+                error_log(sprintf(
+                    '[PLANNER][JOB] stale idempotent job bypassed old_job=%s status=%s age=%ds new_key=%s',
+                    (string) ($existing_job['id'] ?? ''),
+                    $existing_status,
+                    (int) $existing_age_seconds,
+                    $idempotency_key
+                ));
+
+                $job_data['idempotency_key'] = $idempotency_key;
             }
         }
 
@@ -2012,6 +3557,24 @@ class Dual_GPT_Plugin {
                     if (function_exists('spawn_cron')) {
                         spawn_cron();
                     }
+
+                    if (!function_exists('wp_doing_cron') || !wp_doing_cron()) {
+                        add_action('shutdown', function() use ($job_id) {
+                            if (function_exists('fastcgi_finish_request')) {
+                                @fastcgi_finish_request();
+                            }
+
+                            $db = new Dual_GPT_DB_Handler();
+                            $job = $db->get_job($job_id);
+                            if (!$job || (($job['status'] ?? '') !== 'queued')) {
+                                return;
+                            }
+
+                            error_log('[PLANNER][JOB] shutdown fallback processing queued job ' . $job_id);
+                            $this->process_job($job_id);
+                        }, 99);
+                    }
+
                     return;
                 }
             }
@@ -2030,6 +3593,10 @@ class Dual_GPT_Plugin {
         $job = $db->get_job($job_id);
         if (!$job) {
             $this->log_error('Job not found', array('job_id' => $job_id));
+            return;
+        }
+
+        if (($job['status'] ?? '') !== 'queued') {
             return;
         }
 
@@ -2055,6 +3622,16 @@ class Dual_GPT_Plugin {
 
         while ($retry_count <= $max_retries) {
             try {
+                $latest_job = $db->get_job($job_id);
+                $latest_status = sanitize_key((string) ($latest_job['status'] ?? ''));
+                $latest_error = (string) ($latest_job['error_message'] ?? '');
+                if ($latest_status === 'failed' && stripos($latest_error, 'Stopped by operator') !== false) {
+                    return;
+                }
+                if (!in_array($latest_status, array('queued', 'running'), true)) {
+                    return;
+                }
+
                 // Get session and preset info
                 $session = $db->get_session($job['session_id']);
                 if (!$session) {
@@ -2082,7 +3659,12 @@ class Dual_GPT_Plugin {
 
                 // Prepare tools based on role
                 $tools = array();
-                if ($session && $session['role'] === 'research') {
+                $idempotency_key = (string) ($job['idempotency_key'] ?? '');
+                $is_planner_framework_job = strpos($idempotency_key, 'planner-fw-') === 0 || strpos($idempotency_key, 'planner-framework-') === 0;
+
+                if ($is_planner_framework_job) {
+                    $tools = array();
+                } elseif ($session && $session['role'] === 'research') {
                     $research_tools = new Dual_GPT_Research_Tools();
                     $tools = $research_tools->get_tool_definitions();
                 } elseif ($session && $session['role'] === 'author') {
@@ -2093,15 +3675,25 @@ class Dual_GPT_Plugin {
                     $tools = $seo_tools->get_tool_definitions();
                 }
 
+                $planner_request_options = array(
+                    'timeout' => 90,
+                    'max_retries' => 0,
+                    'retry_on_rate_limit' => false,
+                );
+
                 // Make OpenAI call with timeout handling
                 $start_time = microtime(true);
-                $response = $openai->create_chat_completion($messages, $job['model'], $tools);
+                $response = $openai->create_chat_completion($messages, $job['model'], $tools, 'auto', $planner_request_options);
                 $duration_ms = round((microtime(true) - $start_time) * 1000);
 
                 if (is_wp_error($response)) {
                     $error_code = $response->get_error_code();
                     $error_message = $response->get_error_message();
                     error_log('[PLANNER][JOB] OpenAI call failed for job ' . $job_id . ' in ' . $duration_ms . 'ms: ' . $error_code . ' ' . $error_message);
+
+                    if ($this->is_rate_limited_error($error_code, $error_message)) {
+                        throw new Exception('Rate limit exceeded. Please retry shortly.');
+                    }
 
                     // Check if this is a retryable error
                     if ($this->is_retryable_error($error_code) && $retry_count < $max_retries) {
@@ -2143,7 +3735,7 @@ class Dual_GPT_Plugin {
 
                     if (!empty($tool_calls)) {
                         // Force a final response without further tool calls
-                        $final_response = $openai->create_chat_completion($messages, $job['model'], array(), 'none');
+                        $final_response = $openai->create_chat_completion($messages, $job['model'], array(), 'none', $planner_request_options);
                     }
                 }
 
@@ -2196,6 +3788,7 @@ class Dual_GPT_Plugin {
             } catch (Exception $e) {
                 $last_error = $e;
                 $retry_count++;
+                $is_rate_limited = $this->is_rate_limited_error('', $e->getMessage());
 
                 // Log the error with context
                 $this->log_error('Job processing error', array(
@@ -2207,7 +3800,7 @@ class Dual_GPT_Plugin {
                 ));
 
                 // If we've exhausted retries or it's not a retryable error, fail the job
-                if ($retry_count > $max_retries || !$this->is_retryable_error($e->getMessage())) {
+                if ($retry_count > $max_retries || $is_rate_limited || !$this->is_retryable_error($e->getMessage())) {
                     $db->update_job_status($job_id, 'failed', array(
                         'error_message' => $e->getMessage(),
                         'retry_count' => $retry_count,
@@ -2224,6 +3817,13 @@ class Dual_GPT_Plugin {
                     // Send notification if configured
                     $this->send_error_notification($job_id, $e->getMessage());
                     break;
+                }
+
+                $latest_job = $db->get_job($job_id);
+                $latest_status = sanitize_key((string) ($latest_job['status'] ?? ''));
+                $latest_error = (string) ($latest_job['error_message'] ?? '');
+                if ($latest_status === 'failed' && stripos($latest_error, 'Stopped by operator') !== false) {
+                    return;
                 }
 
                 // Wait before retrying
@@ -2354,7 +3954,11 @@ class Dual_GPT_Plugin {
         }
 
         // Make final call with tool results
-        return $openai->create_chat_completion($messages, $job['model']);
+        return $openai->create_chat_completion($messages, $job['model'], array(), 'auto', array(
+            'timeout' => 90,
+            'max_retries' => 0,
+            'retry_on_rate_limit' => false,
+        ));
     }
 
     /**
@@ -2745,6 +4349,15 @@ class Dual_GPT_Plugin {
         return false;
     }
 
+    private function is_rate_limited_error($error_code, $error_message) {
+        $code = strtolower((string) $error_code);
+        $message = strtolower((string) $error_message);
+        if ($code === 'rate_limited') {
+            return true;
+        }
+        return strpos($message, 'rate limit') !== false || strpos($message, '429') !== false;
+    }
+
     /**
      * Send error notification (placeholder for future implementation)
      */
@@ -2996,6 +4609,7 @@ class Dual_GPT_Plugin {
             );
             if (is_array($payload)) {
                 $phase_data['payload'] = $payload;
+                $phase_data['validation'] = $this->validate_research_phase_payload($storage_key, $payload, $meta);
             }
 
             $task_map = array(
@@ -3047,6 +4661,8 @@ class Dual_GPT_Plugin {
                 }
             }
 
+            $meta = $this->refresh_research_validation_index($meta);
+
             $updated = $db->update_session_meta($session['id'], $meta);
             if (!$updated) {
                 error_log('[PLANNER] Failed to update session meta for ' . $session['id']);
@@ -3059,13 +4675,16 @@ class Dual_GPT_Plugin {
                 $phase1_5 = $orchestrator->run_phase1_5($session['id'], $meta['phase1']['candidate_keywords'], $max_keywords);
                 if (!is_wp_error($phase1_5)) {
                     $meta['phase2'] = $phase1_5;
+                    $phase2_validation = $this->validate_research_phase_payload('phase2', $phase1_5, $meta);
                     $meta['phases']['phase2'] = array(
                         'title' => 'Research Phase 2',
                         'status' => 'completed',
                         'completed_at' => current_time('mysql'),
                         'payload' => $phase1_5,
+                        'validation' => $phase2_validation,
                         'summary' => $phase1_5['summary'] ?? '',
                     );
+                    $meta = $this->refresh_research_validation_index($meta);
                     $db->update_session_meta($session['id'], $meta);
 
                     $prompt = $orchestrator->build_phase2_prompt(
@@ -3763,11 +5382,26 @@ class Dual_GPT_Plugin {
         return $html;
     }
 
-    private function build_author_prompt($article, $framework) {
+    private function build_author_prompt($article, $framework, $author_profile = 'balanced', $compact_mode = false) {
         $headline = $article['title'] ?? 'Untitled';
         $summary = $article['summary'] ?? ($article['brief'] ?? '');
         $keywords = isset($article['keywords']) && is_array($article['keywords']) ? $article['keywords'] : array();
         $citations = isset($article['citations']) && is_array($article['citations']) ? $article['citations'] : array();
+
+        $author_profile = sanitize_key((string) $author_profile);
+        $author_style_guidance = $this->get_author_profile_guidance($author_profile);
+
+        $framework_json = wp_json_encode($framework);
+        $citation_json = wp_json_encode(array_slice($citations, 0, $compact_mode ? 3 : 5));
+        if (!is_string($framework_json)) {
+            $framework_json = '{}';
+        }
+        if (!is_string($citation_json)) {
+            $citation_json = '[]';
+        }
+        if ($compact_mode && strlen($framework_json) > 3000) {
+            $framework_json = substr($framework_json, 0, 3000) . '...';
+        }
 
         $lines = array(
             'You are the Author Agent. Write a draft article based on the provided framework.',
@@ -3783,6 +5417,8 @@ class Dual_GPT_Plugin {
             '- Target total length: 1500–2500 words. If short, expand depth, examples, and operational detail.',
             '- Use H2 for primary sections and H3 for sub-sections only when needed (aim for 3–6 H2s total).',
             '- Include at least 3 inline citation markers like [1] that map to the citations list.',
+            'Selected author profile: ' . $author_profile,
+            'Author profile guidance: ' . $author_style_guidance,
             'Return ONLY valid JSON.',
             'Schema: {"title":"","draft":"","key_points":[""],"citations":[{"title":"","url":"","quote":"","lead_author":"","additional_authors":"","organisation":"","publication_date":""}]}',
             'Use the provided citations list. Do not invent new authors or dates; if missing, leave blank.',
@@ -3795,11 +5431,51 @@ class Dual_GPT_Plugin {
             $lines[] = 'Keywords: ' . implode(', ', array_slice($keywords, 0, 6));
         }
         $lines[] = 'Framework:';
-        $lines[] = wp_json_encode($framework);
+        $lines[] = $framework_json;
         $lines[] = 'Citations:';
-        $lines[] = wp_json_encode(array_slice($citations, 0, 5));
+        $lines[] = $citation_json;
 
-        return implode("\n", $lines);
+        $prompt = implode("\n", $lines);
+        if ($compact_mode && strlen($prompt) > 9800) {
+            $prompt = substr($prompt, 0, 9800);
+        }
+
+        return $prompt;
+    }
+
+    private function get_author_profile_guidance($profile) {
+        $profile = sanitize_key((string) $profile);
+        $guidance = array(
+            'balanced' => 'Use a balanced professional voice with moderate depth, clear structure, and practical examples.',
+            'journalistic' => 'Use journalistic reporting tone: concise lead, attribution-forward paragraphs, evidence-first sequencing, and neutral wording.',
+            'analytical' => 'Use an analytical tone with deeper causal reasoning, trade-off analysis, and explicit assumptions tied to cited evidence.',
+            'executive' => 'Use executive briefing tone: decision-oriented, outcome-focused, concise sections, and clear implications for leadership.',
+        );
+        return $guidance[$profile] ?? $guidance['balanced'];
+    }
+
+    private function recommend_author_profile($article, $framework) {
+        $title = strtolower((string) ($article['title'] ?? $article['headline'] ?? ''));
+        $summary = strtolower((string) ($article['summary'] ?? $article['brief'] ?? ''));
+        $keywords = '';
+        if (isset($article['keywords']) && is_array($article['keywords'])) {
+            $keywords = strtolower(implode(' ', $article['keywords']));
+        }
+
+        $framework_blob = strtolower(wp_json_encode($framework));
+        $haystack = trim($title . ' ' . $summary . ' ' . $keywords . ' ' . $framework_blob);
+
+        if (preg_match('/\b(board|ceo|cfo|leadership|executive|strategy|roadmap|portfolio|investment)\b/', $haystack)) {
+            return 'executive';
+        }
+        if (preg_match('/\b(data|model|forecast|sensitivity|variance|analysis|benchmark|quant|correlation|method)\b/', $haystack)) {
+            return 'analytical';
+        }
+        if (preg_match('/\b(report|interview|case study|investigation|survey|field|news|press|announced)\b/', $haystack)) {
+            return 'journalistic';
+        }
+
+        return 'balanced';
     }
 
     private function create_author_post($session, $article) {
@@ -4374,22 +6050,758 @@ class Dual_GPT_Plugin {
         );
     }
 
+    private function validate_research_phase_payload($phase_key, $payload, $meta = array()) {
+        if (!is_array($payload)) {
+            return array(
+                'issues' => array(),
+                'summary' => array(
+                    'phase' => $phase_key,
+                    'error_count' => 0,
+                    'warning_count' => 0,
+                    'has_errors' => false,
+                    'generated_at' => current_time('mysql'),
+                ),
+            );
+        }
+
+        $policy = $this->resolve_research_policy($meta);
+        $issues = array();
+        $citations = $this->extract_research_citations_from_payload($phase_key, $payload);
+        $blocked_domains = $policy['blocked_domains'];
+        $priority_domains = $policy['priority_domains'];
+        $blocked_terms = $policy['blocked_keywords'];
+        $max_citations_per_org = max(1, intval($policy['max_citations_per_org'] ?? 2));
+        $recency_months = max(1, intval($policy['recency_months'] ?? 36));
+        $source_mix_minimums = is_array($policy['source_mix_minimums'] ?? null) ? $policy['source_mix_minimums'] : array();
+        $source_mix_minimums = array_merge(array(
+            'academic' => 1,
+            'analyst' => 1,
+            'industry' => 1,
+            'case_study' => 1,
+        ), $source_mix_minimums);
+        $min_priority_domains_hit = max(0, intval($policy['min_priority_domains_hit'] ?? 0));
+        $org_counts = array();
+        $seen_keys = array();
+        $priority_domain_hits = array();
+        $type_counts = array(
+            'academic' => 0,
+            'analyst' => 0,
+            'industry' => 0,
+            'case_study' => 0,
+        );
+
+        foreach ($citations as $index => $citation) {
+            if (!is_array($citation)) {
+                continue;
+            }
+
+            $path = 'citations[' . $index . ']';
+            $url = trim((string) ($citation['url'] ?? ''));
+            $title = trim((string) ($citation['title'] ?? ''));
+            $org = trim((string) ($citation['organisation'] ?? $citation['organization'] ?? $citation['source'] ?? $citation['publication'] ?? ''));
+            $date_value = trim((string) (
+                $citation['publication_date']
+                ?? $citation['published_at']
+                ?? $citation['date']
+                ?? $citation['year']
+                ?? ''
+            ));
+
+            $dedupe_key = $url !== '' ? strtolower($url) : strtolower($title);
+            if ($dedupe_key !== '') {
+                if (isset($seen_keys[$dedupe_key])) {
+                    $issues[] = $this->build_research_issue(
+                        'error',
+                        'citation_duplicate',
+                        $phase_key,
+                        $path,
+                        'Citation appears more than once in phase output.',
+                        array('dedupe_key' => $dedupe_key)
+                    );
+                }
+                $seen_keys[$dedupe_key] = true;
+            }
+
+            if ($url !== '') {
+                $host = $this->normalize_research_domain((string) parse_url($url, PHP_URL_HOST));
+                foreach ($blocked_domains as $blocked_domain) {
+                    if ($this->research_domain_matches($host, $blocked_domain)) {
+                        $issues[] = $this->build_research_issue(
+                            'error',
+                            'blocked_domain',
+                            $phase_key,
+                            $path . '.url',
+                            'Citation domain is blocked by research policy.',
+                            array('domain' => $host)
+                        );
+                        break;
+                    }
+                }
+
+                foreach ($priority_domains as $priority_domain) {
+                    if ($this->research_domain_matches($host, $priority_domain)) {
+                        $priority_domain_hits[$priority_domain] = true;
+                    }
+                }
+            }
+
+            $haystack = strtolower($title . ' ' . ($citation['snippet'] ?? '') . ' ' . ($citation['quote'] ?? ''));
+            foreach ($blocked_terms as $term) {
+                if ($haystack !== '' && strpos($haystack, strtolower($term)) !== false) {
+                    $issues[] = $this->build_research_issue(
+                        'warning',
+                        'blocked_term',
+                        $phase_key,
+                        $path,
+                        'Citation content includes a blocked or low-trust keyword.',
+                        array('term' => $term)
+                    );
+                    break;
+                }
+            }
+
+            if ($org !== '') {
+                $org_key = strtolower($org);
+                $org_counts[$org_key] = ($org_counts[$org_key] ?? 0) + 1;
+                if ($org_counts[$org_key] > $max_citations_per_org) {
+                    $issues[] = $this->build_research_issue(
+                        'error',
+                        'org_overrepresented',
+                        $phase_key,
+                        $path,
+                        'Citation count exceeds allowed maximum per organization.',
+                        array('organization' => $org, 'count' => $org_counts[$org_key], 'max_allowed' => $max_citations_per_org)
+                    );
+                }
+            }
+
+            $timestamp = $this->parse_research_citation_date($date_value);
+            if ($date_value === '' || $timestamp === null) {
+                $issues[] = $this->build_research_issue(
+                    'error',
+                    'citation_date_missing_or_invalid',
+                    $phase_key,
+                    $path . '.date',
+                    'Citation date is missing or cannot be parsed.',
+                    array('value' => $date_value)
+                );
+            } else {
+                $cutoff = strtotime('-' . $recency_months . ' months');
+                if ($timestamp < $cutoff) {
+                    $issues[] = $this->build_research_issue(
+                        'error',
+                        'citation_stale',
+                        $phase_key,
+                        $path . '.date',
+                        'Citation exceeds recency window.',
+                        array('value' => $date_value, 'recency_months' => $recency_months)
+                    );
+                }
+            }
+
+            $type_key = $this->classify_research_citation_type($citation);
+            if ($type_key !== null && isset($type_counts[$type_key])) {
+                $type_counts[$type_key]++;
+            }
+        }
+
+        if (in_array($phase_key, array('phase3', 'phase4'), true)) {
+            foreach ($type_counts as $type => $count) {
+                $required_minimum = max(0, intval($source_mix_minimums[$type] ?? 0));
+                if ($count < $required_minimum) {
+                    $issues[] = $this->build_research_issue(
+                        'warning',
+                        'source_mix_missing_' . $type,
+                        $phase_key,
+                        'citations',
+                        'Source mix minimum missing for required type: ' . $type . '.',
+                        array('required_minimum' => $required_minimum, 'actual' => $count)
+                    );
+                }
+            }
+
+            if ($min_priority_domains_hit > 0 && count($priority_domain_hits) < $min_priority_domains_hit) {
+                $issues[] = $this->build_research_issue(
+                    'warning',
+                    'priority_domain_coverage_low',
+                    $phase_key,
+                    'citations',
+                    'Priority domain coverage is below target.',
+                    array('required_minimum' => $min_priority_domains_hit, 'actual' => count($priority_domain_hits))
+                );
+            }
+        }
+
+        $error_count = 0;
+        $warning_count = 0;
+        foreach ($issues as $issue) {
+            if (($issue['severity'] ?? '') === 'error') {
+                $error_count++;
+            } else {
+                $warning_count++;
+            }
+        }
+
+        return array(
+            'issues' => $issues,
+            'summary' => array(
+                'phase' => $phase_key,
+                'citation_count' => count($citations),
+                'error_count' => $error_count,
+                'warning_count' => $warning_count,
+                'has_errors' => $error_count > 0,
+                'policy' => array(
+                    'recency_months' => $recency_months,
+                    'max_citations_per_org' => $max_citations_per_org,
+                    'source_mix_minimums' => $source_mix_minimums,
+                    'min_priority_domains_hit' => $min_priority_domains_hit,
+                ),
+                'generated_at' => current_time('mysql'),
+            ),
+        );
+    }
+
+    private function default_research_policy() {
+        return array(
+            'priority_domains' => array(),
+            'blocked_domains' => array('wikipedia.org', 'pinterest.com', 'reddit.com', 'quora.com'),
+            'blocked_keywords' => array('chatgpt', 'gemini', 'claude', 'ai-generated', 'synthetic study'),
+            'preferred_sources' => array(),
+            'source_mix_minimums' => array(
+                'academic' => 1,
+                'analyst' => 1,
+                'industry' => 1,
+                'case_study' => 1,
+            ),
+            'max_citations_per_org' => 2,
+            'recency_months' => 36,
+            'min_priority_domains_hit' => 0,
+        );
+    }
+
+    private function default_top_line_categories() {
+        return array(
+            'manufacturing' => array(
+                'slug' => 'manufacturing',
+                'name' => 'Manufacturing',
+                'research_policy' => array(
+                    'priority_domains' => array('mckinsey.com', 'bain.com', 'gartner.com', 'idc.com'),
+                    'blocked_domains' => array('wikipedia.org', 'pinterest.com', 'reddit.com', 'quora.com'),
+                    'blocked_keywords' => array('chatgpt', 'gemini', 'claude', 'ai-generated', 'synthetic study'),
+                    'source_mix_minimums' => array('academic' => 1, 'analyst' => 1, 'industry' => 1, 'case_study' => 1),
+                    'max_citations_per_org' => 2,
+                    'recency_months' => 36,
+                    'min_priority_domains_hit' => 1,
+                ),
+            ),
+            'field-service' => array(
+                'slug' => 'field-service',
+                'name' => 'Field Service',
+                'research_policy' => array(
+                    // Named brands with authoritative direct domains — validator checks citation URLs against these
+                    'priority_domains' => array(
+                        'mckinsey.com',          // McKinsey & Company (field service, operations, digital)
+                        'bain.com',              // Bain & Company
+                        'bcg.com',               // Boston Consulting Group
+                        'gartner.com',           // Gartner (Field Service Management, Workforce Enablement)
+                        'forrester.com',         // Forrester
+                        'idc.com',               // IDC (field service, mobile workforce)
+                        'fieldservicenews.com',  // Field Service News
+                        'servicecouncil.com',    // Service Council / Field Service News Research
+                        'tsia.com',              // TSIA (Technology & Services Industry Association)
+                        'hbr.org',               // Harvard Business Review (operations, field service)
+                        'sloanreview.mit.edu',   // MIT Sloan Management Review (digital transformation, field ops)
+                    ),
+                    'blocked_domains' => array('wikipedia.org', 'pinterest.com', 'reddit.com', 'quora.com'),
+                    'blocked_keywords' => array('chatgpt', 'gemini', 'claude', 'ai-generated', 'synthetic study'),
+                    // Specific journals, report series and publications the research agent should actively seek
+                    'preferred_sources' => array(
+                        // Peer-reviewed journals
+                        'Journal of Service Management',
+                        'International Journal of Operations & Production Management',
+                        'Field Service Management',
+                        'Service Industries Journal',
+                        'Production and Operations Management',
+                        // Analyst reports & series
+                        'Gartner Magic Quadrant for Field Service Management',
+                        'Gartner Market Guide for Field Service Management',
+                        'IDC Field Service Management',
+                        'IDC MarketScape Field Service Management',
+                        'Forrester Wave Field Service Management',
+                        // Industry media & annual studies
+                        'TSIA State of Field Services',
+                        'Service Council Smarter Services',
+                        'Field Service News Research',
+                        // Consulting thought-leadership
+                        'McKinsey Global Survey on Operations',
+                        'BCG Field Operations',
+                        // Specialty research bodies
+                        'Cambridge Service Alliance',
+                        'Aberdeen Field Service Management',
+                        'Advance Services Group',
+                    ),
+                    'source_mix_minimums' => array('academic' => 2, 'analyst' => 2, 'industry' => 2, 'case_study' => 2),
+                    'max_citations_per_org' => 2,
+                    'recency_months' => 36,
+                    'min_priority_domains_hit' => 3,
+                ),
+            ),
+            'logistics' => array(
+                'slug' => 'logistics',
+                'name' => 'Logistics',
+                'research_policy' => array(
+                    'priority_domains' => array('freightwaves.com', 'logisticsmgmt.com', 'supplychaindive.com', 'gartner.com', 'mckinsey.com'),
+                    'blocked_domains' => array('wikipedia.org', 'pinterest.com', 'reddit.com', 'quora.com'),
+                    'blocked_keywords' => array('chatgpt', 'gemini', 'claude', 'ai-generated', 'synthetic study'),
+                    'source_mix_minimums' => array('academic' => 1, 'analyst' => 2, 'industry' => 2, 'case_study' => 1),
+                    'max_citations_per_org' => 2,
+                    'recency_months' => 36,
+                    'min_priority_domains_hit' => 2,
+                ),
+            ),
+            'energy' => array(
+                'slug' => 'energy',
+                'name' => 'Energy',
+                'research_policy' => array(
+                    'priority_domains' => array('iea.org', 'eia.gov', 'mckinsey.com', 'bloomberg.com'),
+                    'blocked_domains' => array('wikipedia.org', 'pinterest.com', 'reddit.com', 'quora.com'),
+                    'blocked_keywords' => array('chatgpt', 'gemini', 'claude', 'ai-generated', 'synthetic study'),
+                    'source_mix_minimums' => array('academic' => 1, 'analyst' => 1, 'industry' => 1, 'case_study' => 1),
+                    'max_citations_per_org' => 2,
+                    'recency_months' => 36,
+                    'min_priority_domains_hit' => 1,
+                ),
+            ),
+            'retail' => array(
+                'slug' => 'retail',
+                'name' => 'Retail',
+                'research_policy' => array(
+                    'priority_domains' => array('mckinsey.com', 'bain.com', 'gartner.com', 'forrester.com'),
+                    'blocked_domains' => array('wikipedia.org', 'pinterest.com', 'reddit.com', 'quora.com'),
+                    'blocked_keywords' => array('chatgpt', 'gemini', 'claude', 'ai-generated', 'synthetic study'),
+                    'source_mix_minimums' => array('academic' => 1, 'analyst' => 1, 'industry' => 1, 'case_study' => 1),
+                    'max_citations_per_org' => 2,
+                    'recency_months' => 36,
+                    'min_priority_domains_hit' => 1,
+                ),
+            ),
+            'pricing' => array(
+                'slug' => 'pricing',
+                'name' => 'Pricing',
+                'research_policy' => array(
+                    'priority_domains' => array('pricingbrew.com', 'mckinsey.com', 'bain.com', 'gartner.com', 'hbr.org'),
+                    'blocked_domains' => array('wikipedia.org', 'pinterest.com', 'reddit.com', 'quora.com'),
+                    'blocked_keywords' => array('chatgpt', 'gemini', 'claude', 'ai-generated', 'synthetic study'),
+                    'source_mix_minimums' => array('academic' => 1, 'analyst' => 2, 'industry' => 2, 'case_study' => 1),
+                    'max_citations_per_org' => 2,
+                    'recency_months' => 36,
+                    'min_priority_domains_hit' => 2,
+                ),
+            ),
+        );
+    }
+
+    private function get_top_line_categories() {
+        $defaults = $this->default_top_line_categories();
+        $stored = get_option('dual_gpt_top_line_categories', null);
+        if (!is_array($stored)) {
+            return $defaults;
+        }
+
+        $merged = $defaults;
+        foreach ($stored as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $candidate = $this->sanitize_top_line_category($row);
+            $slug = $this->normalize_top_line_category_slug($candidate['slug'] ?? $candidate['name']);
+            if ($slug === '') {
+                continue;
+            }
+            $candidate['slug'] = $slug;
+            $merged[$slug] = $candidate;
+        }
+
+        return $merged;
+    }
+
+    private function save_top_line_categories($categories) {
+        $rows = array();
+        foreach ((array) $categories as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $candidate = $this->sanitize_top_line_category($row);
+            $slug = $this->normalize_top_line_category_slug($candidate['slug'] ?? $candidate['name']);
+            if ($slug === '' || $candidate['name'] === '') {
+                continue;
+            }
+            $candidate['slug'] = $slug;
+            $rows[$slug] = $candidate;
+        }
+
+        return update_option('dual_gpt_top_line_categories', array_values($rows), false);
+    }
+
+    private function normalize_top_line_category_slug($value) {
+        return sanitize_title((string) $value);
+    }
+
+    private function sanitize_top_line_category($category_input) {
+        $category_input = is_array($category_input) ? $category_input : array();
+
+        return array(
+            'slug' => $this->normalize_top_line_category_slug($category_input['slug'] ?? $category_input['name'] ?? ''),
+            'name' => sanitize_text_field((string) ($category_input['name'] ?? '')),
+            'research_policy' => $this->sanitize_research_policy($category_input['research_policy'] ?? array()),
+        );
+    }
+
+    private function find_top_line_category_by_topic($topic) {
+        $topic = strtolower(trim((string) $topic));
+        if ($topic === '') {
+            return null;
+        }
+
+        foreach ($this->get_top_line_categories() as $category) {
+            $name = strtolower(trim((string) ($category['name'] ?? '')));
+            $slug = strtolower(trim((string) ($category['slug'] ?? '')));
+            if ($name === $topic || $slug === sanitize_title($topic)) {
+                return $category;
+            }
+        }
+
+        return null;
+    }
+
+    private function merge_research_policy($base_policy, $override_policy_input) {
+        $base = $this->sanitize_research_policy($base_policy);
+        if (!is_array($override_policy_input)) {
+            return $base;
+        }
+
+        $override = $this->sanitize_research_policy($override_policy_input);
+        $merged = $base;
+
+        $scalar_keys = array('max_citations_per_org', 'recency_months', 'min_priority_domains_hit');
+        foreach ($scalar_keys as $key) {
+            if (array_key_exists($key, $override_policy_input)) {
+                $merged[$key] = $override[$key];
+            }
+        }
+
+        $array_keys = array('priority_domains', 'blocked_domains', 'blocked_keywords', 'preferred_sources');
+        foreach ($array_keys as $key) {
+            if (array_key_exists($key, $override_policy_input)) {
+                $merged[$key] = $override[$key];
+            }
+        }
+
+        if (array_key_exists('source_mix_minimums', $override_policy_input) && is_array($override_policy_input['source_mix_minimums'])) {
+            $source_mix = $merged['source_mix_minimums'];
+            foreach (array('academic', 'analyst', 'industry', 'case_study') as $mix_key) {
+                if (array_key_exists($mix_key, $override_policy_input['source_mix_minimums'])) {
+                    $source_mix[$mix_key] = $override['source_mix_minimums'][$mix_key];
+                }
+            }
+            $merged['source_mix_minimums'] = $source_mix;
+        }
+
+        return $this->sanitize_research_policy($merged);
+    }
+
+    private function resolve_research_policy($meta) {
+        $defaults = $this->default_research_policy();
+        if (!is_array($meta)) {
+            return $defaults;
+        }
+
+        $candidate = array();
+        if (!empty($meta['research_policy']) && is_array($meta['research_policy'])) {
+            $candidate = $meta['research_policy'];
+        } elseif (!empty($meta['persona_policy']['research']) && is_array($meta['persona_policy']['research'])) {
+            $candidate = $meta['persona_policy']['research'];
+        }
+
+        return $this->sanitize_research_policy($candidate);
+    }
+
+    private function resolve_author_policy($meta) {
+        $defaults = $this->default_author_policy();
+        if (!is_array($meta)) {
+            return $defaults;
+        }
+
+        $candidate = array();
+        if (!empty($meta['author_policy']) && is_array($meta['author_policy'])) {
+            $candidate = $meta['author_policy'];
+        } elseif (!empty($meta['persona_policy']['author']) && is_array($meta['persona_policy']['author'])) {
+            $candidate = $meta['persona_policy']['author'];
+        }
+
+        return $this->sanitize_author_policy($candidate);
+    }
+
+    private function ensure_research_policy_in_meta($meta) {
+        if (!is_array($meta)) {
+            $meta = array();
+        }
+        $meta['research_policy'] = $this->resolve_research_policy($meta);
+        return $meta;
+    }
+
+    private function ensure_author_policy_in_meta($meta) {
+        if (!is_array($meta)) {
+            $meta = array();
+        }
+        $meta['author_policy'] = $this->resolve_author_policy($meta);
+        return $meta;
+    }
+
+    private function normalize_research_term_list($terms) {
+        if (is_string($terms)) {
+            $terms = array_filter(array_map('trim', explode(',', $terms)));
+        }
+        if (!is_array($terms)) {
+            return array();
+        }
+
+        $normalized = array();
+        foreach ($terms as $term) {
+            $term = strtolower(trim((string) $term));
+            if ($term === '') {
+                continue;
+            }
+            $normalized[$term] = true;
+        }
+
+        return array_keys($normalized);
+    }
+
+    /**
+     * Normalize a list of publication / journal titles.
+     * Preserves original casing; deduplicates case-insensitively (first occurrence wins).
+     */
+    private function normalize_research_title_list($titles) {
+        if (is_string($titles)) {
+            $titles = array_filter(array_map('trim', explode(',', $titles)));
+        }
+        if (!is_array($titles)) {
+            return array();
+        }
+
+        $seen = array();
+        $normalized = array();
+        foreach ($titles as $title) {
+            $title = trim(sanitize_text_field((string) $title));
+            if ($title === '') {
+                continue;
+            }
+            $key = strtolower($title);
+            if (!isset($seen[$key])) {
+                $seen[$key] = true;
+                $normalized[] = $title;
+            }
+        }
+
+        return $normalized;
+    }
+
+    private function normalize_research_domain_list($domains) {
+        if (is_string($domains)) {
+            $domains = array_filter(array_map('trim', explode(',', $domains)));
+        }
+        if (!is_array($domains)) {
+            return array();
+        }
+
+        $normalized = array();
+        foreach ($domains as $domain) {
+            $domain = $this->normalize_research_domain($domain);
+            if ($domain === '') {
+                continue;
+            }
+            $normalized[$domain] = true;
+        }
+
+        return array_keys($normalized);
+    }
+
+    private function normalize_research_domain($domain) {
+        $domain = strtolower(trim((string) $domain));
+        $domain = preg_replace('#^https?://#', '', $domain);
+        $domain = preg_replace('#/.*$#', '', $domain);
+        $domain = preg_replace('#^www\.#', '', $domain);
+        return trim($domain, '. ');
+    }
+
+    private function research_domain_matches($host, $domain) {
+        $host = $this->normalize_research_domain($host);
+        $domain = $this->normalize_research_domain($domain);
+        if ($host === '' || $domain === '') {
+            return false;
+        }
+        return $host === $domain || substr($host, -strlen('.' . $domain)) === '.' . $domain;
+    }
+
+    private function research_domain_in_list($host, $domains) {
+        foreach ((array) $domains as $domain) {
+            if ($this->research_domain_matches($host, $domain)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function build_research_issue($severity, $code, $phase_key, $path, $message, $meta = array()) {
+        return array(
+            'severity' => $severity,
+            'code' => $code,
+            'phase' => $phase_key,
+            'path' => $path,
+            'message' => $message,
+            'meta' => is_array($meta) ? $meta : array(),
+        );
+    }
+
+    private function extract_research_citations_from_payload($phase_key, $payload) {
+        $citations = array();
+        if (!is_array($payload)) {
+            return $citations;
+        }
+
+        if (!empty($payload['citations']) && is_array($payload['citations'])) {
+            $citations = array_merge($citations, $payload['citations']);
+        }
+
+        if ($phase_key === 'phase1' && !empty($payload['trends']) && is_array($payload['trends'])) {
+            foreach ($payload['trends'] as $trend) {
+                if (!is_array($trend)) {
+                    continue;
+                }
+                if (!empty($trend['citations']) && is_array($trend['citations'])) {
+                    $citations = array_merge($citations, $trend['citations']);
+                }
+            }
+        }
+
+        if ($phase_key === 'phase4' && !empty($payload['validated_topics']) && is_array($payload['validated_topics'])) {
+            foreach ($payload['validated_topics'] as $topic) {
+                if (!is_array($topic)) {
+                    continue;
+                }
+                if (!empty($topic['citations']) && is_array($topic['citations'])) {
+                    $citations = array_merge($citations, $topic['citations']);
+                }
+            }
+        }
+
+        return array_values(array_filter($citations, 'is_array'));
+    }
+
+    private function classify_research_citation_type($citation) {
+        $type_raw = strtolower(trim((string) ($citation['type'] ?? $citation['source_type'] ?? $citation['tier'] ?? '')));
+        $source_raw = strtolower(trim((string) ($citation['source'] ?? $citation['publication'] ?? $citation['organisation'] ?? '')));
+        $title_raw = strtolower(trim((string) ($citation['title'] ?? '')));
+        $combined = $type_raw . ' ' . $source_raw . ' ' . $title_raw;
+
+        if (preg_match('/academic|journal|conference|doi|arxiv/', $combined)) {
+            return 'academic';
+        }
+        if (preg_match('/analyst|gartner|forrester|idc|mckinsey|bain|bcg/', $combined)) {
+            return 'analyst';
+        }
+        if (preg_match('/case[_\s-]?study|customer story|success story/', $combined)) {
+            return 'case_study';
+        }
+        if (preg_match('/industry|trade|news|media|association/', $combined)) {
+            return 'industry';
+        }
+
+        return null;
+    }
+
+    private function parse_research_citation_date($value) {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^\d{4}$/', $value)) {
+            return strtotime($value . '-12-31');
+        }
+
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            return null;
+        }
+
+        return $timestamp;
+    }
+
+    private function refresh_research_validation_index($meta) {
+        if (!is_array($meta)) {
+            return $meta;
+        }
+
+        $policy = $this->resolve_research_policy($meta);
+        $phases = isset($meta['phases']) && is_array($meta['phases']) ? $meta['phases'] : array();
+        $by_phase = array();
+        $all_issues = array();
+        $error_count = 0;
+        $warning_count = 0;
+
+        foreach ($phases as $phase_key => $phase_data) {
+            if (!is_array($phase_data) || empty($phase_data['validation']) || !is_array($phase_data['validation'])) {
+                continue;
+            }
+            $validation = $phase_data['validation'];
+            $by_phase[$phase_key] = $validation;
+            $phase_issues = isset($validation['issues']) && is_array($validation['issues']) ? $validation['issues'] : array();
+            foreach ($phase_issues as $issue) {
+                $all_issues[] = $issue;
+                if (($issue['severity'] ?? '') === 'error') {
+                    $error_count++;
+                } else {
+                    $warning_count++;
+                }
+            }
+        }
+
+        $meta['research_validation'] = array(
+            'summary' => array(
+                'error_count' => $error_count,
+                'warning_count' => $warning_count,
+                'has_errors' => $error_count > 0,
+                'generated_at' => current_time('mysql'),
+            ),
+            'policy' => $policy,
+            'by_phase' => $by_phase,
+            'issues' => $all_issues,
+        );
+
+        return $meta;
+    }
+
     private function hydrate_planner_meta_from_jobs($session_id, $meta) {
         global $wpdb;
 
         if (!is_array($meta)) {
             $meta = array();
         }
+        $meta = $this->ensure_research_policy_in_meta($meta);
+        $meta = $this->ensure_author_policy_in_meta($meta);
 
         $jobs = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT id, status, idempotency_key, response_json, error_message, created_at FROM {$wpdb->prefix}ai_jobs WHERE session_id = %s AND (idempotency_key LIKE %s OR idempotency_key LIKE %s OR idempotency_key LIKE %s OR idempotency_key LIKE %s OR idempotency_key LIKE %s) ORDER BY created_at ASC",
+                "SELECT id, status, idempotency_key, response_json, error_message, created_at FROM {$wpdb->prefix}ai_jobs WHERE session_id = %s AND (idempotency_key LIKE %s OR idempotency_key LIKE %s OR idempotency_key LIKE %s OR idempotency_key LIKE %s OR idempotency_key LIKE %s OR idempotency_key LIKE %s) ORDER BY created_at ASC",
                 $session_id,
                 'planner-phase%',
                 'planner-framework%',
                 'planner-fw%',
                 'planner-synopses-%',
-                'planner-author-%'
+                'planner-author-%',
+                'planner-dive-deeper-%'
             ),
             ARRAY_A
         );
@@ -4485,6 +6897,75 @@ class Dual_GPT_Plugin {
                 continue;
             }
 
+            if (strpos($idempotency, 'planner-dive-deeper-') === 0) {
+                $articles = isset($meta['articles']) && is_array($meta['articles']) ? $meta['articles'] : array();
+                foreach ($articles as $index => $article) {
+                    $jobs_list = isset($article['dive_deeper_jobs']) && is_array($article['dive_deeper_jobs'])
+                        ? $article['dive_deeper_jobs']
+                        : array();
+
+                    $matched = false;
+                    foreach ($jobs_list as $job_index => $dive_job) {
+                        if (($dive_job['job_id'] ?? '') !== ($job['id'] ?? '')) {
+                            continue;
+                        }
+                        $matched = true;
+                        $jobs_list[$job_index]['status'] = $job['status'] ?? 'queued';
+                        if (($job['status'] ?? '') === 'failed') {
+                            $jobs_list[$job_index]['error_message'] = $job['error_message'] ?? 'Dive Deeper job failed.';
+                        }
+
+                        if (!empty($job['response_json']) && ($job['status'] ?? '') === 'completed') {
+                            $response_content = $this->extract_response_content_from_job_json($job['response_json']);
+                            $payload = $this->extract_json_from_content($response_content);
+                            $new_citations = isset($payload['citations']) && is_array($payload['citations'])
+                                ? $payload['citations']
+                                : array();
+
+                            $existing = isset($article['citations']) && is_array($article['citations'])
+                                ? $article['citations']
+                                : array();
+                            $seen = array();
+                            foreach ($existing as $citation) {
+                                $key = strtolower(trim(($citation['url'] ?? '') . '|' . ($citation['title'] ?? '')));
+                                if ($key !== '|') {
+                                    $seen[$key] = true;
+                                }
+                            }
+
+                            foreach ($new_citations as $citation) {
+                                if (!is_array($citation)) {
+                                    continue;
+                                }
+                                $key = strtolower(trim(($citation['url'] ?? '') . '|' . ($citation['title'] ?? '')));
+                                if ($key === '|' || isset($seen[$key])) {
+                                    continue;
+                                }
+                                $existing[] = $citation;
+                                $seen[$key] = true;
+                            }
+
+                            $article['citations'] = $existing;
+                            $article['citation_count'] = count($existing);
+                            $article['dive_deeper_last_completed_at'] = gmdate('c');
+                            $jobs_list[$job_index]['applied_citations'] = count($new_citations);
+                        }
+
+                        break;
+                    }
+
+                    if ($matched) {
+                        $article['dive_deeper_jobs'] = $jobs_list;
+                        $articles[$index] = $article;
+                        break;
+                    }
+                }
+
+                $meta['articles'] = $articles;
+                $db->update_session_meta($session_id, $meta);
+                continue;
+            }
+
             if (strpos($idempotency, 'planner-author-') === 0) {
                 $articles = isset($meta['articles']) && is_array($meta['articles']) ? $meta['articles'] : array();
                 foreach ($articles as $index => $article) {
@@ -4560,7 +7041,9 @@ class Dual_GPT_Plugin {
                 if (!empty($response_content)) {
                     $payload = $this->extract_json_from_content($response_content);
                     if (is_array($payload)) {
+                        $validation = $this->validate_research_phase_payload($phase_key, $payload, $meta);
                         $phase['payload'] = $payload;
+                        $phase['validation'] = $validation;
                         $phase['summary'] = $payload['summary'] ?? $phase['summary'] ?? '';
                         if (empty($phase['summary'])) {
                             $phase['summary'] = $payload['executive_summary']
@@ -4617,6 +7100,7 @@ class Dual_GPT_Plugin {
         }
 
         $meta['phases'] = $phases;
+        $meta = $this->refresh_research_validation_index($meta);
 
         if (!empty($meta['articles']) && is_array($meta['articles'])) {
             foreach ($meta['articles'] as $index => $article) {
@@ -4710,7 +7194,13 @@ class Dual_GPT_Plugin {
 
         $table = $wpdb->prefix . 'ai_sessions';
         $column = $wpdb->get_results($wpdb->prepare("SHOW COLUMNS FROM $table LIKE %s", 'meta_json'));
-        if (empty($column)) {
+        $queue_table = $wpdb->prefix . 'planner_task_queue';
+        $queue_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $queue_table));
+        $queue_status_column = $queue_exists === $queue_table
+            ? $wpdb->get_row("SHOW COLUMNS FROM {$queue_table} LIKE 'status'", ARRAY_A)
+            : null;
+        $needs_queue_upgrade = !$queue_status_column || strpos((string) ($queue_status_column['Type'] ?? ''), 'dispatched') === false;
+        if (empty($column) || $queue_exists !== $queue_table || $needs_queue_upgrade) {
             $this->create_tables();
         }
     }
@@ -4942,6 +7432,26 @@ class Dual_GPT_Plugin {
             INDEX idx_session_id (session_id)
         ) $charset_collate;";
 
+        // Planner editor-managed task queue table
+        $table_planner_queue = $wpdb->prefix . 'planner_task_queue';
+        $sql_planner_queue = "CREATE TABLE $table_planner_queue (
+            id VARCHAR(36) NOT NULL PRIMARY KEY,
+            session_id VARCHAR(36) NOT NULL,
+            article_id VARCHAR(36) NULL,
+            task_type ENUM('dive_deeper','framework_generation','article_creation') NOT NULL,
+            status ENUM('queued','running','dispatched','completed','failed') NOT NULL DEFAULT 'queued',
+            payload_json LONGTEXT NULL,
+            linked_job_id VARCHAR(36) NULL,
+            position INT NOT NULL DEFAULT 1,
+            error_message TEXT NULL,
+            created_by BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_session_status (session_id, status),
+            INDEX idx_position (position),
+            INDEX idx_task_type (task_type)
+        ) $charset_collate;";
+
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_sessions);
         dbDelta($sql_jobs);
@@ -4954,6 +7464,7 @@ class Dual_GPT_Plugin {
         dbDelta($sql_fg_raw_articles);
         dbDelta($sql_fg_exclusions);
         dbDelta($sql_fg_keywords);
+        dbDelta($sql_planner_queue);
     }
 
     /**

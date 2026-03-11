@@ -99,7 +99,7 @@ const EditorialFrameworksApp = () => {
     }
 
     return wp.element.createElement('div', { className: 'editorial-frameworks', style: { padding: '20px' } },
-        wp.element.createElement('h1', null, 'Frameworks & Exports'),
+        wp.element.createElement('h1', null, 'Article Frameworks'),
         error && wp.element.createElement(Notice, { status: 'error', isDismissible: true }, error),
         
         wp.element.createElement('div', null,

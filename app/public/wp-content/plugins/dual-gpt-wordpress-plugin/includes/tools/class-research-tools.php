@@ -65,9 +65,12 @@ class Dual_GPT_Research_Tools {
         $normalized_query = $this->apply_site_filter_to_query($query, $site_filter);
 
         for ($page = 0; $page < $pages; $page++) {
+            // SerpAPI tbs parameter: qdr:y = last year, qdr:m = last month
+            // Using last 36 months to capture recent research while staying flexible
+            $three_months_ago = date('Y-m-d', strtotime('-36 months'));
             $params = array(
                 'engine' => 'google',
-                'q' => $normalized_query,
+                'q' => $normalized_query . ' after:' . date('Y-m-d', strtotime('-36 months')),
                 'num' => 10,
                 'start' => $page * 10,
                 'hl' => 'en',

@@ -55,13 +55,15 @@ class Dual_GPT_OpenAI_Connector {
     /**
      * Make a request to OpenAI API with enhanced error handling
      */
-    private function make_request($endpoint, $data, $method = 'POST', $retry_count = 0) {
+    private function make_request($endpoint, $data, $method = 'POST', $retry_count = 0, $options = array()) {
         if (!$this->api_key) {
             return new WP_Error('no_api_key', 'OpenAI API key not configured');
         }
 
         $url = $this->base_url . $endpoint;
-        $max_retries = 3;
+        $max_retries = isset($options['max_retries']) ? max(0, intval($options['max_retries'])) : 3;
+        $request_timeout = isset($options['timeout']) ? max(1, intval($options['timeout'])) : 300;
+        $retry_on_rate_limit = array_key_exists('retry_on_rate_limit', $options) ? (bool) $options['retry_on_rate_limit'] : true;
 
         $args = array(
             'method' => $method,
@@ -69,7 +71,7 @@ class Dual_GPT_OpenAI_Connector {
                 'Authorization' => 'Bearer ' . $this->api_key,
                 'Content-Type' => 'application/json',
             ),
-            'timeout' => 300, // Increased timeout for AI requests
+            'timeout' => $request_timeout,
             'redirection' => 5,
             'httpversion' => '1.1',
             'blocking' => true,
@@ -88,7 +90,7 @@ class Dual_GPT_OpenAI_Connector {
             // Check if this is a retryable network error
             if ($this->is_retryable_network_error($error_code) && $retry_count < $max_retries) {
                 sleep(pow(2, $retry_count + 1)); // Exponential backoff
-                return $this->make_request($endpoint, $data, $method, $retry_count + 1);
+                return $this->make_request($endpoint, $data, $method, $retry_count + 1, $options);
             }
 
             return new WP_Error($error_code, 'Network error: ' . $error_message);
@@ -102,9 +104,9 @@ class Dual_GPT_OpenAI_Connector {
         if ($code === 429) {
             $retry_after = isset($headers['retry-after']) ? intval($headers['retry-after']) : 60;
 
-            if ($retry_count < $max_retries) {
+            if ($retry_on_rate_limit && $retry_count < $max_retries) {
                 sleep(min($retry_after, 300)); // Wait up to 5 minutes
-                return $this->make_request($endpoint, $data, $method, $retry_count + 1);
+                return $this->make_request($endpoint, $data, $method, $retry_count + 1, $options);
             }
 
             return new WP_Error('rate_limited', 'Rate limit exceeded. Please try again later.');
@@ -113,7 +115,7 @@ class Dual_GPT_OpenAI_Connector {
         // Handle server errors with retry
         if (in_array($code, array(500, 502, 503, 504)) && $retry_count < $max_retries) {
             sleep(pow(2, $retry_count + 1));
-            return $this->make_request($endpoint, $data, $method, $retry_count + 1);
+            return $this->make_request($endpoint, $data, $method, $retry_count + 1, $options);
         }
 
         if ($code !== 200) {
@@ -154,7 +156,7 @@ class Dual_GPT_OpenAI_Connector {
     /**
      * Create a chat completion with tools
      */
-    public function create_chat_completion($messages, $model = 'gpt-4', $tools = array(), $tool_choice = 'auto') {
+    public function create_chat_completion($messages, $model = 'gpt-4', $tools = array(), $tool_choice = 'auto', $options = array()) {
         $data = array(
             'model' => $model,
             'messages' => $messages,
@@ -162,13 +164,13 @@ class Dual_GPT_OpenAI_Connector {
             'tool_choice' => $tool_choice,
         );
 
-        return $this->make_request('/chat/completions', $data);
+        return $this->make_request('/chat/completions', $data, 'POST', 0, $options);
     }
 
     /**
      * Create a streaming chat completion
      */
-    public function create_streaming_completion($messages, $model = 'gpt-4', $tools = array()) {
+    public function create_streaming_completion($messages, $model = 'gpt-4', $tools = array(), $options = array()) {
         // For streaming, we'd need to handle Server-Sent Events
         // This is a placeholder - full implementation would require SSE handling
         $data = array(
@@ -178,7 +180,7 @@ class Dual_GPT_OpenAI_Connector {
             'stream' => true,
         );
 
-        return $this->make_request('/chat/completions', $data);
+        return $this->make_request('/chat/completions', $data, 'POST', 0, $options);
     }
 
     /**

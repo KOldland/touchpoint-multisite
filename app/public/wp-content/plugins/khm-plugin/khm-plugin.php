@@ -1991,8 +1991,8 @@ add_filter('cron_schedules', function($schedules) {
 // Editorial Admin Menu and Subpages
 add_action('admin_menu', function() {
     add_menu_page(
-        __('Editorial','khm-membership'),
-        __('Editorial','khm-membership'),
+        __('Editorial Assistant','khm-membership'),
+        __('Editorial Assistant','khm-membership'),
         'edit_posts',
         'editorial_planner',
         'render_editorial_planner_page',
@@ -2000,11 +2000,16 @@ add_action('admin_menu', function() {
         3
     );
 
-    add_submenu_page('editorial_planner', __('Planner','khm-membership'), __('Planner','khm-membership'), 'edit_posts', 'editorial_planner', 'render_editorial_planner_page');
     add_submenu_page('editorial_planner', __('New Session','khm-membership'), __('New Session','khm-membership'), 'edit_posts', 'editorial_new_session', 'render_new_session_page');
-    add_submenu_page('editorial_planner', __('Sessions','khm-membership'), __('Sessions','khm-membership'), 'edit_posts', 'editorial_sessions', 'render_sessions_page');
-    add_submenu_page('editorial_planner', __('Frameworks','khm-membership'), __('Frameworks','khm-membership'), 'edit_posts', 'editorial_frameworks', 'render_frameworks_page');
+    add_submenu_page('editorial_planner', __('Top-Line Categories','khm-membership'), __('Top-Line Categories','khm-membership'), 'edit_posts', 'editorial_top_line_categories', 'render_top_line_categories_page');
+    add_submenu_page('editorial_planner', __('Past Sessions','khm-membership'), __('Past Sessions','khm-membership'), 'edit_posts', 'editorial_sessions', 'render_sessions_page');
+    add_submenu_page('editorial_planner', __('Article Frameworks','khm-membership'), __('Article Frameworks','khm-membership'), 'edit_posts', 'editorial_frameworks', 'render_frameworks_page');
+    add_submenu_page('editorial_planner', __('Editorial Calendar','khm-membership'), __('Editorial Calendar','khm-membership'), 'edit_posts', 'editorial_calendar', 'render_editorial_calendar_page');
 });
+
+add_action('admin_menu', function() {
+    remove_submenu_page('editorial_planner', 'editorial_planner');
+}, 999);
 
 add_action('admin_menu', function() {
     global $menu;
@@ -2045,79 +2050,24 @@ add_action('admin_menu', function() {
 }, 999);
 
 function render_editorial_planner_page() {
-    $requested_session = isset($_GET['session']) ? sanitize_text_field(wp_unslash($_GET['session'])) : '';
-    $requested_session_id = isset($_GET['session_id']) ? sanitize_text_field(wp_unslash($_GET['session_id'])) : '';
-    $auto_open_editor = isset($_GET['auto_open_editor']) ? sanitize_text_field(wp_unslash($_GET['auto_open_editor'])) : '';
-
-    if ($requested_session || $requested_session_id || $auto_open_editor) {
-        echo '<div id="editorial-planner-app"></div>';
-        $planner_path = plugin_dir_path(__FILE__) . 'assets/js/editorial-planner.js';
-        $planner_version = file_exists($planner_path) ? filemtime($planner_path) : '1.0';
-        wp_enqueue_script(
-            'editorial-planner',
-            plugins_url('assets/js/editorial-planner.js', __FILE__),
-            array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
-            $planner_version,
-            true
-        );
-        wp_localize_script(
-            'editorial-planner',
-            'dualGptData',
-            array(
-                'nonce' => wp_create_nonce('wp_rest'),
-                'restUrl' => rest_url('dual-gpt/v1/'),
-            )
-        );
-        return;
-    }
-
-    // Coming Soon mockup with blurred calendar
-    ?>
-    <div class="wrap">
-        <h1><?php esc_html_e( 'Editorial Planner', 'khm-membership' ); ?></h1>
-        
-        <div style="position: relative; margin-top: 40px; max-width: 1200px;">
-            <!-- Blurred Calendar Mockup -->
-            <div style="filter: blur(8px); opacity: 0.3; pointer-events: none;">
-                <div style="background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 20px;">
-                    <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-bottom: 20px;">
-                        <div style="font-weight: 600; text-align: center; padding: 10px; background: #f0f0f0;">Sun</div>
-                        <div style="font-weight: 600; text-align: center; padding: 10px; background: #f0f0f0;">Mon</div>
-                        <div style="font-weight: 600; text-align: center; padding: 10px; background: #f0f0f0;">Tue</div>
-                        <div style="font-weight: 600; text-align: center; padding: 10px; background: #f0f0f0;">Wed</div>
-                        <div style="font-weight: 600; text-align: center; padding: 10px; background: #f0f0f0;">Thu</div>
-                        <div style="font-weight: 600; text-align: center; padding: 10px; background: #f0f0f0;">Fri</div>
-                        <div style="font-weight: 600; text-align: center; padding: 10px; background: #f0f0f0;">Sat</div>
-                    </div>
-                    <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px;">
-                        <?php for ( $i = 1; $i <= 35; $i++ ) : ?>
-                            <div style="aspect-ratio: 1; border: 1px solid #e0e0e0; border-radius: 3px; padding: 8px; background: <?php echo $i % 7 === 0 ? '#f9f9f9' : '#fff'; ?>;">
-                                <div style="font-weight: 600; margin-bottom: 5px;"><?php echo ( $i <= 31 ) ? $i : ''; ?></div>
-                                <?php if ( $i % 3 === 0 && $i <= 31 ) : ?>
-                                    <div style="background: #4a90e2; height: 20px; border-radius: 2px; margin-bottom: 3px;"></div>
-                                <?php endif; ?>
-                                <?php if ( $i % 5 === 0 && $i <= 31 ) : ?>
-                                    <div style="background: #7cb342; height: 20px; border-radius: 2px;"></div>
-                                <?php endif; ?>
-                            </div>
-                        <?php endfor; ?>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Coming Soon Overlay -->
-            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 10;">
-                <div style="background: #fff; border: 3px solid #0073aa; border-radius: 8px; padding: 60px 80px; box-shadow: 0 8px 24px rgba(0,0,0,0.15);">
-                    <div style="font-size: 64px; margin-bottom: 20px;">📅</div>
-                    <h2 style="margin: 0 0 20px 0; font-size: 36px; color: #0073aa;">Coming Soon</h2>
-                    <p style="margin: 0; font-size: 18px; color: #666; max-width: 400px;">
-                        The editorial calendar and planning tools are currently under development.
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
-    <?php
+    echo '<div id="editorial-planner-app"></div>';
+    $planner_path = plugin_dir_path(__FILE__) . 'assets/js/editorial-planner.js';
+    $planner_version = file_exists($planner_path) ? filemtime($planner_path) : '1.0';
+    wp_enqueue_script(
+        'editorial-planner',
+        plugins_url('assets/js/editorial-planner.js', __FILE__),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
+        $planner_version,
+        true
+    );
+    wp_localize_script(
+        'editorial-planner',
+        'dualGptData',
+        array(
+            'nonce' => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
+    );
 }
 
 function render_frameworks_page() {
@@ -2167,14 +2117,55 @@ function render_new_session_page() {
     );
 }
 
+function render_top_line_categories_page() {
+    echo '<div id="editorial-top-line-categories-app"></div>';
+    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-top-line-categories.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
+    wp_enqueue_script(
+        'editorial-top-line-categories',
+        plugins_url('assets/js/editorial-top-line-categories.js', __FILE__),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
+        $version,
+        true
+    );
+    wp_localize_script(
+        'editorial-top-line-categories',
+        'dualGptData',
+        array(
+            'nonce' => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
+    );
+}
+
 function render_sessions_page() {
     echo '<div id="editorial-sessions-app"></div>';
+    echo '<div id="editorial-planner-app" style="display:none;"></div>';
+
+    $planner_path = plugin_dir_path(__FILE__) . 'assets/js/editorial-planner.js';
+    $planner_version = file_exists($planner_path) ? filemtime($planner_path) : '1.0';
+    wp_enqueue_script(
+        'editorial-planner',
+        plugins_url('assets/js/editorial-planner.js', __FILE__),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
+        $planner_version,
+        true
+    );
+    wp_localize_script(
+        'editorial-planner',
+        'dualGptData',
+        array(
+            'nonce' => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
+    );
+
     $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-sessions.js';
     $version = file_exists($path) ? filemtime($path) : '1.0';
     wp_enqueue_script(
         'editorial-sessions',
         plugins_url('assets/js/editorial-sessions.js', __FILE__),
-        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data', 'editorial-planner'),
         $version,
         true
     );
@@ -2191,6 +2182,19 @@ function render_sessions_page() {
 function render_exports_page() {
     echo '<div id="editorial-exports-app"></div>';
     wp_enqueue_script('editorial-exports', plugins_url('assets/js/editorial-exports.js', __FILE__), ['wp-element', 'wp-api-fetch'], '1.0', true);
+}
+
+function render_editorial_calendar_page() {
+    echo '<div id="editorial-calendar-app"></div>';
+    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-calendar.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
+    wp_enqueue_script(
+        'editorial-calendar',
+        plugins_url('assets/js/editorial-calendar.js', __FILE__),
+        array('wp-element', 'wp-components'),
+        $version,
+        true
+    );
 }
 
 // Dashboard Widgets

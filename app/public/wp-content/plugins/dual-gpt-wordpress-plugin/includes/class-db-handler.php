@@ -9,6 +9,8 @@ if (!defined('ABSPATH')) {
 
 class Dual_GPT_DB_Handler {
 
+    private $ai_jobs_columns = null;
+
     /**
      * Insert a new session
      */
@@ -93,9 +95,42 @@ class Dual_GPT_DB_Handler {
             $data['finished_at'] = current_time('mysql');
         }
 
+        $allowed_columns = $this->get_ai_jobs_columns();
+        if (!empty($allowed_columns)) {
+            $data = array_filter(
+                $data,
+                function ($value, $key) use ($allowed_columns) {
+                    return isset($allowed_columns[$key]);
+                },
+                ARRAY_FILTER_USE_BOTH
+            );
+        }
+
         $result = $wpdb->update($table, $data, array('id' => $job_id));
 
         return $result !== false;
+    }
+
+    private function get_ai_jobs_columns() {
+        if (is_array($this->ai_jobs_columns)) {
+            return $this->ai_jobs_columns;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'ai_jobs';
+        $columns = $wpdb->get_results("SHOW COLUMNS FROM {$table}", ARRAY_A);
+
+        $this->ai_jobs_columns = array();
+        if (is_array($columns)) {
+            foreach ($columns as $column) {
+                $name = sanitize_key((string) ($column['Field'] ?? ''));
+                if ($name !== '') {
+                    $this->ai_jobs_columns[$name] = true;
+                }
+            }
+        }
+
+        return $this->ai_jobs_columns;
     }
 
     /**
@@ -568,8 +603,8 @@ class Dual_GPT_DB_Handler {
                 'role' => 'research',
                 'system_prompt' => 'You are the Framework Generator. Produce a Research Brief from the provided article idea and constraints. Follow the Research Process:
 Phase 1: Foundational Discovery — source 12–16 unique articles across diverse domains (no duplicate domains). Group findings into strategic insight areas. Do not output raw URLs in Phase 1 JSON (persist them separately).
-Phase 2: Deep Dive & Validation — validate 6–8 citations including at least 1 academic journal, 1 analyst report, 1 industry media source, and 1 case study. Use fetch_url and CrossRef/OpenAlex to verify APA metadata. If APA metadata can\'t be verified, set apa_string: \'details_unavailable\'. No invented metadata.
-Phase 3: Synthesis — produce the final Research Brief JSON with required sections. All observations must be grounded in citations with passage_snippets and confidence values. Prioritise 2023–2026 research. Label sponsored citations. Ensure style: grounded, pragmatic, enterprise-informed. Validate output against the framework_brief schema. If validation fails, retry up to 2 times.',
+Phase 2: Deep Dive & Validation — validate 6–8 citations including at least 1 academic journal, 1 analyst report, 1 industry media source, and 1 case study. Use fetch_url and CrossRef/OpenAlex to verify APA metadata. If APA metadata can\'t be verified, set apa_string: \'details_unavailable\'. No invented metadata. CRITICAL: Extract publication dates from schema metadata (datePublished, article:published_time, etc.) and reject any citations published more than 36 months ago.
+Phase 3: Synthesis — produce the final Research Brief JSON with required sections. All observations must be grounded in citations with passage_snippets and confidence values. Enforce 36-month recency: only include citations with verified publication dates within the last 36 months. Reject any citation that cannot be date-verified. Label sponsored citations. Ensure style: grounded, pragmatic, enterprise-informed. Validate output against the framework_brief schema. If validation fails, retry up to 2 times.',
                 'default_model' => 'gpt-4o-mini',
                 'params_json' => wp_json_encode(array(
                     'temperature' => 0.2,

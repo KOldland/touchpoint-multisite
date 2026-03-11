@@ -13,8 +13,8 @@ class Dual_GPT_Model_Config {
             'discovery' => 'gpt-4o-mini',
             'validation' => 'gpt-4o',
             'author' => 'gpt-4.1',
-            'framework' => 'gpt-5.2',
-            'verify' => 'gpt-5.2',
+            'framework' => 'gpt-5',
+            'verify' => 'gpt-4.1',
         );
     }
 
@@ -23,7 +23,7 @@ class Dual_GPT_Model_Config {
             'discovery' => 'gpt-4o-mini',
             'validation' => 'gpt-4o',
             'author' => 'gpt-4o',
-            'framework' => 'gpt-4.1',
+            'framework' => 'gpt-4o-mini',
             'verify' => 'gpt-4.1',
         );
     }
