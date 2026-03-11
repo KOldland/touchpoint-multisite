@@ -141,6 +141,7 @@ const EditorialPlannerApp = () => {
     const [diveDeeperModalOpen, setDiveDeeperModalOpen] = useState(false);
     const [diveDeeperArticle, setDiveDeeperArticle] = useState(null);
     const [diveDeeperDepthSlider, setDiveDeeperDepthSlider] = useState(2);
+    const isDeepDiveLoading = diveDeeperArticle ? !!articleActionLoading[`deep_dive:${diveDeeperArticle.id}`] : false;
     const showFocusControls = true;
     // URL-based routing: check if we're viewing a specific session detail
     const params = new URLSearchParams(window.location.search);
