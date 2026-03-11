@@ -2206,8 +2206,17 @@ const EditorialPlannerApp = () => {
                 }
                 throw raceError;
             }
+
+            const responseJobId = response && typeof response === 'object' ? response.job_id : '';
+            const liteFrameworkGenerated = !!(response && typeof response === 'object' && response.lite_framework_generated);
+            const noticeMessage =
+                action === 'opinion_piece' && responseJobId
+                    ? liteFrameworkGenerated
+                        ? `Lite framework prepared. Opinion piece queued (Job ${responseJobId}).`
+                        : `Opinion piece queued (Job ${responseJobId}).`
+                    : successMessage;
             
-            dispatch('core/notices').createNotice('success', successMessage, { type: 'snackbar' });
+            dispatch('core/notices').createNotice('success', noticeMessage, { type: 'snackbar' });
             await refreshSessionDetail();
             return response;
         } catch (error) {
@@ -3101,6 +3110,8 @@ const EditorialPlannerApp = () => {
                     const frameworkReady =
                         frameworkStatus === 'complete' && !!article.framework?.output;
                     const meetsCitationThreshold = citationsCount >= MIN_CITATIONS_REQUIRED;
+                    const opinionPieceWritten =
+                        authorStatus === 'complete' && article.framework?.lite_mode === 'opinion';
                     const selectedProfile = getSelectedAuthorProfile(article);
                     const recommendedProfile = getRecommendedAuthorProfile(article);
                     const frameworkActionLabel =
@@ -3230,11 +3241,11 @@ const EditorialPlannerApp = () => {
                                     help: `Recommended: ${getAuthorProfileLabel(recommendedProfile)}`,
                                 }
                             ),
-                            !meetsCitationThreshold &&
+                            opinionPieceWritten &&
                                 wp.element.createElement(
                                     Notice,
-                                    { status: 'warning', isDismissible: false },
-                                    `Requires at least ${MIN_CITATIONS_REQUIRED} citations before framework/author generation.`
+                                    { status: 'success', isDismissible: false },
+                                    'Opinion piece written.'
                                 ),
                             !meetsCitationThreshold &&
                                 wp.element.createElement(

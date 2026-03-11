@@ -1117,7 +1117,7 @@ class Dual_GPT_Plugin {
             return new WP_Error('missing_params', 'Session ID, article ID, and action are required', array('status' => 400));
         }
 
-        if (!in_array($action, array('dismiss', 'deep_dive', 'dive_deeper'), true)) {
+        if (!in_array($action, array('dismiss', 'deep_dive', 'dive_deeper', 'opinion_piece'), true)) {
             return new WP_Error('invalid_action', 'Unsupported article action', array('status' => 400));
         }
 
@@ -1160,6 +1160,54 @@ class Dual_GPT_Plugin {
                 'article_id' => $article_id,
                 'action' => 'dismiss',
                 'remaining_articles' => count($meta['articles']),
+            ), 200);
+        }
+
+        if ($action === 'opinion_piece') {
+            error_log('[PLANNER][OPINION] Run requested for session ' . $session_id . ' article ' . $article_id);
+            $opinion_article = $articles[$article_index] ?? array();
+            $existing_framework = $opinion_article['framework']['output'] ?? null;
+            $lite_framework_generated = false;
+            if (empty($existing_framework)) {
+                $lite_framework = $this->build_opinion_lite_framework($opinion_article);
+                $existing_framework_meta = isset($opinion_article['framework']) && is_array($opinion_article['framework']) ? $opinion_article['framework'] : array();
+                $articles[$article_index]['framework'] = array_merge(
+                    $existing_framework_meta,
+                    array(
+                        'status' => 'completed',
+                        'output' => $lite_framework,
+                        'generated_at' => current_time('mysql'),
+                        'lite_mode' => 'opinion',
+                        'is_lite_framework' => true,
+                        'error_message' => '',
+                    )
+                );
+                $meta['articles'] = $articles;
+                $db->update_session_meta($session_id, $meta);
+                $lite_framework_generated = true;
+                error_log('[PLANNER][OPINION] Lite framework generated for session ' . $session_id . ' article ' . $article_id);
+            }
+
+            $opinion_request = new WP_REST_Request('POST');
+            $opinion_request->set_param('session_id', $session_id);
+            $opinion_request->set_param('article_id', $article_id);
+            $opinion_request->set_param('author_profile', 'journalistic');
+            $response = $this->run_planner_author($opinion_request);
+            if (is_wp_error($response)) {
+                error_log('[PLANNER][OPINION] Run failed for session ' . $session_id . ' article ' . $article_id . ': ' . $response->get_error_message());
+                return $response;
+            }
+
+            $data = $response instanceof WP_REST_Response ? $response->get_data() : (is_array($response) ? $response : array());
+            $opinion_job_id = sanitize_text_field((string) ($data['job_id'] ?? ''));
+            error_log('[PLANNER][OPINION] Run queued for session ' . $session_id . ' article ' . $article_id . ' job ' . ($opinion_job_id ?: 'unknown'));
+            return new WP_REST_Response(array(
+                'session_id' => $session_id,
+                'article_id' => $article_id,
+                'action' => 'opinion_piece',
+                'job_id' => $opinion_job_id,
+                'lite_framework_generated' => $lite_framework_generated,
+                'status' => 'queued',
             ), 200);
         }
 
@@ -2755,6 +2803,72 @@ class Dual_GPT_Plugin {
             'job_id' => $job_id,
             'author_profile' => $author_profile,
         ), 200);
+    }
+
+    private function build_opinion_lite_framework($article) {
+        $headline = trim((string) ($article['title'] ?? $article['headline'] ?? 'Untitled'));
+        $summary = trim((string) ($article['summary'] ?? $article['brief'] ?? ''));
+        $keywords = isset($article['keywords']) && is_array($article['keywords']) ? array_values(array_filter(array_map('strval', $article['keywords']))) : array();
+        $citations = isset($article['citations']) && is_array($article['citations']) ? $article['citations'] : array();
+
+        $reader = 'Operators, engineering leads, and technical decision-makers';
+        $use_case = 'Publish an evidence-based opinion article with clear trade-offs and practical implications';
+        $overview = $summary;
+        if ($overview === '') {
+            $overview = 'This opinion examines practical implications, evidence strength, and execution trade-offs for teams working on ' . $headline . '.';
+        }
+        if (strlen($overview) > 280) {
+            $overview = substr($overview, 0, 277);
+            $overview = rtrim($overview, " \t\n\r\0\x0B,.;:-") . '...';
+        }
+        $context = $summary !== ''
+            ? $summary
+            : ('This opinion addresses the practical implications of ' . $headline . ' for real-world teams.');
+
+        $key_themes = array_slice($keywords, 0, 5);
+        if (empty($key_themes)) {
+            $key_themes = array('Operational context', 'Evidence quality', 'Decision trade-offs');
+        }
+
+        $observations = array();
+        foreach (array_slice($citations, 0, 3) as $citation) {
+            $source_title = trim((string) ($citation['title'] ?? $citation['apa'] ?? $citation['url'] ?? 'Source'));
+            if ($source_title !== '') {
+                $observations[] = 'Ground arguments in evidence from: ' . $source_title;
+            }
+        }
+        if (empty($observations)) {
+            $observations[] = 'State uncertainty explicitly where source coverage is limited.';
+            $observations[] = 'Prioritize operationally testable claims over broad generalizations.';
+        }
+
+        return array(
+            'title' => $headline,
+            'overview' => $overview,
+            'context' => $context,
+            'application' => array(
+                'intended_reader' => $reader,
+                'use_case' => $use_case,
+            ),
+            'observations' => $observations,
+            'key_themes' => $key_themes,
+            'h2_sections' => array(
+                array(
+                    'heading' => 'What the Evidence Actually Says',
+                    'h3_sections' => array('Source quality and relevance', 'Key findings with constraints'),
+                ),
+                array(
+                    'heading' => 'Where the Trade-offs Sit',
+                    'h3_sections' => array('Operational costs and risks', 'Who benefits and who absorbs downside'),
+                ),
+                array(
+                    'heading' => 'A Defensible Opinion and Next Steps',
+                    'h3_sections' => array('Clear position statement', 'Practical actions for teams'),
+                ),
+            ),
+            'is_lite_framework' => true,
+            'lite_mode' => 'opinion',
+        );
     }
 
     /**
