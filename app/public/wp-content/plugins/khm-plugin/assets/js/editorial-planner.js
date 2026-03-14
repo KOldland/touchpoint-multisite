@@ -211,6 +211,14 @@ const EditorialPlannerApp = () => {
         loadSessions();
     };
 
+    const navigateToNewSession = () => {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('session_id');
+        url.searchParams.delete('session');
+        url.searchParams.set('page', 'editorial_new_session');
+        window.location.href = `${url.pathname}${url.search}`;
+    };
+
     useEffect(() => {
         loadSessions();
         loadTopLineCategories();
@@ -4707,7 +4715,7 @@ const EditorialPlannerApp = () => {
                 Button,
                 {
                     isPrimary: true,
-                    onClick: () => setStartModalOpen(true),
+                    onClick: navigateToNewSession,
                 },
                 'Start New Session'
             )

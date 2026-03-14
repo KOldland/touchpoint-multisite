@@ -31,6 +31,16 @@ const apiFetch = (options) =>
         },
     });
 
+const normalizeProfileLabel = (name = '') =>
+    String(name)
+        .replace(/Editorial Planner/gi, 'Generic')
+        .replace(/Research Assistant/gi, 'Specialist');
+
+const hasRole = (preset, roles = []) => {
+    const role = String(preset?.role || '').toLowerCase();
+    return roles.includes(role);
+};
+
 const EditorialNewSessionApp = () => {
     const [selectedTopic, setSelectedTopic] = useState(TOPIC_OPTIONS[0].value);
     const [includes, setIncludes] = useState([]);
@@ -68,9 +78,9 @@ const EditorialNewSessionApp = () => {
             });
             
             if (Array.isArray(response)) {
-                // Filter presets by role
-                const research = response.filter(p => p.role === 'research' || p.role === 'both');
-                const author = response.filter(p => p.role === 'author' || p.role === 'both');
+                // Support both legacy (research/author) and newer (generic/specialist) role naming.
+                const research = response.filter((p) => hasRole(p, ['research', 'generic', 'both']));
+                const author = response.filter((p) => hasRole(p, ['author', 'specialist', 'both']));
                 
                 setResearchPresets(research);
                 setAuthorPresets(author);
@@ -130,17 +140,22 @@ const EditorialNewSessionApp = () => {
                 sponsors.find(s => s.id === parseInt(selectedSponsor))?.name : 
                 null;
 
+            const defaultResearchPreset =
+                researchPresets.find((preset) => ['generic-default', 'research-default'].includes(preset?.id))?.id ||
+                (researchPresets[0]?.id || 'research-default');
+
             const sessionPayload = {
                 role: 'research',
-                preset_id: researchProfile || 'research-default', // Use selected research profile or default
+                preset_id: researchProfile || defaultResearchPreset,
                 title: selectedTopic,
                 meta: {
                     topic: selectedTopic,
                     includes,
                     excludes,
                     ...(showFocusControls ? { focus_level: focusLevel } : {}),
-                    // Add author profile to metadata (research profile is in preset_id)
+                    // Keep both keys for compatibility across author/specialist naming variants.
                     author_profile: authorProfile || undefined,
+                    specialist_profile: authorProfile || undefined,
                     is_sponsored: isSponsored,
                     ...(isSponsored ? {
                         sponsor_id: selectedSponsor || undefined,
@@ -227,34 +242,34 @@ const EditorialNewSessionApp = () => {
                     loadingPresets ? 
                         wp.element.createElement(Spinner, null) :
                         wp.element.createElement(SelectControl, {
-                            label: 'Research Profile',
+                            label: 'Generic Profile',
                             value: researchProfile,
                             options: [
-                                { label: '-- Select Research Profile --', value: '' },
+                                { label: '-- Select Generic Profile --', value: '' },
                                 ...researchPresets.map(preset => ({
-                                    label: preset.name,
+                                    label: normalizeProfileLabel(preset.name),
                                     value: preset.id
                                 }))
                             ],
                             onChange: setResearchProfile,
-                            help: 'Optional: Research perspective from Dual GPT presets',
+                            help: 'Optional: Generic perspective from presets',
                         })
                 ),
                 wp.element.createElement('div', { style: { marginTop: '20px' } },
                     loadingPresets ? 
                         wp.element.createElement(Spinner, null) :
                         wp.element.createElement(SelectControl, {
-                            label: 'Author Profile',
+                            label: 'Specialist Profile',
                             value: authorProfile,
                             options: [
-                                { label: '-- Select Author Profile --', value: '' },
+                                { label: '-- Select Specialist Profile --', value: '' },
                                 ...authorPresets.map(preset => ({
-                                    label: preset.name,
+                                    label: normalizeProfileLabel(preset.name),
                                     value: preset.id
                                 }))
                             ],
                             onChange: setAuthorProfile,
-                            help: 'Optional: Authoring voice from Dual GPT presets',
+                            help: 'Optional: Specialist voice from presets',
                         })
                 ),
                 wp.element.createElement('div', { style: { marginTop: '20px' } },
