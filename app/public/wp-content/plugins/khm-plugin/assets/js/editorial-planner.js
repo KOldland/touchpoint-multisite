@@ -138,6 +138,8 @@ const EditorialPlannerApp = () => {
     const [phase2RerunLoading, setPhase2RerunLoading] = useState(false);
     const [phase1RerunLoading, setPhase1RerunLoading] = useState(false);
     const [articleActionLoading, setArticleActionLoading] = useState({});
+    const [imageActionLoading, setImageActionLoading] = useState({});
+    const [generatedImageByArticle, setGeneratedImageByArticle] = useState({});
     const [expandedPhases, setExpandedPhases] = useState({});
     const [focusLevel, setFocusLevel] = useState(50);
     const [synopsisModalOpen, setSynopsisModalOpen] = useState(false);
@@ -2169,6 +2171,99 @@ const EditorialPlannerApp = () => {
         openPrintWindow(html);
     };
 
+    const buildArticleImagePayload = (article, overrides = {}) => {
+        const title = article?.title || article?.headline || 'Article Image';
+        const summary = article?.summary || article?.brief || '';
+        const keywords = Array.isArray(article?.keywords)
+            ? article.keywords
+            : Array.isArray(article?.tags)
+              ? article.tags
+              : [];
+        const postId = parseInt(article?.author?.post_id || 0, 10) || 0;
+
+        return {
+            post_id: postId,
+            title,
+            summary,
+            keywords,
+            alt_text: `${title} illustration`,
+            caption: `${title}`,
+            editorial_accuracy: true,
+            store_in_media_library: true,
+            set_featured_image: postId > 0,
+            ...overrides,
+        };
+    };
+
+    const handleRecommendImageArticle = async (article) => {
+        if (!article?.id) {
+            return;
+        }
+        const loadingKey = `recommend:${article.id}`;
+        try {
+            setImageActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
+            const response = await apiFetch({
+                path: 'dual-gpt/v1/images/recommend',
+                method: 'POST',
+                data: buildArticleImagePayload(article),
+            });
+
+            const promptPreview = (response?.prompt || '').trim();
+            const message = promptPreview
+                ? `Image recommendation ready: ${promptPreview.slice(0, 120)}${promptPreview.length > 120 ? '...' : ''}`
+                : 'Image recommendation generated.';
+            dispatch('core/notices').createNotice('success', message, { type: 'snackbar' });
+        } catch (error) {
+            dispatch('core/notices').createNotice(
+                'error',
+                error?.message || 'Failed to recommend image.',
+                { type: 'snackbar' }
+            );
+        } finally {
+            setImageActionLoading((prev) => ({ ...prev, [loadingKey]: false }));
+        }
+    };
+
+    const handleGenerateImageArticle = async (article) => {
+        if (!article?.id) {
+            return;
+        }
+        const loadingKey = `generate:${article.id}`;
+        try {
+            setImageActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
+            const response = await apiFetch({
+                path: 'dual-gpt/v1/images/generate',
+                method: 'POST',
+                data: buildArticleImagePayload(article),
+            });
+
+            const firstAttachment = Array.isArray(response?.attachments) ? response.attachments[0] : null;
+            if (firstAttachment?.url) {
+                setGeneratedImageByArticle((prev) => ({
+                    ...prev,
+                    [article.id]: {
+                        url: firstAttachment.url,
+                        attachmentId: firstAttachment.attachment_id || 0,
+                    },
+                }));
+            }
+
+            const attachmentCount = Array.isArray(response?.attachments) ? response.attachments.length : 0;
+            const message = attachmentCount > 0
+                ? `Image generated and stored (${attachmentCount} attachment${attachmentCount === 1 ? '' : 's'}).`
+                : 'Image generation completed.';
+            dispatch('core/notices').createNotice('success', message, { type: 'snackbar' });
+        } catch (error) {
+            dispatch('core/notices').createNotice(
+                'error',
+                error?.message || 'Failed to generate image.',
+                { type: 'snackbar' }
+            );
+        } finally {
+            setImageActionLoading((prev) => ({ ...prev, [loadingKey]: false }));
+        }
+    };
+
     const runArticleAction = async (article, action, successMessage, params = null) => {
         if (!sessionDetail?.id || !article?.id) {
             return;
@@ -3127,8 +3222,12 @@ const EditorialPlannerApp = () => {
                     const isDismissLoading = !!articleActionLoading[`dismiss:${article.id}`];
                     const isDeepDiveLoading = !!articleActionLoading[`dive_deeper:${article.id}`];
                     const isOpinionLoading = !!articleActionLoading[`opinion_piece:${article.id}`];
+                    const isRecommendImageLoading = !!imageActionLoading[`recommend:${article.id}`];
+                    const isGenerateImageLoading = !!imageActionLoading[`generate:${article.id}`];
+                    const generatedImage = generatedImageByArticle[article.id];
                     const isQueueFrameworkLoading = !!queueActionLoading[`enqueue:framework_generation:${article.id}`];
                     const isQueueArticleLoading = !!queueActionLoading[`enqueue:article_creation:${article.id}`];
+                    const canImageActions = authorStatus === 'complete' && !!article.author?.output;
                     return wp.element.createElement(
                         'tr',
                         { key: `${article.headline || article.title || article.id}-${index}` },
@@ -3357,6 +3456,36 @@ const EditorialPlannerApp = () => {
                                     disabled: !(authorStatus === 'complete' && article.author?.output),
                                 },
                                 'Export Draft'
+                            ),
+                            wp.element.createElement(
+                                Button,
+                                {
+                                    isSecondary: true,
+                                    onClick: () => handleRecommendImageArticle(article),
+                                    style: { marginRight: '8px' },
+                                    disabled: !canImageActions || isRecommendImageLoading,
+                                },
+                                isRecommendImageLoading ? wp.element.createElement(Spinner, null) : 'Recommend Image'
+                            ),
+                            wp.element.createElement(
+                                Button,
+                                {
+                                    isSecondary: true,
+                                    onClick: () => handleGenerateImageArticle(article),
+                                    style: { marginRight: '8px' },
+                                    disabled: !canImageActions || isGenerateImageLoading,
+                                },
+                                isGenerateImageLoading ? wp.element.createElement(Spinner, null) : 'Generate Image'
+                            ),
+                            wp.element.createElement(
+                                Button,
+                                {
+                                    isSecondary: true,
+                                    onClick: () => window.open(generatedImage?.url, '_blank'),
+                                    style: { marginRight: '8px' },
+                                    disabled: !generatedImage?.url,
+                                },
+                                'Open Image'
                             ),
                             wp.element.createElement(
                                 Button,
