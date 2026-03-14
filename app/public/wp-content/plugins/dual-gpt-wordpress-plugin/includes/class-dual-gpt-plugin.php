@@ -357,6 +357,24 @@ class Dual_GPT_Plugin {
             'permission_callback' => array($this, 'check_permissions'),
         ));
 
+        register_rest_route('dual-gpt/v1', '/images/config', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_image_generation_config'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/images/recommend', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'recommend_image_generation'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
+        register_rest_route('dual-gpt/v1', '/images/generate', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'generate_image_asset'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
         // Presets endpoints
         register_rest_route('dual-gpt/v1', '/presets', array(
             array(
@@ -518,6 +536,87 @@ class Dual_GPT_Plugin {
      */
     public function check_permissions() {
         return current_user_can('edit_posts');
+    }
+
+    public function get_image_generation_config() {
+        if (!class_exists('Dual_GPT_Image_Generation_Service')) {
+            return new WP_Error('image_service_missing', 'Image generation service is unavailable.', array('status' => 500));
+        }
+
+        $service = new Dual_GPT_Image_Generation_Service();
+
+        return new WP_REST_Response($service->get_public_config(), 200);
+    }
+
+    public function recommend_image_generation($request) {
+        if (!class_exists('Dual_GPT_Image_Generation_Service')) {
+            return new WP_Error('image_service_missing', 'Image generation service is unavailable.', array('status' => 500));
+        }
+
+        $service = new Dual_GPT_Image_Generation_Service();
+        $payload = $this->build_image_request_payload($request);
+        $recommendation = $service->recommend($payload);
+
+        return new WP_REST_Response($recommendation, 200);
+    }
+
+    public function generate_image_asset($request) {
+        if (!class_exists('Dual_GPT_Image_Generation_Service')) {
+            return new WP_Error('image_service_missing', 'Image generation service is unavailable.', array('status' => 500));
+        }
+
+        $service = new Dual_GPT_Image_Generation_Service();
+        $payload = $this->build_image_request_payload($request);
+        $result = $service->generate($payload);
+
+        if (is_wp_error($result)) {
+            return $result;
+        }
+
+        return new WP_REST_Response($result, 200);
+    }
+
+    private function build_image_request_payload($request) {
+        $post_id = intval($request->get_param('post_id'));
+        $payload = array(
+            'post_id' => $post_id,
+            'title' => sanitize_text_field($request->get_param('title')),
+            'summary' => sanitize_textarea_field($request->get_param('summary')),
+            'audience' => sanitize_text_field($request->get_param('audience')),
+            'keywords' => $request->get_param('keywords'),
+            'provider' => sanitize_key($request->get_param('provider')),
+            'prompt' => sanitize_textarea_field($request->get_param('prompt')),
+            'negative_prompt' => sanitize_textarea_field($request->get_param('negative_prompt')),
+            'size' => sanitize_text_field($request->get_param('size')),
+            'quality' => sanitize_text_field($request->get_param('quality')),
+            'alt_text' => sanitize_text_field($request->get_param('alt_text')),
+            'caption' => sanitize_text_field($request->get_param('caption')),
+            'preset_key' => sanitize_key($request->get_param('preset_key')),
+            'text_in_image' => sanitize_text_field($request->get_param('text_in_image')),
+            'editorial_accuracy' => rest_sanitize_boolean($request->get_param('editorial_accuracy')),
+            'dry_run' => rest_sanitize_boolean($request->get_param('dry_run')),
+        );
+
+        if ($request->get_param('store_in_media_library') !== null) {
+            $payload['store_in_media_library'] = rest_sanitize_boolean($request->get_param('store_in_media_library'));
+        }
+        if ($request->get_param('set_featured_image') !== null) {
+            $payload['set_featured_image'] = rest_sanitize_boolean($request->get_param('set_featured_image'));
+        }
+
+        if ($post_id > 0) {
+            $post = get_post($post_id);
+            if ($post) {
+                if ($payload['title'] === '') {
+                    $payload['title'] = $post->post_title;
+                }
+                if ($payload['summary'] === '') {
+                    $payload['summary'] = wp_trim_words(wp_strip_all_tags($post->post_excerpt ?: $post->post_content), 55, '...');
+                }
+            }
+        }
+
+        return $payload;
     }
 
     /**
@@ -7150,6 +7249,14 @@ class Dual_GPT_Plugin {
 
         // Include Model Config
         require_once DUAL_GPT_PLUGIN_DIR . 'includes/class-model-config.php';
+
+        // Include image generation foundation
+        require_once DUAL_GPT_PLUGIN_DIR . 'includes/class-image-settings.php';
+        require_once DUAL_GPT_PLUGIN_DIR . 'includes/class-image-provider-registry.php';
+        require_once DUAL_GPT_PLUGIN_DIR . 'includes/class-image-prompt-builder.php';
+        require_once DUAL_GPT_PLUGIN_DIR . 'includes/class-image-generation-service.php';
+        require_once DUAL_GPT_PLUGIN_DIR . 'includes/providers/class-openai-image-provider.php';
+        require_once DUAL_GPT_PLUGIN_DIR . 'includes/providers/class-google-image-provider.php';
 
         // Include Planner Orchestrator
         require_once DUAL_GPT_PLUGIN_DIR . 'includes/class-planner-orchestrator.php';
