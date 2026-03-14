@@ -52,7 +52,6 @@ const EditorialNewSessionApp = () => {
     
     // New sponsor-related fields
     const [researchProfile, setResearchProfile] = useState('');
-    const [authorProfile, setAuthorProfile] = useState('');
     const [isSponsored, setIsSponsored] = useState(false);
     const [selectedSponsor, setSelectedSponsor] = useState('');
     const [sponsors, setSponsors] = useState([]);
@@ -61,7 +60,6 @@ const EditorialNewSessionApp = () => {
     
     // Presets for dropdowns
     const [researchPresets, setResearchPresets] = useState([]);
-    const [authorPresets, setAuthorPresets] = useState([]);
     const [loadingPresets, setLoadingPresets] = useState(false);
 
     // Load presets on mount
@@ -80,10 +78,7 @@ const EditorialNewSessionApp = () => {
             if (Array.isArray(response)) {
                 // Support both legacy (research/author) and newer (generic/specialist) role naming.
                 const research = response.filter((p) => hasRole(p, ['research', 'generic', 'both']));
-                const author = response.filter((p) => hasRole(p, ['author', 'specialist', 'both']));
-                
                 setResearchPresets(research);
-                setAuthorPresets(author);
             }
         } catch (err) {
             console.error('Failed to load presets:', err);
@@ -153,9 +148,6 @@ const EditorialNewSessionApp = () => {
                     includes,
                     excludes,
                     ...(showFocusControls ? { focus_level: focusLevel } : {}),
-                    // Keep both keys for compatibility across author/specialist naming variants.
-                    author_profile: authorProfile || undefined,
-                    specialist_profile: authorProfile || undefined,
                     is_sponsored: isSponsored,
                     ...(isSponsored ? {
                         sponsor_id: selectedSponsor || undefined,
@@ -203,7 +195,6 @@ const EditorialNewSessionApp = () => {
             setSelectedTopic(TOPIC_OPTIONS[0].value);
             setFocusLevel(50);
             setResearchProfile('');
-            setAuthorProfile('');
             setIsSponsored(false);
             setSelectedSponsor('');
             setSponsorWeighting(2);
@@ -253,23 +244,6 @@ const EditorialNewSessionApp = () => {
                             ],
                             onChange: setResearchProfile,
                             help: 'Optional: Generic perspective from presets',
-                        })
-                ),
-                wp.element.createElement('div', { style: { marginTop: '20px' } },
-                    loadingPresets ? 
-                        wp.element.createElement(Spinner, null) :
-                        wp.element.createElement(SelectControl, {
-                            label: 'Specialist Profile',
-                            value: authorProfile,
-                            options: [
-                                { label: '-- Select Specialist Profile --', value: '' },
-                                ...authorPresets.map(preset => ({
-                                    label: normalizeProfileLabel(preset.name),
-                                    value: preset.id
-                                }))
-                            ],
-                            onChange: setAuthorProfile,
-                            help: 'Optional: Specialist voice from presets',
                         })
                 ),
                 wp.element.createElement('div', { style: { marginTop: '20px' } },
