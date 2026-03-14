@@ -2140,32 +2140,13 @@ function render_top_line_categories_page() {
 
 function render_sessions_page() {
     echo '<div id="editorial-sessions-app"></div>';
-    echo '<div id="editorial-planner-app" style="display:none;"></div>';
-
-    $planner_path = plugin_dir_path(__FILE__) . 'assets/js/editorial-planner.js';
-    $planner_version = file_exists($planner_path) ? filemtime($planner_path) : '1.0';
-    wp_enqueue_script(
-        'editorial-planner',
-        plugins_url('assets/js/editorial-planner.js', __FILE__),
-        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
-        $planner_version,
-        true
-    );
-    wp_localize_script(
-        'editorial-planner',
-        'dualGptData',
-        array(
-            'nonce' => wp_create_nonce('wp_rest'),
-            'restUrl' => rest_url('dual-gpt/v1/'),
-        )
-    );
 
     $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-sessions.js';
     $version = file_exists($path) ? filemtime($path) : '1.0';
     wp_enqueue_script(
         'editorial-sessions',
         plugins_url('assets/js/editorial-sessions.js', __FILE__),
-        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data', 'editorial-planner'),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
         $version,
         true
     );

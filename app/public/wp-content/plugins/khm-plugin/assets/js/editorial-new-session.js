@@ -199,8 +199,8 @@ const EditorialNewSessionApp = () => {
             setSelectedSponsor('');
             setSponsorWeighting(2);
 
-            // Navigate to planner to view the session
-            window.location.href = admin_url + 'admin.php?page=editorial_planner';
+            // Navigate directly to the created planner session.
+            window.location.href = `${admin_url}admin.php?page=editorial_planner&session_id=${encodeURIComponent(sessionResponse.session_id)}`;
         } catch (err) {
             console.error('Failed to create session:', err);
             setError(err.message || 'Failed to create session. Please try again.');
