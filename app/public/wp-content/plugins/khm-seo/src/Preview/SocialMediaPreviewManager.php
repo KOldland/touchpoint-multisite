@@ -104,12 +104,12 @@ class SocialMediaPreviewManager {
 
         $post_types = get_post_types( [ 'public' => true ], 'objects' );
         $default_post_type = array_key_first( $post_types );
-        $selected_type = isset( $_GET['post_type'] ) ? sanitize_key( $_GET['post_type'] ) : $default_post_type;
+        $selected_type = isset( $_GET['khm_post_type'] ) ? sanitize_key( $_GET['khm_post_type'] ) : $default_post_type;
         if ( empty( $selected_type ) || ! isset( $post_types[ $selected_type ] ) ) {
             $selected_type = $default_post_type;
         }
 
-        $post_id = isset( $_GET['post_id'] ) ? (int) $_GET['post_id'] : 0;
+        $post_id = isset( $_GET['khm_post_id'] ) ? (int) $_GET['khm_post_id'] : 0;
         $selected_post = $post_id ? get_post( $post_id ) : null;
         if ( $selected_post && 'publish' !== $selected_post->post_status ) {
             $selected_post = null;
@@ -261,7 +261,7 @@ class SocialMediaPreviewManager {
                 return;
             }
         } elseif ( $is_preview_page ) {
-            $post_id = isset( $_GET['post_id'] ) ? (int) $_GET['post_id'] : 0;
+            $post_id = isset( $_GET['khm_post_id'] ) ? (int) $_GET['khm_post_id'] : 0;
             $post = $post_id ? get_post( $post_id ) : null;
             if ( ! $post || 'publish' !== $post->post_status ) {
                 return;

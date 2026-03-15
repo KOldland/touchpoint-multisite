@@ -173,12 +173,12 @@ class AdminManager {
 
         $post_types = get_post_types( array( 'public' => true ), 'objects' );
         $default_post_type = array_key_first( $post_types );
-        $selected_type = isset( $_GET['post_type'] ) ? sanitize_key( $_GET['post_type'] ) : $default_post_type;
+        $selected_type = isset( $_GET['khm_post_type'] ) ? sanitize_key( $_GET['khm_post_type'] ) : $default_post_type;
         if ( empty( $selected_type ) || ! isset( $post_types[ $selected_type ] ) ) {
             $selected_type = $default_post_type;
         }
 
-        $post_id = isset( $_GET['post_id'] ) ? (int) $_GET['post_id'] : 0;
+        $post_id = isset( $_GET['khm_post_id'] ) ? (int) $_GET['khm_post_id'] : 0;
         $selected_post = $post_id ? get_post( $post_id ) : null;
         if ( $selected_post && 'publish' !== $selected_post->post_status ) {
             $selected_post = null;
@@ -192,9 +192,9 @@ class AdminManager {
             'order' => 'DESC',
         ) );
 
-        $social_url = $selected_post ? admin_url( 'admin.php?page=khm-seo-social-preview&post_type=' . $selected_type . '&post_id=' . $selected_post->ID ) : '';
-        $geo_url = $selected_post ? admin_url( 'admin.php?page=khm-seo-geo-post&post_type=' . $selected_type . '&post_id=' . $selected_post->ID ) : '';
-        $health_url = $selected_post ? admin_url( 'admin.php?page=khm-seo-post-health&post_type=' . $selected_type . '&post_id=' . $selected_post->ID ) : '';
+        $social_url = $selected_post ? admin_url( 'admin.php?page=khm-seo-social-preview&khm_post_type=' . $selected_type . '&khm_post_id=' . $selected_post->ID ) : '';
+        $geo_url = $selected_post ? admin_url( 'admin.php?page=khm-seo-geo-post&khm_post_type=' . $selected_type . '&khm_post_id=' . $selected_post->ID ) : '';
+        $health_url = $selected_post ? admin_url( 'admin.php?page=khm-seo-post-health&khm_post_type=' . $selected_type . '&khm_post_id=' . $selected_post->ID ) : '';
 
         $dep_smma   = class_exists( 'KH_SMMA\Services\SmmaGenerator' );
         $dep_agent  = class_exists( 'KHM_SEO_AGENT\API\Rest_Api' );
@@ -232,7 +232,7 @@ class AdminManager {
                                 <label for="khm-boost-post-type"><?php esc_html_e( 'Content Type', 'khm-seo' ); ?></label>
                             </th>
                             <td>
-                                <select id="khm-boost-post-type" name="post_type">
+                                <select id="khm-boost-post-type" name="khm_post_type">
                                     <?php foreach ( $post_types as $type_slug => $type_obj ) : ?>
                                         <option value="<?php echo esc_attr( $type_slug ); ?>" <?php selected( $selected_type, $type_slug ); ?>>
                                             <?php echo esc_html( $type_obj->labels->singular_name ); ?>
@@ -246,7 +246,7 @@ class AdminManager {
                                 <label for="khm-boost-post-id"><?php esc_html_e( 'Published Item', 'khm-seo' ); ?></label>
                             </th>
                             <td>
-                                <select id="khm-boost-post-id" name="post_id">
+                                <select id="khm-boost-post-id" name="khm_post_id">
                                     <option value="0"><?php esc_html_e( 'Select a published item...', 'khm-seo' ); ?></option>
                                     <?php foreach ( $posts as $post_item ) : ?>
                                         <option value="<?php echo esc_attr( $post_item->ID ); ?>" <?php selected( $selected_post && $selected_post->ID === $post_item->ID ); ?>>
@@ -552,12 +552,12 @@ class AdminManager {
 
         $post_types = get_post_types( array( 'public' => true ), 'objects' );
         $default_post_type = array_key_first( $post_types );
-        $selected_type = isset( $_GET['post_type'] ) ? sanitize_key( $_GET['post_type'] ) : $default_post_type;
+        $selected_type = isset( $_GET['khm_post_type'] ) ? sanitize_key( $_GET['khm_post_type'] ) : $default_post_type;
         if ( empty( $selected_type ) || ! isset( $post_types[ $selected_type ] ) ) {
             $selected_type = $default_post_type;
         }
 
-        $post_id = isset( $_GET['post_id'] ) ? (int) $_GET['post_id'] : 0;
+        $post_id = isset( $_GET['khm_post_id'] ) ? (int) $_GET['khm_post_id'] : 0;
         $selected_post = $post_id ? get_post( $post_id ) : null;
         if ( $selected_post && 'publish' !== $selected_post->post_status ) {
             $selected_post = null;
@@ -587,7 +587,7 @@ class AdminManager {
                                 <label for="khm-geo-post-type"><?php esc_html_e( 'Content Type', 'khm-seo' ); ?></label>
                             </th>
                             <td>
-                                <select id="khm-geo-post-type" name="post_type">
+                                <select id="khm-geo-post-type" name="khm_post_type">
                                     <?php foreach ( $post_types as $type_slug => $type_obj ) : ?>
                                         <option value="<?php echo esc_attr( $type_slug ); ?>" <?php selected( $selected_type, $type_slug ); ?>>
                                             <?php echo esc_html( $type_obj->labels->singular_name ); ?>
@@ -601,7 +601,7 @@ class AdminManager {
                                 <label for="khm-geo-post-id"><?php esc_html_e( 'Published Item', 'khm-seo' ); ?></label>
                             </th>
                             <td>
-                                <select id="khm-geo-post-id" name="post_id">
+                                <select id="khm-geo-post-id" name="khm_post_id">
                                     <option value="0"><?php esc_html_e( 'Select a published item...', 'khm-seo' ); ?></option>
                                     <?php foreach ( $posts as $post_item ) : ?>
                                         <option value="<?php echo esc_attr( $post_item->ID ); ?>" <?php selected( $selected_post && $selected_post->ID === $post_item->ID ); ?>>
@@ -668,7 +668,7 @@ class AdminManager {
             }
         }
 
-        wp_safe_redirect( admin_url( 'admin.php?page=khm-seo-geo-post&post_type=' . $post->post_type . '&post_id=' . $post_id . '&updated=1' ) );
+        wp_safe_redirect( admin_url( 'admin.php?page=khm-seo-geo-post&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post_id . '&updated=1' ) );
         exit;
     }
 
@@ -682,12 +682,12 @@ class AdminManager {
 
         $post_types = get_post_types( array( 'public' => true ), 'objects' );
         $default_post_type = array_key_first( $post_types );
-        $selected_type = isset( $_GET['post_type'] ) ? sanitize_key( $_GET['post_type'] ) : $default_post_type;
+        $selected_type = isset( $_GET['khm_post_type'] ) ? sanitize_key( $_GET['khm_post_type'] ) : $default_post_type;
         if ( empty( $selected_type ) || ! isset( $post_types[ $selected_type ] ) ) {
             $selected_type = $default_post_type;
         }
 
-        $post_id = isset( $_GET['post_id'] ) ? (int) $_GET['post_id'] : 0;
+        $post_id = isset( $_GET['khm_post_id'] ) ? (int) $_GET['khm_post_id'] : 0;
         $selected_post = $post_id ? get_post( $post_id ) : null;
         if ( $selected_post && 'publish' !== $selected_post->post_status ) {
             $selected_post = null;
@@ -717,7 +717,7 @@ class AdminManager {
                                 <label for="khm-health-post-type"><?php esc_html_e( 'Content Type', 'khm-seo' ); ?></label>
                             </th>
                             <td>
-                                <select id="khm-health-post-type" name="post_type">
+                                <select id="khm-health-post-type" name="khm_post_type">
                                     <?php foreach ( $post_types as $type_slug => $type_obj ) : ?>
                                         <option value="<?php echo esc_attr( $type_slug ); ?>" <?php selected( $selected_type, $type_slug ); ?>>
                                             <?php echo esc_html( $type_obj->labels->singular_name ); ?>
@@ -731,7 +731,7 @@ class AdminManager {
                                 <label for="khm-health-post-id"><?php esc_html_e( 'Published Item', 'khm-seo' ); ?></label>
                             </th>
                             <td>
-                                <select id="khm-health-post-id" name="post_id">
+                                <select id="khm-health-post-id" name="khm_post_id">
                                     <option value="0"><?php esc_html_e( 'Select a published item...', 'khm-seo' ); ?></option>
                                     <?php foreach ( $posts as $post_item ) : ?>
                                         <option value="<?php echo esc_attr( $post_item->ID ); ?>" <?php selected( $selected_post && $selected_post->ID === $post_item->ID ); ?>>
@@ -817,10 +817,10 @@ class AdminManager {
             return;
         }
 
-        $social_url = admin_url( 'admin.php?page=khm-seo-social-preview&post_type=' . $post->post_type . '&post_id=' . $post->ID );
-        $geo_url = admin_url( 'admin.php?page=khm-seo-geo-post&post_type=' . $post->post_type . '&post_id=' . $post->ID );
-        $health_url = admin_url( 'admin.php?page=khm-seo-post-health&post_type=' . $post->post_type . '&post_id=' . $post->ID );
-        $hub_url = admin_url( 'admin.php?page=khm-seo-boost-visibility&post_type=' . $post->post_type . '&post_id=' . $post->ID );
+        $social_url = admin_url( 'admin.php?page=khm-seo-social-preview&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID );
+        $geo_url = admin_url( 'admin.php?page=khm-seo-geo-post&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID );
+        $health_url = admin_url( 'admin.php?page=khm-seo-post-health&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID );
+        $hub_url = admin_url( 'admin.php?page=khm-seo-boost-visibility&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID );
 
         echo '<p><a class="button button-primary" href="' . esc_url( $hub_url ) . '">' . esc_html__( 'Boost Visibility', 'khm-seo' ) . '</a></p>';
         echo '<p><a class="button button-secondary" href="' . esc_url( $social_url ) . '">' . esc_html__( 'Social Media Manager', 'khm-seo' ) . '</a></p>';
@@ -840,12 +840,12 @@ class AdminManager {
             return $actions;
         }
 
-        $actions['boost_visibility'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-boost-visibility&post_type=' . $post->post_type . '&post_id=' . $post->ID ) ) . '">' . esc_html__( 'Boost Visibility', 'khm-seo' ) . '</a>';
-        $actions['smma_promote'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-boost-visibility&post_type=' . $post->post_type . '&post_id=' . $post->ID . '&smma_action=promote' ) ) . '">' . esc_html__( 'Promote', 'khm-seo' ) . '</a>';
-        $actions['smma_boost'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-boost-visibility&post_type=' . $post->post_type . '&post_id=' . $post->ID . '&smma_action=boost' ) ) . '">' . esc_html__( 'Boost', 'khm-seo' ) . '</a>';
-        $actions['boost_social'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-social-preview&post_type=' . $post->post_type . '&post_id=' . $post->ID ) ) . '">' . esc_html__( 'Social', 'khm-seo' ) . '</a>';
-        $actions['boost_geo'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-geo-post&post_type=' . $post->post_type . '&post_id=' . $post->ID ) ) . '">' . esc_html__( 'GEO', 'khm-seo' ) . '</a>';
-        $actions['boost_health'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-post-health&post_type=' . $post->post_type . '&post_id=' . $post->ID ) ) . '">' . esc_html__( 'Post Health', 'khm-seo' ) . '</a>';
+        $actions['boost_visibility'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-boost-visibility&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID ) ) . '">' . esc_html__( 'Boost Visibility', 'khm-seo' ) . '</a>';
+        $actions['smma_promote'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-boost-visibility&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID . '&smma_action=promote' ) ) . '">' . esc_html__( 'Promote', 'khm-seo' ) . '</a>';
+        $actions['smma_boost'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-boost-visibility&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID . '&smma_action=boost' ) ) . '">' . esc_html__( 'Boost', 'khm-seo' ) . '</a>';
+        $actions['boost_social'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-social-preview&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID ) ) . '">' . esc_html__( 'Social', 'khm-seo' ) . '</a>';
+        $actions['boost_geo'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-geo-post&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID ) ) . '">' . esc_html__( 'GEO', 'khm-seo' ) . '</a>';
+        $actions['boost_health'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-post-health&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID ) ) . '">' . esc_html__( 'Post Health', 'khm-seo' ) . '</a>';
 
         return $actions;
     }

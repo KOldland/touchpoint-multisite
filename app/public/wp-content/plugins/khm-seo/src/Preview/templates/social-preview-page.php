@@ -27,7 +27,7 @@ if ( ! defined( 'ABSPATH' ) ) {
                         <label for="khm-social-preview-post-type"><?php esc_html_e( 'Content Type', 'khm-seo' ); ?></label>
                     </th>
                     <td>
-                        <select id="khm-social-preview-post-type" name="post_type">
+                        <select id="khm-social-preview-post-type" name="khm_post_type">
                             <?php foreach ( $post_types as $type_slug => $type_obj ) : ?>
                                 <option value="<?php echo esc_attr( $type_slug ); ?>" <?php selected( $selected_type, $type_slug ); ?>>
                                     <?php echo esc_html( $type_obj->labels->singular_name ); ?>
@@ -41,7 +41,7 @@ if ( ! defined( 'ABSPATH' ) ) {
                         <label for="khm-social-preview-post-id"><?php esc_html_e( 'Published Item', 'khm-seo' ); ?></label>
                     </th>
                     <td>
-                        <select id="khm-social-preview-post-id" name="post_id">
+                        <select id="khm-social-preview-post-id" name="khm_post_id">
                             <option value="0"><?php esc_html_e( 'Select a published item...', 'khm-seo' ); ?></option>
                             <?php foreach ( $posts as $post_item ) : ?>
                                 <option value="<?php echo esc_attr( $post_item->ID ); ?>" <?php selected( $selected_post && $selected_post->ID === $post_item->ID ); ?>>
