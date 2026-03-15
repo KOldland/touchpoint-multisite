@@ -73,7 +73,10 @@ const AUTHOR_PROFILE_OPTIONS = [
     { label: 'Executive', value: 'executive' },
 ];
 
-const MIN_CITATIONS_REQUIRED = 2;
+const MIN_CITATIONS_REQUIRED = 4;
+const IDEAL_CITATIONS_TARGET = 6;
+const LOW_CITATION_QUEUE_BATCH_SIZE = 6;
+const SYNOPSIS_BATCH_SIZE = 2;
 const PHASE_ORDER = ['phase1', 'phase2', 'phase3', 'phase4'];
 const DIVE_DEEPER_STALL_SECONDS = 90;
 const DIVE_DEEPER_STAGE_META = {
@@ -112,6 +115,7 @@ const EditorialPlannerApp = () => {
     const [sessionDetail, setSessionDetail] = useState(null);
     const [researchPolicyDetail, setResearchPolicyDetail] = useState(null);
     const [researchValidationDetail, setResearchValidationDetail] = useState(null);
+    const [searchProviderStatus, setSearchProviderStatus] = useState(null);
     const [researchValidationLoading, setResearchValidationLoading] = useState(false);
     const [policyDraft, setPolicyDraft] = useState({ ...DEFAULT_RESEARCH_POLICY });
     const [policyDirty, setPolicyDirty] = useState(false);
@@ -138,6 +142,8 @@ const EditorialPlannerApp = () => {
     const [phase2RerunLoading, setPhase2RerunLoading] = useState(false);
     const [phase1RerunLoading, setPhase1RerunLoading] = useState(false);
     const [articleActionLoading, setArticleActionLoading] = useState({});
+    const [imageActionLoading, setImageActionLoading] = useState({});
+    const [generatedImageByArticle, setGeneratedImageByArticle] = useState({});
     const [expandedPhases, setExpandedPhases] = useState({});
     const [focusLevel, setFocusLevel] = useState(50);
     const [synopsisModalOpen, setSynopsisModalOpen] = useState(false);
@@ -146,11 +152,13 @@ const EditorialPlannerApp = () => {
     const [synopsisPlanError, setSynopsisPlanError] = useState('');
     const [synopsisGenerateLoading, setSynopsisGenerateLoading] = useState(false);
     const [synopsisTotal, setSynopsisTotal] = useState(20);
+    const [citationSegmentFilter, setCitationSegmentFilter] = useState('all');
+    const [lowCitationBatchLoading, setLowCitationBatchLoading] = useState(false);
     const [focusDirty, setFocusDirty] = useState(false);
     const [thinkingPhraseIndex, setThinkingPhraseIndex] = useState(0);
     const [diveDeeperModalOpen, setDiveDeeperModalOpen] = useState(false);
     const [diveDeeperArticle, setDiveDeeperArticle] = useState(null);
-    const [diveDeeperDepthSlider, setDiveDeeperDepthSlider] = useState(2);
+    const [diveDeeperDepthSlider, setDiveDeeperDepthSlider] = useState(3);
     const [diveDeeperSuccess, setDiveDeeperSuccess] = useState(false);
     const [diveDeeperJobId, setDiveDeeperJobId] = useState('');
     const [diveDeeperJobStatus, setDiveDeeperJobStatus] = useState('');
@@ -159,6 +167,7 @@ const EditorialPlannerApp = () => {
     const [queueModalOpen, setQueueModalOpen] = useState(false);
     const [queueLoading, setQueueLoading] = useState(false);
     const [queueClearing, setQueueClearing] = useState(false);
+    const [queueRemoving, setQueueRemoving] = useState(false);
     const [queueError, setQueueError] = useState('');
     const [queueCounts, setQueueCounts] = useState({ queued: 0, running: 0, completed: 0, failed: 0 });
     const [queueItems, setQueueItems] = useState([]);
@@ -209,6 +218,14 @@ const EditorialPlannerApp = () => {
         setAuthorPolicyDraft({ ...DEFAULT_AUTHOR_POLICY });
         setAuthorPolicyDirty(false);
         loadSessions();
+    };
+
+    const navigateToNewSession = () => {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('session_id');
+        url.searchParams.delete('session');
+        url.searchParams.set('page', 'editorial_new_session');
+        window.location.href = `${url.pathname}${url.search}`;
     };
 
     useEffect(() => {
@@ -453,10 +470,12 @@ const EditorialPlannerApp = () => {
                 });
                 setResearchPolicyDetail(validationData?.research_policy || data?.meta?.research_policy || null);
                 setResearchValidationDetail(validationData?.research_validation || null);
+                setSearchProviderStatus(validationData?.search_provider_status || null);
             } catch (validationError) {
                 console.error('Failed to load research validation detail:', validationError);
                 setResearchPolicyDetail(data?.meta?.research_policy || null);
                 setResearchValidationDetail(null);
+                setSearchProviderStatus(null);
             }
 
             try {
@@ -509,6 +528,7 @@ const EditorialPlannerApp = () => {
             }
             setResearchPolicyDetail(null);
             setResearchValidationDetail(null);
+            setSearchProviderStatus(null);
             setAuthorPolicyDetail(null);
             return null;
         } finally {
@@ -617,7 +637,13 @@ const EditorialPlannerApp = () => {
         }, 10000);
     };
 
-    const enqueuePlannerTask = async ({ taskType, articleId = '', payload = null, successMessage = 'Added to queue.' }) => {
+    const enqueuePlannerTask = async ({
+        taskType,
+        articleId = '',
+        payload = null,
+        successMessage = 'Added to queue.',
+        silentSuccess = false,
+    }) => {
         if (!sessionDetail?.id) {
             return null;
         }
@@ -634,7 +660,9 @@ const EditorialPlannerApp = () => {
                     ...(payload ? { payload } : {}),
                 },
             });
-            dispatch('core/notices').createNotice('success', successMessage, { type: 'snackbar' });
+            if (!silentSuccess && successMessage) {
+                dispatch('core/notices').createNotice('success', successMessage, { type: 'snackbar' });
+            }
             await loadPlannerQueue();
             return response;
         } catch (error) {
@@ -967,6 +995,27 @@ const EditorialPlannerApp = () => {
     const openQueueModal = async () => {
         setQueueModalOpen(true);
         await loadPlannerQueue();
+    };
+
+    const removeAllQueueItems = async () => {
+        const confirmed = window.confirm('Remove all queue items? This permanently deletes all completed, failed, and queued entries. Running jobs will not be affected.');
+        if (!confirmed) {
+            return;
+        }
+        try {
+            setQueueRemoving(true);
+            const response = await apiFetch({
+                path: 'dual-gpt/v1/planner/queue/remove-all',
+                method: 'POST',
+            });
+            dispatch('core/notices').createNotice('success', response?.message || 'Queue items removed.', { type: 'snackbar' });
+            await loadPlannerQueue();
+        } catch (error) {
+            console.error('Failed to remove all queue items:', error);
+            dispatch('core/notices').createNotice('error', error?.message || 'Failed to remove queue items.', { type: 'snackbar' });
+        } finally {
+            setQueueRemoving(false);
+        }
     };
 
     const clearQueuedJobs = async () => {
@@ -1904,7 +1953,7 @@ const EditorialPlannerApp = () => {
             await apiFetch({
                 path: 'dual-gpt/v1/planner/synopses',
                 method: 'POST',
-                data: { session_id: sessionDetail.id, plan: synopsisPlan },
+                data: { session_id: sessionDetail.id, plan: synopsisPlan, batch_size: SYNOPSIS_BATCH_SIZE },
             });
 
             dispatch('core/notices').createNotice(
@@ -2161,6 +2210,99 @@ const EditorialPlannerApp = () => {
         openPrintWindow(html);
     };
 
+    const buildArticleImagePayload = (article, overrides = {}) => {
+        const title = article?.title || article?.headline || 'Article Image';
+        const summary = article?.summary || article?.brief || '';
+        const keywords = Array.isArray(article?.keywords)
+            ? article.keywords
+            : Array.isArray(article?.tags)
+              ? article.tags
+              : [];
+        const postId = parseInt(article?.author?.post_id || 0, 10) || 0;
+
+        return {
+            post_id: postId,
+            title,
+            summary,
+            keywords,
+            alt_text: `${title} illustration`,
+            caption: `${title}`,
+            editorial_accuracy: true,
+            store_in_media_library: true,
+            set_featured_image: postId > 0,
+            ...overrides,
+        };
+    };
+
+    const handleRecommendImageArticle = async (article) => {
+        if (!article?.id) {
+            return;
+        }
+        const loadingKey = `recommend:${article.id}`;
+        try {
+            setImageActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
+            const response = await apiFetch({
+                path: 'dual-gpt/v1/images/recommend',
+                method: 'POST',
+                data: buildArticleImagePayload(article),
+            });
+
+            const promptPreview = (response?.prompt || '').trim();
+            const message = promptPreview
+                ? `Image recommendation ready: ${promptPreview.slice(0, 120)}${promptPreview.length > 120 ? '...' : ''}`
+                : 'Image recommendation generated.';
+            dispatch('core/notices').createNotice('success', message, { type: 'snackbar' });
+        } catch (error) {
+            dispatch('core/notices').createNotice(
+                'error',
+                error?.message || 'Failed to recommend image.',
+                { type: 'snackbar' }
+            );
+        } finally {
+            setImageActionLoading((prev) => ({ ...prev, [loadingKey]: false }));
+        }
+    };
+
+    const handleGenerateImageArticle = async (article) => {
+        if (!article?.id) {
+            return;
+        }
+        const loadingKey = `generate:${article.id}`;
+        try {
+            setImageActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
+            const response = await apiFetch({
+                path: 'dual-gpt/v1/images/generate',
+                method: 'POST',
+                data: buildArticleImagePayload(article),
+            });
+
+            const firstAttachment = Array.isArray(response?.attachments) ? response.attachments[0] : null;
+            if (firstAttachment?.url) {
+                setGeneratedImageByArticle((prev) => ({
+                    ...prev,
+                    [article.id]: {
+                        url: firstAttachment.url,
+                        attachmentId: firstAttachment.attachment_id || 0,
+                    },
+                }));
+            }
+
+            const attachmentCount = Array.isArray(response?.attachments) ? response.attachments.length : 0;
+            const message = attachmentCount > 0
+                ? `Image generated and stored (${attachmentCount} attachment${attachmentCount === 1 ? '' : 's'}).`
+                : 'Image generation completed.';
+            dispatch('core/notices').createNotice('success', message, { type: 'snackbar' });
+        } catch (error) {
+            dispatch('core/notices').createNotice(
+                'error',
+                error?.message || 'Failed to generate image.',
+                { type: 'snackbar' }
+            );
+        } finally {
+            setImageActionLoading((prev) => ({ ...prev, [loadingKey]: false }));
+        }
+    };
+
     const runArticleAction = async (article, action, successMessage, params = null) => {
         if (!sessionDetail?.id || !article?.id) {
             return;
@@ -2246,7 +2388,7 @@ const EditorialPlannerApp = () => {
 
     const handleDeepDiveArticle = (article) => {
         setDiveDeeperArticle(article);
-        setDiveDeeperDepthSlider(2);
+        setDiveDeeperDepthSlider(3);
         setDiveDeeperSuccess(false);
         setDiveDeeperJobId('');
         setDiveDeeperJobStatus('');
@@ -2555,6 +2697,16 @@ const EditorialPlannerApp = () => {
             });
         };
 
+        const providerErrors = Array.isArray(searchProviderStatus?.provider_errors)
+            ? searchProviderStatus.provider_errors
+            : [];
+        const hasProviderErrors = Boolean(searchProviderStatus?.has_errors) || providerErrors.length > 0;
+        const serpapiIssue = providerErrors.find((item) => String(item).toLowerCase().includes('serpapi:')) || '';
+        const providerAdminInstruction = searchProviderStatus?.admin_instruction
+            || (serpapiIssue
+                ? 'SerpAPI is failing (quota or credential issue). Please contact your System Administrator to restore SerpAPI access and verify fallback provider support before rerunning Research Phase 4.'
+                : 'Search provider is failing. Please contact your System Administrator to restore provider access before rerunning Research Phase 4.');
+
         const phaseCards = phaseOrder.map((key) => {
             const phase = phases[key];
             if (!phase) {
@@ -2573,12 +2725,38 @@ const EditorialPlannerApp = () => {
             const detailBlocks = [];
             const referencedLinks = [];
             const seenUrls = new Set();
+            const placeholderSourcePattern = /^Relevant Result\s+\d+\s+for:/i;
+
+            const canonicalizeUrl = (value) => {
+                if (!value) {
+                    return '';
+                }
+                try {
+                    const parsed = new URL(value);
+                    parsed.hash = '';
+                    parsed.search = '';
+                    const normalized = parsed.toString().replace(/\/+$/, '');
+                    return normalized.toLowerCase();
+                } catch (error) {
+                    return String(value).trim().toLowerCase();
+                }
+            };
+
+            const isPlaceholderSource = (title, url) => {
+                const titleText = String(title || '');
+                const urlText = String(url || '');
+                return placeholderSourcePattern.test(titleText) || urlText.includes('example.com/result');
+            };
 
             const pushLink = (title, url) => {
-                if (!url || seenUrls.has(url)) {
+                if (!url || isPlaceholderSource(title, url)) {
                     return;
                 }
-                seenUrls.add(url);
+                const dedupeKey = canonicalizeUrl(url);
+                if (!dedupeKey || seenUrls.has(dedupeKey)) {
+                    return;
+                }
+                seenUrls.add(dedupeKey);
                 referencedLinks.push({ title, url });
             };
 
@@ -2824,17 +3002,18 @@ const EditorialPlannerApp = () => {
                     )
                 );
             }
-            if (phase.payload?.sources || phase.citations) {
+            const rawSources = phase.payload?.sources || phase.citations || [];
+            const sourceTitles = rawSources
+                .filter((source) => !isPlaceholderSource(source?.title, source?.url))
+                .map((source) => source.title || source.url || 'Source');
+
+            if (sourceTitles.length) {
                 detailBlocks.push(
                     wp.element.createElement(
                         'div',
                         { key: 'sources', style: { marginTop: '8px' } },
                         wp.element.createElement('strong', null, 'Sources'),
-                        renderList(
-                            (phase.payload?.sources || phase.citations || []).map(
-                                (source) => source.title || source.url || 'Source'
-                            )
-                        )
+                        renderList(sourceTitles)
                     )
                 );
             }
@@ -2844,6 +3023,55 @@ const EditorialPlannerApp = () => {
                         'p',
                         { key: 'needs-validation', style: { marginTop: '8px', color: '#946200' } },
                         'Needs validation: evidence unavailable from live sources.'
+                    )
+                );
+            }
+            if (key === 'phase4' && hasProviderErrors && phase.status === 'completed') {
+                detailBlocks.push(
+                    wp.element.createElement(
+                        'div',
+                        {
+                            key: 'search-incomplete-notice',
+                            style: {
+                                marginTop: '10px',
+                                padding: '10px',
+                                border: '1px solid #946200',
+                                borderRadius: '4px',
+                                background: '#fffbe6',
+                            },
+                        },
+                        wp.element.createElement('strong', null, 'Note: Search was incomplete'),
+                        wp.element.createElement(
+                            'p',
+                            { style: { margin: '6px 0 0' } },
+                            'Live web search was unavailable during this validation run. Results are based on model-inferred validation using prior research context and may not reflect the most current sources. Re-run Phase 4 once search access is restored for live-sourced citations.'
+                        )
+                    )
+                );
+            }
+            if (key === 'phase4' && hasProviderErrors) {
+                detailBlocks.push(
+                    wp.element.createElement(
+                        'div',
+                        {
+                            key: 'provider-admin-instruction',
+                            style: {
+                                marginTop: '10px',
+                                padding: '10px',
+                                border: '1px solid #d63638',
+                                borderRadius: '4px',
+                                background: '#fff5f5',
+                            },
+                        },
+                        wp.element.createElement('strong', null, 'Source Provider Issue'),
+                        wp.element.createElement('p', { style: { margin: '6px 0 0' } }, providerAdminInstruction),
+                        serpapiIssue
+                            ? wp.element.createElement(
+                                  'p',
+                                  { style: { margin: '6px 0 0', fontSize: '12px', color: '#7a1f1f' } },
+                                  `Detected provider error: ${serpapiIssue}`
+                              )
+                            : null
                     )
                 );
             }
@@ -3038,6 +3266,27 @@ const EditorialPlannerApp = () => {
             };
         });
 
+        const classifyCitationBand = (count) => {
+            if (count < 2) {
+                return 'critical';
+            }
+            if (count < MIN_CITATIONS_REQUIRED) {
+                return 'below_minimum';
+            }
+            if (count < IDEAL_CITATIONS_TARGET) {
+                return 'ready';
+            }
+            return 'ideal';
+        };
+
+        const criticalCitationCount = rows.filter((item) => item.citationsCount < 2).length;
+        const belowMinimumCitationCount = rows.filter(
+            (item) => item.citationsCount < MIN_CITATIONS_REQUIRED
+        ).length;
+        const idealCitationCount = rows.filter(
+            (item) => item.citationsCount >= IDEAL_CITATIONS_TARGET
+        ).length;
+
         const maxVolume = Math.max(1, ...rows.map((item) => item.volumeValue || 0));
         const maxRankingSignal = Math.max(1, ...rows.map((item) => item.rankingSignal || 0));
         const maxCitations = Math.max(1, ...rows.map((item) => item.citationsCount || 0));
@@ -3058,9 +3307,90 @@ const EditorialPlannerApp = () => {
                     ((item.volumeValue / maxVolume) * 0.45) +
                     ((item.citationsCount / maxCitations) * 0.35) +
                     ((item.rankingSignal / maxRankingSignal) * 0.2);
-                return { ...item, priorityScore, marketSignal };
+                const citationBand = classifyCitationBand(item.citationsCount);
+                const deprioritizedScore = citationBand === 'critical'
+                    ? priorityScore * 0.5
+                    : citationBand === 'below_minimum'
+                    ? priorityScore * 0.75
+                    : priorityScore;
+                return { ...item, priorityScore: deprioritizedScore, marketSignal, citationBand };
             })
             .sort((a, b) => b.priorityScore - a.priorityScore);
+
+        const filteredRows = citationSegmentFilter === 'all'
+            ? scoredRows
+            : scoredRows.filter((item) => item.citationBand === citationSegmentFilter);
+
+        const lowCitationRows = scoredRows.filter(
+            (item) => item.citationsCount < MIN_CITATIONS_REQUIRED && item?.article?.id
+        );
+        const lowCitationEligibleRows = lowCitationRows.filter((item) => {
+            const jobs = Array.isArray(item?.article?.dive_deeper_jobs)
+                ? item.article.dive_deeper_jobs
+                : [];
+            const hasActiveDiveDeeper = jobs.some((job) =>
+                ['queued', 'running', 'processing'].includes(String(job?.status || '').toLowerCase())
+            );
+            const hasCompletedDiveDeeper = jobs.some(
+                (job) => String(job?.status || '').toLowerCase() === 'completed'
+            );
+            const hasCitationLift = Number(item?.article?.deep_dive?.citations_added || 0) > 0;
+            return !hasActiveDiveDeeper && !hasCompletedDiveDeeper && !hasCitationLift;
+        });
+        const lowCitationBatchRows = [...lowCitationEligibleRows]
+            .sort((a, b) => {
+                if (a.citationsCount !== b.citationsCount) {
+                    return a.citationsCount - b.citationsCount;
+                }
+                return b.priorityScore - a.priorityScore;
+            })
+            .slice(0, LOW_CITATION_QUEUE_BATCH_SIZE);
+
+        const handleQueueLowCitationDeepDive = async () => {
+            if (!lowCitationRows.length) {
+                dispatch('core/notices').createNotice('info', 'No low-citation articles need processing.', {
+                    type: 'snackbar',
+                });
+                return;
+            }
+
+            if (!lowCitationEligibleRows.length) {
+                dispatch('core/notices').createNotice(
+                    'info',
+                    'Low-citation articles are already being processed or were already deep-dived.',
+                    { type: 'snackbar' }
+                );
+                return;
+            }
+
+            const deepDivePayload = mapSliderToDepthParams(3);
+            let queued = 0;
+            setLowCitationBatchLoading(true);
+            try {
+                for (const row of lowCitationBatchRows) {
+                    const response = await enqueuePlannerTask({
+                        taskType: 'dive_deeper',
+                        articleId: row.article.id,
+                        payload: deepDivePayload,
+                        silentSuccess: true,
+                    });
+                    if (response) {
+                        queued += 1;
+                    }
+                }
+
+                dispatch('core/notices').createNotice(
+                    queued > 0 ? 'success' : 'warning',
+                    queued > 0
+                        ? `Queued deep-dive for ${queued} low-citation article${queued === 1 ? '' : 's'} (target ${deepDivePayload.target_min_citations} citations). ${Math.max(0, lowCitationRows.length - lowCitationBatchRows.length)} remaining for future batches.`
+                        : 'No low-citation articles were queued. Check queue status and try again.',
+                    { type: 'snackbar' }
+                );
+                await refreshSessionDetail();
+            } finally {
+                setLowCitationBatchLoading(false);
+            }
+        };
 
         return wp.element.createElement(
             'div',
@@ -3069,6 +3399,59 @@ const EditorialPlannerApp = () => {
                 'p',
                 { style: { margin: '8px 0', fontSize: '12px', color: '#50575e' } },
                 'Priority score weights: 45% Market Signal, 35% Citation Strength, 20% Keyword Ranking. Author profile recommendation is inferred from article intent and framework language.'
+            ),
+            wp.element.createElement(
+                'p',
+                {
+                    style: {
+                        margin: '0 0 8px',
+                        fontSize: '12px',
+                        color: belowMinimumCitationCount > 0 ? '#8a5a00' : '#1e5f3a',
+                    },
+                },
+                `Citation coverage: ${criticalCitationCount} critical (<2), ${belowMinimumCitationCount} below minimum (<${MIN_CITATIONS_REQUIRED}), ${idealCitationCount} ideal (${IDEAL_CITATIONS_TARGET}+)`
+            ),
+            wp.element.createElement(
+                'div',
+                {
+                    style: {
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        flexWrap: 'wrap',
+                        marginBottom: '8px',
+                    },
+                },
+                wp.element.createElement(SelectControl, {
+                    label: 'Citation Segment',
+                    value: citationSegmentFilter,
+                    options: [
+                        { label: `All (${scoredRows.length})`, value: 'all' },
+                        { label: `Critical <2 (${criticalCitationCount})`, value: 'critical' },
+                        {
+                            label: `Below minimum 2-${MIN_CITATIONS_REQUIRED - 1} (${Math.max(0, belowMinimumCitationCount - criticalCitationCount)})`,
+                            value: 'below_minimum',
+                        },
+                        {
+                            label: `Ready ${MIN_CITATIONS_REQUIRED}-${IDEAL_CITATIONS_TARGET - 1} (${Math.max(0, scoredRows.length - belowMinimumCitationCount - idealCitationCount)})`,
+                            value: 'ready',
+                        },
+                        { label: `Ideal ${IDEAL_CITATIONS_TARGET}+ (${idealCitationCount})`, value: 'ideal' },
+                    ],
+                    onChange: setCitationSegmentFilter,
+                }),
+                wp.element.createElement(
+                    Button,
+                    {
+                        isSecondary: true,
+                        onClick: handleQueueLowCitationDeepDive,
+                        disabled: lowCitationBatchLoading || lowCitationEligibleRows.length === 0,
+                        style: { marginTop: '22px' },
+                    },
+                    lowCitationBatchLoading
+                        ? wp.element.createElement(Spinner, null)
+                        : `Queue Next Low-Citation Batch (${Math.min(lowCitationEligibleRows.length, LOW_CITATION_QUEUE_BATCH_SIZE)}/${lowCitationEligibleRows.length})`
+                )
             ),
             wp.element.createElement(
             'table',
@@ -3092,7 +3475,7 @@ const EditorialPlannerApp = () => {
             wp.element.createElement(
                 'tbody',
                 null,
-                scoredRows.map((row, priorityIndex) => {
+                filteredRows.map((row, priorityIndex) => {
                     const { article, index, metric, citationsCount, priorityScore, marketSignal } = row;
                     const volume = metric?.search_volume ?? '—';
                     const frameworkStatusRaw = article.framework?.status || 'pending';
@@ -3110,6 +3493,33 @@ const EditorialPlannerApp = () => {
                     const frameworkReady =
                         frameworkStatus === 'complete' && !!article.framework?.output;
                     const meetsCitationThreshold = citationsCount >= MIN_CITATIONS_REQUIRED;
+                    const citationQuality = citationsCount < 2
+                        ? {
+                            label: 'Critical: under 2 citations',
+                            bg: '#fde8e8',
+                            border: '#d63638',
+                            text: '#8a2424',
+                        }
+                        : citationsCount < MIN_CITATIONS_REQUIRED
+                          ? {
+                                label: `Below minimum: ${MIN_CITATIONS_REQUIRED} required`,
+                                bg: '#fff4e5',
+                                border: '#dba617',
+                                text: '#8a5a00',
+                            }
+                          : citationsCount < IDEAL_CITATIONS_TARGET
+                            ? {
+                                  label: `Meets minimum. Target ${IDEAL_CITATIONS_TARGET}+`,
+                                  bg: '#e7f5ff',
+                                  border: '#4da3ff',
+                                  text: '#0b4f8a',
+                              }
+                            : {
+                                  label: `Ideal coverage (${IDEAL_CITATIONS_TARGET}+)`,
+                                  bg: '#edfaef',
+                                  border: '#4ab866',
+                                  text: '#1f6f3c',
+                              };
                     const opinionPieceWritten =
                         authorStatus === 'complete' && article.framework?.lite_mode === 'opinion';
                     const selectedProfile = getSelectedAuthorProfile(article);
@@ -3119,8 +3529,12 @@ const EditorialPlannerApp = () => {
                     const isDismissLoading = !!articleActionLoading[`dismiss:${article.id}`];
                     const isDeepDiveLoading = !!articleActionLoading[`dive_deeper:${article.id}`];
                     const isOpinionLoading = !!articleActionLoading[`opinion_piece:${article.id}`];
+                    const isRecommendImageLoading = !!imageActionLoading[`recommend:${article.id}`];
+                    const isGenerateImageLoading = !!imageActionLoading[`generate:${article.id}`];
+                    const generatedImage = generatedImageByArticle[article.id];
                     const isQueueFrameworkLoading = !!queueActionLoading[`enqueue:framework_generation:${article.id}`];
                     const isQueueArticleLoading = !!queueActionLoading[`enqueue:article_creation:${article.id}`];
+                    const canImageActions = authorStatus === 'complete' && !!article.author?.output;
                     return wp.element.createElement(
                         'tr',
                         { key: `${article.headline || article.title || article.id}-${index}` },
@@ -3160,7 +3574,29 @@ const EditorialPlannerApp = () => {
                                 `Vol: ${volume}${metric?.priority_score != null ? ` · Priority: ${metric.priority_score}` : ''}`
                             )
                         ),
-                        wp.element.createElement('td', null, citationsCount),
+                        wp.element.createElement(
+                            'td',
+                            null,
+                            wp.element.createElement('strong', null, citationsCount),
+                            wp.element.createElement(
+                                'div',
+                                {
+                                    style: {
+                                        marginTop: '4px',
+                                        display: 'inline-block',
+                                        padding: '2px 6px',
+                                        borderRadius: '999px',
+                                        border: `1px solid ${citationQuality.border}`,
+                                        background: citationQuality.bg,
+                                        color: citationQuality.text,
+                                        fontSize: '11px',
+                                        fontWeight: 600,
+                                        lineHeight: 1.3,
+                                    },
+                                },
+                                citationQuality.label
+                            )
+                        ),
                         wp.element.createElement(
                             'td',
                             null,
@@ -3354,6 +3790,36 @@ const EditorialPlannerApp = () => {
                                 Button,
                                 {
                                     isSecondary: true,
+                                    onClick: () => handleRecommendImageArticle(article),
+                                    style: { marginRight: '8px' },
+                                    disabled: !canImageActions || isRecommendImageLoading,
+                                },
+                                isRecommendImageLoading ? wp.element.createElement(Spinner, null) : 'Recommend Image'
+                            ),
+                            wp.element.createElement(
+                                Button,
+                                {
+                                    isSecondary: true,
+                                    onClick: () => handleGenerateImageArticle(article),
+                                    style: { marginRight: '8px' },
+                                    disabled: !canImageActions || isGenerateImageLoading,
+                                },
+                                isGenerateImageLoading ? wp.element.createElement(Spinner, null) : 'Generate Image'
+                            ),
+                            wp.element.createElement(
+                                Button,
+                                {
+                                    isSecondary: true,
+                                    onClick: () => window.open(generatedImage?.url, '_blank'),
+                                    style: { marginRight: '8px' },
+                                    disabled: !generatedImage?.url,
+                                },
+                                'Open Image'
+                            ),
+                            wp.element.createElement(
+                                Button,
+                                {
+                                    isSecondary: true,
                                     onClick: () => window.open(authorEditUrl, '_blank'),
                                     style: { marginRight: '8px' },
                                     disabled: !(authorStatus === 'complete' && authorEditUrl),
@@ -3506,8 +3972,13 @@ const EditorialPlannerApp = () => {
                 ),
                 wp.element.createElement(
                     Button,
-                    { isDestructive: true, onClick: clearQueuedJobs, disabled: queueLoading || queueClearing },
+                    { isDestructive: true, onClick: clearQueuedJobs, disabled: queueLoading || queueClearing || queueRemoving },
                     queueClearing ? wp.element.createElement(Spinner, null) : 'Clear Queued'
+                ),
+                wp.element.createElement(
+                    Button,
+                    { isDestructive: true, onClick: removeAllQueueItems, disabled: queueLoading || queueClearing || queueRemoving },
+                    queueRemoving ? wp.element.createElement(Spinner, null) : 'Remove All'
                 )
             ),
             queueLoading &&
@@ -3808,6 +4279,15 @@ const EditorialPlannerApp = () => {
     const focusLabel = getFocusLabel(focusLevel);
     const synopsisEstimate = estimateSynopses(sessionDetail?.meta, focusLevel);
     const authorValidationSummary = summarizeAuthorValidation(sessionDetail?.meta);
+    const providerErrors = Array.isArray(searchProviderStatus?.provider_errors)
+        ? searchProviderStatus.provider_errors
+        : [];
+    const hasProviderErrors = Boolean(searchProviderStatus?.has_errors) || providerErrors.length > 0;
+    const serpapiIssue = providerErrors.find((item) => String(item).toLowerCase().includes('serpapi:')) || '';
+    const providerAdminInstruction = searchProviderStatus?.admin_instruction
+        || (serpapiIssue
+            ? 'SerpAPI is failing (quota or credential issue). Please contact your System Administrator to restore SerpAPI access and verify fallback provider support before rerunning Research Phase 4.'
+            : 'Search provider is failing. Please contact your System Administrator to restore provider access before rerunning Research Phase 4.');
 
     // Render the detail page when viewing a session
     if (viewingSessionId && sessionDetail) {
@@ -4309,8 +4789,13 @@ const EditorialPlannerApp = () => {
                         ),
                         wp.element.createElement(
                             Button,
-                            { isDestructive: true, onClick: clearQueuedJobs, disabled: queueLoading || queueClearing },
+                            { isDestructive: true, onClick: clearQueuedJobs, disabled: queueLoading || queueClearing || queueRemoving },
                             queueClearing ? wp.element.createElement(Spinner, null) : 'Clear Queued'
+                        ),
+                        wp.element.createElement(
+                            Button,
+                            { isDestructive: true, onClick: removeAllQueueItems, disabled: queueLoading || queueClearing || queueRemoving },
+                            queueRemoving ? wp.element.createElement(Spinner, null) : 'Remove All'
                         )
                     )
                 ),
@@ -4707,7 +5192,7 @@ const EditorialPlannerApp = () => {
                 Button,
                 {
                     isPrimary: true,
-                    onClick: () => setStartModalOpen(true),
+                    onClick: navigateToNewSession,
                 },
                 'Start New Session'
             )
@@ -5016,6 +5501,32 @@ const EditorialPlannerApp = () => {
                                   { style: { margin: '8px 0 4px', fontWeight: '500' } },
                                   `Validation Issues: ${researchValidationDetail?.summary?.error_count ?? 0} errors, ${researchValidationDetail?.summary?.warning_count ?? 0} warnings`
                               ),
+                              hasProviderErrors &&
+                                  wp.element.createElement(
+                                      'div',
+                                      {
+                                          style: {
+                                              margin: '8px 0 8px',
+                                              padding: '10px',
+                                              border: '1px solid #d63638',
+                                              borderRadius: '4px',
+                                              background: '#fff5f5',
+                                          },
+                                      },
+                                      wp.element.createElement('strong', null, 'Search Provider Action Required'),
+                                      wp.element.createElement(
+                                          'p',
+                                          { style: { margin: '6px 0 0' } },
+                                          providerAdminInstruction
+                                      ),
+                                      serpapiIssue
+                                          ? wp.element.createElement(
+                                                'p',
+                                                { style: { margin: '6px 0 0', fontSize: '12px', color: '#7a1f1f' } },
+                                                `Detected provider error: ${serpapiIssue}`
+                                            )
+                                          : null
+                                  ),
                               (researchValidationDetail?.issues || []).length > 0 &&
                                   wp.element.createElement(
                                       'ul',

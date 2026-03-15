@@ -3,11 +3,27 @@
  */
 
 const { registerPlugin } = wp.plugins;
-const { PluginSidebar, PluginSidebarMoreMenuItem } = wp.editPost;
-const { PanelBody, TextareaControl, Button, Spinner } = wp.components;
+const { PluginSidebar } = wp.editPost;
+const {
+    PanelBody,
+    TextareaControl,
+    TextControl,
+    Button,
+    Spinner,
+    ToggleControl,
+    SelectControl,
+    Notice,
+} = wp.components;
 const { useState, useEffect } = wp.element;
 const { useSelect, useDispatch } = wp.data;
 const { apiFetch } = wp;
+
+const StatusMessage = ({ tone = 'info', title, children }) => (
+    <div className={`dual-gpt-message dual-gpt-message-${tone}`}>
+        {title ? <strong>{title}</strong> : null}
+        {children ? <div>{children}</div> : null}
+    </div>
+);
 
 const DualGPTSidebar = () => {
     const [researchPrompt, setResearchPrompt] = useState('');
@@ -34,10 +50,64 @@ const DualGPTSidebar = () => {
     const [authorWarnings, setAuthorWarnings] = useState([]);
     const [authorValidationErrors, setAuthorValidationErrors] = useState([]);
 
+    const [imageConfig, setImageConfig] = useState(null);
+    const [imageConfigLoading, setImageConfigLoading] = useState(true);
+    const [imageConfigError, setImageConfigError] = useState('');
+    const [imageRecommendationLoading, setImageRecommendationLoading] = useState(false);
+    const [imageGenerateLoading, setImageGenerateLoading] = useState(false);
+    const [imageError, setImageError] = useState('');
+    const [imageNotice, setImageNotice] = useState('');
+    const [imageRecommendation, setImageRecommendation] = useState(null);
+    const [imageResult, setImageResult] = useState(null);
+    const [imagePrompt, setImagePrompt] = useState('');
+    const [imageNegativePrompt, setImageNegativePrompt] = useState('');
+    const [imageAltText, setImageAltText] = useState('');
+    const [imageCaption, setImageCaption] = useState('');
+    const [imageTextInImage, setImageTextInImage] = useState('');
+    const [imageEditorialAccuracy, setImageEditorialAccuracy] = useState(false);
+    const [imageSetFeatured, setImageSetFeatured] = useState(true);
+    const [imageStoreMedia, setImageStoreMedia] = useState(true);
+    const [imageAspectRatio, setImageAspectRatio] = useState('16:9');
+    const [imageSize, setImageSize] = useState('4K');
+    const [imageProvider, setImageProvider] = useState('google');
+    const [imagePresetKey, setImagePresetKey] = useState('layered_editorial_cutout');
+    const [imageAdditionalKeywords, setImageAdditionalKeywords] = useState('');
+
     const { insertBlocks } = useDispatch('core/block-editor');
+    const { editPost } = useDispatch('core/editor');
     const { createNotice } = useDispatch('core/notices');
 
-    const draftContent = useSelect((select) => select('core/editor').getEditedPostContent());
+    const postId = useSelect((select) => select('core/editor').getCurrentPostId(), []);
+    const draftContent = useSelect((select) => select('core/editor').getEditedPostContent(), []);
+    const postTitle = useSelect((select) => select('core/editor').getEditedPostAttribute('title') || '', []);
+    const postExcerpt = useSelect((select) => select('core/editor').getEditedPostAttribute('excerpt') || '', []);
+
+    useEffect(() => {
+        const loadImageConfig = async () => {
+            setImageConfigLoading(true);
+            setImageConfigError('');
+
+            try {
+                const response = await apiFetch({
+                    path: 'dual-gpt/v1/images/config',
+                    method: 'GET',
+                });
+
+                setImageConfig(response);
+                setImageProvider(response.image_provider || 'google');
+                setImagePresetKey(response.default_preset_key || 'layered_editorial_cutout');
+                setImageAspectRatio(response.house_style?.aspect_ratio || '16:9');
+                setImageStoreMedia(!!response.workflow?.auto_store_media);
+                setImageSetFeatured(!!response.workflow?.allow_featured_image_replace);
+            } catch (error) {
+                setImageConfigError(error?.message || 'Failed to load image settings.');
+            } finally {
+                setImageConfigLoading(false);
+            }
+        };
+
+        loadImageConfig();
+    }, []);
 
     const handleResearchSubmit = async () => {
         if (!researchPrompt.trim()) {
@@ -50,7 +120,6 @@ const DualGPTSidebar = () => {
         setResearchResults('');
 
         try {
-            // First create a session
             const sessionResponse = await apiFetch({
                 path: 'dual-gpt/v1/sessions',
                 method: 'POST',
@@ -60,7 +129,6 @@ const DualGPTSidebar = () => {
                 },
             });
 
-            // Then create the job
             const jobResponse = await apiFetch({
                 path: 'dual-gpt/v1/jobs',
                 method: 'POST',
@@ -73,12 +141,8 @@ const DualGPTSidebar = () => {
 
             setResearchJobId(jobResponse.job_id);
             setResearchResults('Job submitted successfully. Processing...');
-
-            // Start polling for results
             pollJobStatus(jobResponse.job_id, 'research');
-
         } catch (error) {
-            console.error('Research error:', error);
             let errorMessage = 'An error occurred while processing your research request.';
 
             if (error.code === 'budget_exceeded') {
@@ -134,9 +198,7 @@ const DualGPTSidebar = () => {
                 setAuthorBlocks(response.output?.blocks || []);
                 setAuthorResults('Enrichment completed successfully.');
             }
-
         } catch (error) {
-            console.error('Author error:', error);
             let errorMessage = 'An error occurred while processing your authoring request.';
 
             if (error.code === 'budget_exceeded') {
@@ -163,9 +225,9 @@ const DualGPTSidebar = () => {
 
             if (response.status === 'completed') {
                 if (type === 'research') {
-                    setResearchResults('Research completed successfully!');
+                    setResearchResults('Research completed successfully.');
                 } else {
-                    setAuthorResults('Content generation completed successfully!');
+                    setAuthorResults('Content generation completed successfully.');
                 }
             } else if (response.status === 'failed') {
                 const errorMsg = response.error_message || 'Job failed';
@@ -176,11 +238,9 @@ const DualGPTSidebar = () => {
                 }
                 createNotice('error', `Job failed: ${errorMsg}`, { type: 'snackbar' });
             } else {
-                // Still processing, poll again in 2 seconds
                 setTimeout(() => pollJobStatus(jobId, type), 2000);
             }
         } catch (error) {
-            console.error('Polling error:', error);
             const errorMsg = 'Error checking job status';
             if (type === 'research') {
                 setResearchError(errorMsg);
@@ -263,19 +323,281 @@ const DualGPTSidebar = () => {
         insertBlocks(blocks);
     };
 
+    const buildImagePayload = () => ({
+        post_id: postId,
+        title: postTitle,
+        summary: postExcerpt || '',
+        prompt: imagePrompt,
+        negative_prompt: imageNegativePrompt,
+        alt_text: imageAltText,
+        caption: imageCaption,
+        provider: imageProvider,
+        preset_key: imagePresetKey,
+        keywords: imageAdditionalKeywords,
+        text_in_image: imageTextInImage,
+        editorial_accuracy: imageEditorialAccuracy,
+        store_in_media_library: imageStoreMedia,
+        set_featured_image: imageSetFeatured,
+        aspect_ratio: imageAspectRatio,
+        image_size: imageSize,
+    });
+
+    const handleRecommendImage = async () => {
+        setImageRecommendationLoading(true);
+        setImageError('');
+        setImageNotice('');
+
+        try {
+            const response = await apiFetch({
+                path: 'dual-gpt/v1/images/recommend',
+                method: 'POST',
+                data: buildImagePayload(),
+            });
+
+            setImageRecommendation(response);
+            setImagePrompt(response.prompt || '');
+            setImageNegativePrompt(response.negative_prompt || '');
+            setImageAltText(response.alt_text || '');
+            setImageCaption(response.caption || '');
+            setImageNotice('Image recommendation updated from the current article context.');
+        } catch (error) {
+            setImageError(error?.message || 'Failed to generate an image recommendation.');
+        } finally {
+            setImageRecommendationLoading(false);
+        }
+    };
+
+    const handleGenerateImage = async () => {
+        setImageGenerateLoading(true);
+        setImageError('');
+        setImageNotice('');
+
+        try {
+            const response = await apiFetch({
+                path: 'dual-gpt/v1/images/generate',
+                method: 'POST',
+                data: buildImagePayload(),
+            });
+
+            setImageResult(response);
+            setImageNotice(response.stored_in_media_library
+                ? 'Image generated and saved to the media library.'
+                : 'Image generated successfully.');
+
+            const firstAttachment = response.attachments?.[0];
+            if (firstAttachment?.attachment_id && imageSetFeatured) {
+                editPost({ featured_media: firstAttachment.attachment_id });
+            }
+        } catch (error) {
+            setImageError(error?.message || 'Failed to generate image.');
+        } finally {
+            setImageGenerateLoading(false);
+        }
+    };
+
+    const insertGeneratedImage = () => {
+        const firstAttachment = imageResult?.attachments?.[0];
+        if (!firstAttachment?.attachment_id || !firstAttachment?.url) {
+            return;
+        }
+
+        const imageBlock = wp.blocks.createBlock('core/image', {
+            id: firstAttachment.attachment_id,
+            url: firstAttachment.url,
+            alt: imageAltText,
+            caption: imageCaption,
+        });
+
+        insertBlocks([imageBlock]);
+        createNotice('success', 'Generated image inserted into the post.', { type: 'snackbar' });
+    };
+
     return (
         <PluginSidebar
             name="dual-gpt-sidebar"
             title="Dual-GPT Authoring"
             icon="admin-tools"
         >
-            <PanelBody title="Research Pane" initialOpen={true}>
+            <PanelBody title="AI Images" initialOpen={true}>
+                {imageConfigLoading ? (
+                    <Spinner />
+                ) : null}
+
+                {imageConfigError ? (
+                    <StatusMessage tone="error" title="Image settings unavailable">
+                        {imageConfigError}
+                    </StatusMessage>
+                ) : null}
+
+                {!imageConfigLoading && !imageConfigError ? (
+                    <>
+                        <SelectControl
+                            label="Style Preset"
+                            value={imagePresetKey}
+                            options={Object.entries(imageConfig?.presets || {}).map(([value, preset]) => ({
+                                label: preset.label || value,
+                                value,
+                            }))}
+                            onChange={(value) => {
+                                setImagePresetKey(value);
+                                const preset = imageConfig?.presets?.[value];
+                                if (preset?.aspect_ratio) {
+                                    setImageAspectRatio(preset.aspect_ratio);
+                                }
+                            }}
+                        />
+
+                        <SelectControl
+                            label="Image Provider"
+                            value={imageProvider}
+                            options={Object.entries(imageConfig?.provider_status || {})
+                                .filter(([, provider]) => (provider.supports || []).includes('image'))
+                                .map(([value, provider]) => ({
+                                    label: `${provider.label}${provider.configured ? '' : ' (not configured)'}`,
+                                    value,
+                                    disabled: !provider.enabled,
+                                }))}
+                            onChange={setImageProvider}
+                        />
+
+                        <SelectControl
+                            label="Aspect Ratio"
+                            value={imageAspectRatio}
+                            options={[
+                                { label: '16:9', value: '16:9' },
+                                { label: '4:3', value: '4:3' },
+                                { label: '3:4', value: '3:4' },
+                                { label: '1:1', value: '1:1' },
+                                { label: '9:16', value: '9:16' },
+                            ]}
+                            onChange={setImageAspectRatio}
+                        />
+
+                        <SelectControl
+                            label="Image Size"
+                            value={imageSize}
+                            options={[
+                                { label: '2K', value: '2K' },
+                                { label: '4K', value: '4K' },
+                            ]}
+                            onChange={setImageSize}
+                        />
+
+                        <TextControl
+                            label="Additional Keywords"
+                            value={imageAdditionalKeywords}
+                            onChange={setImageAdditionalKeywords}
+                            placeholder="Optional themes, objects, sectors, or motifs"
+                            help="Comma-separated keywords to steer the image without rewriting the full prompt."
+                        />
+
+                        <TextControl
+                            label="Text In Image"
+                            value={imageTextInImage}
+                            onChange={setImageTextInImage}
+                            placeholder="Optional exact text to render"
+                        />
+
+                        <TextareaControl
+                            label="Prompt"
+                            value={imagePrompt}
+                            onChange={setImagePrompt}
+                            placeholder="Generate a recommendation first, or write your own prompt."
+                        />
+
+                        <TextareaControl
+                            label="Negative Prompt"
+                            value={imageNegativePrompt}
+                            onChange={setImageNegativePrompt}
+                            placeholder="Optional exclusions"
+                        />
+
+                        <TextControl
+                            label="Alt Text"
+                            value={imageAltText}
+                            onChange={setImageAltText}
+                        />
+
+                        <TextControl
+                            label="Caption"
+                            value={imageCaption}
+                            onChange={setImageCaption}
+                        />
+
+                        <ToggleControl
+                            label="Editorial Accuracy / Google Search Grounding"
+                            checked={imageEditorialAccuracy}
+                            onChange={setImageEditorialAccuracy}
+                        />
+
+                        <ToggleControl
+                            label="Save To Media Library"
+                            checked={imageStoreMedia}
+                            onChange={setImageStoreMedia}
+                        />
+
+                        <ToggleControl
+                            label="Set As Featured Image"
+                            checked={imageSetFeatured}
+                            onChange={setImageSetFeatured}
+                        />
+
+                        <div className="dual-gpt-button-row">
+                            <Button
+                                isSecondary
+                                onClick={handleRecommendImage}
+                                disabled={imageRecommendationLoading || imageGenerateLoading}
+                            >
+                                {imageRecommendationLoading ? <Spinner /> : 'Recommend'}
+                            </Button>
+                            <Button
+                                isPrimary
+                                onClick={handleGenerateImage}
+                                disabled={imageGenerateLoading || imageRecommendationLoading || !imagePrompt.trim()}
+                            >
+                                {imageGenerateLoading ? <Spinner /> : 'Generate'}
+                            </Button>
+                        </div>
+
+                        {imageError ? (
+                            <StatusMessage tone="error" title="Image generation failed">
+                                {imageError}
+                            </StatusMessage>
+                        ) : null}
+
+                        {imageNotice ? (
+                            <StatusMessage tone="success" title="Image workflow">
+                                {imageNotice}
+                            </StatusMessage>
+                        ) : null}
+
+                        {imageRecommendation?.rationale ? (
+                            <Notice status="info" isDismissible={false}>
+                                {imageRecommendation.rationale}
+                            </Notice>
+                        ) : null}
+
+                        {imageResult?.attachments?.[0]?.url ? (
+                            <div className="dual-gpt-image-preview">
+                                <img src={imageResult.attachments[0].url} alt={imageAltText || 'Generated image preview'} />
+                                <div className="dual-gpt-button-row">
+                                    <Button isSecondary onClick={insertGeneratedImage}>
+                                        Insert Inline
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : null}
+                    </>
+                ) : null}
+            </PanelBody>
+
+            <PanelBody title="Research Pane" initialOpen={false}>
                 <TextareaControl
                     label="Research Prompt"
                     value={researchPrompt}
                     onChange={(value) => {
                         setResearchPrompt(value);
-                        if (researchError) setResearchError(''); // Clear error on input
+                        if (researchError) setResearchError('');
                     }}
                     placeholder="Enter your research query..."
                 />
@@ -286,20 +608,11 @@ const DualGPTSidebar = () => {
                 >
                     {researchLoading ? <Spinner /> : 'Research'}
                 </Button>
-                {researchError && (
-                    <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#ffe6e6', border: '1px solid #ff9999', borderRadius: '4px' }}>
-                        <strong>Error:</strong> {researchError}
-                    </div>
-                )}
-                {researchResults && !researchError && (
-                    <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#e6ffe6', border: '1px solid #99ff99', borderRadius: '4px' }}>
-                        <strong>Research Results:</strong>
-                        <p>{researchResults}</p>
-                    </div>
-                )}
+                {researchError ? <StatusMessage tone="error" title="Research error">{researchError}</StatusMessage> : null}
+                {researchResults && !researchError ? <StatusMessage tone="success" title="Research">{researchResults}</StatusMessage> : null}
             </PanelBody>
 
-            <PanelBody title="Author Agent" initialOpen={true}>
+            <PanelBody title="Author Agent" initialOpen={false}>
                 <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600 }}>Mode</label>
                 <select
                     value={authorMode}
@@ -353,58 +666,41 @@ const DualGPTSidebar = () => {
                     />
                 </PanelBody>
 
-                <Button
-                    isPrimary
-                    onClick={handleAuthorSubmit}
-                    disabled={authorLoading}
-                >
-                    {authorLoading ? <Spinner /> : 'Run Author Agent'}
-                </Button>
-                <Button
-                    isSecondary
-                    onClick={insertBlocksFromAuthor}
-                    disabled={!authorBlocks.length || authorError}
-                    style={{ marginLeft: '10px' }}
-                >
-                    Insert Blocks
-                </Button>
-                {authorError && (
-                    <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#ffe6e6', border: '1px solid #ff9999', borderRadius: '4px' }}>
-                        <strong>Error:</strong> {authorError}
-                    </div>
-                )}
-                {authorWarnings.length > 0 && (
-                    <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#fff4e5', border: '1px solid #ffb74d', borderRadius: '4px' }}>
-                        <strong>Warnings:</strong>
-                        <ul>
-                            {authorWarnings.map((warning, index) => (
-                                <li key={index}>{warning}</li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-                {authorValidationErrors.length > 0 && (
-                    <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#ffe6e6', border: '1px solid #ff9999', borderRadius: '4px' }}>
-                        <strong>Validation Errors:</strong>
-                        <ul>
-                            {authorValidationErrors.map((error, index) => (
-                                <li key={index}>{error}</li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-                {authorResults && !authorError && (
-                    <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#e6ffe6', border: '1px solid #99ff99', borderRadius: '4px' }}>
-                        <strong>Author Results:</strong>
-                        <p>{authorResults}</p>
-                    </div>
-                )}
-                {authorAbstract && (
-                    <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#f0f4ff', border: '1px solid #99b5ff', borderRadius: '4px' }}>
+                <div className="dual-gpt-button-row">
+                    <Button
+                        isPrimary
+                        onClick={handleAuthorSubmit}
+                        disabled={authorLoading}
+                    >
+                        {authorLoading ? <Spinner /> : 'Run Author Agent'}
+                    </Button>
+                    <Button
+                        isSecondary
+                        onClick={insertBlocksFromAuthor}
+                        disabled={!authorBlocks.length || !!authorError}
+                    >
+                        Insert Blocks
+                    </Button>
+                </div>
+
+                {authorError ? <StatusMessage tone="error" title="Author error">{authorError}</StatusMessage> : null}
+                {authorWarnings.length > 0 ? (
+                    <StatusMessage tone="warning" title="Warnings">
+                        <ul>{authorWarnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>
+                    </StatusMessage>
+                ) : null}
+                {authorValidationErrors.length > 0 ? (
+                    <StatusMessage tone="error" title="Validation Errors">
+                        <ul>{authorValidationErrors.map((error, index) => <li key={index}>{error}</li>)}</ul>
+                    </StatusMessage>
+                ) : null}
+                {authorResults && !authorError ? <StatusMessage tone="success" title="Author">{authorResults}</StatusMessage> : null}
+                {authorAbstract ? (
+                    <div className="dual-gpt-results">
                         <strong>Abstract Output:</strong>
                         <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(authorAbstract, null, 2)}</pre>
                     </div>
-                )}
+                ) : null}
             </PanelBody>
         </PluginSidebar>
     );

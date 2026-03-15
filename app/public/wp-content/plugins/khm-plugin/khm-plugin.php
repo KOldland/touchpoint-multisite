@@ -2140,32 +2140,13 @@ function render_top_line_categories_page() {
 
 function render_sessions_page() {
     echo '<div id="editorial-sessions-app"></div>';
-    echo '<div id="editorial-planner-app" style="display:none;"></div>';
-
-    $planner_path = plugin_dir_path(__FILE__) . 'assets/js/editorial-planner.js';
-    $planner_version = file_exists($planner_path) ? filemtime($planner_path) : '1.0';
-    wp_enqueue_script(
-        'editorial-planner',
-        plugins_url('assets/js/editorial-planner.js', __FILE__),
-        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
-        $planner_version,
-        true
-    );
-    wp_localize_script(
-        'editorial-planner',
-        'dualGptData',
-        array(
-            'nonce' => wp_create_nonce('wp_rest'),
-            'restUrl' => rest_url('dual-gpt/v1/'),
-        )
-    );
 
     $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-sessions.js';
     $version = file_exists($path) ? filemtime($path) : '1.0';
     wp_enqueue_script(
         'editorial-sessions',
         plugins_url('assets/js/editorial-sessions.js', __FILE__),
-        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data', 'editorial-planner'),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
         $version,
         true
     );
@@ -2312,6 +2293,30 @@ function ed_get_frameworks($request){
     // Placeholder - implement based on your frameworks
     return rest_ensure_response([]);
 }
+
+// Block editor: AI Image Generator sidebar
+add_action('enqueue_block_editor_assets', function () {
+    if (!current_user_can('edit_posts')) {
+        return;
+    }
+    $path    = plugin_dir_path(__FILE__) . 'assets/js/editor-image-sidebar.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
+    wp_enqueue_script(
+        'khm-editor-image-sidebar',
+        plugins_url('assets/js/editor-image-sidebar.js', __FILE__),
+        array('wp-plugins', 'wp-edit-post', 'wp-editor', 'wp-element', 'wp-components', 'wp-data', 'wp-api-fetch'),
+        $version,
+        true
+    );
+    wp_localize_script(
+        'khm-editor-image-sidebar',
+        'khmEditorData',
+        array(
+            'nonce'   => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
+    );
+});
 
 function ed_get_pipeline($request){
     // Placeholder - implement based on your pipeline

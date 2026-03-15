@@ -469,7 +469,7 @@ class Dual_GPT_Planner_Orchestrator {
                 'phase2_title' => 120,
                 'phase2_summary' => 200,
                 'phase3_topics' => 6,
-                'phase3_citations' => 2,
+                'phase3_citations' => 4,
                 'phase3_findings' => 4,
                 'phase3_summary' => 220,
                 'phase3_why' => 200,
@@ -477,7 +477,7 @@ class Dual_GPT_Planner_Orchestrator {
                 'phase3_content' => 180,
                 'phase3_citation_title' => 120,
                 'phase4_topics' => 6,
-                'phase4_citations' => 2,
+                'phase4_citations' => 5,
                 'phase4_insights' => 4,
                 'phase4_summary' => 220,
                 'phase4_keywords' => 6,
@@ -549,7 +549,7 @@ class Dual_GPT_Planner_Orchestrator {
         if (count($existing_titles) > 20) {
             $existing_titles = array_slice($existing_titles, 0, 20);
         }
-        $limit = 10000;
+        $limit = 16000;
         $last_prompt = '';
         foreach ($caps_levels as $index => $caps) {
             $payloads = $this->build_synopsis_payloads($phase1_payload, $phase2_context, $phase3_payload, $phase4_payload, $caps);
@@ -624,12 +624,13 @@ class Dual_GPT_Planner_Orchestrator {
 
     private function assemble_synopsis_prompt($topic, $phase1_payload, $phase2_context, $phase3_payload, $phase4_payload, $plan, $existing_titles) {
         $lines = array(
-            'Act as an Editorial Planning Assistant generating article synopses based on validated B2B research. Each synopsis should represent a single, clearly scoped article idea.',
+            'Act as an Editorial Planning Assistant generating article synopses based on validated B2B research. Each synopsis must represent a single, clearly scoped article idea.',
             'Use the provided Phase 4 validated topics and citations, Phase 3 topic framing, keyword metrics from Phase 2, and trend context from Phase 1 to ensure alignment with audience demand and editorial value.',
             'Prioritize: fresh or under-covered angles, strategic keyword targeting, and data-backed article narratives.',
+            'CITATION REQUIREMENT (hard rule): Every synopsis MUST include a minimum of 4 citations. Aim for 5-6 citations per synopsis where the phase payloads support it. Draw citations from Phase 4 first, then Phase 3, then Phase 1. Each citation must directly support a specific claim in the summary or key points — do not add citations as mere background references.',
             'Return ONLY valid JSON. Do not include commentary or apologies.',
             'If you cannot comply, return {"synopses": []} and nothing else.',
-            'If you need additional detail, refer to the phase payloads provided below. Do not call external search or invent sources.',
+            'If you need additional detail, refer to the phase payloads provided below. Do not invent sources or fabricate URLs.',
             'Schema: {',
             '"synopses":[{"id":"","topic":"","headline":"","summary":"","key_points":[""],"keywords":[""],"citations":[{"title":"","url":"","source":"","date":"","snippet":"","quote":""}],"recommended_word_count":"","topic_coverage_level":"Important and Not Covered | Saturated | Ever-Green","audience_segment":"","priority_score":0.0,"opening_hook":""}]',
             '}',
@@ -647,16 +648,16 @@ class Dual_GPT_Planner_Orchestrator {
             wp_json_encode($plan),
             'Format requirements:',
             '1) Headline: SEO-friendly and compelling.',
-            '2) Summary: concise and strategic.',
-            '3) Key Points: up to 5 bullets.',
+            '2) Summary: concise and strategic, must reference the key evidence angle.',
+            '3) Key Points: up to 5 bullets, each grounded in a cited source where possible.',
             '4) Keywords: 4-6 relevant terms.',
-            '5) Supporting Citations: 3-5 sources with citation + direct quote when available.',
+            '5) Citations: MINIMUM 4, target 5-6. Draw from Phase 4 validated topics first, supplement from Phase 3 and Phase 1. Each citation must have a non-empty snippet and a direct quote where available.',
             '6) Recommended Word Count: choose one of 850-1250, 1500-2500, 3000-5000.',
             '7) Topic Coverage Level: Important and Not Covered | Saturated | Ever-Green.',
             '8) Audience Segment: primary audience label when clear.',
             '9) Priority Score: 0.0-1.0 based on demand and content gap.',
             '10) Opening Hook: 1-2 sentence CTA or opening hook.',
-            'Use the validation outputs and citations. Do not fabricate sources or quotes.',
+            'FINAL CHECK: Before returning the JSON, verify that every synopsis in the array has at least 4 citations. If any synopsis has fewer than 4, add more from the phase payloads before returning.',
         );
 
         return implode("\n", $lines);
