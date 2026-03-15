@@ -225,6 +225,22 @@ class PluginWiringTest extends TestCase {
     }
 
     // -----------------------------------------------------------------------
+    // 5. Manager-level head hook counts remain single-source
+    // -----------------------------------------------------------------------
+
+    public function test_meta_manager_has_single_meta_wp_head_hook(): void {
+        $source = file_get_contents( dirname( __DIR__ ) . '/src/Meta/MetaManager.php' );
+        $count = substr_count( $source, "add_action( 'wp_head', array( \$this, 'output_meta_tags' ), 5 )" );
+        $this->assertSame( 1, $count, 'MetaManager should register output_meta_tags exactly once on wp_head.' );
+    }
+
+    public function test_schema_manager_has_single_schema_wp_head_hook(): void {
+        $source = file_get_contents( dirname( __DIR__ ) . '/src/Schema/SchemaManager.php' );
+        $count = substr_count( $source, "add_action( 'wp_head', array( \$this, 'output_schema' ), 25 )" );
+        $this->assertSame( 1, $count, 'SchemaManager should register output_schema exactly once on wp_head.' );
+    }
+
+    // -----------------------------------------------------------------------
     // Teardown: clean global test flags
     // -----------------------------------------------------------------------
 
