@@ -295,8 +295,8 @@ class AdminManager {
                                 'color' => '#0073aa',
                             );
 
-                            if ( class_exists( 'KH_SMMA\\Services\\PhaseEngine' ) ) {
-                                $phase_engine = new \KH_SMMA\Services\PhaseEngine();
+                            if ( class_exists( 'KH_SMMA\\Services\\PhaseEngine' ) && isset( $GLOBALS['wpdb'] ) && $GLOBALS['wpdb'] instanceof \wpdb ) {
+                                $phase_engine = new \KH_SMMA\Services\PhaseEngine( $GLOBALS['wpdb'] );
                                 $user_phase = $phase_engine->get_user_phase( get_current_user_id() );
                                 if ( is_array( $user_phase ) && ! empty( $user_phase['assigned_phase'] ) ) {
                                     $phase_data['phase'] = $user_phase['assigned_phase'];
