@@ -167,7 +167,7 @@ function render_answercard_block( $attributes, $content ) {
     $html .= '<span class="khm-answer-card__divider" aria-hidden="true"></span>';
     $html .= '<button type="button" class="khm-answer-card__toggle" aria-expanded="false" aria-controls="' . esc_attr( $modal_id ) . '">';
     $html .= '<span class="khm-answer-card__toggle-icon" aria-hidden="true"></span>';
-    $html .= esc_html__( 'Section Summary', 'khm-membership' );
+    $html .= esc_html__( 'Key Takeaway', 'khm-membership' );
     $html .= '</button>';
     $html .= '</div>';
 
@@ -175,7 +175,7 @@ function render_answercard_block( $attributes, $content ) {
     $html .= '<div class="khm-modal khm-modal large khm-answer-card__modal-card" role="dialog" aria-modal="true" aria-labelledby="' . esc_attr( $modal_id ) . '-title">';
     $html .= '<div class="khm-modal-header">';
     $html .= '<div class="khm-answer-card__header-text">';
-    $html .= '<span class="khm-answer-card__eyebrow" style="display:block;line-height:1;margin-bottom:-12px;">' . esc_html__( 'Section Summary', 'khm-membership' ) . '</span>';
+    $html .= '<span class="khm-answer-card__eyebrow" style="display:block;line-height:1;margin-bottom:-12px;">' . esc_html__( 'Key Takeaway', 'khm-membership' ) . '</span>';
     if ( ! empty( $attributes['sponsorToggle'] ) ) {
         $html .= '<span class="khm-answer-card__sponsor-badge">' . esc_html__( 'Sponsored', 'khm-membership' ) . '</span>';
     }
@@ -264,7 +264,7 @@ function render_answercard_block( $attributes, $content ) {
     }
 
     $html .= '<div class="khm-answer-card__actions">';
-    $html .= '<button type="button" class="khm-answer-card__share" data-post-id="' . esc_attr( $post_id ) . '" data-answer-card-question="' . esc_attr( $question ) . '" data-ajax-url="' . esc_url( $ajax_url ) . '" data-share-nonce="' . esc_attr( $share_nonce ) . '" data-login-url="' . esc_url( $login_url ) . '" title="' . esc_attr__( 'Share section summary', 'khm-membership' ) . '" aria-label="' . esc_attr__( 'Share section summary', 'khm-membership' ) . '">';
+    $html .= '<button type="button" class="khm-answer-card__share" data-post-id="' . esc_attr( $post_id ) . '" data-answer-card-question="' . esc_attr( $question ) . '" data-ajax-url="' . esc_url( $ajax_url ) . '" data-share-nonce="' . esc_attr( $share_nonce ) . '" data-login-url="' . esc_url( $login_url ) . '" title="' . esc_attr__( 'Share key takeaway', 'khm-membership' ) . '" aria-label="' . esc_attr__( 'Share key takeaway', 'khm-membership' ) . '">';
     $html .= '<span class="dashicons dashicons-email" aria-hidden="true"></span>';
     $html .= '<span class="khm-answer-card__share-label">' . esc_html__( 'Share summary', 'khm-membership' ) . '</span>';
     $html .= '</button>';
@@ -275,21 +275,35 @@ function render_answercard_block( $attributes, $content ) {
     $html .= '<span class="khm-answer-card__meta-label">' . esc_html__( 'Show meta', 'khm-membership' ) . '</span>';
     $html .= '</button>';
     $html .= '<div id="' . esc_attr( $meta_id ) . '" class="khm-answer-card__meta" hidden>';
+    
+    $has_meta = false;
+    
     if ( $meta_title ) {
         $html .= '<p><strong>' . esc_html__( 'Title:', 'khm-membership' ) . '</strong> ' . esc_html( $meta_title ) . '</p>';
+        $has_meta = true;
     }
     if ( $meta_url ) {
-        $html .= '<p><strong>' . esc_html__( 'URL:', 'khm-membership' ) . '</strong> <a href="' . esc_url( $meta_url ) . '">' . esc_html( $meta_url ) . '</a></p>';
+        $html .= '<p><strong>' . esc_html__( 'URL:', 'khm-membership' ) . '</strong> <a href="' . esc_url( $meta_url ) . '" target="_blank" rel="noopener">' . esc_html( $meta_url ) . '</a></p>';
+        $has_meta = true;
     }
     if ( $meta_author ) {
         $html .= '<p><strong>' . esc_html__( 'Author:', 'khm-membership' ) . '</strong> ' . esc_html( $meta_author ) . '</p>';
+        $has_meta = true;
     }
     if ( $meta_publisher ) {
         $html .= '<p><strong>' . esc_html__( 'Publisher:', 'khm-membership' ) . '</strong> ' . esc_html( $meta_publisher ) . '</p>';
+        $has_meta = true;
     }
     if ( $meta_date ) {
         $html .= '<p><strong>' . esc_html__( 'Date:', 'khm-membership' ) . '</strong> ' . esc_html( $meta_date ) . '</p>';
+        $has_meta = true;
     }
+    
+    // Show message if no meta data is available
+    if ( ! $has_meta ) {
+        $html .= '<p class="khm-answer-card__meta-empty">' . esc_html__( 'No metadata available for this key takeaway.', 'khm-membership' ) . '</p>';
+    }
+    
     $html .= '</div>';
 
     $html .= '<button type="button" class="khm-answer-card__save khm-answer-card__save--floating" data-post-id="' . esc_attr( $post_id ) . '" data-answer-card-id="' . esc_attr( $answer_card_id ) . '" data-answer-card-question="' . esc_attr( $question ) . '" data-rest-nonce="' . esc_attr( $rest_nonce ) . '" data-login-url="' . esc_url( $login_url ) . '" data-rest-root="' . esc_url( $rest_root ) . '" title="' . esc_attr__( 'Save to library', 'khm-membership' ) . '">';
@@ -1460,17 +1474,18 @@ function display_geo_score_column( $column, $post_id ) {
     }
 
     $score = floatval( $score );
+    $percent_score = $score <= 1 ? ( $score * 100 ) : $score;
     $class = 'geo-score--low';
-    if ( $score >= 70 ) {
+    if ( $percent_score >= 70 ) {
         $class = 'geo-score--high';
-    } elseif ( $score >= 40 ) {
+    } elseif ( $percent_score >= 40 ) {
         $class = 'geo-score--medium';
     }
 
     printf(
-        '<span class="geo-score %s">%s</span>',
+        '<span class="geo-score %s">%s%%</span>',
         esc_attr( $class ),
-        esc_html( number_format( $score, 1 ) )
+        esc_html( number_format( $percent_score, 0 ) )
     );
 }
 add_action( 'manage_posts_custom_column', __NAMESPACE__ . '\\display_geo_score_column', 10, 2 );

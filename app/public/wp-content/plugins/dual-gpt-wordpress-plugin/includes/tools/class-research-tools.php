@@ -19,20 +19,47 @@ class Dual_GPT_Research_Tools {
 
         $providers = class_exists('Dual_GPT_Search_Providers') ? new Dual_GPT_Search_Providers() : null;
         $provider_chain = $providers ? $providers->get_active_provider_chain() : array();
+        $provider_errors = array();
 
         foreach ($provider_chain as $provider) {
             $results = $this->search_with_provider($provider, $query, $top_k, $site_filter, $providers);
             if (!is_wp_error($results) && !empty($results['results'])) {
+                set_transient('dual_gpt_search_provider_status', array(
+                    'has_errors' => false,
+                    'provider' => $results['provider'] ?? $provider,
+                    'provider_chain' => $provider_chain,
+                    'warning' => '',
+                    'provider_errors' => array(),
+                    'checked_at' => current_time('mysql'),
+                ), 15 * MINUTE_IN_SECONDS);
                 return $results;
+            }
+            if (is_wp_error($results)) {
+                $provider_errors[] = $provider . ': ' . $results->get_error_code() . ' (' . $results->get_error_message() . ')';
             }
         }
 
-        $results = $this->get_simulated_search_results($query, $top_k);
+        $warning = 'No live search provider returned results. Configure a provider key before relying on citation output.';
+        if (!empty($provider_errors)) {
+            $warning .= ' Provider errors: ' . implode('; ', $provider_errors);
+        }
+
+        set_transient('dual_gpt_search_provider_status', array(
+            'has_errors' => !empty($provider_errors),
+            'provider' => 'none',
+            'provider_chain' => $provider_chain,
+            'warning' => $warning,
+            'provider_errors' => $provider_errors,
+            'checked_at' => current_time('mysql'),
+        ), 15 * MINUTE_IN_SECONDS);
 
         return array(
-            'results' => array_slice($results, 0, $top_k),
+            'results' => array(),
             'query' => $query,
-            'total_results' => count($results),
+            'total_results' => 0,
+            'provider' => 'none',
+            'warning' => $warning,
+            'provider_errors' => $provider_errors,
         );
     }
 
@@ -65,9 +92,12 @@ class Dual_GPT_Research_Tools {
         $normalized_query = $this->apply_site_filter_to_query($query, $site_filter);
 
         for ($page = 0; $page < $pages; $page++) {
+            // SerpAPI tbs parameter: qdr:y = last year, qdr:m = last month
+            // Using last 36 months to capture recent research while staying flexible
+            $three_months_ago = date('Y-m-d', strtotime('-36 months'));
             $params = array(
                 'engine' => 'google',
-                'q' => $normalized_query,
+                'q' => $normalized_query . ' after:' . date('Y-m-d', strtotime('-36 months')),
                 'num' => 10,
                 'start' => $page * 10,
                 'hl' => 'en',

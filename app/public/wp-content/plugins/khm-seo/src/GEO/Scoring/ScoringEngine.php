@@ -278,20 +278,15 @@ class ScoringEngine {
             $anchor_count = $resolution['resolved_count'];
         }
 
-        // scoring rule: 0 anchors -> 0.3, 1-2 anchors -> 0.7, 3+ anchors -> 1.0
-        if ( $anchor_count >= 3 ) {
-            $score = 1.0;
-        } elseif ( $anchor_count >= 1 ) {
-            $score = 0.7;
-        } else {
-            $score = 0.3;
-        }
+        // Continuous ramp: 0 anchors -> 0.3, 3+ anchors -> 1.0.
+        $effective_anchor_count = max( 0, min( 3, intval( $anchor_count ) ) );
+        $score = 0.3 + ( $effective_anchor_count * ( 0.7 / 3 ) );
 
         if ( empty( $anchor_entities ) && $resolution['unresolved_count'] > 5 ) {
             $score = max( 0, $score - 0.05 );
         }
 
-        return $score;
+        return max( 0, min( 1, $score ) );
     }
 
     /**

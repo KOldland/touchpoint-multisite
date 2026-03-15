@@ -4,16 +4,8 @@ PHPUnit 9.6.34 by Sebastian Bergmann and contributors.
 Runtime:       PHP 8.1.33
 Configuration: /Users/krisoldland/Local Sites/touchpoint-template-remote/app/public/wp-content/plugins/khm-plugin/phpunit.xml
 
-KHM webhook membership.attribution.created {"user_id":101,"schedule_id":10,"sponsor_id":20,"reference":"cs_fixture_signed_001"}
-KHM webhook membership.attribution.confirmed {"user_id":101,"schedule_id":10,"reference":"cs_fixture_signed_001","consent":1}
-KHM webhook membership.signup {"user_id":101,"tier":1,"attribution_id":"","payment_type":"subscription"}
-KHM webhook landing.success {"user_id":101,"schedule_id":10,"sponsor_id":20,"utm_source":"newsletter","utm_campaign":"spring_launch","reference":"cs_fixture_signed_001"}
-KHM webhook membership.email.skipped {"type":"welcome","user_id":101,"reason":"transactional_emails_disabled","reference":"cs_fixture_signed_001"}
-KHM webhook membership.email.skipped {"type":"payment","user_id":101,"reason":"transactional_emails_disabled","reference":"session:cs_fixture_signed_001"}
-KHM webhook webhook.processed {"event_id":"evt_checkout_signed_001","event_type":"checkout.session.completed","trace_id":"73cfad24-02ae-4a8d-8788-799a85983d64","latency_ms":28}
-KHM webhook webhook.received {"event_id":"evt_checkout_signed_001","event_type":"checkout.session.completed","latency_ms":104}
-.                                                                   1 / 1 (100%)
+..                                                                  2 / 2 (100%)
 
-Time: 00:00.160, Memory: 22.00 MB
+Time: 00:00.082, Memory: 16.00 MB
 
-OK (1 test, 9 assertions)
+OK (2 tests, 9 assertions)

@@ -1,6 +1,8 @@
 <?php
 namespace KH_SMMA\Services;
 
+use KH_SMMA\Compliance\ComplianceRulesStore;
+
 use WP_Error;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -8,6 +10,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class ComplianceValidator {
+    private ?ComplianceRulesStore $rules_store = null;
+
+    public function __construct( ?ComplianceRulesStore $rules_store = null ) {
+        $this->rules_store = $rules_store;
+    }
+
     private $blacklist = array(
         'guaranteed results',
         'guarantee results',

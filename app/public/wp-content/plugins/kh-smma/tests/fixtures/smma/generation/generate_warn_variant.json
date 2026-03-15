@@ -1,0 +1,18 @@
+{
+  "variants": [
+    {
+      "variant_id": "var_gen_warn_1",
+      "text": "Join brands reporting stronger outcomes after adopting this approach.",
+      "rationale": "Performance-oriented awareness variant.",
+      "asset_hints": [
+        { "type": "graphic", "description": "Before/after metrics chart" }
+      ],
+      "platform": "linkedin",
+      "compliance_notes": "WARN: claims may need substantiation"
+    }
+  ],
+  "google_ad_draft": {
+    "headlines": ["Plan Smarter Campaigns", "Operational Playbook"],
+    "descriptions": ["Structured process for campaign planning.", "Practical framework for teams."]
+  }
+}

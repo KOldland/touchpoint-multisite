@@ -161,8 +161,10 @@ require_once __DIR__ . '/src/GEO/SuggestAnswerCardsEndpoint.php';
 require_once __DIR__ . '/src/GEO/RedirectHandler.php';
 require_once __DIR__ . '/src/Sponsors/SponsorMigration.php';
 require_once __DIR__ . '/src/Sponsors/SponsorAudit.php';
+require_once __DIR__ . '/src/Sponsors/SponsorIngest.php';
 require_once __DIR__ . '/src/Sponsors/SponsorController.php';
 require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
+require_once __DIR__ . '/src/Sponsors/SponsorDashboard.php';
 require_once __DIR__ . '/src/Admin/PriceValidationAjax.php';
 require_once __DIR__ . '/src/Membership/MembershipMigration.php';
 require_once __DIR__ . '/src/Membership/AttributionEndpoint.php';
@@ -251,6 +253,7 @@ add_action('init', function() {
         'label' => 'Planner Sessions',
         'public' => false,
         'show_ui' => true,
+        'show_in_menu' => false,
         'supports' => array('title','editor','author','custom-fields'),
         'capability_type' => 'post',
         'show_in_rest' => true,
@@ -286,6 +289,12 @@ if (is_admin()) {
     }
     if ( class_exists( 'KHM\\Admin\\PriceValidationAjax' ) ) {
         ( new KHM\Admin\PriceValidationAjax() )->register();
+    }
+} else {
+    // Frontend: Register sponsor dashboard shortcode
+    if ( class_exists( 'KHM\\Sponsors\\SponsorDashboard' ) ) {
+        $sponsor_dashboard = new KHM\Sponsors\SponsorDashboard();
+        $sponsor_dashboard->register();
     }
 }
 
@@ -976,7 +985,7 @@ function khm_create_main_admin_menu() {
             'khm-main-menu',
             'khm_render_main_admin_page',
             'dashicons-chart-line',
-            30
+            9
         );
     }
 }
@@ -1982,23 +1991,65 @@ add_filter('cron_schedules', function($schedules) {
 // Editorial Admin Menu and Subpages
 add_action('admin_menu', function() {
     add_menu_page(
-        __('Editorial','khm-membership'),
-        __('Editorial','khm-membership'),
+        __('Editorial Assistant','khm-membership'),
+        __('Editorial Assistant','khm-membership'),
         'edit_posts',
         'editorial_planner',
         'render_editorial_planner_page',
         'dashicons-welcome-write-blog',
-        6
+        3
     );
 
-    add_submenu_page('editorial_planner', __('Planner','khm-membership'), __('Planner','khm-membership'), 'edit_posts', 'editorial_planner', 'render_editorial_planner_page');
-    add_submenu_page('editorial_planner', __('Frameworks','khm-membership'), __('Frameworks','khm-membership'), 'edit_posts', 'editorial_frameworks', 'render_frameworks_page');
-    add_submenu_page('editorial_planner', __('Sessions','khm-membership'), __('Sessions','khm-membership'), 'edit_posts', 'editorial_sessions', 'render_sessions_page');
-    add_submenu_page('editorial_planner', __('Exports','khm-membership'), __('Exports','khm-membership'), 'manage_options', 'editorial_exports', 'render_exports_page');
+    add_submenu_page('editorial_planner', __('New Session','khm-membership'), __('New Session','khm-membership'), 'edit_posts', 'editorial_new_session', 'render_new_session_page');
+    add_submenu_page('editorial_planner', __('Top-Line Categories','khm-membership'), __('Top-Line Categories','khm-membership'), 'edit_posts', 'editorial_top_line_categories', 'render_top_line_categories_page');
+    add_submenu_page('editorial_planner', __('Past Sessions','khm-membership'), __('Past Sessions','khm-membership'), 'edit_posts', 'editorial_sessions', 'render_sessions_page');
+    add_submenu_page('editorial_planner', __('Article Frameworks','khm-membership'), __('Article Frameworks','khm-membership'), 'edit_posts', 'editorial_frameworks', 'render_frameworks_page');
+    add_submenu_page('editorial_planner', __('Editorial Calendar','khm-membership'), __('Editorial Calendar','khm-membership'), 'edit_posts', 'editorial_calendar', 'render_editorial_calendar_page');
 });
 
+add_action('admin_menu', function() {
+    remove_submenu_page('editorial_planner', 'editorial_planner');
+}, 999);
+
+add_action('admin_menu', function() {
+    global $menu;
+
+    if (!is_array($menu) || empty($menu)) {
+        return;
+    }
+
+    $elementor_slugs = array('elementor', 'elementor-app');
+
+    foreach ($elementor_slugs as $target_slug) {
+        $found_index = null;
+        $found_item = null;
+
+        foreach ($menu as $index => $item) {
+            if (!empty($item[2]) && $item[2] === $target_slug) {
+                $found_index = $index;
+                $found_item = $item;
+                break;
+            }
+        }
+
+        if (null === $found_index || null === $found_item) {
+            continue;
+        }
+
+        unset($menu[$found_index]);
+
+        $new_index = 200;
+        while (isset($menu[$new_index])) {
+            $new_index++;
+        }
+
+        $menu[$new_index] = $found_item;
+    }
+
+    ksort($menu);
+}, 999);
+
 function render_editorial_planner_page() {
-    // Bootstrap existing Planner UI
     echo '<div id="editorial-planner-app"></div>';
     $planner_path = plugin_dir_path(__FILE__) . 'assets/js/editorial-planner.js';
     $planner_version = file_exists($planner_path) ? filemtime($planner_path) : '1.0';
@@ -2021,17 +2072,110 @@ function render_editorial_planner_page() {
 
 function render_frameworks_page() {
     echo '<div id="editorial-frameworks-app"></div>';
-    wp_enqueue_script('editorial-frameworks', plugins_url('assets/js/editorial-frameworks.js', __FILE__), ['wp-element', 'wp-api-fetch'], '1.0', true);
+    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-frameworks.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
+    wp_enqueue_script(
+        'editorial-frameworks',
+        plugins_url('assets/js/editorial-frameworks.js', __FILE__),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
+        $version,
+        true
+    );
+    wp_localize_script(
+        'editorial-frameworks',
+        'dualGptData',
+        array(
+            'nonce' => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
+    );
+}
+
+function render_new_session_page() {
+    echo '<div id="editorial-new-session-app"></div>';
+    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-new-session.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
+    wp_enqueue_script(
+        'editorial-new-session',
+        plugins_url('assets/js/editorial-new-session.js', __FILE__),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
+        $version,
+        true
+    );
+    wp_localize_script(
+        'editorial-new-session',
+        'dualGptData',
+        array(
+            'nonce' => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
+    );
+    wp_localize_script(
+        'editorial-new-session',
+        'admin_url',
+        admin_url()
+    );
+}
+
+function render_top_line_categories_page() {
+    echo '<div id="editorial-top-line-categories-app"></div>';
+    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-top-line-categories.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
+    wp_enqueue_script(
+        'editorial-top-line-categories',
+        plugins_url('assets/js/editorial-top-line-categories.js', __FILE__),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
+        $version,
+        true
+    );
+    wp_localize_script(
+        'editorial-top-line-categories',
+        'dualGptData',
+        array(
+            'nonce' => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
+    );
 }
 
 function render_sessions_page() {
     echo '<div id="editorial-sessions-app"></div>';
-    wp_enqueue_script('editorial-sessions', plugins_url('assets/js/editorial-sessions.js', __FILE__), ['wp-element', 'wp-api-fetch'], '1.0', true);
+
+    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-sessions.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
+    wp_enqueue_script(
+        'editorial-sessions',
+        plugins_url('assets/js/editorial-sessions.js', __FILE__),
+        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
+        $version,
+        true
+    );
+    wp_localize_script(
+        'editorial-sessions',
+        'dualGptData',
+        array(
+            'nonce' => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
+    );
 }
 
 function render_exports_page() {
     echo '<div id="editorial-exports-app"></div>';
     wp_enqueue_script('editorial-exports', plugins_url('assets/js/editorial-exports.js', __FILE__), ['wp-element', 'wp-api-fetch'], '1.0', true);
+}
+
+function render_editorial_calendar_page() {
+    echo '<div id="editorial-calendar-app"></div>';
+    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-calendar.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
+    wp_enqueue_script(
+        'editorial-calendar',
+        plugins_url('assets/js/editorial-calendar.js', __FILE__),
+        array('wp-element', 'wp-components'),
+        $version,
+        true
+    );
 }
 
 // Dashboard Widgets
@@ -2149,6 +2293,30 @@ function ed_get_frameworks($request){
     // Placeholder - implement based on your frameworks
     return rest_ensure_response([]);
 }
+
+// Block editor: AI Image Generator sidebar
+add_action('enqueue_block_editor_assets', function () {
+    if (!current_user_can('edit_posts')) {
+        return;
+    }
+    $path    = plugin_dir_path(__FILE__) . 'assets/js/editor-image-sidebar.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
+    wp_enqueue_script(
+        'khm-editor-image-sidebar',
+        plugins_url('assets/js/editor-image-sidebar.js', __FILE__),
+        array('wp-plugins', 'wp-edit-post', 'wp-editor', 'wp-element', 'wp-components', 'wp-data', 'wp-api-fetch'),
+        $version,
+        true
+    );
+    wp_localize_script(
+        'khm-editor-image-sidebar',
+        'khmEditorData',
+        array(
+            'nonce'   => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
+    );
+});
 
 function ed_get_pipeline($request){
     // Placeholder - implement based on your pipeline

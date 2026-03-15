@@ -29,7 +29,7 @@ class Dual_GPT_Admin {
             'dual-gpt-settings',
             array($this, 'settings_page'),
             'dashicons-admin-tools',
-            30
+            12
         );
 
         add_submenu_page(
@@ -76,6 +76,15 @@ class Dual_GPT_Admin {
             'dual-gpt-integrations',
             array($this, 'integrations_page')
         );
+
+        add_submenu_page(
+            'dual-gpt-settings',
+            'AI Images',
+            'AI Images',
+            'manage_options',
+            'dual-gpt-images',
+            array($this, 'images_page')
+        );
     }
 
     /**
@@ -112,6 +121,10 @@ class Dual_GPT_Admin {
         register_setting('dual_gpt_integrations', 'dual_gpt_dataforseo_login');
         register_setting('dual_gpt_integrations', 'dual_gpt_dataforseo_password');
         register_setting('dual_gpt_integrations', 'dual_gpt_serper_key');
+        register_setting('dual_gpt_images', 'dual_gpt_image_settings', array(
+            'type' => 'array',
+            'sanitize_callback' => array($this, 'sanitize_image_settings'),
+        ));
     }
 
     /**
@@ -376,6 +389,15 @@ class Dual_GPT_Admin {
         return sanitize_text_field($value);
     }
 
+    public function sanitize_image_settings($value) {
+        $settings = class_exists('Dual_GPT_Image_Settings') ? new Dual_GPT_Image_Settings() : null;
+        if (!$settings) {
+            return array();
+        }
+
+        return $settings->sanitize_config($value);
+    }
+
     /**
      * Integrations page
      */
@@ -527,6 +549,185 @@ class Dual_GPT_Admin {
                 </div>
 
                 <?php submit_button('Save Integrations'); ?>
+            </form>
+        </div>
+        <?php
+    }
+
+    public function images_page() {
+        $settings = class_exists('Dual_GPT_Image_Settings') ? new Dual_GPT_Image_Settings() : null;
+        $config = $settings ? $settings->get_config() : array();
+        $catalog = $settings ? $settings->get_provider_catalog() : array();
+        ?>
+        <div class="wrap">
+            <h1>Dual-GPT AI Images</h1>
+            <?php settings_errors('dual_gpt_images'); ?>
+
+            <form method="post" action="options.php">
+                <?php settings_fields('dual_gpt_images'); ?>
+                <?php do_settings_sections('dual_gpt_images'); ?>
+
+                <h2>Providers</h2>
+                <p class="description">Configure recommendation providers, rendering providers, and house style defaults for article imagery.</p>
+
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">Text Recommendation Provider</th>
+                        <td>
+                            <select name="dual_gpt_image_settings[text_provider]">
+                                <?php foreach ($catalog as $provider_key => $provider_meta) : ?>
+                                    <?php if (!in_array('text', $provider_meta['supports'], true)) { continue; } ?>
+                                    <option value="<?php echo esc_attr($provider_key); ?>" <?php selected($config['text_provider'] ?? '', $provider_key); ?>>
+                                        <?php echo esc_html($provider_meta['label']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Image Rendering Provider</th>
+                        <td>
+                            <select name="dual_gpt_image_settings[image_provider]">
+                                <?php foreach ($catalog as $provider_key => $provider_meta) : ?>
+                                    <?php if (!in_array('image', $provider_meta['supports'], true)) { continue; } ?>
+                                    <option value="<?php echo esc_attr($provider_key); ?>" <?php selected($config['image_provider'] ?? '', $provider_key); ?>>
+                                        <?php echo esc_html($provider_meta['label']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Fallback Providers</th>
+                        <td>
+                            <select name="dual_gpt_image_settings[fallback_providers][]" multiple style="min-width: 260px; height: 100px;">
+                                <?php foreach ($catalog as $provider_key => $provider_meta) : ?>
+                                    <option value="<?php echo esc_attr($provider_key); ?>" <?php selected(in_array($provider_key, (array) ($config['fallback_providers'] ?? array()), true)); ?>>
+                                        <?php echo esc_html($provider_meta['label']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+                    </tr>
+                </table>
+
+                <h2>Provider Credentials</h2>
+                <table class="form-table">
+                    <?php foreach ($catalog as $provider_key => $provider_meta) : ?>
+                        <?php $provider_config = $config['providers'][$provider_key] ?? array(); ?>
+                        <tr>
+                            <th scope="row"><?php echo esc_html($provider_meta['label']); ?></th>
+                            <td>
+                                <label style="display:block; margin-bottom: 8px;">
+                                    <input type="checkbox" name="dual_gpt_image_settings[providers][<?php echo esc_attr($provider_key); ?>][enabled]" value="1" <?php checked(!empty($provider_config['enabled'])); ?> />
+                                    Enabled
+                                </label>
+                                <input type="password" class="regular-text" name="dual_gpt_image_settings[providers][<?php echo esc_attr($provider_key); ?>][api_key]" value="<?php echo esc_attr($provider_config['api_key'] ?? ''); ?>" placeholder="API key" />
+                                <?php if (!empty($provider_config['text_model'])) : ?>
+                                    <div style="margin-top: 8px;">
+                                        <input type="text" class="regular-text" name="dual_gpt_image_settings[providers][<?php echo esc_attr($provider_key); ?>][text_model]" value="<?php echo esc_attr($provider_config['text_model']); ?>" placeholder="Text model" />
+                                    </div>
+                                <?php endif; ?>
+                                <?php if (!empty($provider_config['image_model'])) : ?>
+                                    <div style="margin-top: 8px;">
+                                        <input type="text" class="regular-text" name="dual_gpt_image_settings[providers][<?php echo esc_attr($provider_key); ?>][image_model]" value="<?php echo esc_attr($provider_config['image_model']); ?>" placeholder="Image model" />
+                                    </div>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+
+                <h2>House Style Presets</h2>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">Default Preset</th>
+                        <td>
+                            <select name="dual_gpt_image_settings[default_preset_key]">
+                                <?php foreach (($config['presets'] ?? array()) as $preset_key => $preset): ?>
+                                    <option value="<?php echo esc_attr($preset_key); ?>" <?php selected($config['default_preset_key'] ?? '', $preset_key); ?>>
+                                        <?php echo esc_html($preset['label'] ?? $preset_key); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <p class="description">Content managers will see this preset selected by default in the post editor.</p>
+                        </td>
+                    </tr>
+                    <?php $preset_key = 'layered_editorial_cutout'; $preset = $config['presets'][$preset_key] ?? array(); ?>
+                    <tr>
+                        <th scope="row">Preset Name</th>
+                        <td><input type="text" class="regular-text" name="dual_gpt_image_settings[presets][<?php echo esc_attr($preset_key); ?>][label]" value="<?php echo esc_attr($preset['label'] ?? ''); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Preset Description</th>
+                        <td><textarea rows="2" class="large-text" name="dual_gpt_image_settings[presets][<?php echo esc_attr($preset_key); ?>][description]"><?php echo esc_textarea($preset['description'] ?? ''); ?></textarea></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Art Direction</th>
+                        <td><textarea rows="4" class="large-text" name="dual_gpt_image_settings[presets][<?php echo esc_attr($preset_key); ?>][art_direction]"><?php echo esc_textarea($preset['art_direction'] ?? ''); ?></textarea></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Brand Palette</th>
+                        <td><input type="text" class="regular-text" name="dual_gpt_image_settings[presets][<?php echo esc_attr($preset_key); ?>][brand_palette]" value="<?php echo esc_attr($preset['brand_palette'] ?? ''); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Negative Prompt</th>
+                        <td><textarea rows="3" class="large-text" name="dual_gpt_image_settings[presets][<?php echo esc_attr($preset_key); ?>][negative_prompt]"><?php echo esc_textarea($preset['negative_prompt'] ?? ''); ?></textarea></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Open Instructions</th>
+                        <td><textarea rows="3" class="large-text" name="dual_gpt_image_settings[presets][<?php echo esc_attr($preset_key); ?>][open_instructions]"><?php echo esc_textarea($preset['open_instructions'] ?? ''); ?></textarea></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Aspect Ratio</th>
+                        <td><input type="text" name="dual_gpt_image_settings[presets][<?php echo esc_attr($preset_key); ?>][aspect_ratio]" value="<?php echo esc_attr($preset['aspect_ratio'] ?? '16:9'); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Realism</th>
+                        <td><input type="number" min="0" max="100" name="dual_gpt_image_settings[presets][<?php echo esc_attr($preset_key); ?>][realism]" value="<?php echo esc_attr($preset['realism'] ?? 20); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Illustration Strength</th>
+                        <td><input type="number" min="0" max="100" name="dual_gpt_image_settings[presets][<?php echo esc_attr($preset_key); ?>][illustration_strength]" value="<?php echo esc_attr($preset['illustration_strength'] ?? 88); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Brand Strictness</th>
+                        <td><input type="number" min="0" max="100" name="dual_gpt_image_settings[presets][<?php echo esc_attr($preset_key); ?>][brand_strictness]" value="<?php echo esc_attr($preset['brand_strictness'] ?? 70); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Composition Toggles</th>
+                        <td>
+                            <label style="display:block;"><input type="checkbox" name="dual_gpt_image_settings[presets][<?php echo esc_attr($preset_key); ?>][allow_text_overlays]" value="1" <?php checked(!empty($preset['allow_text_overlays'])); ?> /> Allow text overlays</label>
+                            <label style="display:block;"><input type="checkbox" name="dual_gpt_image_settings[presets][<?php echo esc_attr($preset_key); ?>][prefer_people]" value="1" <?php checked(!empty($preset['prefer_people'])); ?> /> Prefer people</label>
+                            <label style="display:block;"><input type="checkbox" name="dual_gpt_image_settings[presets][<?php echo esc_attr($preset_key); ?>][prefer_clean_backgrounds]" value="1" <?php checked(!empty($preset['prefer_clean_backgrounds'])); ?> /> Prefer clean backgrounds</label>
+                        </td>
+                    </tr>
+                </table>
+
+                <h2>Workflow</h2>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">Generator Capability</th>
+                        <td><input type="text" name="dual_gpt_image_settings[workflow][generator_capability]" value="<?php echo esc_attr($config['workflow']['generator_capability'] ?? 'edit_posts'); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Manager Capability</th>
+                        <td><input type="text" name="dual_gpt_image_settings[workflow][manager_capability]" value="<?php echo esc_attr($config['workflow']['manager_capability'] ?? 'manage_options'); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Max Variants</th>
+                        <td><input type="number" min="1" max="8" name="dual_gpt_image_settings[workflow][max_variants]" value="<?php echo esc_attr($config['workflow']['max_variants'] ?? 4); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Workflow Toggles</th>
+                        <td>
+                            <label style="display:block;"><input type="checkbox" name="dual_gpt_image_settings[workflow][auto_store_media]" value="1" <?php checked(!empty($config['workflow']['auto_store_media'])); ?> /> Auto-store in media library</label>
+                            <label style="display:block;"><input type="checkbox" name="dual_gpt_image_settings[workflow][allow_featured_image_replace]" value="1" <?php checked(!empty($config['workflow']['allow_featured_image_replace'])); ?> /> Allow featured image replacement</label>
+                        </td>
+                    </tr>
+                </table>
+
+                <?php submit_button('Save AI Image Settings'); ?>
             </form>
         </div>
         <?php

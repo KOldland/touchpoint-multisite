@@ -13,3 +13,53 @@
     max-height: 300px;
     overflow-y: auto;
 }
+
+.dual-gpt-message {
+    border-radius: 4px;
+    padding: 10px;
+    margin-top: 10px;
+    border: 1px solid transparent;
+}
+
+.dual-gpt-message-success {
+    background: #eefbf1;
+    border-color: #8fd19e;
+}
+
+.dual-gpt-message-error {
+    background: #fff1f1;
+    border-color: #e0a4a4;
+}
+
+.dual-gpt-message-warning {
+    background: #fff7e8;
+    border-color: #e7c27d;
+}
+
+.dual-gpt-message-info {
+    background: #f1f6ff;
+    border-color: #a9c4f5;
+}
+
+.dual-gpt-button-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.dual-gpt-image-preview {
+    margin-top: 14px;
+    padding: 10px;
+    border: 1px solid #d9d9d9;
+    border-radius: 6px;
+    background: #fafafa;
+}
+
+.dual-gpt-image-preview img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+}

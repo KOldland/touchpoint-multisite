@@ -25,9 +25,11 @@ import {
     Tooltip,
     Icon,
     Modal,
+    ToolbarGroup,
+    ToolbarButton,
 } from '@wordpress/components';
-import { InspectorControls, useBlockProps } from '@wordpress/block-editor';
-import { Fragment, useState, useCallback, useEffect } from '@wordpress/element';
+import { InspectorControls, useBlockProps, BlockControls } from '@wordpress/block-editor';
+import { Fragment, useState, useCallback, useEffect, useMemo } from '@wordpress/element';
 import { useSelect } from '@wordpress/data';
 import { trash, plus, warning, check } from '@wordpress/icons';
 import apiFetch from '@wordpress/api-fetch';
@@ -40,6 +42,13 @@ import './editor.scss';
 const countWords = ( text ) => {
     if ( ! text ) return 0;
     return text.trim().split( /\s+/ ).filter( ( word ) => word.length > 0 ).length;
+};
+const formatPercent = ( value ) => {
+    const numeric = Number( value || 0 );
+    if ( Number.isNaN( numeric ) ) {
+        return '0';
+    }
+    return String( Math.round( numeric * 100 ) );
 };
 
 /**
@@ -293,72 +302,18 @@ const ScoreIndicator = ( { score, isLoading } ) => {
     }
 
     const scoreNum = parseFloat( score );
-    const scorePercent = Math.round( scoreNum * 100 );
+    const scorePercent = formatPercent( scoreNum );
     let scoreClass = 'low';
-    if ( scorePercent >= 80 ) {
+    if ( scoreNum >= 0.8 ) {
         scoreClass = 'high';
-    } else if ( scorePercent >= 60 ) {
+    } else if ( scoreNum >= 0.6 ) {
         scoreClass = 'medium';
     }
-
-    const sponsorOptions = buildSponsorOptions( sponsorDocs );
-    const sponsorPreview = ( sponsorDocs || [] )
-        .filter( ( doc ) => Number( doc.sponsor_id || 0 ) === Number( sponsorId || 0 ) && doc.approved )
-        .slice( 0, 3 );
-
-    const persistSponsorToggle = ( enable, overrides = {} ) => {
-        if ( ! postId || ! answerCardId ) {
-            return;
-        }
-
-        setSponsorSaving( true );
-        apiFetch( {
-            path: `/khm-geo/v1/cards/${ postId }/sponsor-toggle`,
-            method: 'POST',
-            data: {
-                enable,
-                sponsor_id: overrides.sponsorId ?? sponsorId ?? 0,
-                sponsor_name: overrides.sponsorName ?? sponsorName ?? '',
-                sponsor_url: overrides.sponsorUrl ?? sponsorUrl ?? '',
-                sponsor_doc_ids: overrides.sponsorDocIds ?? sponsorDocIds ?? [],
-                answer_card_id: answerCardId,
-                sponsor_boost: overrides.sponsorBoost ?? sponsorBoost ?? 0,
-                approval_required: overrides.sponsorRequiresApproval ?? sponsorRequiresApproval ?? true,
-                approved: overrides.sponsorApproved ?? sponsorApproved ?? false,
-                justification: overrides.sponsorJustification ?? sponsorJustification ?? '',
-            },
-        } ).then( () => {
-            setSponsorSaving( false );
-        } ).catch( ( error ) => {
-            setSponsorError( error.message || __( 'Failed to save sponsor settings', 'khm-membership' ) );
-            setSponsorSaving( false );
-        } );
-    };
-
-    const approveSponsor = () => {
-        if ( ! postId || ! answerCardId ) {
-            return;
-        }
-        setSponsorSaving( true );
-        apiFetch( {
-            path: `/khm-geo/v1/cards/${ postId }/sponsor-approve`,
-            method: 'POST',
-            data: {
-                answer_card_id: answerCardId,
-                justification: sponsorJustification || '',
-            },
-        } ).then( () => {
-            setAttributes( { sponsorApproved: true } );
-            setSponsorSaving( false );
-        } ).catch( ( error ) => {
-            setSponsorError( error.message || __( 'Failed to approve sponsor', 'khm-membership' ) );
-            setSponsorSaving( false );
-        } );
-    };
 
     return (
         <div className={ `khm-answer-card-score khm-answer-card-score--${ scoreClass }` }>
             <strong>{ __( 'GEO Score:', 'khm-membership' ) }</strong>
+            <span className="khm-answer-card-score__value">{ scorePercent }%</span>
             <span className="khm-answer-card-score__value">{ scorePercent }%</span>
         </div>
     );
@@ -368,7 +323,7 @@ const ScoreIndicator = ( { score, isLoading } ) => {
  * Score bar component
  */
 const ScoreBar = ( { label, value } ) => {
-    const percent = Math.round( ( value || 0 ) * 100 );
+    const percent = formatPercent( value );
     return (
         <div className="khm-score-bar">
             <div className="khm-score-bar__label">
@@ -376,7 +331,7 @@ const ScoreBar = ( { label, value } ) => {
                 <span>{ percent }%</span>
             </div>
             <div className="khm-score-bar__track">
-                <span className="khm-score-bar__fill" style={ { width: `${ percent }%` } } />
+                <span className="khm-score-bar__fill" style={ { width: `${ parseFloat( percent ) }%` } } />
             </div>
         </div>
     );
@@ -386,7 +341,7 @@ const ScoreBar = ( { label, value } ) => {
  * Confidence Badge with Tooltip
  */
 const ConfidenceBadge = ( { confidence, reasons, tips } ) => {
-    const confidencePercent = Math.round( ( confidence || 0 ) * 100 );
+    const confidencePercent = formatPercent( confidence );
     let badgeClass = 'low';
     
     if ( confidence >= 0.8 ) {
@@ -493,6 +448,7 @@ const Edit = ( props ) => {
     const [ sponsorLoading, setSponsorLoading ] = useState( false );
     const [ sponsorError, setSponsorError ] = useState( '' );
     const [ sponsorSaving, setSponsorSaving ] = useState( false );
+    const [ isCollapsed, setIsCollapsed ] = useState( false );
 
     const { postId, postTitle, postContent } = useSelect( ( select ) => {
         try {
@@ -1185,8 +1141,80 @@ const Edit = ( props ) => {
         } );
     };
 
+    /**
+     * Sponsor-related functions and constants
+     */
+    const sponsorOptions = buildSponsorOptions( sponsorDocs );
+    const sponsorPreview = useMemo( () => {
+        return ( sponsorDocs || [] )
+            .filter( ( doc ) => Number( doc.sponsor_id || 0 ) === Number( sponsorId || 0 ) && doc.approved )
+            .slice( 0, 3 );
+    }, [ sponsorDocs, sponsorId ] );
+
+    const persistSponsorToggle = ( enable, overrides = {} ) => {
+        if ( ! postId || ! answerCardId ) {
+            return;
+        }
+
+        setSponsorSaving( true );
+        apiFetch( {
+            path: `/khm-geo/v1/cards/${ postId }/sponsor-toggle`,
+            method: 'POST',
+            data: {
+                enable,
+                sponsor_id: overrides.sponsorId ?? sponsorId ?? 0,
+                sponsor_name: overrides.sponsorName ?? sponsorName ?? '',
+                sponsor_url: overrides.sponsorUrl ?? sponsorUrl ?? '',
+                sponsor_doc_ids: overrides.sponsorDocIds ?? sponsorDocIds ?? [],
+                answer_card_id: answerCardId,
+                sponsor_boost: overrides.sponsorBoost ?? sponsorBoost ?? 0,
+                approval_required: overrides.sponsorRequiresApproval ?? sponsorRequiresApproval ?? true,
+                approved: overrides.sponsorApproved ?? sponsorApproved ?? false,
+                justification: overrides.sponsorJustification ?? sponsorJustification ?? '',
+            },
+        } ).then( () => {
+            setSponsorSaving( false );
+        } ).catch( ( error ) => {
+            setSponsorError( error.message || __( 'Failed to save sponsor settings', 'khm-membership' ) );
+            setSponsorSaving( false );
+        } );
+    };
+
+    const approveSponsor = () => {
+        if ( ! postId || ! answerCardId ) {
+            return;
+        }
+        setSponsorSaving( true );
+        apiFetch( {
+            path: `/khm-geo/v1/cards/${ postId }/sponsor-approve`,
+            method: 'POST',
+            data: {
+                answer_card_id: answerCardId,
+                justification: sponsorJustification || '',
+            },
+        } ).then( () => {
+            setAttributes( { sponsorApproved: true } );
+            setSponsorSaving( false );
+        } ).catch( ( error ) => {
+            setSponsorError( error.message || __( 'Failed to approve sponsor', 'khm-membership' ) );
+            setSponsorSaving( false );
+        } );
+    };
+
     return (
         <Fragment>
+            <BlockControls>
+                <ToolbarGroup>
+                    <ToolbarButton
+                        onClick={ () => setIsCollapsed( ! isCollapsed ) }
+                        isPressed={ isCollapsed }
+                    >
+                        { isCollapsed
+                            ? __( 'Expand block', 'khm-membership' )
+                            : __( 'Collapse block', 'khm-membership' ) }
+                    </ToolbarButton>
+                </ToolbarGroup>
+            </BlockControls>
             <InspectorControls>
                 <PanelBody title={ __( 'AnswerCard Settings', 'khm-membership' ) } initialOpen={ true }>
                     { /* Answer Card ID - readonly */ }
@@ -1401,7 +1429,7 @@ const Edit = ( props ) => {
                                 { scoreDetails.citation_contributions.map( ( item ) => {
                                     const citation = citations?.[ item.idx ] || {};
                                     const title = decodeHtmlEntities( citation.title || citation.url || '' );
-                                    const contribution = Math.round( ( item.contribution || 0 ) * 100 );
+                                    const contribution = formatPercent( item.contribution );
                                     return (
                                         <li key={ `contrib-${ item.idx }` }>
                                             <span>{ title || __( 'Citation', 'khm-membership' ) } #{ item.idx + 1 }</span>
@@ -1427,7 +1455,7 @@ const Edit = ( props ) => {
                             const supports = reasons.filter( ( reason ) => reason.polarity === 'support' );
                             const confidenceScore = scoreDetails?.scores?.evidence_confidence ?? scoreDetails?.total_score;
                             const confidencePercent = Number.isFinite( confidenceScore )
-                                ? `${ Math.round( confidenceScore * 100 ) }%`
+                                ? `${ formatPercent( confidenceScore ) }%`
                                 : __( 'n/a', 'khm-membership' );
                             return (
                                 <span className="khm-reasons-header__meta">
@@ -1969,6 +1997,20 @@ const Edit = ( props ) => {
                     ) }
                 </div>
 
+                { isCollapsed ? (
+                    <div className="khm-answer-card-editor__collapsed">
+                        <strong>{ question || __( 'Untitled AnswerCard', 'khm-membership' ) }</strong>
+                        { conciseAnswer && (
+                            <p>
+                                { conciseAnswer.length > 160
+                                    ? `${ conciseAnswer.slice( 0, 160 ) }…`
+                                    : conciseAnswer }
+                            </p>
+                        ) }
+                    </div>
+                ) : (
+                    <>
+
                 <TextControl
                     label={ __( 'Question', 'khm-membership' ) }
                     value={ question }
@@ -2102,6 +2144,8 @@ const Edit = ( props ) => {
                         help={ __( 'Key topics and concepts this content covers. Use Advanced to link tags to canonical entities.', 'khm-membership' ) }
                     />
                 </div>
+                    </>
+                ) }
             </div>
             { resolverOpen && (
                 <Modal
