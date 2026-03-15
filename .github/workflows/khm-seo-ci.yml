@@ -1,0 +1,45 @@
+name: KHM SEO Plugin CI
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - 'app/public/wp-content/plugins/khm-seo/**'
+      - '.github/workflows/khm-seo-ci.yml'
+  pull_request:
+    branches: [main, staging]
+    paths:
+      - 'app/public/wp-content/plugins/khm-seo/**'
+      - '.github/workflows/khm-seo-ci.yml'
+
+jobs:
+  phpunit:
+    name: PHPUnit (khm-seo)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, json
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies (khm-plugin vendor for phpunit runtime)
+        working-directory: app/public/wp-content/plugins/khm-plugin
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Run khm-seo PHPUnit suite
+        working-directory: app/public/wp-content/plugins/khm-seo
+        run: |
+          ../khm-plugin/vendor/bin/phpunit -c phpunit.xml --testdox --colors=always
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "KHM SEO CI completed."
+          echo "Suite: app/public/wp-content/plugins/khm-seo/tests"
