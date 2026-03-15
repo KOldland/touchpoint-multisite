@@ -66,16 +66,10 @@ class SchemaManager {
     private function init_hooks() {
         // Schema output hooks
         add_action( 'wp_head', array( $this, 'output_schema' ), 25 );
-        add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_schema_assets' ) );
         
         // Content-specific schema hooks
         add_action( 'wp', array( $this, 'determine_schema_for_current_page' ) );
         add_filter( 'khm_seo_schema_data', array( $this, 'filter_schema_data' ), 10, 2 );
-        
-        // Admin hooks for schema configuration
-        add_action( 'admin_init', array( $this, 'register_schema_settings' ) );
-        add_action( 'add_meta_boxes', array( $this, 'add_schema_meta_boxes' ) );
-        add_action( 'save_post', array( $this, 'save_schema_meta_data' ) );
         
         // AJAX hooks for schema preview
         add_action( 'wp_ajax_khm_seo_preview_schema', array( $this, 'ajax_preview_schema' ) );
@@ -83,27 +77,30 @@ class SchemaManager {
     }
 
     /**
-     * Register schema-related settings (placeholder to avoid missing callback fatals).
+     * Backward-compat placeholder.
+     *
+     * Settings registration is handled by Schema\Admin\SchemaAdminManager.
+     * This method remains for legacy integrations that may call it directly.
      */
     public function register_schema_settings() {
-        // Settings registration can be expanded later; keep method defined to satisfy hooks.
+        // Intentionally left blank.
     }
 
     /**
-     * Legacy placeholder to avoid missing callback fatals.
+     * Backward-compat placeholder.
      *
-     * Schema meta boxes are handled by Schema\Admin\SchemaAdminManager; this
-     * exists to keep older hook registrations from breaking post saves.
+     * Schema meta boxes are handled by Schema\Admin\SchemaAdminManager.
+     * This method remains for legacy integrations that may call it directly.
      */
     public function add_schema_meta_boxes() {
         // Intentionally left blank.
     }
 
     /**
-     * Legacy placeholder to avoid missing callback fatals when saving posts.
+     * Backward-compat placeholder.
      *
-     * Schema meta saving is handled by Schema\Admin\SchemaAdminManager. This
-     * stub keeps the legacy hook from triggering fatal errors.
+     * Schema meta saving is handled by Schema\Admin\SchemaAdminManager.
+     * This method remains for legacy integrations that may call it directly.
      *
      * @param int $post_id Post ID.
      */
@@ -112,10 +109,10 @@ class SchemaManager {
     }
 
     /**
-     * Legacy placeholder to avoid missing callback fatals when enqueueing assets.
+     * Backward-compat placeholder.
      *
-     * Frontend schema assets are not required; this exists to satisfy the
-     * wp_enqueue_scripts hook that was previously registered.
+     * Frontend schema assets are not required in SchemaManager.
+     * This method remains for legacy integrations that may call it directly.
      */
     public function enqueue_schema_assets() {
         // Intentionally left blank.

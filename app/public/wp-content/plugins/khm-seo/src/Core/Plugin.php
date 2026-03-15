@@ -210,10 +210,8 @@ final class Plugin {
         }
         
         // Hook into WordPress
-        add_action( 'wp_head', array( $this, 'output_head_tags' ), 1 );
         add_filter( 'wp_title', array( $this, 'filter_title' ), 10, 2 );
         add_action( 'wp_footer', array( $this, 'output_footer_tags' ) );
-        add_action( 'elementor/widgets/register', array( $this, 'register_elementor_widgets' ) );
     }
 
     /**
@@ -267,6 +265,10 @@ final class Plugin {
         // Initialize analysis engine with default configuration
         if ( ! $is_post_editor && ! $is_rest_request ) {
             $this->analysis = new AnalysisEngine( $this->get_analysis_config() );
+        }
+
+        if ( is_admin() ) {
+            $this->performance = new PerformanceMonitor();
         }
         
         // Initialize editor manager for Phase 2 (skip on editor/REST to avoid hangs).

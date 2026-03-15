@@ -196,12 +196,32 @@ class AdminManager {
         $geo_url = $selected_post ? admin_url( 'admin.php?page=khm-seo-geo-post&post_type=' . $selected_type . '&post_id=' . $selected_post->ID ) : '';
         $health_url = $selected_post ? admin_url( 'admin.php?page=khm-seo-post-health&post_type=' . $selected_type . '&post_id=' . $selected_post->ID ) : '';
 
+        $dep_smma   = class_exists( 'KH_SMMA\Services\SmmaGenerator' );
+        $dep_agent  = class_exists( 'KHM_SEO_AGENT\API\Rest_Api' );
+        $dep_adman  = function_exists( 'kh_ad_manager_get_sponsor_meta' );
         ?>
         <div class="wrap">
             <h1><?php esc_html_e( 'Boost Visibility', 'khm-seo' ); ?></h1>
             <p class="description">
                 <?php esc_html_e( 'Publish first, then manage GEO, social previews, and post health from here.', 'khm-seo' ); ?>
             </p>
+
+            <?php if ( ! $dep_smma || ! $dep_agent || ! $dep_adman ) : ?>
+            <div class="notice notice-warning inline" style="padding:8px 12px;margin-bottom:16px;">
+                <strong><?php esc_html_e( 'Plugin bundle status', 'khm-seo' ); ?></strong>
+                <ul style="margin:.4em 0 0 1em;list-style:disc;">
+                    <?php if ( ! $dep_smma ) : ?>
+                    <li><?php esc_html_e( 'KH SMMA — inactive. Social variant generation and approval workflows unavailable.', 'khm-seo' ); ?></li>
+                    <?php endif; ?>
+                    <?php if ( ! $dep_agent ) : ?>
+                    <li><?php esc_html_e( 'KHM SEO Agent — inactive. AI keyword analysis unavailable.', 'khm-seo' ); ?></li>
+                    <?php endif; ?>
+                    <?php if ( ! $dep_adman ) : ?>
+                    <li><?php esc_html_e( 'KH Ad Manager — inactive. Sponsor name resolution unavailable.', 'khm-seo' ); ?></li>
+                    <?php endif; ?>
+                </ul>
+            </div>
+            <?php endif; ?>
 
             <form method="get">
                 <input type="hidden" name="page" value="khm-seo-boost-visibility" />

@@ -6,6 +6,12 @@ if ( ! defined( 'ABSPATH' ) ) {
     define( 'ABSPATH', __DIR__ . '/' );
 }
 
+if ( ! function_exists( 'current_time' ) ) {
+    function current_time( $type = 'mysql' ) {
+        return '2026-01-01 00:00:00';
+    }
+}
+
 require_once dirname( __DIR__ ) . '/src/GEO/Scoring/ScoringEngine.php';
 
 class ScoringEngineTest extends TestCase {
@@ -88,7 +94,7 @@ class ScoringEngineTest extends TestCase {
         $settings = array(
             'question' => 'What is GEO?',
             'answer' => 'Answer text',
-            'entities' => array( 'McKinsey', 'GEO' ),
+            'entities' => array( 'McKinsey', 'GEO', 'OpenAI', 'Anthropic' ),
         );
 
         $result = $engine->calculate_score( $settings, array() );
@@ -150,6 +156,6 @@ class ScoringEngineTest extends TestCase {
 
         $result = $engine->calculate_score( $settings, array() );
         $this->assertArrayHasKey( 'citation_contributions', $result );
-        $this->assertSame( 0.0, $result['citation_contributions'][0]['sponsor_boost'] );
+        $this->assertEquals( 0.0, $result['citation_contributions'][0]['sponsor_boost'] );
     }
 }

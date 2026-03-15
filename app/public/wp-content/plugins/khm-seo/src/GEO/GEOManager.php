@@ -39,6 +39,10 @@ class GEOManager {
      */
     public function ajax_remove_alias() {
         check_ajax_referer( 'khm_seo_ajax', 'nonce' );
+        if ( ! current_user_can( 'edit_posts' ) ) {
+            wp_send_json_error( array( 'message' => 'Insufficient permissions' ), 403 );
+            return;
+        }
         $entity_id = intval( $_POST['entity_id'] ?? 0 );
         $alias = sanitize_text_field( $_POST['alias'] ?? '' );
         if ( ! $entity_id || ! $alias ) {
@@ -59,6 +63,10 @@ class GEOManager {
      */
     public function ajax_add_alias() {
         check_ajax_referer( 'khm_seo_ajax', 'nonce' );
+        if ( ! current_user_can( 'edit_posts' ) ) {
+            wp_send_json_error( array( 'message' => 'Insufficient permissions' ), 403 );
+            return;
+        }
         $entity_id = intval( $_POST['entity_id'] ?? 0 );
         $alias = sanitize_text_field( $_POST['alias'] ?? '' );
         if ( ! $entity_id || ! $alias ) {
