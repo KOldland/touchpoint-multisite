@@ -2294,6 +2294,30 @@ function ed_get_frameworks($request){
     return rest_ensure_response([]);
 }
 
+// Block editor: AI Image Generator sidebar
+add_action('enqueue_block_editor_assets', function () {
+    if (!current_user_can('edit_posts')) {
+        return;
+    }
+    $path    = plugin_dir_path(__FILE__) . 'assets/js/editor-image-sidebar.js';
+    $version = file_exists($path) ? filemtime($path) : '1.0';
+    wp_enqueue_script(
+        'khm-editor-image-sidebar',
+        plugins_url('assets/js/editor-image-sidebar.js', __FILE__),
+        array('wp-plugins', 'wp-edit-post', 'wp-editor', 'wp-element', 'wp-components', 'wp-data', 'wp-api-fetch'),
+        $version,
+        true
+    );
+    wp_localize_script(
+        'khm-editor-image-sidebar',
+        'khmEditorData',
+        array(
+            'nonce'   => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('dual-gpt/v1/'),
+        )
+    );
+});
+
 function ed_get_pipeline($request){
     // Placeholder - implement based on your pipeline
     return rest_ensure_response([]);

@@ -325,6 +325,12 @@ class Dual_GPT_Plugin {
             'permission_callback' => array($this, 'check_admin_permissions'),
         ));
 
+        register_rest_route('dual-gpt/v1', '/planner/queue/remove-all', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'remove_all_planner_queue_items'),
+            'permission_callback' => array($this, 'check_admin_permissions'),
+        ));
+
         register_rest_route('dual-gpt/v1', '/planner/run-author', array(
             'methods' => 'POST',
             'callback' => array($this, 'run_planner_author'),
@@ -2808,6 +2814,33 @@ class Dual_GPT_Plugin {
         return new WP_REST_Response(array(
             'cleared' => $cleared,
             'message' => sprintf('Cleared %d queued job(s).', $cleared),
+        ), 200);
+    }
+
+    public function remove_all_planner_queue_items($request) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'planner_task_queue';
+
+        $ids = $wpdb->get_col(
+            "SELECT id FROM {$table} WHERE status NOT IN ('running', 'dispatched')"
+        );
+
+        if (empty($ids)) {
+            return new WP_REST_Response(array(
+                'removed' => 0,
+                'message' => 'No removable queue items found.',
+            ), 200);
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '%s'));
+        $deleted = $wpdb->query(
+            $wpdb->prepare("DELETE FROM {$table} WHERE id IN ({$placeholders})", ...$ids)
+        );
+
+        return new WP_REST_Response(array(
+            'removed' => intval($deleted),
+            'message' => sprintf('Removed %d queue item(s).', intval($deleted)),
         ), 200);
     }
 

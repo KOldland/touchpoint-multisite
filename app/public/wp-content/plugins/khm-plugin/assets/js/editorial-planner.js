@@ -167,6 +167,7 @@ const EditorialPlannerApp = () => {
     const [queueModalOpen, setQueueModalOpen] = useState(false);
     const [queueLoading, setQueueLoading] = useState(false);
     const [queueClearing, setQueueClearing] = useState(false);
+    const [queueRemoving, setQueueRemoving] = useState(false);
     const [queueError, setQueueError] = useState('');
     const [queueCounts, setQueueCounts] = useState({ queued: 0, running: 0, completed: 0, failed: 0 });
     const [queueItems, setQueueItems] = useState([]);
@@ -994,6 +995,27 @@ const EditorialPlannerApp = () => {
     const openQueueModal = async () => {
         setQueueModalOpen(true);
         await loadPlannerQueue();
+    };
+
+    const removeAllQueueItems = async () => {
+        const confirmed = window.confirm('Remove all queue items? This permanently deletes all completed, failed, and queued entries. Running jobs will not be affected.');
+        if (!confirmed) {
+            return;
+        }
+        try {
+            setQueueRemoving(true);
+            const response = await apiFetch({
+                path: 'dual-gpt/v1/planner/queue/remove-all',
+                method: 'POST',
+            });
+            dispatch('core/notices').createNotice('success', response?.message || 'Queue items removed.', { type: 'snackbar' });
+            await loadPlannerQueue();
+        } catch (error) {
+            console.error('Failed to remove all queue items:', error);
+            dispatch('core/notices').createNotice('error', error?.message || 'Failed to remove queue items.', { type: 'snackbar' });
+        } finally {
+            setQueueRemoving(false);
+        }
     };
 
     const clearQueuedJobs = async () => {
@@ -3950,8 +3972,13 @@ const EditorialPlannerApp = () => {
                 ),
                 wp.element.createElement(
                     Button,
-                    { isDestructive: true, onClick: clearQueuedJobs, disabled: queueLoading || queueClearing },
+                    { isDestructive: true, onClick: clearQueuedJobs, disabled: queueLoading || queueClearing || queueRemoving },
                     queueClearing ? wp.element.createElement(Spinner, null) : 'Clear Queued'
+                ),
+                wp.element.createElement(
+                    Button,
+                    { isDestructive: true, onClick: removeAllQueueItems, disabled: queueLoading || queueClearing || queueRemoving },
+                    queueRemoving ? wp.element.createElement(Spinner, null) : 'Remove All'
                 )
             ),
             queueLoading &&
@@ -4762,8 +4789,13 @@ const EditorialPlannerApp = () => {
                         ),
                         wp.element.createElement(
                             Button,
-                            { isDestructive: true, onClick: clearQueuedJobs, disabled: queueLoading || queueClearing },
+                            { isDestructive: true, onClick: clearQueuedJobs, disabled: queueLoading || queueClearing || queueRemoving },
                             queueClearing ? wp.element.createElement(Spinner, null) : 'Clear Queued'
+                        ),
+                        wp.element.createElement(
+                            Button,
+                            { isDestructive: true, onClick: removeAllQueueItems, disabled: queueLoading || queueClearing || queueRemoving },
+                            queueRemoving ? wp.element.createElement(Spinner, null) : 'Remove All'
                         )
                     )
                 ),
