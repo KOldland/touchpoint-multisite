@@ -244,9 +244,11 @@ class SchemaValidator {
         foreach ( $variants as $index => $variant ) {
             $result = $this->validate_linkedin_variant( $variant );
             if ( is_wp_error( $result ) ) {
+                $code = method_exists( $result, 'get_error_code' ) ? $result->get_error_code() : 'invalid_schema';
+                $message = method_exists( $result, 'get_error_message' ) ? $result->get_error_message() : 'Invalid variant schema';
                 return new WP_Error(
-                    $result->get_error_code(),
-                    'Variant [' . $index . ']: ' . $result->get_error_message()
+                    $code,
+                    'Variant [' . $index . ']: ' . $message
                 );
             }
         }

@@ -1,0 +1,1 @@
+Missing HOST or NONCE. Example: HOST=https://staging.example.com NONCE=... devops/smoke.sh

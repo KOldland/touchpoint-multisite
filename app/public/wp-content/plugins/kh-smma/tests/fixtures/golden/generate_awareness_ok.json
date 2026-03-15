@@ -2,7 +2,7 @@
   "choices": [
     {
       "message": {
-        "content": "{\"linkedin_variants\":[{\"variant_id\":\"{{VARIANT_ID_1}}\",\"channel\":\"linkedin\",\"phase_tag\":\"Awareness\",\"text\":\"Discover practical growth tactics your team can apply this week.\",\"sponsor_flag\":false,\"approval_required\":false,\"recommended_post_time_gmt\":\"{{UNIX_TS}}\",\"compliance_notes\":\"OK\"}]}"
+        "content": "{\"linkedin_variants\":[{\"variant_id\":\"{{VARIANT_ID_1}}\",\"channel\":\"linkedin\",\"phase_tag\":\"Awareness\",\"text\":\"Discover practical growth tactics your team can apply this week.\",\"explainability\":\"Built from blocks_summary and geo targets for awareness.\",\"asset_hints\":[{\"type\":\"image\",\"asset_id\":\"asset_hero_1\"}],\"sponsor_flag\":false,\"approval_required\":false,\"recommended_post_time_gmt\":\"{{UNIX_TS}}\",\"compliance_notes\":\"OK\"}],\"google_ad_draft\":{\"headlines\":[\"Grow This Quarter\",\"Practical Growth Plan\",\"Start Smarter Today\"],\"descriptions\":[\"Apply proven tactics this week.\",\"Build momentum with practical strategy.\"],\"final_url\":\"https://example.com/growth\"}}"
       }
     }
   ],

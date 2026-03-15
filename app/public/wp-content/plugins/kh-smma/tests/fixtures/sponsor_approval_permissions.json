@@ -1,0 +1,47 @@
+{
+  "admin": {
+    "user_id": 1,
+    "caps": {
+      "manage_options": true,
+      "manage_sponsors": false,
+      "edit_schedules": false
+    },
+    "assigned_sponsor_id": "",
+    "schedule": {
+      "schedule_id": "101",
+      "sponsor_id": "sp_1",
+      "approval_status": "pending"
+    },
+    "expected_can_approve": true
+  },
+  "manager_allowed": {
+    "user_id": 45,
+    "caps": {
+      "manage_options": false,
+      "manage_sponsors": true,
+      "edit_schedules": true
+    },
+    "assigned_sponsor_id": "sp_1",
+    "schedule": {
+      "schedule_id": "101",
+      "sponsor_id": "sp_1",
+      "approval_status": "pending"
+    },
+    "expected_can_approve": true
+  },
+  "manager_denied": {
+    "user_id": 45,
+    "caps": {
+      "manage_options": false,
+      "manage_sponsors": true,
+      "edit_schedules": true
+    },
+    "assigned_sponsor_id": "sp_2",
+    "schedule": {
+      "schedule_id": "101",
+      "sponsor_id": "sp_1",
+      "approval_status": "pending"
+    },
+    "expected_can_approve": false
+  }
+}

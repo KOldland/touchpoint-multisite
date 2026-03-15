@@ -3,6 +3,7 @@
 namespace KH_SMMA\Adapters;
 
 use KH_SMMA\Services\AuditLogger;
+use KH_SMMA\Services\ExportBundleService;
 use KH_SMMA\Services\ScheduleQueueProcessor;
 
 use function add_filter;
@@ -41,16 +42,21 @@ class ManualExportAdapter implements PaidAdapterContract {
     /** @var AdapterIdempotencyStore|null */
     private $idempotency;
 
+    /** @var ExportBundleService|null */
+    private $export_bundle_service;
+
     /**
      * @param AuditLogger|null             $audit_logger Optional audit logger.
      * @param AdapterIdempotencyStore|null $idempotency  Optional idempotency store.
      */
     public function __construct(
         ?AuditLogger $audit_logger = null,
-        ?AdapterIdempotencyStore $idempotency = null
+        ?AdapterIdempotencyStore $idempotency = null,
+        ?ExportBundleService $export_bundle_service = null
     ) {
         $this->audit_logger = $audit_logger;
         $this->idempotency  = $idempotency;
+        $this->export_bundle_service = $export_bundle_service;
     }
 
     /**
@@ -156,6 +162,15 @@ class ManualExportAdapter implements PaidAdapterContract {
         }
 
         return $response;
+    }
+
+    /**
+     * Create a schedule-scoped manual export zip bundle for ops download.
+     * This helper is additive and does not alter paid adapter dispatch flow.
+     */
+    public function create_schedule_export_bundle( array $schedule, array $variant = array(), array $assets = array() ): array {
+        $service = $this->export_bundle_service ?: new ExportBundleService();
+        return $service->create_bundle( $schedule, $variant, $assets );
     }
 
     // -------------------------------------------------------------------------
