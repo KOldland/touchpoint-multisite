@@ -1472,6 +1472,93 @@ class Dual_GPT_Plugin {
         return is_wp_error($job_id) ? null : $job_id;
     }
 
+    /**
+     * Phase 3 auto dive-deeper: silently queue evidence-check jobs for under-cited articles
+     * once all synopsis batch jobs reach a terminal state. Fires at most once per session
+     * (guarded by the auto_dive_fired flag in session meta).
+     */
+    private function maybe_auto_dive_after_synopses($session, $meta, $db) {
+        $synopsis_job_ids = $meta['synopsis_job_ids'] ?? array();
+        if (empty($synopsis_job_ids) || !is_array($synopsis_job_ids)) {
+            return;
+        }
+
+        // Return early if any synopsis job is still active.
+        $terminal = array('completed', 'failed');
+        foreach ($synopsis_job_ids as $jid) {
+            $job_row = $db->get_job(sanitize_text_field((string) $jid));
+            if (!$job_row || !in_array(sanitize_key((string) ($job_row['status'] ?? '')), $terminal, true)) {
+                return;
+            }
+        }
+
+        // Guard against double-firing if two jobs complete simultaneously.
+        $session_id = (string) ($session['id'] ?? '');
+        if (!empty($meta['auto_dive_fired'])) {
+            return;
+        }
+        $meta['auto_dive_fired'] = true;
+        $db->update_session_meta($session_id, $meta);
+
+        // Find articles still below the 4-citation threshold.
+        $auto_dive_max = 6;
+        $articles      = $meta['articles'] ?? array();
+        $under_cited   = array();
+        foreach ($articles as $article) {
+            if (count($article['citations'] ?? array()) >= 4) {
+                continue;
+            }
+            // Skip articles that already have an active or completed dive-deeper job.
+            foreach ($article['dive_deeper_jobs'] ?? array() as $dj) {
+                if (in_array($dj['status'] ?? '', array('queued', 'running', 'processing', 'completed'), true)) {
+                    continue 2;
+                }
+            }
+            $article['_auto_cite_count'] = count($article['citations'] ?? array());
+            $under_cited[] = $article;
+        }
+
+        if (empty($under_cited)) {
+            error_log(sprintf(
+                '[PLANNER][AUTO_DIVE] All synopsis batches complete. Citation quality OK — no under-cited articles (session: %s).',
+                $session_id
+            ));
+            return;
+        }
+
+        usort($under_cited, function ($a, $b) {
+            return ($a['_auto_cite_count'] ?? 0) - ($b['_auto_cite_count'] ?? 0);
+        });
+
+        $to_queue    = array_slice($under_cited, 0, $auto_dive_max);
+        $dive_params = array(
+            'target_min_citations' => 6,
+            'recency_months'       => 24,
+            'source_mix_minimums'  => array('industry' => 2, 'news' => 1, 'research' => 1),
+        );
+
+        $queued_count = 0;
+        foreach ($to_queue as $article_to_dive) {
+            unset($article_to_dive['_auto_cite_count']);
+            $job_id = $this->queue_dive_deeper_job($article_to_dive, $session_id, $meta, $dive_params);
+            if ($job_id) {
+                $queued_count++;
+            }
+            // Reload meta so the next iteration sees dive_deeper_jobs entries written by the previous call.
+            $fresh = $db->get_session($session_id);
+            if ($fresh) {
+                $meta = $this->decode_session_meta($fresh['meta_json'] ?? null);
+            }
+        }
+
+        error_log(sprintf(
+            '[PLANNER][AUTO_DIVE] Queued %d/%d dive-deeper jobs for under-cited articles (session: %s).',
+            $queued_count,
+            count($to_queue),
+            $session_id
+        ));
+    }
+
     private function enrich_article_citations_from_phase4($article, $meta) {
         $existing = isset($article['citations']) && is_array($article['citations']) ? $article['citations'] : array();
         $existing_map = array();
@@ -1829,10 +1916,37 @@ class Dual_GPT_Plugin {
             'issues' => array(),
         );
 
+        $search_provider_status = get_transient('dual_gpt_search_provider_status');
+        if (!is_array($search_provider_status)) {
+            $search_provider_status = array(
+                'has_errors' => false,
+                'provider' => 'unknown',
+                'provider_chain' => array(),
+                'warning' => '',
+                'provider_errors' => array(),
+                'checked_at' => null,
+            );
+        }
+
+        $provider_errors = is_array($search_provider_status['provider_errors'] ?? null)
+            ? $search_provider_status['provider_errors']
+            : array();
+        $serpapi_error = false;
+        foreach ($provider_errors as $provider_error) {
+            if (stripos((string) $provider_error, 'serpapi:') !== false) {
+                $serpapi_error = true;
+                break;
+            }
+        }
+        if ($serpapi_error) {
+            $search_provider_status['admin_instruction'] = 'Search provider failure detected in SerpAPI. Please contact your System Administrator to restore SerpAPI quota/credentials and verify fallback provider support before re-running Phase 4.';
+        }
+
         return new WP_REST_Response(array(
             'session_id' => $session_id,
             'research_policy' => $this->resolve_research_policy($meta),
             'research_validation' => $validation,
+            'search_provider_status' => $search_provider_status,
         ), 200);
     }
 
@@ -3004,7 +3118,7 @@ class Dual_GPT_Plugin {
     public function generate_planner_synopses($request) {
         $session_id = sanitize_text_field($request->get_param('session_id'));
         $plan = $request->get_param('plan');
-        $batch_size = intval($request->get_param('batch_size')) ?: 5;
+        $batch_size = intval($request->get_param('batch_size')) ?: 2;
 
         if (empty($session_id)) {
             return new WP_Error('missing_session_id', 'Session ID is required', array('status' => 400));
@@ -4587,6 +4701,29 @@ class Dual_GPT_Plugin {
             if (!empty($meta['synopsis_plan']) && is_array($meta['synopsis_plan'])) {
                 $target_total = array_sum(array_map('intval', $meta['synopsis_plan']));
             }
+
+            // Phase 1: Enrich each synopsis with Phase 4 validated citations — zero extra API calls.
+            foreach ($synopses as &$synopsis_item) {
+                $synopsis_item = $this->enrich_article_citations_from_phase4($synopsis_item, $meta);
+            }
+            unset($synopsis_item);
+
+            // Log citation quality for monitoring before merge.
+            $under_cited = 0;
+            foreach ($synopses as $s) {
+                if (count($s['citations'] ?? array()) < 4) {
+                    $under_cited++;
+                }
+            }
+            if ($under_cited > 0) {
+                error_log(sprintf(
+                    '[PLANNER][SYNOPSES] Citation quality warning: %d/%d synopses have fewer than 4 citations in batch %s.',
+                    $under_cited,
+                    count($synopses),
+                    $idempotency
+                ));
+            }
+
             if (!empty($meta['synopses_batch_mode'])) {
                 $meta['articles'] = $this->merge_synopses($meta['articles'] ?? array(), $synopses);
             } else {
@@ -4606,6 +4743,9 @@ class Dual_GPT_Plugin {
                 $meta['synopses_error'] = '';
             }
             $db->update_session_meta($session['id'], $meta);
+
+            // Phase 3: Silent auto dive-deeper safety net.
+            $this->maybe_auto_dive_after_synopses($session, $meta, $db);
             return;
         }
 
