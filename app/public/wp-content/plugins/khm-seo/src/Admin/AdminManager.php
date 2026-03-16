@@ -46,6 +46,7 @@ class AdminManager {
         // Meta boxes for posts and pages
         add_action( 'add_meta_boxes', array( $this, 'add_meta_boxes' ) );
         add_action( 'add_meta_boxes', array( $this, 'add_boost_visibility_meta_box' ) );
+        add_action( 'edit_form_after_title', array( $this, 'render_editor_score_panel' ) );
         add_action( 'save_post', array( $this, 'save_post_meta' ) );
         
         // Term meta for categories and tags
@@ -283,8 +284,9 @@ class AdminManager {
                     <tbody>
                         <?php foreach ( $posts as $post_item ) : ?>
                             <?php
-                            $seo_score = (int) get_post_meta( $post_item->ID, '_khm_seo_score', true );
-                            $geo_score = (int) get_post_meta( $post_item->ID, '_khm_geo_score', true );
+                            $score_snapshot = $this->get_post_score_snapshot( $post_item->ID );
+                            $seo_score = $score_snapshot['seo'];
+                            $geo_score = $score_snapshot['geo'];
                             $geo_policy = '';
                             $policy_sponsor_id = 0;
                             $sponsor_name = '';
@@ -979,6 +981,308 @@ class AdminManager {
     }
 
     /**
+     * Render SEO/GEO score panel directly under title so it stays at the top of the editor flow.
+     *
+     * @param \WP_Post $post Post object.
+     */
+    public function render_editor_score_panel( $post ) {
+        if ( ! $post instanceof \WP_Post ) {
+            return;
+        }
+
+        if ( ! in_array( $post->post_type, $this->supported_post_types, true ) ) {
+            return;
+        }
+
+        if ( ! current_user_can( 'edit_post', $post->ID ) ) {
+            return;
+        }
+
+        echo '<div id="khm-seo-score-tab" class="postbox" style="margin:12px 0 16px;">';
+        echo '<div class="postbox-header"><h2 class="hndle" style="padding:8px 12px;">' . esc_html__( 'Visibility Scores', 'khm-seo' ) . '</h2></div>';
+        echo '<div class="inside" style="margin:0;padding:12px;">';
+        $this->render_score_strip( $post->ID );
+        echo '</div>';
+        echo '</div>';
+    }
+
+    /**
+     * Render SEO and GEO score badges used by the editor panel.
+     *
+     * @param int $post_id Post ID.
+     */
+    private function render_score_strip( $post_id ) {
+        $score_snapshot = $this->get_post_score_snapshot( $post_id );
+        $seo_score = $score_snapshot['seo'];
+        $geo_score = $score_snapshot['geo'];
+        $seo_band = $this->get_quality_band( $seo_score );
+        $geo_band = $this->get_quality_band( $geo_score );
+
+        echo '<div class="khm-seo-score-strip" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px;border:1px solid #dcdcde;border-radius:4px;background:#f6f7f7;">';
+        echo '<div style="min-width:160px;">';
+        echo '<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:#50575e;margin-bottom:4px;">' . esc_html__( 'SEO Score', 'khm-seo' ) . '</div>';
+        echo '<div id="khm-seo-score-badge" data-score="' . esc_attr( $seo_score ) . '" data-band="' . esc_attr( $seo_band['slug'] ) . '" style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:' . esc_attr( $seo_band['background'] ) . ';color:' . esc_attr( $seo_band['color'] ) . ';font-weight:600;">';
+        echo '<span id="khm-seo-score-label">' . esc_html( $seo_band['label'] ) . '</span>';
+        echo '<span id="khm-seo-score-value" style="font-size:12px;opacity:0.85;">' . esc_html( $seo_score > 0 ? $seo_score . '/100' : 'Not scored' ) . '</span>';
+        echo '</div>';
+        echo '</div>';
+        echo '<div style="min-width:160px;">';
+        echo '<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:#50575e;margin-bottom:4px;">' . esc_html__( 'GEO Score', 'khm-seo' ) . '</div>';
+        echo '<div id="khm-geo-score-badge" data-score="' . esc_attr( $geo_score ) . '" data-band="' . esc_attr( $geo_band['slug'] ) . '" style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:' . esc_attr( $geo_band['background'] ) . ';color:' . esc_attr( $geo_band['color'] ) . ';font-weight:600;">';
+        echo '<span id="khm-geo-score-label">' . esc_html( $geo_band['label'] ) . '</span>';
+        echo '<span id="khm-geo-score-value" style="font-size:12px;opacity:0.85;">' . esc_html( $geo_score > 0 ? $geo_score . '/100' : 'Not scored' ) . '</span>';
+        echo '</div>';
+        echo '</div>';
+        echo '</div>';
+    }
+
+    /**
+     * Resolve the best available SEO and GEO scores for a post.
+     *
+     * @param int $post_id Post ID.
+     * @return array{seo:int,geo:int}
+     */
+    private function get_post_score_snapshot( $post_id ) {
+        return array(
+            'seo' => $this->resolve_post_seo_score( $post_id ),
+            'geo' => $this->resolve_post_geo_score( $post_id ),
+        );
+    }
+
+    /**
+     * Resolve SEO score from post meta first, then analytics history.
+     *
+     * @param int $post_id Post ID.
+     * @return int
+     */
+    private function resolve_post_seo_score( $post_id ) {
+        $score = (int) get_post_meta( $post_id, '_khm_seo_score', true );
+        if ( $score > 0 ) {
+            return $score;
+        }
+
+        $fallback_score = $this->get_latest_analytics_seo_score( $post_id );
+        if ( $fallback_score > 0 ) {
+            update_post_meta( $post_id, '_khm_seo_score', $fallback_score );
+            return $fallback_score;
+        }
+
+        return 0;
+    }
+
+    /**
+     * Resolve GEO score from post meta first, then derive it from AnswerCard widgets.
+     *
+     * @param int $post_id Post ID.
+     * @return int
+     */
+    private function resolve_post_geo_score( $post_id ) {
+        $answer_card_score = $this->get_answer_card_geo_meta_score( $post_id );
+        if ( $answer_card_score > 0 ) {
+            update_post_meta( $post_id, '_khm_geo_score', $answer_card_score );
+            return $answer_card_score;
+        }
+
+        $score = (int) get_post_meta( $post_id, '_khm_geo_score', true );
+        if ( $score > 0 ) {
+            return $score;
+        }
+
+        $derived_score = $this->calculate_answer_card_geo_score( $post_id );
+        if ( $derived_score > 0 ) {
+            update_post_meta( $post_id, '_khm_geo_score', $derived_score );
+            return $derived_score;
+        }
+
+        return 0;
+    }
+
+    /**
+     * Read the GEO score produced by the AnswerCard block workflow.
+     *
+     * @param int $post_id Post ID.
+     * @return int
+     */
+    private function get_answer_card_geo_meta_score( $post_id ) {
+        $score = get_post_meta( $post_id, '_geo_score', true );
+        if ( '' === $score || null === $score ) {
+            return 0;
+        }
+
+        $score = (float) $score;
+        if ( $score <= 0 ) {
+            return 0;
+        }
+
+        if ( $score <= 1 ) {
+            $score *= 100;
+        }
+
+        return max( 0, min( 100, (int) round( $score ) ) );
+    }
+
+    /**
+     * Read the latest SEO score from analytics history for this post.
+     *
+     * @param int $post_id Post ID.
+     * @return int
+     */
+    private function get_latest_analytics_seo_score( $post_id ) {
+        if ( ! class_exists( '\\KHM_SEO\\Analytics\\AnalyticsDatabase' ) ) {
+            return 0;
+        }
+
+        $analytics_database = new \KHM_SEO\Analytics\AnalyticsDatabase();
+        $scores = $analytics_database->get_seo_scores( $post_id, 1 );
+        if ( ! is_array( $scores ) || empty( $scores ) ) {
+            return 0;
+        }
+
+        $latest_score = $scores[0];
+        $raw_score = 0;
+
+        if ( is_object( $latest_score ) && isset( $latest_score->overall_score ) ) {
+            $raw_score = $latest_score->overall_score;
+        } elseif ( is_array( $latest_score ) && isset( $latest_score['overall_score'] ) ) {
+            $raw_score = $latest_score['overall_score'];
+        }
+
+        return max( 0, min( 100, (int) round( $raw_score ) ) );
+    }
+
+    /**
+     * Derive a GEO score from any AnswerCard widgets attached to the post.
+     *
+     * @param int $post_id Post ID.
+     * @return int
+     */
+    private function calculate_answer_card_geo_score( $post_id ) {
+        if ( ! class_exists( '\\Elementor\\Plugin' ) || ! function_exists( 'khm_seo' ) || ! khm_seo() ) {
+            return 0;
+        }
+
+        $geo_manager = khm_seo()->get_geo_manager();
+        if ( ! $geo_manager || ! method_exists( $geo_manager, 'get_entity_manager' ) ) {
+            return 0;
+        }
+
+        $entity_manager = $geo_manager->get_entity_manager();
+        if ( ! $entity_manager || ! method_exists( $entity_manager, 'get_scoring_engine' ) ) {
+            return 0;
+        }
+
+        $document = \Elementor\Plugin::$instance->documents->get( $post_id );
+        if ( ! $document ) {
+            return 0;
+        }
+
+        $elements = $document->get_elements_data();
+        if ( ! is_array( $elements ) || empty( $elements ) ) {
+            return 0;
+        }
+
+        $answer_card_settings = array();
+        $this->collect_answer_card_settings( $elements, $answer_card_settings );
+        if ( empty( $answer_card_settings ) ) {
+            return 0;
+        }
+
+        $scoring_engine = $entity_manager->get_scoring_engine();
+        if ( ! $scoring_engine || ! method_exists( $scoring_engine, 'calculate_score' ) ) {
+            return 0;
+        }
+
+        $scores = array();
+        foreach ( $answer_card_settings as $settings ) {
+            $score_data = $scoring_engine->calculate_score(
+                is_array( $settings ) ? $settings : array(),
+                array( 'post_id' => $post_id )
+            );
+
+            $score = isset( $score_data['total_score'] ) ? (float) $score_data['total_score'] : 0;
+            if ( $score > 0 ) {
+                $scores[] = (int) round( $score * 100 );
+            }
+        }
+
+        if ( empty( $scores ) ) {
+            return 0;
+        }
+
+        return (int) round( array_sum( $scores ) / count( $scores ) );
+    }
+
+    /**
+     * Collect AnswerCard widget settings from Elementor element data.
+     *
+     * @param array $elements Elementor elements.
+     * @param array $settings_collector Accumulated AnswerCard settings.
+     * @return void
+     */
+    private function collect_answer_card_settings( $elements, &$settings_collector ) {
+        foreach ( $elements as $element ) {
+            if ( ! is_array( $element ) ) {
+                continue;
+            }
+
+            if ( isset( $element['widgetType'] ) && 'khm-answer-card' === $element['widgetType'] && ! empty( $element['settings'] ) && is_array( $element['settings'] ) ) {
+                $settings_collector[] = $element['settings'];
+            }
+
+            if ( ! empty( $element['elements'] ) && is_array( $element['elements'] ) ) {
+                $this->collect_answer_card_settings( $element['elements'], $settings_collector );
+            }
+        }
+    }
+
+    private function get_quality_band( $score ) {
+        $score = (int) $score;
+
+        if ( $score >= 80 ) {
+            return array(
+                'slug' => 'excellent',
+                'label' => __( 'Excellent', 'khm-seo' ),
+                'background' => '#dff3e4',
+                'color' => '#0f5132',
+            );
+        }
+
+        if ( $score >= 60 ) {
+            return array(
+                'slug' => 'good',
+                'label' => __( 'Good', 'khm-seo' ),
+                'background' => '#e7f1ff',
+                'color' => '#0b57d0',
+            );
+        }
+
+        if ( $score >= 40 ) {
+            return array(
+                'slug' => 'average',
+                'label' => __( 'Average', 'khm-seo' ),
+                'background' => '#fff4ce',
+                'color' => '#8a5300',
+            );
+        }
+
+        if ( $score > 0 ) {
+            return array(
+                'slug' => 'poor',
+                'label' => __( 'Poor', 'khm-seo' ),
+                'background' => '#fde7e9',
+                'color' => '#a4262c',
+            );
+        }
+
+        return array(
+            'slug' => 'unscored',
+            'label' => __( 'Not Scored', 'khm-seo' ),
+            'background' => '#edebe9',
+            'color' => '#323130',
+        );
+    }
+
+    /**
      * Save post meta.
      *
      * @param int $post_id Post ID.
@@ -1019,6 +1323,19 @@ class AdminManager {
         // Only load on KHM SEO pages and post edit screens
         if ( strpos( $hook_suffix, 'khm-seo' ) !== false || 
              in_array( $hook_suffix, array( 'post.php', 'post-new.php' ) ) ) {
+            $current_post_id = 0;
+            if ( isset( $_GET['post'] ) ) {
+                $current_post_id = absint( $_GET['post'] );
+            } elseif ( isset( $_POST['post_ID'] ) ) {
+                $current_post_id = absint( $_POST['post_ID'] );
+            }
+
+            $current_scores = $current_post_id ? $this->get_post_score_snapshot( $current_post_id ) : array(
+                'seo' => 0,
+                'geo' => 0,
+            );
+            $current_seo_score = (int) $current_scores['seo'];
+            $current_geo_score = (int) $current_scores['geo'];
             
             wp_enqueue_style( 
                 'khm-seo-admin', 
@@ -1043,6 +1360,11 @@ class AdminManager {
                     'enabled' => class_exists( 'KHM_SEO_AGENT\\API\\Rest_Api' ),
                     'rest_url' => esc_url_raw( rest_url( 'khm-seo-agent/v1/' ) ),
                     'rest_nonce' => wp_create_nonce( 'wp_rest' ),
+                ),
+                'editorScores' => array(
+                    'postId' => $current_post_id,
+                    'seo' => $current_seo_score,
+                    'geo' => $current_geo_score,
                 ),
                 'smma'     => array(
                     'enabled' => class_exists( 'KH_SMMA\\Services\\SmmaGenerator' ),
@@ -1076,9 +1398,13 @@ class AdminManager {
                     'seoAgentNoActions' => __( 'No apply actions returned by SEO Agent.', 'khm-seo' ),
                     'seoAgentPreview' => __( 'Preview changes', 'khm-seo' ),
                     'seoAgentApply' => __( 'Apply selected actions', 'khm-seo' ),
-                    'seoAgentApplied' => __( 'SEO Agent changes applied and synced to the editor fields. Save only if you also changed other post content.', 'khm-seo' ),
+                    'seoAgentApplied' => __( 'SEO Agent changes applied and synced to editor fields and score badges instantly. No refresh is required. Save only if you also changed other post content.', 'khm-seo' ),
                     'seoAgentConfirmSchema' => __( 'Apply schema configuration changes as well? This updates stored schema settings immediately.', 'khm-seo' ),
-                    'seoAgentError' => __( 'SEO Agent request failed.', 'khm-seo' )
+                    'seoAgentError' => __( 'SEO Agent request failed.', 'khm-seo' ),
+                    'visibilityScoresTitle' => __( 'Visibility Scores', 'khm-seo' ),
+                    'seoScoreTitle' => __( 'SEO Score', 'khm-seo' ),
+                    'geoScoreTitle' => __( 'GEO Score', 'khm-seo' ),
+                    'scoreNotScored' => __( 'Not scored', 'khm-seo' )
                 )
             ) );
         }

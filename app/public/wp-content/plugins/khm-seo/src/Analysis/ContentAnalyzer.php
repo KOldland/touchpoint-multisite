@@ -176,6 +176,28 @@ class ContentAnalyzer {
         
         return $analysis;
     }
+
+    /**
+     * Determine whether content contains a clear call-to-action phrase or button markup.
+     *
+     * @param string $content Content to inspect.
+     * @return bool True when CTA evidence is present.
+     */
+    public function has_call_to_action( $content ) {
+        if ( ! is_string( $content ) || $content === '' ) {
+            return false;
+        }
+
+        $content_lower = \strtolower( $content );
+
+        foreach ( $this->cta_phrases as $cta ) {
+            if ( \strpos( $content_lower, $cta ) !== false ) {
+                return true;
+            }
+        }
+
+        return \strpos( $content_lower, '<button' ) !== false || \strpos( $content_lower, 'class="button"' ) !== false;
+    }
     
     /**
      * Analyze content length

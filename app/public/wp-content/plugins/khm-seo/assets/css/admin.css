@@ -16,6 +16,64 @@
     color: #666;
 }
 
+.khm-seo-editor-score-panel {
+    margin: 0;
+    padding: 16px;
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 1px solid #e0e0e0;
+    border-radius: 0;
+    background: #fff;
+    box-shadow: none;
+}
+
+.khm-seo-editor-score-panel__header {
+    margin-bottom: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #50575e;
+}
+
+.khm-seo-editor-score-panel__body {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.khm-seo-score-strip__item {
+    min-width: 100%;
+}
+
+.khm-seo-score-strip__title {
+    margin-bottom: 4px;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #50575e;
+}
+
+.khm-seo-score-strip__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+}
+
+.edit-post-sidebar .khm-seo-editor-score-panel,
+.interface-complementary-area.edit-post-sidebar .khm-seo-editor-score-panel {
+    order: -1;
+}
+
+.khm-seo-score-strip__value {
+    font-size: 12px;
+    opacity: 0.85;
+}
+
 /* SEO Score Indicator */
 .khm-seo-score {
     display: inline-block;

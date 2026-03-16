@@ -133,6 +133,7 @@ class Rest_Api {
         );
 
         $analysis = $analysis_engine->analyze( $data );
+        $this->persist_seo_score( $post_id, $analysis );
 
         if ( ! $this->is_openai_available() ) {
             return rest_ensure_response( array(
@@ -280,6 +281,56 @@ class Rest_Api {
         return $connector->validate_api_key();
     }
 
+    /**
+     * Analyze the current post content with the KHM SEO analysis engine.
+     *
+     * @param int $post_id Post ID.
+     * @param string $keyword Optional focus keyword override.
+     * @return array|\WP_Error
+     */
+    private function analyze_post( $post_id, $keyword = '' ) {
+        $post = get_post( $post_id );
+        if ( ! $post ) {
+            return new \WP_Error( 'post_not_found', 'Post not found.', array( 'status' => 404 ) );
+        }
+
+        if ( ! function_exists( 'khm_seo' ) || ! khm_seo() ) {
+            return new \WP_Error( 'khm_seo_missing', 'KHM SEO is not available.', array( 'status' => 500 ) );
+        }
+
+        $analysis_engine = khm_seo()->get_analysis_engine();
+        if ( ! $analysis_engine ) {
+            return new \WP_Error( 'analysis_unavailable', 'KHM SEO analysis engine is not available.', array( 'status' => 500 ) );
+        }
+
+        $focus_keyword = get_post_meta( $post_id, '_khm_seo_focus_keyword', true );
+        if ( empty( $keyword ) && ! empty( $focus_keyword ) ) {
+            $keyword = $focus_keyword;
+        }
+
+        return $analysis_engine->analyze( array(
+            'post_id' => $post_id,
+            'title' => $post->post_title,
+            'content' => $post->post_content,
+            'meta_description' => get_post_meta( $post_id, '_khm_seo_description', true ),
+            'focus_keyword' => sanitize_text_field( $keyword ),
+        ) );
+    }
+
+    /**
+     * Persist the latest SEO score to post meta.
+     *
+     * @param int $post_id Post ID.
+     * @param array $analysis Analysis payload.
+     * @return int
+     */
+    private function persist_seo_score( $post_id, $analysis ) {
+        $score = max( 0, min( 100, (int) ( $analysis['overall_score'] ?? 0 ) ) );
+        update_post_meta( $post_id, '_khm_seo_score', $score );
+
+        return $score;
+    }
+
     public function handle_audit_status( $request ) {
         $job_id = sanitize_text_field( $request->get_param( 'job_id' ) );
         if ( empty( $job_id ) ) {
@@ -313,6 +364,7 @@ class Rest_Api {
 
         return rest_ensure_response( array(
             'job_id' => $job_id,
+            'analysis' => $context['analysis'] ?? null,
             'llm_output' => $llm_payload,
             'status' => 'completed',
         ) );
@@ -372,6 +424,26 @@ class Rest_Api {
             'job_id' => $job_id,
             'allow_schema_write' => $confirm_schema_changes,
         ) );
+
+        if ( is_array( $result ) && ! empty( $result['success'] ) ) {
+            $existing_score = (int) get_post_meta( $post_id, '_khm_seo_score', true );
+            $analysis = $this->analyze_post( $post_id );
+
+            if ( ! is_wp_error( $analysis ) ) {
+                $next_score = $this->persist_seo_score( $post_id, $analysis );
+                $result['analysis'] = $analysis;
+
+                if ( ! isset( $result['changes'] ) || ! is_array( $result['changes'] ) ) {
+                    $result['changes'] = array();
+                }
+
+                $result['changes'][] = array(
+                    'meta_key' => '_khm_seo_score',
+                    'old' => $existing_score,
+                    'new' => $next_score,
+                );
+            }
+        }
 
         return rest_ensure_response( $result );
     }
@@ -641,11 +713,6 @@ class Rest_Api {
             return null;
         }
 
-        $analysis_engine = khm_seo()->get_analysis_engine();
-        if ( ! $analysis_engine ) {
-            return null;
-        }
-
         $meta = json_decode( $session['meta_json'] ?? '', true );
         if ( ! is_array( $meta ) ) {
             $meta = array();
@@ -656,13 +723,10 @@ class Rest_Api {
             $keyword = sanitize_text_field( get_post_meta( $post_id, '_khm_seo_focus_keyword', true ) );
         }
 
-        $analysis = $analysis_engine->analyze( array(
-            'post_id' => $post_id,
-            'title' => $post->post_title,
-            'content' => $post->post_content,
-            'meta_description' => get_post_meta( $post_id, '_khm_seo_description', true ),
-            'focus_keyword' => $keyword,
-        ) );
+        $analysis = $this->analyze_post( $post_id, $keyword );
+        if ( is_wp_error( $analysis ) ) {
+            return null;
+        }
 
         return array(
             'post' => $post,

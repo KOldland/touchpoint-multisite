@@ -11,9 +11,202 @@
         initFormValidation();
         initTabs();
         initTooltips();
+        initEditorScorePanel();
         initSeoAgentMetaBox();
         initSmmaWorkflow();
     });
+
+    function initEditorScorePanel() {
+        if (!window.khmSeo || !khmSeo.editorScores) {
+            return;
+        }
+
+        if (!$('body').hasClass('block-editor-page')) {
+            return;
+        }
+
+        if (registerEditorScorePluginPanel()) {
+            return;
+        }
+
+        ensureEditorScorePanel();
+
+        var observer = new window.MutationObserver(function() {
+            ensureEditorScorePanel();
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
+
+    function registerEditorScorePluginPanel() {
+        if (
+            !window.wp ||
+            !wp.plugins ||
+            !wp.plugins.registerPlugin ||
+            !wp.editPost ||
+            !wp.editPost.PluginDocumentSettingPanel ||
+            !wp.element ||
+            !wp.element.createElement
+        ) {
+            return false;
+        }
+
+        if (window.khmSeoEditorScorePluginRegistered) {
+            return true;
+        }
+
+        var createElement = wp.element.createElement;
+        var PluginDocumentSettingPanel = wp.editPost.PluginDocumentSettingPanel;
+
+        function ScoreItem(props) {
+            var band = getQualityBand(props.score);
+            var numericScore = parseInt(props.score, 10) || 0;
+            var valueText = numericScore > 0
+                ? (numericScore + '/100')
+                : ((khmSeo.strings && khmSeo.strings.scoreNotScored) || 'Not scored');
+
+            return createElement(
+                'div',
+                { className: 'khm-seo-score-strip__item' },
+                createElement('div', { className: 'khm-seo-score-strip__title' }, props.title),
+                createElement(
+                    'div',
+                    {
+                        id: 'khm-' + props.prefix + '-score-badge',
+                        className: 'khm-seo-score-strip__badge',
+                        'data-score': numericScore,
+                        'data-band': band.slug,
+                        style: {
+                            background: band.background,
+                            color: band.color
+                        }
+                    },
+                    createElement('span', { id: 'khm-' + props.prefix + '-score-label' }, band.label),
+                    createElement('span', { id: 'khm-' + props.prefix + '-score-value', className: 'khm-seo-score-strip__value' }, valueText)
+                )
+            );
+        }
+
+        function ScorePanel() {
+            var seoScore = khmSeo.editorScores.seo || 0;
+            var geoScore = khmSeo.editorScores.geo || 0;
+
+            return createElement(
+                PluginDocumentSettingPanel,
+                {
+                    name: 'khm-seo-visibility-scores',
+                    title: (khmSeo.strings && khmSeo.strings.visibilityScoresTitle) || 'Visibility Scores',
+                    className: 'khm-seo-editor-score-plugin-panel'
+                },
+                createElement(
+                    'div',
+                    { className: 'khm-seo-score-strip khm-seo-editor-score-panel__body' },
+                    createElement(ScoreItem, {
+                        prefix: 'seo',
+                        title: (khmSeo.strings && khmSeo.strings.seoScoreTitle) || 'SEO Score',
+                        score: seoScore
+                    }),
+                    createElement(ScoreItem, {
+                        prefix: 'geo',
+                        title: (khmSeo.strings && khmSeo.strings.geoScoreTitle) || 'GEO Score',
+                        score: geoScore
+                    })
+                )
+            );
+        }
+
+        wp.plugins.registerPlugin('khm-seo-visibility-scores', {
+            render: ScorePanel,
+            icon: null
+        });
+
+        window.khmSeoEditorScorePluginRegistered = true;
+        return true;
+    }
+
+    function ensureEditorScorePanel() {
+        var $target = findEditorScoreTarget();
+        if (!$target.length) {
+            return;
+        }
+
+        var seoScore = khmSeo.editorScores.seo || 0;
+        var geoScore = khmSeo.editorScores.geo || 0;
+        var seoBand = getQualityBand(seoScore);
+        var geoBand = getQualityBand(geoScore);
+
+        var $existingPanel = $('#khm-seo-editor-score-panel');
+        if ($existingPanel.length) {
+            if ($existingPanel.parent().is($target)) {
+                return;
+            }
+
+            $existingPanel.remove();
+        }
+
+        var $panel = $(
+            '<div id="khm-seo-editor-score-panel" class="components-panel__body is-opened khm-seo-editor-score-panel">' +
+                '<div class="khm-seo-editor-score-panel__header"></div>' +
+                '<div class="khm-seo-score-strip khm-seo-editor-score-panel__body"></div>' +
+            '</div>'
+        );
+
+        $panel.find('.khm-seo-editor-score-panel__header').text(
+            (khmSeo.strings && khmSeo.strings.visibilityScoresTitle) || 'Visibility Scores'
+        );
+
+        $panel.find('.khm-seo-editor-score-panel__body')
+            .append(buildScoreBadgeMarkup('seo', (khmSeo.strings && khmSeo.strings.seoScoreTitle) || 'SEO Score', seoScore, seoBand))
+            .append(buildScoreBadgeMarkup('geo', (khmSeo.strings && khmSeo.strings.geoScoreTitle) || 'GEO Score', geoScore, geoBand));
+
+        $target.prepend($panel);
+    }
+
+    function findEditorScoreTarget() {
+        var selectors = [
+            '.edit-post-sidebar .components-panel',
+            '.interface-complementary-area.edit-post-sidebar .components-panel',
+            '.editor-sidebar .components-panel',
+            '.interface-interface-skeleton__sidebar .components-panel'
+        ];
+
+        for (var index = 0; index < selectors.length; index += 1) {
+            var $candidate = $(selectors[index]).first();
+            if ($candidate.length) {
+                return $candidate;
+            }
+        }
+
+        return $();
+    }
+
+    function buildScoreBadgeMarkup(prefix, title, score, band) {
+        var numericScore = parseInt(score, 10) || 0;
+        var valueText = numericScore > 0
+            ? (numericScore + '/100')
+            : ((khmSeo.strings && khmSeo.strings.scoreNotScored) || 'Not scored');
+
+        return $(
+            '<div class="khm-seo-score-strip__item">' +
+                '<div class="khm-seo-score-strip__title"></div>' +
+                '<div id="khm-' + prefix + '-score-badge" class="khm-seo-score-strip__badge" data-score="' + numericScore + '" data-band="' + band.slug + '">' +
+                    '<span id="khm-' + prefix + '-score-label"></span>' +
+                    '<span id="khm-' + prefix + '-score-value" class="khm-seo-score-strip__value"></span>' +
+                '</div>' +
+            '</div>'
+        ).each(function() {
+            $(this).find('.khm-seo-score-strip__title').text(title);
+            $(this).find('.khm-seo-score-strip__badge').css({
+                background: band.background,
+                color: band.color
+            });
+            $(this).find('#khm-' + prefix + '-score-label').text(band.label);
+            $(this).find('#khm-' + prefix + '-score-value').text(valueText);
+        });
+    }
 
     function initSeoAgentMetaBox() {
         var $runButton = $('#khm-seo-run-agent-btn');
@@ -75,10 +268,7 @@
             seoAgentRequest('audit/status?job_id=' + encodeURIComponent(jobId), null, 'GET')
                 .done(function(response) {
                     if (response.status === 'completed' && response.llm_output) {
-                        renderSeoAgentActions({
-                            llm_output: response.llm_output,
-                            status: 'completed'
-                        }, state);
+                        renderSeoAgentActions(response, state);
                         setSeoAgentBusy($runButton, false);
                         return;
                     }
@@ -111,6 +301,10 @@
         var $actionsRoot = $('#khm-seo-agent-actions');
         var $previewRoot = $('#khm-seo-agent-preview');
         var postId = parseInt($('#post_ID').val(), 10) || 0;
+
+        if (response && response.analysis && typeof response.analysis.overall_score !== 'undefined') {
+            updateScoreBadge('seo', response.analysis.overall_score);
+        }
 
         state.actions = actions;
         $actionsRoot.empty();
@@ -232,7 +426,21 @@
         };
 
         (changes || []).forEach(function(change) {
-            if (!change || !change.meta_key || !(change.meta_key in selectors)) {
+            if (!change || !change.meta_key) {
+                return;
+            }
+
+            if (change.meta_key === '_khm_seo_score') {
+                updateScoreBadge('seo', change.new);
+                return;
+            }
+
+            if (change.meta_key === '_khm_geo_score') {
+                updateScoreBadge('geo', change.new);
+                return;
+            }
+
+            if (!(change.meta_key in selectors)) {
                 return;
             }
 
@@ -246,6 +454,85 @@
             $field.trigger('input');
             $field.trigger('change');
         });
+    }
+
+    function getQualityBand(score) {
+        var numericScore = parseInt(score, 10) || 0;
+
+        if (numericScore >= 80) {
+            return {
+                slug: 'excellent',
+                label: 'Excellent',
+                background: '#dff3e4',
+                color: '#0f5132'
+            };
+        }
+
+        if (numericScore >= 60) {
+            return {
+                slug: 'good',
+                label: 'Good',
+                background: '#e7f1ff',
+                color: '#0b57d0'
+            };
+        }
+
+        if (numericScore >= 40) {
+            return {
+                slug: 'average',
+                label: 'Average',
+                background: '#fff4ce',
+                color: '#8a5300'
+            };
+        }
+
+        if (numericScore > 0) {
+            return {
+                slug: 'poor',
+                label: 'Poor',
+                background: '#fde7e9',
+                color: '#a4262c'
+            };
+        }
+
+        return {
+            slug: 'unscored',
+            label: 'Not Scored',
+            background: '#edebe9',
+            color: '#323130'
+        };
+    }
+
+    function updateScoreBadge(prefix, score) {
+        var numericScore = parseInt(score, 10) || 0;
+        var band = getQualityBand(numericScore);
+        var $badge = $('#khm-' + prefix + '-score-badge');
+        var $label = $('#khm-' + prefix + '-score-label');
+        var $value = $('#khm-' + prefix + '-score-value');
+
+        if (!$badge.length) {
+            return;
+        }
+
+        $badge
+            .attr('data-score', numericScore)
+            .attr('data-band', band.slug)
+            .css({
+                background: band.background,
+                color: band.color
+            });
+
+        if ($label.length) {
+            $label.text(band.label);
+        }
+
+        if ($value.length) {
+            $value.text(numericScore > 0 ? (numericScore + '/100') : ((khmSeo.strings && khmSeo.strings.scoreNotScored) || 'Not scored'));
+        }
+
+        if (window.khmSeo && khmSeo.editorScores) {
+            khmSeo.editorScores[prefix] = numericScore;
+        }
     }
 
     function seoAgentRequest(path, payload, method) {
