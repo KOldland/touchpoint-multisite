@@ -73,6 +73,10 @@ class Rest_Api {
                     'type' => 'string',
                     'required' => true,
                 ),
+                'confirm_schema_changes' => array(
+                    'type' => 'boolean',
+                    'required' => false,
+                ),
             ),
         ) );
 
@@ -340,10 +344,19 @@ class Rest_Api {
         $actions = $request->get_param( 'actions' );
         $job_id = sanitize_text_field( $request->get_param( 'job_id' ) );
         $idempotency_key = sanitize_text_field( $request->get_param( 'idempotency_key' ) );
+        $confirm_schema_changes = $this->to_bool( $request->get_param( 'confirm_schema_changes' ) );
         $acting_user_id = get_current_user_id();
 
         if ( empty( $post_id ) || empty( $actions ) || empty( $job_id ) || empty( $idempotency_key ) ) {
             return new \WP_Error( 'invalid_apply', 'post_id, actions, job_id, and idempotency_key are required.', array( 'status' => 400 ) );
+        }
+
+        if ( $this->has_action_type( $actions, 'set_schema_config' ) && ! $confirm_schema_changes ) {
+            return new \WP_Error(
+                'schema_confirmation_required',
+                'Schema configuration changes require confirm_schema_changes=true.',
+                array( 'status' => 400 )
+            );
         }
 
         if ( ! class_exists( 'Dual_GPT_SEO_Tools' ) ) {
@@ -357,9 +370,45 @@ class Rest_Api {
             'acting_user_id' => $acting_user_id,
             'idempotency_key' => $idempotency_key,
             'job_id' => $job_id,
+            'allow_schema_write' => $confirm_schema_changes,
         ) );
 
         return rest_ensure_response( $result );
+    }
+
+    private function has_action_type( $actions, $target_type ) {
+        if ( ! is_array( $actions ) ) {
+            return false;
+        }
+
+        foreach ( $actions as $action ) {
+            if ( ! is_array( $action ) ) {
+                continue;
+            }
+
+            if ( sanitize_key( $action['action_type'] ?? '' ) === $target_type ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function to_bool( $value ) {
+        if ( is_bool( $value ) ) {
+            return $value;
+        }
+
+        if ( is_numeric( $value ) ) {
+            return intval( $value ) === 1;
+        }
+
+        if ( is_string( $value ) ) {
+            $normalized = strtolower( trim( $value ) );
+            return in_array( $normalized, array( '1', 'true', 'yes', 'on' ), true );
+        }
+
+        return false;
     }
 
     private function create_dual_gpt_session( $post_id, $keyword = '' ) {

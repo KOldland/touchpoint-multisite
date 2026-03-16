@@ -109,5 +109,17 @@ class SmmaWorkflowWiringTest extends TestCase {
             $seo_tools_source,
             'Dual-GPT SEO tools should be able to apply schema configuration actions.'
         );
+
+        $this->assertStringContainsString(
+            'confirm_schema_changes',
+            $agent_source,
+            'SEO Agent apply endpoint should require explicit confirmation for schema config writes.'
+        );
+
+        $this->assertStringContainsString(
+            'allow_schema_write',
+            $seo_tools_source,
+            'Dual-GPT SEO tools should enforce allow_schema_write before schema updates.'
+        );
     }
 }

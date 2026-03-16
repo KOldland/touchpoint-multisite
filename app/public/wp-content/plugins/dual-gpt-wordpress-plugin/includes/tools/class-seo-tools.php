@@ -303,6 +303,7 @@ class Dual_GPT_SEO_Tools {
         $acting_user_id = intval($args['acting_user_id'] ?? 0);
         $idempotency_key = sanitize_text_field($args['idempotency_key'] ?? '');
         $job_id = sanitize_text_field($args['job_id'] ?? '');
+        $allow_schema_write = !empty($args['allow_schema_write']);
 
         if (!$post_id || empty($actions) || !$acting_user_id || !$idempotency_key || !$job_id) {
             return array('error' => 'post_id, actions, acting_user_id, idempotency_key, and job_id are required');
@@ -321,6 +322,12 @@ class Dual_GPT_SEO_Tools {
         $budget = $db->check_user_budget($acting_user_id);
         if ($budget['token_used'] >= $budget['token_limit']) {
             return array('error' => 'Budget exceeded');
+        }
+
+        foreach ($actions as $action) {
+            if (($action['action_type'] ?? '') === 'set_schema_config' && !$allow_schema_write) {
+                return array('error' => 'Schema configuration changes require explicit confirmation');
+            }
         }
 
         $rollback = array();
@@ -393,6 +400,7 @@ class Dual_GPT_SEO_Tools {
             'post_id' => $post_id,
             'acting_user_id' => $acting_user_id,
             'idempotency_key' => $idempotency_key,
+            'allow_schema_write' => $allow_schema_write,
             'changes' => $changes,
             'rollback' => $rollback,
         ));
