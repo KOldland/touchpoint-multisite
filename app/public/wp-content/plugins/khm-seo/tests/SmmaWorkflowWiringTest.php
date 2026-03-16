@@ -65,6 +65,8 @@ class SmmaWorkflowWiringTest extends TestCase {
     public function test_seo_agent_editor_panel_wiring_is_present(): void {
         $admin_source = file_get_contents( dirname( __DIR__ ) . '/src/Admin/AdminManager.php' );
         $js_source = file_get_contents( dirname( __DIR__ ) . '/assets/js/admin.js' );
+        $agent_source = file_get_contents( dirname( __DIR__, 2 ) . '/khm-seo-agent/src/API/Rest_Api.php' );
+        $seo_tools_source = file_get_contents( dirname( __DIR__, 2 ) . '/dual-gpt-wordpress-plugin/includes/tools/class-seo-tools.php' );
 
         $this->assertStringContainsString(
             "id=\"khm-seo-run-agent-btn\"",
@@ -88,6 +90,24 @@ class SmmaWorkflowWiringTest extends TestCase {
             "seoAgentRequest('audit'",
             $js_source,
             'SEO admin JavaScript should call the SEO Agent audit endpoint.'
+        );
+
+        $this->assertStringContainsString(
+            'set_schema_config',
+            $agent_source,
+            'SEO Agent prompt and fallback logic should support schema config actions.'
+        );
+
+        $this->assertStringContainsString(
+            'build_deterministic_payload',
+            $agent_source,
+            'SEO Agent should synthesize deterministic fallback actions when the model returns no apply actions.'
+        );
+
+        $this->assertStringContainsString(
+            "case 'set_schema_config':",
+            $seo_tools_source,
+            'Dual-GPT SEO tools should be able to apply schema configuration actions.'
         );
     }
 }

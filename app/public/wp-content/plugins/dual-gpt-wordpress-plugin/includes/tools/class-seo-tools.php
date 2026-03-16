@@ -367,6 +367,14 @@ class Dual_GPT_SEO_Tools {
                     update_post_meta($post_id, $meta_key, sanitize_text_field($payload['value'] ?? ''));
                     $changes[] = array('meta_key' => $meta_key, 'old' => $old_value, 'new' => get_post_meta($post_id, $meta_key, true));
                     break;
+                case 'set_schema_config':
+                    $meta_key = '_khm_seo_schema_config';
+                    $old_value = get_post_meta($post_id, $meta_key, true);
+                    $new_value = $this->sanitize_schema_config($payload['value'] ?? array());
+                    update_post_meta($post_id, $meta_key, $new_value);
+                    $this->refresh_schema_cache($post_id, $new_value);
+                    $changes[] = array('meta_key' => $meta_key, 'old' => $old_value, 'new' => get_post_meta($post_id, $meta_key, true));
+                    break;
                 default:
                     return array('error' => 'Unsupported action: ' . $action_type);
             }
@@ -423,5 +431,56 @@ class Dual_GPT_SEO_Tools {
         }
 
         return $taxonomies;
+    }
+
+    private function sanitize_schema_config($config) {
+        if (!is_array($config)) {
+            $config = array();
+        }
+
+        $sanitized = array(
+            'enabled' => !empty($config['enabled']),
+            'type' => sanitize_key($config['type'] ?? 'article'),
+            'custom_fields' => array(),
+            'options' => array(),
+        );
+
+        if (!empty($config['custom_fields']) && is_array($config['custom_fields'])) {
+            foreach ($config['custom_fields'] as $field_key => $field_value) {
+                $sanitized['custom_fields'][sanitize_key($field_key)] = sanitize_textarea_field($field_value);
+            }
+        }
+
+        if (!empty($config['options']) && is_array($config['options'])) {
+            foreach ($config['options'] as $option_key => $option_value) {
+                $sanitized['options'][sanitize_key($option_key)] = sanitize_text_field((string) $option_value);
+            }
+        }
+
+        return $sanitized;
+    }
+
+    private function refresh_schema_cache($post_id, $schema_config) {
+        if (empty($schema_config['enabled'])) {
+            delete_post_meta($post_id, '_khm_seo_schema_cache');
+            return;
+        }
+
+        if (!class_exists('KHM_SEO\\Schema\\SchemaManager')) {
+            return;
+        }
+
+        $schema_manager = new \KHM_SEO\Schema\SchemaManager();
+        if (!method_exists($schema_manager, 'generate_post_schema')) {
+            return;
+        }
+
+        $schema_json = call_user_func(array($schema_manager, 'generate_post_schema'), $post_id, $schema_config);
+
+        update_post_meta($post_id, '_khm_seo_schema_cache', array(
+            'json_ld' => $schema_json,
+            'generated' => current_time('mysql'),
+            'config_hash' => md5(serialize($schema_config)),
+        ));
     }
 }
