@@ -61,4 +61,33 @@ class SmmaWorkflowWiringTest extends TestCase {
             'SEO admin JavaScript should wire approval actions.'
         );
     }
+
+    public function test_seo_agent_editor_panel_wiring_is_present(): void {
+        $admin_source = file_get_contents( dirname( __DIR__ ) . '/src/Admin/AdminManager.php' );
+        $js_source = file_get_contents( dirname( __DIR__ ) . '/assets/js/admin.js' );
+
+        $this->assertStringContainsString(
+            "id=\"khm-seo-run-agent-btn\"",
+            $admin_source,
+            'SEO meta box should render a Run SEO Agent button for editor workflow.'
+        );
+
+        $this->assertStringContainsString(
+            "'seoAgent' => array(",
+            $admin_source,
+            'AdminManager should localize SEO Agent runtime config.'
+        );
+
+        $this->assertStringContainsString(
+            'initSeoAgentMetaBox();',
+            $js_source,
+            'SEO admin JavaScript should initialize the SEO Agent meta box workflow.'
+        );
+
+        $this->assertStringContainsString(
+            "seoAgentRequest('audit'",
+            $js_source,
+            'SEO admin JavaScript should call the SEO Agent audit endpoint.'
+        );
+    }
 }

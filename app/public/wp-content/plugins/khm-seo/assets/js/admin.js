@@ -11,8 +11,256 @@
         initFormValidation();
         initTabs();
         initTooltips();
+        initSeoAgentMetaBox();
         initSmmaWorkflow();
     });
+
+    function initSeoAgentMetaBox() {
+        var $runButton = $('#khm-seo-run-agent-btn');
+        if (!$runButton.length) {
+            return;
+        }
+
+        var state = {
+            jobId: '',
+            actions: []
+        };
+
+        $runButton.on('click', function(event) {
+            event.preventDefault();
+
+            if (!window.khmSeo || !khmSeo.seoAgent || !khmSeo.seoAgent.enabled) {
+                setSeoAgentStatus((khmSeo && khmSeo.strings && khmSeo.strings.seoAgentError) || 'SEO Agent is not available.', 'error');
+                return;
+            }
+
+            var postId = parseInt($('#post_ID').val(), 10) || 0;
+            if (!postId) {
+                setSeoAgentStatus('Missing post ID.', 'error');
+                return;
+            }
+
+            setSeoAgentBusy($runButton, true);
+            setSeoAgentStatus(khmSeo.strings.seoAgentRunning, 'info');
+            $('#khm-seo-agent-actions').empty();
+            $('#khm-seo-agent-preview').empty();
+
+            seoAgentRequest('audit', {
+                post_id: postId
+            }).done(function(response) {
+                if (response.status === 'queued' && response.job_id) {
+                    state.jobId = response.job_id;
+                    setSeoAgentStatus(khmSeo.strings.seoAgentQueued, 'info');
+                    pollSeoAgentStatus(response.job_id, state, $runButton);
+                    return;
+                }
+
+                state.jobId = response.job_id || '';
+                renderSeoAgentActions(response, state);
+                setSeoAgentBusy($runButton, false);
+            }).fail(function(message) {
+                setSeoAgentStatus(message || khmSeo.strings.seoAgentError, 'error');
+                setSeoAgentBusy($runButton, false);
+            });
+        });
+    }
+
+    function pollSeoAgentStatus(jobId, state, $runButton) {
+        var attempts = 0;
+        var maxAttempts = 18;
+
+        function tick() {
+            attempts += 1;
+
+            seoAgentRequest('audit/status?job_id=' + encodeURIComponent(jobId), null, 'GET')
+                .done(function(response) {
+                    if (response.status === 'completed' && response.llm_output) {
+                        renderSeoAgentActions({
+                            llm_output: response.llm_output,
+                            status: 'completed'
+                        }, state);
+                        setSeoAgentBusy($runButton, false);
+                        return;
+                    }
+
+                    if (attempts >= maxAttempts) {
+                        setSeoAgentStatus('Audit timed out. Try again.', 'error');
+                        setSeoAgentBusy($runButton, false);
+                        return;
+                    }
+
+                    window.setTimeout(tick, 1500);
+                })
+                .fail(function(message) {
+                    if (attempts >= maxAttempts) {
+                        setSeoAgentStatus(message || khmSeo.strings.seoAgentError, 'error');
+                        setSeoAgentBusy($runButton, false);
+                        return;
+                    }
+
+                    window.setTimeout(tick, 1500);
+                });
+        }
+
+        window.setTimeout(tick, 1500);
+    }
+
+    function renderSeoAgentActions(response, state) {
+        var output = response && response.llm_output ? response.llm_output : {};
+        var actions = Array.isArray(output.apply_actions) ? output.apply_actions : [];
+        var $actionsRoot = $('#khm-seo-agent-actions');
+        var $previewRoot = $('#khm-seo-agent-preview');
+        var postId = parseInt($('#post_ID').val(), 10) || 0;
+
+        state.actions = actions;
+        $actionsRoot.empty();
+        $previewRoot.empty();
+
+        if (!actions.length) {
+            setSeoAgentStatus(khmSeo.strings.seoAgentNoActions, 'warning');
+            return;
+        }
+
+        var summary = output.summary || {};
+        setSeoAgentStatus(
+            (summary.issues_total || 0) + ' issues, ' + (summary.suggestions_total || actions.length) + ' suggestions returned.',
+            'success'
+        );
+
+        var $list = $('<div class="khm-seo-agent-actions-list" style="margin-bottom:8px;"></div>');
+        actions.forEach(function(action, index) {
+            var label = action.action_type || ('Action ' + (index + 1));
+            var id = 'khm-seo-agent-action-' + index;
+            var $item = $('<p style="margin:4px 0;"></p>');
+            var $checkbox = $('<input type="checkbox" checked="checked" />')
+                .attr('id', id)
+                .data('action-index', index);
+            var $label = $('<label style="margin-left:6px;"></label>')
+                .attr('for', id)
+                .text(label);
+            $item.append($checkbox).append($label);
+            $list.append($item);
+        });
+
+        var $previewButton = $('<button type="button" class="button"></button>').text(khmSeo.strings.seoAgentPreview);
+        var $applyButton = $('<button type="button" class="button button-primary" style="margin-left:8px;"></button>').text(khmSeo.strings.seoAgentApply);
+
+        $previewButton.on('click', function() {
+            var selected = collectSelectedSeoAgentActions(actions);
+            if (!selected.length) {
+                return;
+            }
+
+            $previewButton.prop('disabled', true);
+            seoAgentRequest('preview', {
+                post_id: postId,
+                actions: selected
+            }).done(function(previewResponse) {
+                $previewRoot.html(previewResponse.preview_html || '<p>No preview available.</p>');
+            }).fail(function(message) {
+                $previewRoot.html('<p style="color:#b32d2e;">' + escapeHtml(message || khmSeo.strings.seoAgentError) + '</p>');
+            }).always(function() {
+                $previewButton.prop('disabled', false);
+            });
+        });
+
+        $applyButton.on('click', function() {
+            var selected = collectSelectedSeoAgentActions(actions);
+            var idempotencyKey = (window.crypto && window.crypto.randomUUID)
+                ? window.crypto.randomUUID()
+                : ('seo-agent-' + Date.now());
+
+            if (!selected.length) {
+                return;
+            }
+
+            $applyButton.prop('disabled', true).text('Applying...');
+
+            seoAgentRequest('apply', {
+                post_id: postId,
+                actions: selected,
+                job_id: state.jobId || 'manual-' + Date.now(),
+                idempotency_key: idempotencyKey
+            }).done(function() {
+                setSeoAgentStatus(khmSeo.strings.seoAgentApplied, 'success');
+            }).fail(function(message) {
+                setSeoAgentStatus(message || khmSeo.strings.seoAgentError, 'error');
+            }).always(function() {
+                $applyButton.prop('disabled', false).text(khmSeo.strings.seoAgentApply);
+            });
+        });
+
+        $actionsRoot.append($list).append($previewButton).append($applyButton);
+    }
+
+    function collectSelectedSeoAgentActions(actions) {
+        var selected = [];
+
+        $('#khm-seo-agent-actions input[type="checkbox"]').each(function() {
+            if (this.checked) {
+                var index = parseInt($(this).data('action-index'), 10);
+                if (!isNaN(index) && actions[index]) {
+                    selected.push(actions[index]);
+                }
+            }
+        });
+
+        return selected;
+    }
+
+    function seoAgentRequest(path, payload, method) {
+        var deferred = $.Deferred();
+        var requestMethod = method || 'POST';
+        var endpoint = (khmSeo.seoAgent.rest_url || '').replace(/\/$/, '') + '/' + path;
+
+        $.ajax({
+            url: endpoint,
+            type: requestMethod,
+            data: requestMethod === 'POST' ? JSON.stringify(payload || {}) : null,
+            contentType: requestMethod === 'POST' ? 'application/json' : undefined,
+            processData: false,
+            headers: {
+                'X-WP-Nonce': khmSeo.seoAgent.rest_nonce
+            },
+            success: function(response) {
+                deferred.resolve(response);
+            },
+            error: function(xhr) {
+                deferred.reject(extractSmmaError(xhr));
+            }
+        });
+
+        return deferred.promise();
+    }
+
+    function setSeoAgentStatus(message, status) {
+        $('#khm-seo-agent-status')
+            .text(message || '')
+            .css('color', resolveStatusColor(status || 'info'));
+    }
+
+    function setSeoAgentBusy($button, busy) {
+        if (!$button || !$button.length) {
+            return;
+        }
+
+        if (busy) {
+            $button.data('original-text', $button.text());
+            $button.prop('disabled', true).text('Running...');
+            return;
+        }
+
+        $button.prop('disabled', false).text($button.data('original-text') || 'Run SEO Agent Audit');
+    }
+
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
 
     function initSmmaWorkflow() {
         $(document).on('click', '.khm-smma-promote-btn', handlePromoteClick);

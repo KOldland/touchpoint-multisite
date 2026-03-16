@@ -902,6 +902,8 @@ class AdminManager {
      */
     public function meta_box_callback( $post ) {
         wp_nonce_field( 'khm_seo_meta_box', 'khm_seo_meta_box_nonce' );
+
+        $seo_agent_available = class_exists( 'KHM_SEO_AGENT\\API\\Rest_Api' );
         
         // Get current values
         $title = get_post_meta( $post->ID, '_khm_seo_title', true );
@@ -912,6 +914,20 @@ class AdminManager {
         $focus_keyword = get_post_meta( $post->ID, '_khm_seo_focus_keyword', true );
 
         echo '<div id="khm-seo-meta-box">';
+
+        // SEO Agent panel
+        echo '<div class="khm-seo-field khm-seo-agent-panel" style="padding:12px;border:1px solid #dcdcde;border-radius:4px;background:#fff;margin-bottom:12px;">';
+        echo '<label><strong>' . __( 'SEO Agent', 'khm-seo' ) . '</strong></label>';
+        if ( $seo_agent_available ) {
+            echo '<p class="description" style="margin:6px 0 10px;">' . __( 'Run an SEO audit, preview changes, then apply title/meta/schema actions.', 'khm-seo' ) . '</p>';
+            echo '<p style="margin:0 0 10px;"><button type="button" class="button button-primary" id="khm-seo-run-agent-btn">' . esc_html__( 'Run SEO Agent Audit', 'khm-seo' ) . '</button></p>';
+            echo '<div id="khm-seo-agent-status" class="description"></div>';
+            echo '<div id="khm-seo-agent-actions" style="margin-top:10px;"></div>';
+            echo '<div id="khm-seo-agent-preview" style="margin-top:10px;"></div>';
+        } else {
+            echo '<p class="description" style="margin:6px 0 0;color:#b32d2e;">' . __( 'KHM SEO Agent plugin is not active. Activate it to run editor agent workflows.', 'khm-seo' ) . '</p>';
+        }
+        echo '</div>';
         
         // SEO Title
         echo '<div class="khm-seo-field">';
@@ -1023,6 +1039,11 @@ class AdminManager {
             wp_localize_script( 'khm-seo-admin', 'khmSeo', array(
                 'ajax_url' => admin_url( 'admin-ajax.php' ),
                 'nonce'    => wp_create_nonce( 'khm_seo_ajax' ),
+                'seoAgent' => array(
+                    'enabled' => class_exists( 'KHM_SEO_AGENT\\API\\Rest_Api' ),
+                    'rest_url' => esc_url_raw( rest_url( 'khm-seo-agent/v1/' ) ),
+                    'rest_nonce' => wp_create_nonce( 'wp_rest' ),
+                ),
                 'smma'     => array(
                     'enabled' => class_exists( 'KH_SMMA\\Services\\SmmaGenerator' ),
                     'rest_url' => esc_url_raw( rest_url( 'kh-smma/v1/' ) ),
@@ -1049,7 +1070,14 @@ class AdminManager {
                     'smmaPromptPreview' => __( 'Variant preview', 'khm-seo' ),
                     'smmaApproved' => __( 'Schedule approved.', 'khm-seo' ),
                     'smmaRejected' => __( 'Schedule rejected.', 'khm-seo' ),
-                    'smmaUpdated' => __( 'Variant updated.', 'khm-seo' )
+                    'smmaUpdated' => __( 'Variant updated.', 'khm-seo' ),
+                    'seoAgentRunning' => __( 'Running SEO Agent audit...', 'khm-seo' ),
+                    'seoAgentQueued' => __( 'Audit queued, waiting for model output...', 'khm-seo' ),
+                    'seoAgentNoActions' => __( 'No apply actions returned by SEO Agent.', 'khm-seo' ),
+                    'seoAgentPreview' => __( 'Preview changes', 'khm-seo' ),
+                    'seoAgentApply' => __( 'Apply selected actions', 'khm-seo' ),
+                    'seoAgentApplied' => __( 'SEO Agent changes applied. Reload to refresh all editor fields.', 'khm-seo' ),
+                    'seoAgentError' => __( 'SEO Agent request failed.', 'khm-seo' )
                 )
             ) );
         }
