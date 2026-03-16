@@ -5,6 +5,7 @@ use WP_Roles;
 
 use function add_action;
 use function current_user_can;
+use function did_action;
 use function get_role;
 use function wp_roles;
 
@@ -27,6 +28,11 @@ class CapabilityManager {
     const CAP_MANAGE_OBSERVABILITY = 'manage_observability';
 
     public function register() {
+        if ( did_action( 'init' ) ) {
+            $this->ensure_capabilities();
+            return;
+        }
+
         add_action( 'init', array( $this, 'ensure_capabilities' ) );
     }
 

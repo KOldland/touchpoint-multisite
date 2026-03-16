@@ -286,7 +286,10 @@ class AdminManager {
                             $seo_score = (int) get_post_meta( $post_item->ID, '_khm_seo_score', true );
                             $geo_score = (int) get_post_meta( $post_item->ID, '_khm_geo_score', true );
                             $geo_policy = '';
+                            $policy_sponsor_id = 0;
                             $sponsor_name = '';
+                            $summary_source = $post_item->post_excerpt ? $post_item->post_excerpt : $post_item->post_content;
+                            $post_summary = wp_trim_words( wp_strip_all_tags( $summary_source ), 24, '...' );
 
                             // Get phase information for current user
                             $phase_data = array(
@@ -319,6 +322,7 @@ class AdminManager {
                                     $policy = $geo_manager->getSponsorPolicyForPost( $post_item->ID, 'global' );
                                     if ( is_array( $policy ) ) {
                                         $geo_policy = $policy['policy'] ?? '';
+                                        $policy_sponsor_id = ! empty( $policy['sponsor_id'] ) ? (int) $policy['sponsor_id'] : 0;
                                         if ( ! empty( $policy['sponsor_id'] ) && function_exists( 'kh_ad_manager_get_sponsor_meta' ) ) {
                                             $sponsor_meta = kh_ad_manager_get_sponsor_meta( (int) $policy['sponsor_id'] );
                                             $sponsor_name = $sponsor_meta['name'] ?? '';
@@ -377,13 +381,23 @@ class AdminManager {
                                         class="button khm-smma-promote-btn"
                                         data-post-id="<?php echo esc_attr( $post_item->ID ); ?>"
                                         data-post-title="<?php echo esc_attr( $post_item->post_title ); ?>"
+                                        data-post-summary="<?php echo esc_attr( $post_summary ); ?>"
                                         data-phase="<?php echo esc_attr( $phase_data['phase'] ); ?>"
+                                        data-sponsor-id="<?php echo esc_attr( $policy_sponsor_id ); ?>"
+                                        data-sponsor-policy="<?php echo esc_attr( $geo_policy ); ?>"
+                                        data-post-url="<?php echo esc_url( get_permalink( $post_item ) ); ?>"
                                     >
                                         <?php esc_html_e( 'Promote', 'khm-seo' ); ?>
                                     </button>
                                     <button
                                         class="button khm-smma-boost-btn"
                                         data-post-id="<?php echo esc_attr( $post_item->ID ); ?>"
+                                        data-post-title="<?php echo esc_attr( $post_item->post_title ); ?>"
+                                        data-post-summary="<?php echo esc_attr( $post_summary ); ?>"
+                                        data-phase="<?php echo esc_attr( $phase_data['phase'] ); ?>"
+                                        data-sponsor-id="<?php echo esc_attr( $policy_sponsor_id ); ?>"
+                                        data-sponsor-policy="<?php echo esc_attr( $geo_policy ); ?>"
+                                        data-post-url="<?php echo esc_url( get_permalink( $post_item ) ); ?>"
                                     >
                                         <?php esc_html_e( 'Boost', 'khm-seo' ); ?>
                                     </button>
@@ -1009,11 +1023,33 @@ class AdminManager {
             wp_localize_script( 'khm-seo-admin', 'khmSeo', array(
                 'ajax_url' => admin_url( 'admin-ajax.php' ),
                 'nonce'    => wp_create_nonce( 'khm_seo_ajax' ),
+                'smma'     => array(
+                    'enabled' => class_exists( 'KH_SMMA\\Services\\SmmaGenerator' ),
+                    'rest_url' => esc_url_raw( rest_url( 'kh-smma/v1/' ) ),
+                    'rest_nonce' => wp_create_nonce( 'wp_rest' ),
+                    'dashboard_url' => admin_url( 'admin.php?page=kh-smma-dashboard' ),
+                    'default_channel' => 'linkedin',
+                    'default_budget_cents' => 5000,
+                    'default_currency' => 'AUD',
+                ),
                 'strings'  => array(
                     'analyzing' => __( 'Analyzing...', 'khm-seo' ),
                     'good'      => __( 'Good', 'khm-seo' ),
                     'needs_improvement' => __( 'Needs Improvement', 'khm-seo' ),
-                    'poor'      => __( 'Poor', 'khm-seo' )
+                    'poor'      => __( 'Poor', 'khm-seo' ),
+                    'smmaGenerating' => __( 'Generating social variant...', 'khm-seo' ),
+                    'smmaGenerated' => __( 'Variant ready for scheduling.', 'khm-seo' ),
+                    'smmaScheduling' => __( 'Queuing boost workflow...', 'khm-seo' ),
+                    'smmaScheduleReady' => __( 'Boost bundle prepared and awaiting manual export.', 'khm-seo' ),
+                    'smmaApprovalQueued' => __( 'Queued for sponsor approval.', 'khm-seo' ),
+                    'smmaSponsorRequired' => __( 'Boosting requires a sponsor policy on this post.', 'khm-seo' ),
+                    'smmaMissingDeps' => __( 'KH Social Manager is unavailable on this environment.', 'khm-seo' ),
+                    'smmaPromptEdit' => __( 'Edit the variant text before sending it back for compliance review:', 'khm-seo' ),
+                    'smmaPromptReject' => __( 'Reason for rejecting this schedule (optional):', 'khm-seo' ),
+                    'smmaPromptPreview' => __( 'Variant preview', 'khm-seo' ),
+                    'smmaApproved' => __( 'Schedule approved.', 'khm-seo' ),
+                    'smmaRejected' => __( 'Schedule rejected.', 'khm-seo' ),
+                    'smmaUpdated' => __( 'Variant updated.', 'khm-seo' )
                 )
             ) );
         }

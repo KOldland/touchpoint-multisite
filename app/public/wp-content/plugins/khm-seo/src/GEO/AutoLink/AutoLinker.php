@@ -127,7 +127,8 @@ class AutoLinker {
                     'pattern' => '/\b' . $pattern . '\b/ui', // Word boundaries, case insensitive
                     'replacement' => '<a href="' . esc_url( get_permalink( $entity->id ) ) . '" class="khm-entity-link" data-entity-id="' . $entity->id . '">' . $term . '</a>',
                     'entity_id' => $entity->id,
-                    'term' => $term
+                    'term' => $term,
+                    'linked' => false,
                 );
             }
         }
@@ -218,6 +219,10 @@ class AutoLinker {
 
             $node->nodeValue = $text;
         } elseif ( $node->nodeType === XML_ELEMENT_NODE ) {
+            if ( ! $node instanceof \DOMElement ) {
+                return;
+            }
+
             $tag_name = strtolower( $node->tagName );
 
             // Skip certain tags
