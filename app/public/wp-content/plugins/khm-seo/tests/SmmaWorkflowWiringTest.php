@@ -93,6 +93,18 @@ class SmmaWorkflowWiringTest extends TestCase {
         );
 
         $this->assertStringContainsString(
+            'syncSeoAgentFieldChanges',
+            $js_source,
+            'SEO admin JavaScript should sync applied SEO changes into the editor fields without a page reload.'
+        );
+
+        $this->assertStringContainsString(
+            'confirm_schema_changes',
+            $js_source,
+            'SEO admin JavaScript should explicitly confirm schema writes before applying them.'
+        );
+
+        $this->assertStringContainsString(
             'set_schema_config',
             $agent_source,
             'SEO Agent prompt and fallback logic should support schema config actions.'
@@ -114,6 +126,12 @@ class SmmaWorkflowWiringTest extends TestCase {
             'confirm_schema_changes',
             $agent_source,
             'SEO Agent apply endpoint should require explicit confirmation for schema config writes.'
+        );
+
+        $this->assertStringContainsString(
+            'seoAgentConfirmSchema',
+            $admin_source,
+            'AdminManager should localize the schema confirmation prompt for the SEO Agent UI.'
         );
 
         $this->assertStringContainsString(

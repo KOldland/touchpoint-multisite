@@ -169,8 +169,13 @@
             var idempotencyKey = (window.crypto && window.crypto.randomUUID)
                 ? window.crypto.randomUUID()
                 : ('seo-agent-' + Date.now());
+            var includesSchemaChanges = hasSeoAgentActionType(selected, 'set_schema_config');
 
             if (!selected.length) {
+                return;
+            }
+
+            if (includesSchemaChanges && !window.confirm(khmSeo.strings.seoAgentConfirmSchema)) {
                 return;
             }
 
@@ -180,8 +185,10 @@
                 post_id: postId,
                 actions: selected,
                 job_id: state.jobId || 'manual-' + Date.now(),
-                idempotency_key: idempotencyKey
-            }).done(function() {
+                idempotency_key: idempotencyKey,
+                confirm_schema_changes: includesSchemaChanges
+            }).done(function(applyResponse) {
+                syncSeoAgentFieldChanges(applyResponse && applyResponse.changes ? applyResponse.changes : []);
                 setSeoAgentStatus(khmSeo.strings.seoAgentApplied, 'success');
             }).fail(function(message) {
                 setSeoAgentStatus(message || khmSeo.strings.seoAgentError, 'error');
@@ -206,6 +213,39 @@
         });
 
         return selected;
+    }
+
+    function hasSeoAgentActionType(actions, targetType) {
+        return (actions || []).some(function(action) {
+            return action && action.action_type === targetType;
+        });
+    }
+
+    function syncSeoAgentFieldChanges(changes) {
+        var selectors = {
+            '_khm_seo_title': '#khm_seo_title',
+            '_khm_seo_description': '#khm_seo_description',
+            '_khm_seo_focus_keyword': '#khm_seo_focus_keyword',
+            '_khm_seo_keywords': '#khm_seo_keywords',
+            '_khm_seo_robots': '#khm_seo_robots',
+            '_khm_seo_canonical': '#khm_seo_canonical'
+        };
+
+        (changes || []).forEach(function(change) {
+            if (!change || !change.meta_key || !(change.meta_key in selectors)) {
+                return;
+            }
+
+            var $field = $(selectors[change.meta_key]);
+            if (!$field.length) {
+                return;
+            }
+
+            var nextValue = typeof change.new === 'undefined' || change.new === null ? '' : change.new;
+            $field.val(nextValue);
+            $field.trigger('input');
+            $field.trigger('change');
+        });
     }
 
     function seoAgentRequest(path, payload, method) {

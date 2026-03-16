@@ -1076,7 +1076,8 @@ class AdminManager {
                     'seoAgentNoActions' => __( 'No apply actions returned by SEO Agent.', 'khm-seo' ),
                     'seoAgentPreview' => __( 'Preview changes', 'khm-seo' ),
                     'seoAgentApply' => __( 'Apply selected actions', 'khm-seo' ),
-                    'seoAgentApplied' => __( 'SEO Agent changes applied. Reload to refresh all editor fields.', 'khm-seo' ),
+                    'seoAgentApplied' => __( 'SEO Agent changes applied and synced to the editor fields. Save only if you also changed other post content.', 'khm-seo' ),
+                    'seoAgentConfirmSchema' => __( 'Apply schema configuration changes as well? This updates stored schema settings immediately.', 'khm-seo' ),
                     'seoAgentError' => __( 'SEO Agent request failed.', 'khm-seo' )
                 )
             ) );
