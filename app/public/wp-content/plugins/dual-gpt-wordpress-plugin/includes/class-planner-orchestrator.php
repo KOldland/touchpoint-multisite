@@ -215,11 +215,13 @@ class Dual_GPT_Planner_Orchestrator {
 
         $response = $this->plugin->create_job($request);
         if (is_wp_error($response)) {
+            error_log('[PLANNER][MODEL] Primary job creation failed for task ' . $task . ' model ' . $model . ': ' . $response->get_error_message());
             if ($fallback_model && $fallback_model !== $model) {
                 error_log('[PLANNER][MODEL] Fallback model for task ' . $task . ': ' . $model . ' -> ' . $fallback_model);
                 $request->set_param('model', $fallback_model);
                 $response = $this->plugin->create_job($request);
                 if (is_wp_error($response)) {
+                    error_log('[PLANNER][MODEL] Fallback job creation failed for task ' . $task . ' model ' . $fallback_model . ': ' . $response->get_error_message());
                     return $response;
                 }
             } else {
@@ -549,7 +551,8 @@ class Dual_GPT_Planner_Orchestrator {
         if (count($existing_titles) > 20) {
             $existing_titles = array_slice($existing_titles, 0, 20);
         }
-        $limit = 16000;
+        // Keep synopsis prompts below create_job validation limit (10,000 chars) with safety margin.
+        $limit = 9500;
         $last_prompt = '';
         foreach ($caps_levels as $index => $caps) {
             $payloads = $this->build_synopsis_payloads($phase1_payload, $phase2_context, $phase3_payload, $phase4_payload, $caps);
@@ -618,8 +621,25 @@ class Dual_GPT_Planner_Orchestrator {
             return $drop_phase3;
         }
 
-        error_log('[PLANNER][SYNOPSES] Prompt still above limit after trimming (len=' . strlen($last_prompt) . ').');
-        return $last_prompt;
+        // Final emergency fallback: minimal prompt with compacted Phase 4 + plan only.
+        $ultra_phase4 = $this->compact_phase4_payload($phase4_payload, 2, 1, 1, 90, 3, 70, 0);
+        $ultra_prompt = implode("\n", array(
+            'Generate article synopses as strict JSON only: {"synopses":[{"id":"","topic":"","headline":"","summary":"","key_points":[""],"keywords":[""],"citations":[{"title":"","url":"","source":"","date":""}],"recommended_word_count":"","topic_coverage_level":"Important and Not Covered | Saturated | Ever-Green","audience_segment":"","priority_score":0.0,"opening_hook":""}]}',
+            'Minimum 4 citations per synopsis. Use only citations supplied below. Do not invent URLs.',
+            'Phase 4 Validation Output (ultra-compact):',
+            wp_json_encode($ultra_phase4),
+            'Synopsis Plan (topic => count):',
+            wp_json_encode($plan),
+            'Existing headlines to avoid:',
+            wp_json_encode(array_slice($existing_titles, 0, 5)),
+        ));
+        if (strlen($ultra_prompt) <= $limit) {
+            error_log('[PLANNER][SYNOPSES] Prompt trimmed to ultra-compact fallback (len=' . strlen($ultra_prompt) . ').');
+            return $ultra_prompt;
+        }
+
+        error_log('[PLANNER][SYNOPSES] Prompt still above limit after all trimming (len=' . strlen($ultra_prompt) . '). Returning truncated fallback.');
+        return substr($ultra_prompt, 0, $limit);
     }
 
     private function assemble_synopsis_prompt($topic, $phase1_payload, $phase2_context, $phase3_payload, $phase4_payload, $plan, $existing_titles) {
@@ -898,7 +918,21 @@ class Dual_GPT_Planner_Orchestrator {
         $keyword_provider = new Dual_GPT_Keyword_Providers();
         $metrics = $keyword_provider->keyword_metrics($candidate_keywords);
         if (is_wp_error($metrics)) {
-            return $metrics;
+            if ($this->should_soft_fail_keyword_metrics($metrics)) {
+                error_log('[PLANNER][PHASE2] Soft-failing keyword metrics provider: ' . $metrics->get_error_message());
+                $metrics = array_map(function ($keyword) {
+                    return array(
+                        'keyword' => $keyword,
+                        'search_volume' => 0,
+                        'competition' => 'UNKNOWN',
+                        'cpc' => 0,
+                        'trend' => 'n/a',
+                        'difficulty' => null,
+                    );
+                }, $candidate_keywords);
+            } else {
+                return $metrics;
+            }
         }
 
         $difficulty_items = $keyword_provider->keyword_difficulty($candidate_keywords);
@@ -929,8 +963,16 @@ class Dual_GPT_Planner_Orchestrator {
 
         $research_tools = new Dual_GPT_Research_Tools();
         $serp_context = array();
-        foreach ($candidate_keywords as $keyword) {
-            $serp_context[$keyword] = $research_tools->web_search($keyword, 5);
+        $serp_keywords = array_slice($candidate_keywords, 0, 3);
+        foreach ($serp_keywords as $keyword) {
+            $result = $research_tools->web_search($keyword, 5);
+            $serp_context[$keyword] = $result;
+
+            // If provider networking is degraded, avoid repeating expensive timeouts across all keywords.
+            if (is_array($result) && !empty($result['provider_errors'])) {
+                error_log('[PLANNER][PHASE2] SERP context degraded; stopping additional web_search calls after keyword: ' . $keyword);
+                break;
+            }
         }
 
         $ranked_keywords = $this->rank_phase2_keywords($metrics, $serp_context);
@@ -942,6 +984,35 @@ class Dual_GPT_Planner_Orchestrator {
             'ranked_keywords' => $ranked_keywords,
             'summary' => $summary,
         );
+    }
+
+    private function should_soft_fail_keyword_metrics($error) {
+        if (!is_wp_error($error)) {
+            return false;
+        }
+
+        $code = (string) $error->get_error_code();
+        $message = strtolower((string) $error->get_error_message());
+
+        if (strpos($code, 'dataforseo_') === 0) {
+            return true;
+        }
+
+        $needle_list = array(
+            'curl error 35',
+            'ssl_error_syscall',
+            'ssl connect',
+            'operation timed out',
+            'could not resolve host',
+            'failed to connect',
+        );
+        foreach ($needle_list as $needle) {
+            if (strpos($message, $needle) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function rank_phase2_keywords($metrics, $serp_context) {

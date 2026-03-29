@@ -2053,6 +2053,10 @@ function render_editorial_planner_page() {
     echo '<div id="editorial-planner-app"></div>';
     $planner_path = plugin_dir_path(__FILE__) . 'assets/js/editorial-planner.js';
     $planner_version = file_exists($planner_path) ? filemtime($planner_path) : '1.0';
+    // Force cache-bust on Local recovery builds where browser cache can stick to stale planner JS.
+    if (defined('WP_ENVIRONMENT_TYPE') && WP_ENVIRONMENT_TYPE === 'local') {
+        $planner_version = $planner_version . '-recovery-synopses-fix-1';
+    }
     wp_enqueue_script(
         'editorial-planner',
         plugins_url('assets/js/editorial-planner.js', __FILE__),

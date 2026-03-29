@@ -221,6 +221,12 @@ class Dual_GPT_Plugin {
             'permission_callback' => array($this, 'check_permissions'),
         ));
 
+        register_rest_route('dual-gpt/v1', '/planner/jobs-status', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'get_planner_jobs_status'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
         register_rest_route('dual-gpt/v1', '/planner/research-validation', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_planner_research_validation'),
@@ -2196,6 +2202,83 @@ class Dual_GPT_Plugin {
         ), 200);
     }
 
+    public function get_planner_jobs_status($request) {
+        $session_id = sanitize_text_field((string) $request->get_param('session_id'));
+        $job_ids = $request->get_param('job_ids');
+
+        if ($session_id === '') {
+            return new WP_Error('missing_session_id', 'Session ID is required', array('status' => 400));
+        }
+
+        if (!is_array($job_ids) || empty($job_ids)) {
+            return new WP_Error('missing_job_ids', 'At least one job ID is required', array('status' => 400));
+        }
+
+        $db = new Dual_GPT_DB_Handler();
+        $session = $db->get_session($session_id);
+        if (!$session) {
+            return new WP_Error('session_not_found', 'Session not found', array('status' => 404));
+        }
+
+        if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
+        }
+
+        $normalized_ids = array_values(array_unique(array_filter(array_map('sanitize_text_field', $job_ids))));
+        $jobs = array();
+        $failed_count = 0;
+        $active_count = 0;
+        $not_found_count = 0;
+
+        foreach ($normalized_ids as $job_id) {
+            $job = $db->get_job($job_id);
+            if (!$job || (string) ($job['session_id'] ?? '') !== $session_id) {
+                $not_found_count++;
+                $jobs[] = array(
+                    'job_id' => $job_id,
+                    'status' => 'not_found',
+                    'error_message' => 'Job not found for this session.',
+                );
+                continue;
+            }
+
+            $status = sanitize_key((string) ($job['status'] ?? 'queued'));
+            $created_at = (string) ($job['created_at'] ?? '');
+            $age_seconds = $created_at !== '' ? max(0, time() - strtotime($created_at)) : 0;
+
+            // Nudge queued jobs in case cron scheduling missed them on Local.
+            if ($status === 'queued' && $age_seconds >= 3) {
+                $this->process_job_async($job_id);
+                $job = $db->get_job($job_id) ?: $job;
+                $status = sanitize_key((string) ($job['status'] ?? $status));
+            }
+
+            if (in_array($status, array('queued', 'running', 'processing'), true)) {
+                $active_count++;
+            }
+            if ($status === 'failed') {
+                $failed_count++;
+            }
+
+            $jobs[] = array(
+                'job_id' => $job_id,
+                'status' => $status,
+                'error_message' => (string) ($job['error_message'] ?? ''),
+                'created_at' => (string) ($job['created_at'] ?? ''),
+                'finished_at' => (string) ($job['finished_at'] ?? ''),
+            );
+        }
+
+        return new WP_REST_Response(array(
+            'session_id' => $session_id,
+            'jobs' => $jobs,
+            'all_complete' => $active_count === 0,
+            'active_count' => $active_count,
+            'failed_count' => $failed_count,
+            'not_found_count' => $not_found_count,
+        ), 200);
+    }
+
     private function sync_planner_queue_linked_job_statuses() {
         global $wpdb;
 
@@ -3171,7 +3254,7 @@ class Dual_GPT_Plugin {
         }
 
         $meta = $this->decode_session_meta($session['meta_json'] ?? null);
-        $phase4_payload = $meta['phases']['phase4']['payload'] ?? array();
+        $phase4_payload = $meta['phases']['phase4']['payload'] ?? ($meta['phase4']['payload'] ?? $meta['phase4'] ?? array());
         if (empty($phase4_payload)) {
             error_log('[PLANNER][SYNOPSES] Phase 4 payload missing for session ' . $session_id);
             return new WP_Error('phase4_missing', 'Phase 4 validation output is required', array('status' => 400));
@@ -3201,9 +3284,9 @@ class Dual_GPT_Plugin {
         $batch_size = max(1, $batch_size);
         $batches = $this->build_synopsis_batches($plan, $batch_size);
         $orchestrator = new Dual_GPT_Planner_Orchestrator($this);
-        $phase1_payload = $meta['phases']['phase1']['payload'] ?? array();
+        $phase1_payload = $meta['phases']['phase1']['payload'] ?? ($meta['phase1']['payload'] ?? $meta['phase1'] ?? array());
         $phase2_context = $orchestrator->build_phase2_context($meta);
-        $phase3_payload = $meta['phases']['phase3']['payload'] ?? array();
+        $phase3_payload = $meta['phases']['phase3']['payload'] ?? ($meta['phase3']['payload'] ?? $meta['phase3'] ?? array());
 
         $existing_titles = array();
         if (!empty($meta['articles']) && is_array($meta['articles'])) {
@@ -3233,6 +3316,7 @@ class Dual_GPT_Plugin {
                 'author'
             );
             if (is_wp_error($job_id)) {
+                error_log('[PLANNER][SYNOPSES] Job creation failed for session ' . $session_id . ': ' . $job_id->get_error_message());
                 return $job_id;
             }
             $job_ids[] = $job_id;
@@ -3241,6 +3325,12 @@ class Dual_GPT_Plugin {
         $meta['synopsis_batches'] = $batches;
         $meta['synopsis_job_ids'] = $job_ids;
         $db->update_session_meta($session_id, $meta);
+        error_log(sprintf(
+            '[PLANNER][SYNOPSES] Queued %d batch(es), %d job(s) for session %s.',
+            count($batches),
+            count($job_ids),
+            $session_id
+        ));
 
         return new WP_REST_Response(array(
             'session_id' => $session_id,
@@ -3441,11 +3531,13 @@ class Dual_GPT_Plugin {
         // Validate session exists and is accessible
         $session = $db->get_session($session_id);
         if (!$session) {
+            error_log('[PLANNER][JOB] create_job invalid_session for session_id=' . $session_id);
             return new WP_Error('invalid_session', 'Session not found', array('status' => 404));
         }
 
         // Check if user owns the session or has permission to access it
         if ($session['created_by'] != get_current_user_id() && !current_user_can('manage_options')) {
+            error_log('[PLANNER][JOB] create_job access_denied for session_id=' . $session_id . ' user_id=' . get_current_user_id());
             return new WP_Error('access_denied', 'You do not have permission to access this session', array('status' => 403));
         }
 
@@ -3453,11 +3545,13 @@ class Dual_GPT_Plugin {
         $user_id = get_current_user_id();
         $budget = $db->check_user_budget($user_id);
         if ($budget['token_used'] >= $budget['token_limit']) {
+            error_log('[PLANNER][JOB] create_job budget_exceeded for user_id=' . $user_id . ' used=' . intval($budget['token_used']) . ' limit=' . intval($budget['token_limit']));
             return new WP_Error('budget_exceeded', 'Token limit reached - speak to admin.', array('status' => 429));
         }
 
         // Validate API key with better error message
         if (!$openai->validate_api_key()) {
+            error_log('[PLANNER][JOB] create_job invalid_api_key for session_id=' . $session_id);
             return new WP_Error('invalid_api_key',
                 'OpenAI API key is not configured or invalid. Please check your settings.',
                 array('status' => 500)
@@ -3515,6 +3609,7 @@ class Dual_GPT_Plugin {
                 'session_id' => $session_id,
                 'error' => $job_id->get_error_message()
             ));
+            error_log('[PLANNER][JOB] create_job db_insert_error for session_id=' . $session_id . ': ' . $job_id->get_error_message());
             return new WP_Error('job_creation_failed',
                 'Failed to create job: ' . $job_id->get_error_message(),
                 array('status' => 500)
@@ -5218,7 +5313,7 @@ class Dual_GPT_Plugin {
     }
 
     private function build_synopsis_plan($meta, $total = 20) {
-        $phase4_payload = $meta['phases']['phase4']['payload'] ?? array();
+        $phase4_payload = $meta['phases']['phase4']['payload'] ?? ($meta['phase4']['payload'] ?? $meta['phase4'] ?? array());
         $validated_topics = isset($phase4_payload['validated_topics']) && is_array($phase4_payload['validated_topics'])
             ? $phase4_payload['validated_topics']
             : array();
@@ -5227,7 +5322,7 @@ class Dual_GPT_Plugin {
             return new WP_Error('phase4_topics_missing', 'Validated topics are required to build a synopsis plan.');
         }
 
-        $phase1_payload = $meta['phases']['phase1']['payload'] ?? array();
+        $phase1_payload = $meta['phases']['phase1']['payload'] ?? ($meta['phase1']['payload'] ?? $meta['phase1'] ?? array());
         $phase1_trends = isset($phase1_payload['trends']) && is_array($phase1_payload['trends']) ? $phase1_payload['trends'] : array();
         $phase1_trend_summary = isset($meta['phase1']['trend_summary']) && is_array($meta['phase1']['trend_summary'])
             ? $meta['phase1']['trend_summary']
@@ -5235,9 +5330,11 @@ class Dual_GPT_Plugin {
 
         $phase2_metrics = isset($meta['phase2']['keyword_metrics']) && is_array($meta['phase2']['keyword_metrics'])
             ? $meta['phase2']['keyword_metrics']
-            : array();
+            : (isset($meta['phases']['phase2']['payload']['keyword_metrics']) && is_array($meta['phases']['phase2']['payload']['keyword_metrics'])
+                ? $meta['phases']['phase2']['payload']['keyword_metrics']
+                : array());
 
-        $phase3_payload = $meta['phases']['phase3']['payload'] ?? array();
+        $phase3_payload = $meta['phases']['phase3']['payload'] ?? ($meta['phase3']['payload'] ?? $meta['phase3'] ?? array());
         $phase3_topics = isset($phase3_payload['prioritized_topics']) && is_array($phase3_payload['prioritized_topics'])
             ? $phase3_payload['prioritized_topics']
             : array();
