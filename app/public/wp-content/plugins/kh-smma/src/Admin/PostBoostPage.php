@@ -15,6 +15,7 @@ use function get_current_user_id;
 use function get_option;
 use function get_post;
 use function get_post_meta;
+use function get_the_post_thumbnail_url;
 use function get_post_type;
 use function plugin_dir_url;
 use function rest_url;
@@ -76,44 +77,49 @@ class PostBoostPage {
 		}
 
 		$plugin_url = plugin_dir_url( dirname( dirname( __FILE__ ) ) );
+		$plugin_path = dirname( dirname( __FILE__ ) );
 		$version = defined( 'KH_SMMA_VERSION' ) ? KH_SMMA_VERSION : '1.0.0';
 		$post_id = isset( $_GET['post'] ) ? (int) $_GET['post'] : 0;
 		$post = $post_id ? get_post( $post_id ) : null;
 		$status = $post ? (string) $post->post_status : 'draft';
+		$asset_version = static function( string $relative_path ) use ( $plugin_path, $version ) {
+			$full_path = $plugin_path . '/' . ltrim( $relative_path, '/' );
+			return file_exists( $full_path ) ? (string) filemtime( $full_path ) : $version;
+		};
 
 		wp_enqueue_style(
 			'kh-smma-editor-workflow',
 			$plugin_url . 'assets/css/editor-workflow.css',
 			array(),
-			$version
+			$asset_version( 'assets/css/editor-workflow.css' )
 		);
 
 		wp_enqueue_script(
 			'kh-smma-variant-grid',
 			$plugin_url . 'assets/js/variant-grid.js',
 			array(),
-			$version,
+			$asset_version( 'assets/js/variant-grid.js' ),
 			true
 		);
 		wp_enqueue_script(
 			'kh-smma-variant-editor',
 			$plugin_url . 'assets/js/variant-editor.js',
 			array( 'kh-smma-variant-grid' ),
-			$version,
+			$asset_version( 'assets/js/variant-editor.js' ),
 			true
 		);
 		wp_enqueue_script(
 			'kh-smma-schedule-modal',
 			$plugin_url . 'assets/js/schedule-modal.js',
 			array( 'kh-smma-variant-grid' ),
-			$version,
+			$asset_version( 'assets/js/schedule-modal.js' ),
 			true
 		);
 		wp_enqueue_script(
 			'kh-smma-editor-generate',
 			$plugin_url . 'assets/js/editor-generate.js',
 			array( 'kh-smma-variant-grid', 'kh-smma-variant-editor', 'kh-smma-schedule-modal' ),
-			$version,
+			$asset_version( 'assets/js/editor-generate.js' ),
 			true
 		);
 		if ( method_exists( $screen, 'is_block_editor' ) && $screen->is_block_editor() ) {
@@ -121,7 +127,7 @@ class PostBoostPage {
 				'kh-smma-editor-sidebar',
 				$plugin_url . 'assets/js/editor-sidebar.js',
 				array( 'kh-smma-editor-generate', 'wp-plugins', 'wp-editor', 'wp-element', 'wp-components', 'wp-i18n' ),
-				$version,
+				$asset_version( 'assets/js/editor-sidebar.js' ),
 				true
 			);
 		}
@@ -131,6 +137,7 @@ class PostBoostPage {
 			'nonce' => wp_create_nonce( 'wp_rest' ),
 			'postId' => $post_id,
 			'postStatus' => $status,
+			'featuredImageUrl' => $post_id ? (string) ( get_the_post_thumbnail_url( $post_id, 'large' ) ?: '' ) : '',
 			'userId' => get_current_user_id(),
 			'allowedPlatforms' => $this->get_enabled_platforms(),
 			'urls' => array(

@@ -219,7 +219,7 @@ class Card1StateStore {
 			$this->db->prepare( "SELECT latest_revision_id FROM {$this->table_variants} WHERE variant_id = %s", $variant_id ),
 			ARRAY_A
 		);
-		$this->db->replace(
+		$replace_result = $this->db->replace(
 			$this->table_variants,
 			array(
 				'variant_id' => $variant_id,
@@ -231,6 +231,19 @@ class Card1StateStore {
 				'google_payload' => $this->encode( $google_draft ),
 			)
 		);
+		if ( false === $replace_result ) {
+			$state = $this->load_state();
+			$state['variants'][ $variant_id ] = array(
+				'variant_id' => $variant_id,
+				'originating_generate_request_id' => $request_id,
+				'approval_status' => strtolower( (string) ( $variant['compliance']['status'] ?? 'pass' ) ),
+				'created_at' => gmdate( 'c' ),
+				'latest_revision_id' => $state['variants'][ $variant_id ]['latest_revision_id'] ?? '',
+				'linkedIn' => $variant,
+				'google' => $google_draft,
+			);
+			$this->save_state( $state );
+		}
 
 		return $variant_id;
 	}
@@ -246,7 +259,8 @@ class Card1StateStore {
 			ARRAY_A
 		);
 		if ( ! is_array( $row ) || empty( $row ) ) {
-			return array();
+			$state = $this->load_state();
+			return $state['variants'][ $variant_id ] ?? array();
 		}
 
 		return array(

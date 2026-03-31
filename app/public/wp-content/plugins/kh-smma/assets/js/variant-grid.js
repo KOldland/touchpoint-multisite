@@ -28,6 +28,7 @@
 
   function render(root, variants, handlers) {
     if (!root) return;
+    var showDetails = !(handlers && handlers.showDetails === false);
     var html = '<div class="kh-smma-grid">';
     (variants || []).forEach(function (variant, idx) {
       var linkedIn = variant.linkedIn || {};
@@ -48,9 +49,12 @@
         escapeHtml(complianceStatus) +
         "</span></header>" +
         '<p class="kh-smma-variant-text">' + escapeHtml(linkedIn.text || "") + "</p>" +
-        '<p class="kh-smma-variant-rationale"><strong>Rationale:</strong> ' + escapeHtml(linkedIn.rationale || "") + "</p>" +
-        '<div class="kh-smma-variant-hints"><strong>Asset hints:</strong>' + hintHtml + "</div>" +
+        (showDetails
+          ? ('<p class="kh-smma-variant-rationale"><strong>Rationale:</strong> ' + escapeHtml(linkedIn.rationale || "") + "</p>" +
+            '<div class="kh-smma-variant-hints"><strong>Asset hints:</strong>' + hintHtml + "</div>")
+          : "") +
         '<footer class="kh-smma-variant-actions">' +
+        '<button type="button" class="button kh-smma-preview-btn" data-action="preview">Preview</button>' +
         '<button type="button" class="button kh-smma-edit-btn" data-action="edit">Edit</button>' +
         '<button type="button" class="button button-primary kh-smma-schedule-btn" data-action="schedule" ' + (complianceStatus === "FAIL" ? "disabled" : "") + '>Schedule</button>' +
         (complianceStatus === "FAIL" ? '<p class="description">Scheduling blocked due to compliance violation.</p>' : "") +
@@ -73,6 +77,14 @@
         var card = button.closest(".kh-smma-variant-card");
         if (!card || !handlers || typeof handlers.onSchedule !== "function") return;
         handlers.onSchedule(String(card.getAttribute("data-variant-id") || ""));
+      });
+    });
+
+    root.querySelectorAll("[data-action='preview']").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var card = button.closest(".kh-smma-variant-card");
+        if (!card || !handlers || typeof handlers.onPreview !== "function") return;
+        handlers.onPreview(String(card.getAttribute("data-variant-id") || ""));
       });
     });
   }

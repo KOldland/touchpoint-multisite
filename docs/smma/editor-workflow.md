@@ -78,3 +78,47 @@ Displayed result includes:
 - `approval_status`
 
 FAIL variants are blocked from scheduling in UI.
+
+## MVP Generation Strategy
+
+### Standard Mode (default)
+
+The default mode should prioritize reliability and speed.
+
+Inputs:
+
+- `blocks_summary`
+- post taxonomy context (categories/tags)
+
+Behavior:
+
+- no advanced persona controls shown in the modal
+- stable generation path for daily editorial use
+
+### Enhanced Mode (planned for v1.0.2)
+
+Enhanced mode is an opt-in layer for higher quality control.
+
+Planned controls:
+
+- target tone
+- desired article/post length profile
+- CTA style
+- Dual GPT persona selection
+
+Planned behavior:
+
+- keeps Standard mode as baseline fallback
+- uses richer prompt assembly and persona-specific steering
+
+## Author Handle Tagging (planned)
+
+To improve reach and engagement, SMMA output should support tagging article authors
+directly in generated social posts.
+
+Planned integration:
+
+- read existing multi-author block metadata from the post
+- store per-author social handles (e.g. LinkedIn handle/URL)
+- inject valid author mentions into generated variants in both Standard and Enhanced modes
+- provide safe fallback when handles are missing (no broken tags)
