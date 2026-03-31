@@ -5789,7 +5789,7 @@ class Dual_GPT_Plugin {
         $author_style_guidance = $this->get_author_profile_guidance($author_profile);
 
         $framework_json = wp_json_encode($framework);
-        $citation_json = wp_json_encode(array_slice($citations, 0, $compact_mode ? 3 : 5));
+        $citation_json = wp_json_encode(array_slice($citations, 0, 5));
         if (!is_string($framework_json)) {
             $framework_json = '{}';
         }
@@ -5892,7 +5892,59 @@ class Dual_GPT_Plugin {
             error_log('[PLANNER][AUTHOR] Failed to create draft post: ' . $post_id->get_error_message());
             return null;
         }
+
+        $this->apply_author_post_tags($post_id, $article);
         return $post_id;
+    }
+
+    private function extract_author_post_tags($article) {
+        $tags = array();
+
+        $keywords = $article['keywords'] ?? array();
+        if (is_string($keywords)) {
+            $keywords = preg_split('/[,;\n]+/', $keywords);
+        }
+        if (is_array($keywords)) {
+            foreach ($keywords as $keyword) {
+                $tag = sanitize_text_field((string) $keyword);
+                $tag = trim($tag);
+                if ($tag !== '') {
+                    $tags[] = $tag;
+                }
+            }
+        }
+
+        $framework_key_themes = $article['framework']['output']['key_themes'] ?? array();
+        if (is_array($framework_key_themes)) {
+            foreach ($framework_key_themes as $theme) {
+                if (is_array($theme)) {
+                    $theme = $theme['headline'] ?? $theme['title'] ?? '';
+                }
+                $tag = sanitize_text_field((string) $theme);
+                $tag = trim($tag);
+                if ($tag !== '') {
+                    $tags[] = $tag;
+                }
+            }
+        }
+
+        return array_values(array_unique($tags));
+    }
+
+    private function apply_author_post_tags($post_id, $article) {
+        if (empty($post_id) || !taxonomy_exists('post_tag')) {
+            return;
+        }
+
+        $tags = $this->extract_author_post_tags($article);
+        if (empty($tags)) {
+            return;
+        }
+
+        $result = wp_set_post_terms((int) $post_id, $tags, 'post_tag', true);
+        if (is_wp_error($result)) {
+            error_log('[PLANNER][AUTHOR] Failed to assign tags for post ' . $post_id . ': ' . $result->get_error_message());
+        }
     }
 
     private function build_author_abstract_text($draft, $fallback = '') {
@@ -6168,6 +6220,37 @@ class Dual_GPT_Plugin {
                 }
                 $citations[$idx] = $citation;
             }
+
+            // Preserve full article citation coverage even when Author output returns a reduced subset.
+            $citation_keys = array();
+            foreach ($citations as $citation) {
+                if (!is_array($citation)) {
+                    continue;
+                }
+                $key = trim((string) ($citation['url'] ?? ''));
+                if ($key === '') {
+                    $key = trim((string) ($citation['title'] ?? ''));
+                }
+                if ($key !== '') {
+                    $citation_keys[$key] = true;
+                }
+            }
+            foreach ($article_citations as $existing) {
+                if (!is_array($existing)) {
+                    continue;
+                }
+                $key = trim((string) ($existing['url'] ?? ''));
+                if ($key === '') {
+                    $key = trim((string) ($existing['title'] ?? ''));
+                }
+                if ($key === '') {
+                    continue;
+                }
+                if (!isset($citation_keys[$key])) {
+                    $citations[] = $existing;
+                    $citation_keys[$key] = true;
+                }
+            }
         }
         $framework = $article['framework']['output'] ?? array();
 
@@ -6368,6 +6451,7 @@ class Dual_GPT_Plugin {
         }
 
         $this->insert_blocks_into_post($post_id, $gutenberg_blocks);
+        $this->apply_author_post_tags($post_id, $article);
         return true;
     }
 

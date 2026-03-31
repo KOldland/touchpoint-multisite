@@ -2,6 +2,66 @@
   margin: 0 0 10px;
 }
 
+.kh-social-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.kh-social-tab {
+  border: 1px solid #c3c7cf;
+  background: #f6f7f7;
+  border-radius: 6px;
+  padding: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.kh-social-tab.is-active {
+  background: #ffffff;
+  border-color: #2271b1;
+  color: #135e96;
+}
+
+.kh-social-panel {
+  border: 1px solid #dcdcde;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.kh-social-panel p:last-child {
+  margin-bottom: 0;
+}
+
+.kh-social-platform-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.kh-social-platform-card {
+  border: 1px solid #e0e3e7;
+  border-radius: 6px;
+  padding: 8px;
+  background: #fbfcff;
+}
+
+.kh-social-platform-card h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #38536b;
+}
+
+.kh-social-platform-card label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
 .kh-smma-modal {
   position: fixed;
   inset: 0;
@@ -47,6 +107,23 @@
   margin-top: 14px;
   display: flex;
   gap: 8px;
+}
+
+.kh-smma-workflow-messages {
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.kh-smma-workflow-messages.is-error {
+  border: 1px solid #dca7a7;
+  background: #fff3f3;
+  color: #7a1f1f;
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.kh-smma-workflow-messages.is-error p {
+  margin: 0 0 8px;
 }
 
 .kh-smma-grid {

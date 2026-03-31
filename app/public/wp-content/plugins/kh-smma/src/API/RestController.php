@@ -149,7 +149,11 @@ class RestController {
         }
 
         if ( ! $this->flags->is_enabled( 'smma' ) ) {
-            return new WP_Error( 'kh_smma_disabled', __( 'SMMA feature is disabled by feature flag.', 'kh-smma' ), array( 'status' => 403 ) );
+            return new WP_Error(
+                'kh_smma_disabled',
+                __( 'Social Campaigns is currently unavailable. Please ask an administrator to enable it in KH Social settings.', 'kh-smma' ),
+                array( 'status' => 403 )
+            );
         }
 
         $nonce = $request->get_header( 'X-WP-Nonce' );

@@ -528,6 +528,8 @@ class Dual_GPT_Author_Agent {
             return new WP_Error('invalid_draft_output', 'Draft output is not valid JSON with blocks.', array('status' => 500));
         }
 
+        $data['blocks'] = $this->normalize_draft_blocks($data['blocks']);
+
         $usage = $llm_client->get_usage($response);
         $cost = $llm_client->estimate_cost($usage, $model);
         $this->update_budget_usage($user_id, $usage);
@@ -773,6 +775,7 @@ class Dual_GPT_Author_Agent {
         $prompt[] = '- Paragraphs broken by thought, not template.';
         $prompt[] = '- Preserve ambiguity, temporal drift, unresolved tension.';
         $prompt[] = '- Observational, reported, investigative stance.';
+        $prompt[] = '- Do not use generic section headings: "Overview", "Conclusion", or "Summary".';
         if ($author_policy['disallow_tidy_conclusion']) {
             $prompt[] = '- No tidy conclusions or definitive resolution.';
         }
@@ -953,6 +956,10 @@ class Dual_GPT_Author_Agent {
         if ($author_policy['disallow_listicle_framing'] && $this->contains_listicle_framing($text)) {
             $warnings[] = 'Listicle-style framing detected.';
         }
+        $generic_heading_hits = $this->find_disallowed_generic_headings($blocks);
+        if (!empty($generic_heading_hits)) {
+            $warnings[] = 'Generic section headings detected: ' . implode(', ', $generic_heading_hits) . '.';
+        }
         if ($author_policy['disallow_tidy_conclusion'] && $this->has_tidy_conclusion($blocks)) {
             $warnings[] = 'Draft may include a tidy conclusion (avoid definitive wrap-ups).';
         }
@@ -1060,12 +1067,31 @@ class Dual_GPT_Author_Agent {
         $entries = array();
 
         foreach ($citations as $citation) {
-            $apa = $citation['apa_string'];
-            if (empty($apa) || $apa === 'details_unavailable') {
-                $apa = trim(($citation['lead_author'] ? $citation['lead_author'] . '. ' : '') . ($citation['year'] ? '(' . $citation['year'] . '). ' : '') . $citation['title'] . '.');
+            $date_label = $this->format_citation_date_for_display($citation['date'] ?? ($citation['year'] ?? ''));
+            if ($date_label === '' && !empty($citation['year'])) {
+                $date_label = (string) $citation['year'];
             }
 
-            $entry = trim($apa);
+            $entry_parts = array();
+            if (!empty($citation['lead_author'])) {
+                $entry_parts[] = trim($citation['lead_author']) . '.';
+            }
+            if ($date_label !== '') {
+                $entry_parts[] = '(' . $date_label . ').';
+            }
+            if (!empty($citation['title'])) {
+                $entry_parts[] = trim($citation['title']) . '.';
+            }
+
+            $source = trim((string) ($citation['publication'] ?? ''));
+            if ($source === '') {
+                $source = trim((string) ($citation['organisation'] ?? ''));
+            }
+            if ($source !== '') {
+                $entry_parts[] = $source . '.';
+            }
+
+            $entry = trim(implode(' ', $entry_parts));
             if (!empty($citation['url'])) {
                 $entry .= ' ' . $citation['url'];
             }
@@ -1127,10 +1153,108 @@ class Dual_GPT_Author_Agent {
         $parts = array_filter(array(
             $citation['lead_author'],
             $citation['publication'],
-            $citation['year'],
+            $this->format_citation_date_for_display($citation['date'] ?? ($citation['year'] ?? '')),
         ));
 
         return implode(', ', $parts);
+    }
+
+    private function get_disallowed_heading_tokens() {
+        return array('overview', 'conclusion', 'summary');
+    }
+
+    private function normalize_heading_token($value) {
+        $value = strtolower(trim((string) $value));
+        $value = preg_replace('/[^a-z\s]/', '', $value);
+        $value = preg_replace('/\s+/', ' ', $value);
+        return trim((string) $value);
+    }
+
+    private function is_disallowed_generic_heading($heading) {
+        $token = $this->normalize_heading_token($heading);
+        if ($token === '') {
+            return false;
+        }
+
+        return in_array($token, $this->get_disallowed_heading_tokens(), true);
+    }
+
+    private function find_disallowed_generic_headings($blocks) {
+        $hits = array();
+        foreach ((array) $blocks as $block) {
+            if (($block['type'] ?? '') !== 'heading') {
+                continue;
+            }
+
+            $content = trim((string) ($block['content'] ?? ''));
+            if ($content === '') {
+                continue;
+            }
+
+            if ($this->is_disallowed_generic_heading($content)) {
+                $hits[] = $content;
+            }
+        }
+
+        return array_values(array_unique($hits));
+    }
+
+    private function normalize_draft_blocks($blocks) {
+        $normalized = array();
+
+        foreach ((array) $blocks as $block) {
+            if (!is_array($block)) {
+                continue;
+            }
+
+            $type = (string) ($block['type'] ?? '');
+            $content = trim((string) ($block['content'] ?? ''));
+            if ($content === '') {
+                continue;
+            }
+
+            if ($type === 'heading' && $this->is_disallowed_generic_heading($content)) {
+                continue;
+            }
+
+            $normalized[] = $block;
+        }
+
+        return $normalized;
+    }
+
+    private function format_citation_date_for_display($raw_date) {
+        $raw = trim((string) $raw_date);
+        if ($raw === '') {
+            return '';
+        }
+
+        if (preg_match('/^\d{4}-\d{2}$/', $raw) === 1) {
+            $year = substr($raw, 0, 4);
+            $month = substr($raw, 5, 2);
+            return sprintf('%02d/%04d', (int) $month, (int) $year);
+        }
+
+        if (preg_match('/^\d{4}$/', $raw) === 1) {
+            return $raw;
+        }
+
+        $timestamp = strtotime($raw);
+        if ($timestamp === false) {
+            return '';
+        }
+
+        $has_day = preg_match('/\d{4}-\d{2}-\d{2}/', $raw) === 1
+            || preg_match('/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/', $raw) === 1
+            || preg_match('/\b\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}\b/', $raw) === 1;
+
+        if (!$has_day) {
+            return gmdate('m/Y', $timestamp);
+        }
+
+        $locale = function_exists('determine_locale') ? determine_locale() : get_locale();
+        $is_us_locale = stripos((string) $locale, 'en_US') === 0;
+        return gmdate($is_us_locale ? 'm/d/Y' : 'd/m/Y', $timestamp);
     }
 
     /**
@@ -1342,7 +1466,7 @@ class Dual_GPT_Author_Agent {
             }
         }
 
-        if ($last_heading && preg_match('/\b(conclusion|summary|final thoughts)\b/i', $last_heading)) {
+        if ($last_heading && preg_match('/\b(overview|conclusion|summary|final thoughts)\b/i', $last_heading)) {
             return true;
         }
 

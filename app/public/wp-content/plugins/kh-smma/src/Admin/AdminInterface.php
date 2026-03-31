@@ -16,6 +16,7 @@ use function add_menu_page;
 use function add_query_arg;
 use function admin_url;
 use function apply_filters;
+use function checked;
 use function check_admin_referer;
 use function current_user_can;
 use function esc_attr;
@@ -26,6 +27,7 @@ use function esc_url;
 use function get_the_title;
 use function get_current_user_id;
 use function get_userdata;
+use function get_option;
 use function get_post_meta;
 use function get_posts;
 use function is_wp_error;
@@ -37,6 +39,7 @@ use function strtotime;
 use function submit_button;
 use function time;
 use function update_post_meta;
+use function update_option;
 use function wp_date;
 use function wp_die;
 use function wp_insert_post;
@@ -74,6 +77,8 @@ class AdminInterface {
         add_action( 'admin_post_kh_smma_toggle_approval_requirement', array( $this, 'handle_toggle_approval_requirement' ) );
         add_action( 'admin_post_kh_smma_approve_schedule', array( $this, 'handle_schedule_approve' ) );
         add_action( 'admin_post_kh_smma_deny_schedule', array( $this, 'handle_schedule_deny' ) );
+        add_action( 'admin_post_kh_smma_update_feature_flags', array( $this, 'handle_update_feature_flags' ) );
+        add_action( 'admin_post_kh_smma_update_platforms', array( $this, 'handle_update_platforms' ) );
         add_action( 'admin_post_kh_smma_simulate_lifecycle', array( $this, 'handle_simulate_lifecycle' ) );
         add_action( 'admin_post_kh_smma_import_event_catalog', array( $this, 'handle_import_event_catalog' ) );
     }
@@ -100,6 +105,8 @@ class AdminInterface {
         $queue             = get_posts( array( 'post_type' => 'kh_smma_schedule', 'numberposts' => 10, 'orderby' => 'date', 'order' => 'DESC' ) );
         $library_assets    = apply_filters( 'kh_smma_marketing_assets', array() );
         $analytics_snapshot = $this->analytics->get_snapshot();
+        $feature_flags     = $this->get_feature_flags();
+        $enabled_platforms = $this->get_enabled_platforms();
         ?>
         <div class="wrap kh-smma-admin">
             <h1><?php esc_html_e( 'KH Social Media Management & Automation', 'kh-smma' ); ?></h1>
@@ -174,6 +181,56 @@ class AdminInterface {
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+            <?php endif; ?>
+
+            <hr />
+
+            <h2><?php esc_html_e( 'Feature Access', 'kh-smma' ); ?></h2>
+            <p><?php esc_html_e( 'Enable or disable major workflow features.', 'kh-smma' ); ?></p>
+            <?php if ( current_user_can( 'manage_options' ) ) : ?>
+                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                    <?php wp_nonce_field( 'kh_smma_update_feature_flags' ); ?>
+                    <input type="hidden" name="action" value="kh_smma_update_feature_flags" />
+                    <fieldset>
+                        <label style="display:block;margin-bottom:8px;">
+                            <input type="checkbox" name="feature_flags[]" value="smma" <?php checked( ! empty( $feature_flags['smma'] ) ); ?> />
+                            <?php esc_html_e( 'Enable Social Campaigns workflow', 'kh-smma' ); ?>
+                        </label>
+                        <label style="display:block;margin-bottom:8px;">
+                            <input type="checkbox" name="feature_flags[]" value="smma_paid_adapters" <?php checked( ! empty( $feature_flags['smma_paid_adapters'] ) ); ?> />
+                            <?php esc_html_e( 'Enable paid adapter dispatch', 'kh-smma' ); ?>
+                        </label>
+                    </fieldset>
+                    <?php submit_button( __( 'Save Feature Access', 'kh-smma' ), 'secondary' ); ?>
+                </form>
+                <p class="description"><?php esc_html_e( 'If Social Campaigns is disabled here, editor requests will be blocked.', 'kh-smma' ); ?></p>
+            <?php else : ?>
+                <p><?php esc_html_e( 'Only administrators can change feature access.', 'kh-smma' ); ?></p>
+            <?php endif; ?>
+
+            <hr />
+
+            <h2><?php esc_html_e( 'Campaign Channel Controls', 'kh-smma' ); ?></h2>
+            <p><?php esc_html_e( 'Choose which channels are available in editor campaign generation and scheduling.', 'kh-smma' ); ?></p>
+            <?php if ( current_user_can( 'manage_options' ) ) : ?>
+                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                    <?php wp_nonce_field( 'kh_smma_update_platforms' ); ?>
+                    <input type="hidden" name="action" value="kh_smma_update_platforms" />
+                    <fieldset>
+                        <label style="display:block;margin-bottom:8px;">
+                            <input type="checkbox" name="enabled_platforms[]" value="linkedin" <?php checked( in_array( 'linkedin', $enabled_platforms, true ) ); ?> />
+                            <?php esc_html_e( 'LinkedIn', 'kh-smma' ); ?>
+                        </label>
+                        <label style="display:block;margin-bottom:8px;">
+                            <input type="checkbox" name="enabled_platforms[]" value="google" <?php checked( in_array( 'google', $enabled_platforms, true ) ); ?> />
+                            <?php esc_html_e( 'Google', 'kh-smma' ); ?>
+                        </label>
+                    </fieldset>
+                    <?php submit_button( __( 'Save Channel Controls', 'kh-smma' ), 'secondary' ); ?>
+                </form>
+                <p class="description"><?php esc_html_e( 'If only one channel is enabled, editor workflows default to that channel automatically.', 'kh-smma' ); ?></p>
+            <?php else : ?>
+                <p><?php esc_html_e( 'Only administrators can change channel controls.', 'kh-smma' ); ?></p>
             <?php endif; ?>
 
             <hr />
@@ -938,6 +995,96 @@ class AdminInterface {
 
         wp_safe_redirect( add_query_arg( array( 'page' => 'kh-smma-dashboard', 'message' => 'catalog-imported', 'count' => $count ), admin_url( 'admin.php' ) ) );
         exit;
+    }
+
+    public function handle_update_platforms(): void {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( esc_html__( 'Insufficient permissions.', 'kh-smma' ) );
+        }
+
+        check_admin_referer( 'kh_smma_update_platforms' );
+
+        $raw = $_POST['enabled_platforms'] ?? array();
+        $platforms = array();
+        if ( is_array( $raw ) ) {
+            foreach ( $raw as $entry ) {
+                $value = sanitize_text_field( (string) $entry );
+                if ( in_array( $value, array( 'linkedin', 'google' ), true ) ) {
+                    $platforms[] = $value;
+                }
+            }
+        }
+
+        if ( empty( $platforms ) ) {
+            $platforms = array( 'linkedin' );
+        }
+
+        update_option( 'kh_smma_enabled_platforms', array_values( array_unique( $platforms ) ) );
+        wp_safe_redirect( add_query_arg( array( 'page' => 'kh-smma-dashboard', 'message' => 'platforms-updated' ), admin_url( 'admin.php' ) ) );
+        exit;
+    }
+
+    public function handle_update_feature_flags(): void {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( esc_html__( 'Insufficient permissions.', 'kh-smma' ) );
+        }
+
+        check_admin_referer( 'kh_smma_update_feature_flags' );
+
+        $raw = $_POST['feature_flags'] ?? array();
+        $selected = array();
+        if ( is_array( $raw ) ) {
+            foreach ( $raw as $entry ) {
+                $value = sanitize_text_field( (string) $entry );
+                if ( in_array( $value, array( 'smma', 'smma_paid_adapters' ), true ) ) {
+                    $selected[] = $value;
+                }
+            }
+        }
+
+        update_option(
+            'kh_smma_feature_flags',
+            array(
+                'smma' => in_array( 'smma', $selected, true ),
+                'smma_paid_adapters' => in_array( 'smma_paid_adapters', $selected, true ),
+            )
+        );
+
+        wp_safe_redirect( add_query_arg( array( 'page' => 'kh-smma-dashboard', 'message' => 'feature-flags-updated' ), admin_url( 'admin.php' ) ) );
+        exit;
+    }
+
+    private function get_feature_flags(): array {
+        $stored = get_option( 'kh_smma_feature_flags', array() );
+        if ( ! is_array( $stored ) ) {
+            $stored = array();
+        }
+
+        return array(
+            'smma' => ! empty( $stored['smma'] ),
+            'smma_paid_adapters' => ! empty( $stored['smma_paid_adapters'] ),
+        );
+    }
+
+    private function get_enabled_platforms(): array {
+        $stored = get_option( 'kh_smma_enabled_platforms', array( 'linkedin', 'google' ) );
+        if ( ! is_array( $stored ) ) {
+            return array( 'linkedin', 'google' );
+        }
+
+        $normalized = array();
+        foreach ( $stored as $entry ) {
+            $value = sanitize_text_field( (string) $entry );
+            if ( in_array( $value, array( 'linkedin', 'google' ), true ) ) {
+                $normalized[] = $value;
+            }
+        }
+
+        if ( empty( $normalized ) ) {
+            return array( 'linkedin' );
+        }
+
+        return array_values( array_unique( $normalized ) );
     }
 
     private function get_calendar_slots(): array {

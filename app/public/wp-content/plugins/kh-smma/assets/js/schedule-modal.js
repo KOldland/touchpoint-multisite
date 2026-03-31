@@ -3,6 +3,21 @@
 
   window.KHSMMAEditor = window.KHSMMAEditor || {};
 
+  function allowedPlatforms() {
+    var configured = window.khSmmaEditor && Array.isArray(window.khSmmaEditor.allowedPlatforms) ? window.khSmmaEditor.allowedPlatforms : ["linkedin", "google"];
+    var cleaned = configured.filter(function (platform) {
+      return platform === "linkedin" || platform === "google";
+    });
+    return cleaned.length ? cleaned : ["linkedin"];
+  }
+
+  function platformOptionsHtml() {
+    return allowedPlatforms().map(function (platform) {
+      var label = platform === "google" ? "Google" : "LinkedIn";
+      return '<option value="' + platform + '">' + label + "</option>";
+    }).join("");
+  }
+
   function idempotencyKey() {
     return "idem-sch-" + Date.now() + "-" + Math.random().toString(16).slice(2);
   }
@@ -25,7 +40,7 @@
       '<div class="kh-smma-modal-card">' +
       "<h3>Schedule Campaign</h3>" +
       '<label>Date & Time (UTC)</label><input type="datetime-local" id="kh-smma-sch-time" />' +
-      '<label>Platform</label><select id="kh-smma-sch-platform"><option value="linkedin">LinkedIn</option><option value="google">Google</option></select>' +
+      '<label>Platform</label><select id="kh-smma-sch-platform">' + platformOptionsHtml() + '</select>' +
       '<label>Boost Budget (cents)</label><input type="number" id="kh-smma-sch-budget" value="10000" min="0" step="100" />' +
       '<label>Duration (days)</label><input type="number" id="kh-smma-sch-duration" value="7" min="1" max="30" />' +
       '<label>Sponsor ID</label><input type="text" id="kh-smma-sch-sponsor" placeholder="sp_123 or numeric sponsor id" />' +
