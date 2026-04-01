@@ -34,7 +34,6 @@ use KHM_SEO\Elementor\Widgets\SeoChart_Widget;
 use KHM_SEO\Elementor\Widgets\SeoStats_Widget;
 use KHM_SEO\Elementor\Widgets\SeoAlerts_Widget;
 use KHM_SEO\Elementor\ElementorIntegration;
-use KHM_SEO\Preview\SocialMediaPreviewManager;
 
 /**
  * Main plugin class.
@@ -89,13 +88,6 @@ final class Plugin {
      * @var ToolsManager|null
      */
     public $tools = null;
-
-    /**
-     * Preview manager instance.
-     *
-     * @var Preview\SocialMediaPreviewManager|null
-     */
-    public $preview = null;
 
     /**
      * Social media manager instance.
@@ -258,9 +250,6 @@ final class Plugin {
         if ( ( ! $is_post_editor && ! $is_rest_request ) || ( defined( 'DOING_AJAX' ) && DOING_AJAX ) ) {
             $this->validator = new SchemaValidator();
         }
-        
-        // Initialize Phase 6 social media preview manager
-        $this->preview = new SocialMediaPreviewManager();
         
         // Initialize analysis engine with default configuration
         if ( ! $is_post_editor && ! $is_rest_request ) {

@@ -95,7 +95,8 @@ if ( ! function_exists( 'khm_seo_get_field_label' ) ) :
     }
 endif;
 
-$is_enabled = ! empty( $current_schema['enabled'] );
+$force_article_schema = ! empty( $force_article_schema );
+$is_enabled = $force_article_schema ? true : ! empty( $current_schema['enabled'] );
 $applicable_types = array();
 
 // Get applicable schema types for this post type
@@ -111,19 +112,27 @@ foreach ( $this->schema_types as $type_key => $type_config ) {
     
     <!-- Schema Enable/Disable -->
     <div class="khm-seo-field-group">
-        <label class="khm-seo-toggle">
-            <input type="checkbox" 
-                   name="khm_seo_schema_enabled" 
-                   id="khm_seo_schema_enabled"
-                   value="1" 
-                   <?php checked( $is_enabled ); ?>
-                   class="khm-seo-schema-toggle">
-            <span class="khm-seo-toggle-slider"></span>
-            <strong><?php _e( 'Enable Schema Markup', 'khm-seo' ); ?></strong>
-        </label>
-        <p class="description">
-            <?php _e( 'Add structured data markup to this content for better search engine understanding.', 'khm-seo' ); ?>
-        </p>
+        <?php if ( $force_article_schema ) : ?>
+            <input type="hidden" name="khm_seo_schema_enabled" id="khm_seo_schema_enabled" value="1">
+            <p><strong><?php _e( 'Schema Markup: Enabled', 'khm-seo' ); ?></strong></p>
+            <p class="description">
+                <?php _e( 'For editorial posts, schema markup is enabled by default.', 'khm-seo' ); ?>
+            </p>
+        <?php else : ?>
+            <label class="khm-seo-toggle">
+                <input type="checkbox"
+                       name="khm_seo_schema_enabled"
+                       id="khm_seo_schema_enabled"
+                       value="1"
+                       <?php checked( $is_enabled ); ?>
+                       class="khm-seo-schema-toggle">
+                <span class="khm-seo-toggle-slider"></span>
+                <strong><?php _e( 'Enable Schema Markup', 'khm-seo' ); ?></strong>
+            </label>
+            <p class="description">
+                <?php _e( 'Add structured data markup to this content for better search engine understanding.', 'khm-seo' ); ?>
+            </p>
+        <?php endif; ?>
     </div>
 
     <!-- Schema Configuration Panel -->
@@ -131,166 +140,183 @@ foreach ( $this->schema_types as $type_key => $type_config ) {
         
         <!-- Schema Type Selection -->
         <div class="khm-seo-field-group">
-            <label for="khm_seo_schema_type">
-                <strong><?php _e( 'Schema Type', 'khm-seo' ); ?></strong>
-            </label>
-            <select name="khm_seo_schema_type" id="khm_seo_schema_type" class="widefat">
-                <?php foreach ( $applicable_types as $type_key => $type_config ) : ?>
-                    <option value="<?php echo esc_attr( $type_key ); ?>" 
-                            <?php selected( $current_type, $type_key ); ?>>
-                        <?php echo esc_html( $type_config['label'] ); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-            <p class="description">
-                <?php _e( 'Select the most appropriate schema type for this content.', 'khm-seo' ); ?>
-            </p>
-        </div>
-
-        <!-- Dynamic Schema Fields -->
-        <div id="khm-seo-schema-fields" class="khm-seo-schema-fields">
-            <?php foreach ( $applicable_types as $type_key => $type_config ) : ?>
-                <div class="khm-seo-schema-type-fields" 
-                     data-schema-type="<?php echo esc_attr( $type_key ); ?>"
-                     <?php echo $current_type === $type_key ? '' : 'style="display: none;"'; ?>>
-                    
-                    <h4><?php echo esc_html( $type_config['label'] ); ?> <?php _e( 'Fields', 'khm-seo' ); ?></h4>
-                    <p class="description"><?php echo esc_html( $type_config['description'] ); ?></p>
-                    
-                    <?php foreach ( $type_config['fields'] as $field_key ) : ?>
-                        <?php 
-                        $field_value = $custom_fields[ $field_key ] ?? '';
-                        $field_label = khm_seo_get_field_label( $field_key );
-                        $field_description = khm_seo_get_field_description( $field_key );
-                        $field_type = khm_seo_get_field_type( $field_key );
-                        ?>
-                        
-                        <div class="khm-seo-field">
-                            <label for="khm_seo_field_<?php echo esc_attr( $field_key ); ?>">
-                                <?php echo esc_html( $field_label ); ?>
-                                <?php if ( khm_seo_is_required_field( $field_key, $type_key ) ) : ?>
-                                    <span class="required">*</span>
-                                <?php endif; ?>
-                            </label>
-                            
-                            <?php if ( $field_type === 'textarea' ) : ?>
-                                <textarea name="khm_seo_schema_fields[<?php echo esc_attr( $field_key ); ?>]"
-                                          id="khm_seo_field_<?php echo esc_attr( $field_key ); ?>"
-                                          class="widefat"
-                                          rows="3"
-                                          placeholder="<?php echo esc_attr( khm_seo_get_field_placeholder( $field_key ) ); ?>"><?php echo esc_textarea( $field_value ); ?></textarea>
-                            <?php elseif ( $field_type === 'url' ) : ?>
-                                <input type="url" 
-                                       name="khm_seo_schema_fields[<?php echo esc_attr( $field_key ); ?>]"
-                                       id="khm_seo_field_<?php echo esc_attr( $field_key ); ?>"
-                                       class="widefat"
-                                       value="<?php echo esc_attr( $field_value ); ?>"
-                                       placeholder="<?php echo esc_attr( khm_seo_get_field_placeholder( $field_key ) ); ?>">
-                            <?php elseif ( $field_type === 'date' ) : ?>
-                                <input type="date" 
-                                       name="khm_seo_schema_fields[<?php echo esc_attr( $field_key ); ?>]"
-                                       id="khm_seo_field_<?php echo esc_attr( $field_key ); ?>"
-                                       class="widefat"
-                                       value="<?php echo esc_attr( $field_value ); ?>">
-                            <?php else : ?>
-                                <input type="text" 
-                                       name="khm_seo_schema_fields[<?php echo esc_attr( $field_key ); ?>]"
-                                       id="khm_seo_field_<?php echo esc_attr( $field_key ); ?>"
-                                       class="widefat"
-                                       value="<?php echo esc_attr( $field_value ); ?>"
-                                       placeholder="<?php echo esc_attr( khm_seo_get_field_placeholder( $field_key ) ); ?>">
-                            <?php endif; ?>
-                            
-                            <?php if ( $field_description ) : ?>
-                                <p class="description"><?php echo esc_html( $field_description ); ?></p>
-                            <?php endif; ?>
-                        </div>
+            <?php if ( 'post' === $post->post_type ) : ?>
+                <label><strong><?php _e( 'Schema Type', 'khm-seo' ); ?></strong></label>
+                <input type="hidden" name="khm_seo_schema_type" id="khm_seo_schema_type" value="article">
+                <p><strong><?php _e( 'Article', 'khm-seo' ); ?></strong></p>
+                <p class="description">
+                    <?php _e( 'For editorial posts, schema is fixed to Article.', 'khm-seo' ); ?>
+                </p>
+                <input type="hidden" name="khm_seo_schema_options[auto_generate]" value="1">
+                <input type="hidden" name="khm_seo_schema_options[include_breadcrumbs]" value="1">
+                <input type="hidden" name="khm_seo_schema_options[validate_output]" value="1">
+                <p class="description">
+                    <?php _e( 'Automatic mode is enabled: schema options are applied by default for posts.', 'khm-seo' ); ?>
+                </p>
+            <?php else : ?>
+                <label for="khm_seo_schema_type">
+                    <strong><?php _e( 'Schema Type', 'khm-seo' ); ?></strong>
+                </label>
+                <select name="khm_seo_schema_type" id="khm_seo_schema_type" class="widefat">
+                    <?php foreach ( $applicable_types as $type_key => $type_config ) : ?>
+                        <option value="<?php echo esc_attr( $type_key ); ?>"
+                                <?php selected( $current_type, $type_key ); ?>>
+                            <?php echo esc_html( $type_config['label'] ); ?>
+                        </option>
                     <?php endforeach; ?>
+                </select>
+                <p class="description">
+                    <?php _e( 'Select the most appropriate schema type for this content.', 'khm-seo' ); ?>
+                </p>
+            <?php endif; ?>
+        </div>
+
+        <?php if ( ! $force_article_schema ) : ?>
+            <!-- Dynamic Schema Fields -->
+            <div id="khm-seo-schema-fields" class="khm-seo-schema-fields">
+                <?php foreach ( $applicable_types as $type_key => $type_config ) : ?>
+                    <div class="khm-seo-schema-type-fields"
+                         data-schema-type="<?php echo esc_attr( $type_key ); ?>"
+                         <?php echo $current_type === $type_key ? '' : 'style="display: none;"'; ?>>
+                        
+                        <h4><?php echo esc_html( $type_config['label'] ); ?> <?php _e( 'Fields', 'khm-seo' ); ?></h4>
+                        <p class="description"><?php echo esc_html( $type_config['description'] ); ?></p>
+                        
+                        <?php foreach ( $type_config['fields'] as $field_key ) : ?>
+                            <?php
+                            $field_value = $custom_fields[ $field_key ] ?? '';
+                            $field_label = khm_seo_get_field_label( $field_key );
+                            $field_description = khm_seo_get_field_description( $field_key );
+                            $field_type = khm_seo_get_field_type( $field_key );
+                            ?>
+                            
+                            <div class="khm-seo-field">
+                                <label for="khm_seo_field_<?php echo esc_attr( $field_key ); ?>">
+                                    <?php echo esc_html( $field_label ); ?>
+                                    <?php if ( khm_seo_is_required_field( $field_key, $type_key ) ) : ?>
+                                        <span class="required">*</span>
+                                    <?php endif; ?>
+                                </label>
+                                
+                                <?php if ( $field_type === 'textarea' ) : ?>
+                                    <textarea name="khm_seo_schema_fields[<?php echo esc_attr( $field_key ); ?>]"
+                                              id="khm_seo_field_<?php echo esc_attr( $field_key ); ?>"
+                                              class="widefat"
+                                              rows="3"
+                                              placeholder="<?php echo esc_attr( khm_seo_get_field_placeholder( $field_key ) ); ?>"><?php echo esc_textarea( $field_value ); ?></textarea>
+                                <?php elseif ( $field_type === 'url' ) : ?>
+                                    <input type="url"
+                                           name="khm_seo_schema_fields[<?php echo esc_attr( $field_key ); ?>]"
+                                           id="khm_seo_field_<?php echo esc_attr( $field_key ); ?>"
+                                           class="widefat"
+                                           value="<?php echo esc_attr( $field_value ); ?>"
+                                           placeholder="<?php echo esc_attr( khm_seo_get_field_placeholder( $field_key ) ); ?>">
+                                <?php elseif ( $field_type === 'date' ) : ?>
+                                    <input type="date"
+                                           name="khm_seo_schema_fields[<?php echo esc_attr( $field_key ); ?>]"
+                                           id="khm_seo_field_<?php echo esc_attr( $field_key ); ?>"
+                                           class="widefat"
+                                           value="<?php echo esc_attr( $field_value ); ?>">
+                                <?php else : ?>
+                                    <input type="text"
+                                           name="khm_seo_schema_fields[<?php echo esc_attr( $field_key ); ?>]"
+                                           id="khm_seo_field_<?php echo esc_attr( $field_key ); ?>"
+                                           class="widefat"
+                                           value="<?php echo esc_attr( $field_value ); ?>"
+                                           placeholder="<?php echo esc_attr( khm_seo_get_field_placeholder( $field_key ) ); ?>">
+                                <?php endif; ?>
+                                
+                                <?php if ( $field_description ) : ?>
+                                    <p class="description"><?php echo esc_html( $field_description ); ?></p>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+
+            <!-- Advanced Options -->
+            <div class="khm-seo-field-group">
+                <h4><?php _e( 'Advanced Options', 'khm-seo' ); ?></h4>
+                
+                <div class="khm-seo-field">
+                    <label>
+                        <input type="checkbox"
+                               name="khm_seo_schema_options[auto_generate]"
+                               value="1"
+                               <?php checked( ! empty( $current_schema['options']['auto_generate'] ) ); ?>>
+                        <?php _e( 'Auto-generate missing fields from post content', 'khm-seo' ); ?>
+                    </label>
                 </div>
-            <?php endforeach; ?>
-        </div>
-
-        <!-- Advanced Options -->
-        <div class="khm-seo-field-group">
-            <h4><?php _e( 'Advanced Options', 'khm-seo' ); ?></h4>
-            
-            <div class="khm-seo-field">
-                <label>
-                    <input type="checkbox" 
-                           name="khm_seo_schema_options[auto_generate]"
-                           value="1"
-                           <?php checked( ! empty( $current_schema['options']['auto_generate'] ) ); ?>>
-                    <?php _e( 'Auto-generate missing fields from post content', 'khm-seo' ); ?>
-                </label>
-            </div>
-            
-            <div class="khm-seo-field">
-                <label>
-                    <input type="checkbox" 
-                           name="khm_seo_schema_options[include_breadcrumbs]"
-                           value="1"
-                           <?php checked( ! empty( $current_schema['options']['include_breadcrumbs'] ) ); ?>>
-                    <?php _e( 'Include breadcrumb schema', 'khm-seo' ); ?>
-                </label>
-            </div>
-            
-            <div class="khm-seo-field">
-                <label>
-                    <input type="checkbox" 
-                           name="khm_seo_schema_options[validate_output]"
-                           value="1"
-                           <?php checked( ! empty( $current_schema['options']['validate_output'] ) ); ?>>
-                    <?php _e( 'Validate schema output', 'khm-seo' ); ?>
-                </label>
-            </div>
-        </div>
-
-        <!-- Schema Preview and Tools -->
-        <div class="khm-seo-field-group">
-            <h4><?php _e( 'Schema Tools', 'khm-seo' ); ?></h4>
-            
-            <div class="khm-seo-schema-actions">
-                <button type="button" 
-                        id="khm-seo-preview-schema" 
-                        class="button button-secondary">
-                    <span class="dashicons dashicons-visibility"></span>
-                    <?php _e( 'Preview Schema', 'khm-seo' ); ?>
-                </button>
                 
-                <button type="button" 
-                        id="khm-seo-validate-schema" 
-                        class="button button-secondary">
-                    <span class="dashicons dashicons-yes-alt"></span>
-                    <?php _e( 'Validate Schema', 'khm-seo' ); ?>
-                </button>
+                <div class="khm-seo-field">
+                    <label>
+                        <input type="checkbox"
+                               name="khm_seo_schema_options[include_breadcrumbs]"
+                               value="1"
+                               <?php checked( ! empty( $current_schema['options']['include_breadcrumbs'] ) ); ?>>
+                        <?php _e( 'Include breadcrumb schema', 'khm-seo' ); ?>
+                    </label>
+                </div>
                 
-                <button type="button" 
-                        id="khm-seo-test-schema" 
-                        class="button button-secondary">
-                    <span class="dashicons dashicons-admin-tools"></span>
-                    <?php _e( 'Test with Google', 'khm-seo' ); ?>
-                </button>
+                <div class="khm-seo-field">
+                    <label>
+                        <input type="checkbox"
+                               name="khm_seo_schema_options[validate_output]"
+                               value="1"
+                               <?php checked( ! empty( $current_schema['options']['validate_output'] ) ); ?>>
+                        <?php _e( 'Validate schema output', 'khm-seo' ); ?>
+                    </label>
+                </div>
             </div>
-        </div>
 
-        <!-- Schema Preview Panel -->
-        <div id="khm-seo-schema-preview" class="khm-seo-schema-preview" style="display: none;">
-            <h4><?php _e( 'Schema Preview', 'khm-seo' ); ?></h4>
-            <div class="khm-seo-preview-content">
-                <textarea readonly class="widefat code" rows="10" id="khm-seo-preview-output"></textarea>
+            <!-- Schema Preview and Tools -->
+            <div class="khm-seo-field-group">
+                <h4><?php _e( 'Schema Tools', 'khm-seo' ); ?></h4>
+                
+                <div class="khm-seo-schema-actions">
+                    <button type="button"
+                            id="khm-seo-preview-schema"
+                            class="button button-secondary">
+                        <span class="dashicons dashicons-visibility"></span>
+                        <?php _e( 'Preview Schema', 'khm-seo' ); ?>
+                    </button>
+                    
+                    <button type="button"
+                            id="khm-seo-validate-schema"
+                            class="button button-secondary">
+                        <span class="dashicons dashicons-yes-alt"></span>
+                        <?php _e( 'Validate Schema', 'khm-seo' ); ?>
+                    </button>
+                    
+                    <button type="button"
+                            id="khm-seo-test-schema"
+                            class="button button-secondary">
+                        <span class="dashicons dashicons-admin-tools"></span>
+                        <?php _e( 'Test with Google', 'khm-seo' ); ?>
+                    </button>
+                </div>
             </div>
-            <div class="khm-seo-preview-actions">
-                <button type="button" class="button" id="khm-seo-copy-schema">
-                    <?php _e( 'Copy to Clipboard', 'khm-seo' ); ?>
-                </button>
-            </div>
-        </div>
 
-        <!-- Validation Results -->
-        <div id="khm-seo-validation-results" class="khm-seo-validation-results" style="display: none;">
-            <h4><?php _e( 'Validation Results', 'khm-seo' ); ?></h4>
-            <div class="khm-seo-validation-content"></div>
-        </div>
+            <!-- Schema Preview Panel -->
+            <div id="khm-seo-schema-preview" class="khm-seo-schema-preview" style="display: none;">
+                <h4><?php _e( 'Schema Preview', 'khm-seo' ); ?></h4>
+                <div class="khm-seo-preview-content">
+                    <textarea readonly class="widefat code" rows="10" id="khm-seo-preview-output"></textarea>
+                </div>
+                <div class="khm-seo-preview-actions">
+                    <button type="button" class="button" id="khm-seo-copy-schema">
+                        <?php _e( 'Copy to Clipboard', 'khm-seo' ); ?>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Validation Results -->
+            <div id="khm-seo-validation-results" class="khm-seo-validation-results" style="display: none;">
+                <h4><?php _e( 'Validation Results', 'khm-seo' ); ?></h4>
+                <div class="khm-seo-validation-content"></div>
+            </div>
+        <?php endif; ?>
 
     </div>
 </div>

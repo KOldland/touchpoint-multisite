@@ -40,6 +40,20 @@ class PublicPreviewHandler {
             wp_die( __( 'Preview link is invalid.', 'khm-preview' ), 403 );
         }
 
+        $current_p = isset( $_GET['p'] ) ? (int) $_GET['p'] : 0;
+        if ( $current_p !== $post_id ) {
+            $canonical_preview_url = add_query_arg(
+                [
+                    'p'                 => $post_id,
+                    'khm_preview_post'  => $post_id,
+                    'khm_preview_token' => $token,
+                ],
+                home_url( '/' )
+            );
+            wp_safe_redirect( $canonical_preview_url );
+            exit;
+        }
+
         $this->analytics->log_hit( (int) $link['id'], [
             'ip'         => $_SERVER['REMOTE_ADDR'] ?? '',
             'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',

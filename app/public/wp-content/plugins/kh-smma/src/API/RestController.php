@@ -242,6 +242,35 @@ class RestController {
             }
         }
 
+        $lead_category_override = sanitize_text_field( (string) ( $payload['lead_category'] ?? '' ) );
+        if ( '' !== $lead_category_override ) {
+            $lead_category = $lead_category_override;
+        }
+
+        $additional_override = $payload['additional_categories'] ?? array();
+        if ( is_array( $additional_override ) ) {
+            $sanitized_additional = array();
+            foreach ( $additional_override as $entry ) {
+                $name = sanitize_text_field( (string) $entry );
+                if ( '' === $name ) {
+                    continue;
+                }
+                if ( '' !== $lead_category && 0 === strcasecmp( $lead_category, $name ) ) {
+                    continue;
+                }
+                if ( in_array( strtolower( $name ), array_map( 'strtolower', $sanitized_additional ), true ) ) {
+                    continue;
+                }
+                $sanitized_additional[] = $name;
+                if ( count( $sanitized_additional ) >= 2 ) {
+                    break;
+                }
+            }
+            if ( ! empty( $sanitized_additional ) ) {
+                $additional_categories = $sanitized_additional;
+            }
+        }
+
         // Log generation request
         $prompt_hash = hash( 'sha256', wp_json_encode( array(
             'post_id'   => $post_id,

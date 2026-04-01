@@ -14,7 +14,9 @@ use function get_current_screen;
 use function get_current_user_id;
 use function get_option;
 use function get_post;
+use function get_categories;
 use function get_post_meta;
+use function get_the_category;
 use function get_the_post_thumbnail_url;
 use function get_post_type;
 use function plugin_dir_url;
@@ -140,6 +142,9 @@ class PostBoostPage {
 			'featuredImageUrl' => $post_id ? (string) ( get_the_post_thumbnail_url( $post_id, 'large' ) ?: '' ) : '',
 			'userId' => get_current_user_id(),
 			'allowedPlatforms' => $this->get_enabled_platforms(),
+			'categoryOptions' => $this->get_category_options(),
+			'defaultLeadCategory' => $this->get_default_lead_category( $post_id ),
+			'defaultAdditionalCategories' => $this->get_default_additional_categories( $post_id ),
 			'urls' => array(
 				'dashboard' => admin_url( 'admin.php?page=kh-smma-dashboard' ),
 			),
@@ -303,5 +308,70 @@ class PostBoostPage {
 		}
 
 		return array_values( array_unique( $normalized ) );
+	}
+
+	private function get_category_options(): array {
+		$terms = get_categories(
+			array(
+				'taxonomy' => 'category',
+				'hide_empty' => false,
+			)
+		);
+
+		if ( ! is_array( $terms ) ) {
+			return array();
+		}
+
+		$names = array();
+		foreach ( $terms as $term ) {
+			$name = sanitize_text_field( (string) ( $term->name ?? '' ) );
+			if ( '' !== $name ) {
+				$names[] = $name;
+			}
+		}
+
+		$names = array_values( array_unique( $names ) );
+		natcasesort( $names );
+		return array_values( $names );
+	}
+
+	private function get_default_lead_category( int $post_id ): string {
+		if ( $post_id <= 0 ) {
+			return '';
+		}
+
+		$terms = get_the_category( $post_id );
+		if ( ! is_array( $terms ) || empty( $terms ) ) {
+			return '';
+		}
+
+		return sanitize_text_field( (string) ( $terms[0]->name ?? '' ) );
+	}
+
+	private function get_default_additional_categories( int $post_id ): array {
+		if ( $post_id <= 0 ) {
+			return array();
+		}
+
+		$terms = get_the_category( $post_id );
+		if ( ! is_array( $terms ) || count( $terms ) < 2 ) {
+			return array();
+		}
+
+		$additional = array();
+		foreach ( $terms as $index => $term ) {
+			if ( 0 === $index ) {
+				continue;
+			}
+			$name = sanitize_text_field( (string) ( $term->name ?? '' ) );
+			if ( '' !== $name ) {
+				$additional[] = $name;
+			}
+			if ( count( $additional ) >= 2 ) {
+				break;
+			}
+		}
+
+		return array_values( array_unique( $additional ) );
 	}
 }

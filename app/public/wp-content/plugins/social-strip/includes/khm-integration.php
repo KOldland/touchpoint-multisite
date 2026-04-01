@@ -501,8 +501,16 @@ class KSS_KHM_Integration {
             'is_purchased' => $is_purchased,
         ];
 
-        // Get comprehensive pricing information
-        $original_price = $original_data['price'] ?? 0;
+        // Get comprehensive pricing information.
+        // Prefer post meta so editor eCommerce values consistently flow to frontend.
+        $meta_price_raw = get_post_meta($post_id, 'kss_article_price', true);
+        $meta_price = $meta_price_raw !== '' ? (float) $meta_price_raw : null;
+        $acf_price = function_exists('get_field') ? get_field('kss_article_price', $post_id) : '';
+        $acf_price = $acf_price !== '' ? (float) $acf_price : null;
+        $original_price = $meta_price;
+        if ($original_price === null) {
+            $original_price = $acf_price !== null ? $acf_price : (float) ($original_data['price'] ?? 0);
+        }
         $member_price = $original_price;
 
         if ($is_member && $member_discount > 0) {

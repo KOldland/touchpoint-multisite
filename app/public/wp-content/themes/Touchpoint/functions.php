@@ -151,16 +151,11 @@ function touchpointcrm_get_lead_category_id( $post_id = null ) {
 function touchpointcrm_render_category_row( $term, $selected_ids, $lead_id, $depth ) {
 	$indent = str_repeat( '&nbsp;&nbsp;&nbsp;', $depth );
 	$checked = in_array( $term->term_id, $selected_ids, true ) ? ' checked' : '';
-	$lead_checked = ( (int) $lead_id === (int) $term->term_id ) ? ' checked' : '';
 
 	echo '<li>';
 	echo '<label style="display:inline-flex;align-items:center;gap:6px;">';
-	echo '<input type="checkbox" name="tax_input[category][]" value="' . esc_attr( $term->term_id ) . '"' . $checked . ' />';
+	echo '<input type="checkbox" name="tax_input[category][]" value="' . esc_attr( $term->term_id ) . '"' . $checked . ' data-category-name="' . esc_attr( $term->name ) . '" />';
 	echo $indent . esc_html( $term->name );
-	echo '</label>';
-	echo '<label style="margin-left:12px;">';
-	echo '<input type="radio" name="touchpoint_lead_category" value="' . esc_attr( $term->term_id ) . '"' . $lead_checked . ' /> ';
-	echo esc_html__( 'Lead', 'touchpoint' );
 	echo '</label>';
 	echo '</li>';
 }
@@ -184,8 +179,17 @@ add_action( 'add_meta_boxes', function() {
 				'parent'     => 0,
 			) );
 
-			echo '<p class="description">' . esc_html__( 'Choose categories and mark one as the lead.', 'touchpoint' ) . '</p>';
-			echo '<ul class="touchpoint-categories-list" style="margin:0;padding:0;list-style:none;">';
+			echo '<p class="description" style="color:#0a5d9c;">' . esc_html__( 'Choose categories, then set one lead category.', 'touchpoint' ) . '</p>';
+			echo '<p style="margin:8px 0;">';
+			echo '<label for="touchpoint-category-input" style="display:block;font-weight:600;margin-bottom:4px;">' . esc_html__( 'Category', 'touchpoint' ) . '</label>';
+			echo '<input type="text" id="touchpoint-category-input" class="widefat" list="touchpoint-category-options" placeholder="' . esc_attr__( 'Start typing a category...', 'touchpoint' ) . '" />';
+			echo '<datalist id="touchpoint-category-options"></datalist>';
+			echo '</p>';
+			echo '<p style="margin:8px 0;">';
+			echo '<button type="button" class="button" id="touchpoint-add-category">' . esc_html__( 'Add Category', 'touchpoint' ) . '</button>';
+			echo '</p>';
+			echo '<div id="touchpoint-selected-categories" style="margin:8px 0;"></div>';
+			echo '<ul class="touchpoint-categories-list" style="display:none;margin:0;padding:0;list-style:none;">';
 			if ( ! empty( $terms ) && ! is_wp_error( $terms ) ) {
 				foreach ( $terms as $term ) {
 					touchpointcrm_render_category_row( $term, $selected_ids, $lead_id, 0 );
@@ -204,10 +208,6 @@ add_action( 'add_meta_boxes', function() {
 				echo '<li>' . esc_html__( 'No categories found.', 'touchpoint' ) . '</li>';
 			}
 			echo '</ul>';
-			echo '<div class="touchpoint-category-add" style="margin-top:8px;">';
-			echo '<input type="text" id="touchpoint-new-category" class="widefat" placeholder="' . esc_attr__( 'Add new category', 'touchpoint' ) . '" />';
-			echo '<button type="button" class="button button-link" id="touchpoint-add-category" style="margin-top:4px;">' . esc_html__( 'Add Category', 'touchpoint' ) . '</button>';
-			echo '</div>';
 		},
 		'post',
 		'side',
@@ -226,6 +226,46 @@ add_action( 'enqueue_block_editor_assets', function() {
 		"window.wp && wp.domReady(function(){var dispatch=wp.data&&wp.data.dispatch?wp.data.dispatch('core/edit-post'):null;if(dispatch&&dispatch.removeEditorPanel){dispatch.removeEditorPanel('taxonomy-panel-category');}});"
 	);
 } );
+
+add_action( 'admin_enqueue_scripts', function() {
+	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+	if ( ! $screen || 'post' !== $screen->base || 'post' !== $screen->post_type ) {
+		return;
+	}
+
+	wp_enqueue_script( 'jquery' );
+	$script = <<<'JS'
+jQuery(function($){
+  function saveCommerceMetaAjax(){
+    var $price = $('#kss_article_price');
+    var $credits = $('#kss_credit_cost');
+    var $nonce = $('#touchpoint_social_strip_nonce');
+    var $postId = $('#post_ID');
+    if (!$price.length || !$credits.length || !$nonce.length || !$postId.length) { return; }
+    var priceRaw = $.trim(String($price.val() || ''));
+    var creditRaw = $.trim(String($credits.val() || ''));
+    $.post(ajaxurl, {
+      action: 'touchpoint_save_ecommerce_meta',
+      nonce: $nonce.val(),
+      post_id: $postId.val(),
+      kss_article_price: priceRaw,
+      kss_credit_cost: creditRaw
+    });
+  }
+  var timer = null;
+  function scheduleSave(){
+    if (timer) { clearTimeout(timer); }
+    timer = setTimeout(function(){
+      saveCommerceMetaAjax();
+      timer = null;
+    }, 300);
+  }
+  $(document).on('input', '#kss_article_price, #kss_credit_cost', scheduleSave);
+  $(document).on('change blur', '#kss_article_price, #kss_credit_cost', saveCommerceMetaAjax);
+});
+JS;
+	wp_add_inline_script( 'jquery', $script );
+}, 30 );
 
 add_action( 'enqueue_block_editor_assets', function() {
 	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
@@ -327,7 +367,18 @@ add_action( 'init', function() {
 		'auth_callback'     => function() {
 			return current_user_can( 'edit_posts' );
 		},
-		'sanitize_callback' => 'sanitize_text_field',
+		'sanitize_callback' => function( $value ) {
+			if ( is_string( $value ) ) {
+				$value = trim( $value );
+			}
+			if ( '' === $value || null === $value ) {
+				return 0;
+			}
+			if ( ! is_numeric( $value ) ) {
+				return 0;
+			}
+			return (float) $value;
+		},
 	) );
 	register_post_meta( 'post', 'kss_credit_cost', array(
 		'type'              => 'integer',
@@ -491,6 +542,37 @@ add_action( 'wp_ajax_touchpoint_add_category', function() {
 	) );
 } );
 
+add_action( 'wp_ajax_touchpoint_save_ecommerce_meta', function() {
+	if ( ! current_user_can( 'edit_posts' ) ) {
+		wp_send_json_error( array( 'message' => __( 'Permission denied.', 'touchpoint' ) ), 403 );
+	}
+
+	$nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
+	if ( ! wp_verify_nonce( $nonce, 'touchpoint_social_strip_save' ) ) {
+		wp_send_json_error( array( 'message' => __( 'Invalid nonce.', 'touchpoint' ) ), 403 );
+	}
+
+	$post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+	if ( $post_id <= 0 || ! current_user_can( 'edit_post', $post_id ) ) {
+		wp_send_json_error( array( 'message' => __( 'Invalid post.', 'touchpoint' ) ), 400 );
+	}
+
+	$price_raw = isset( $_POST['kss_article_price'] ) ? sanitize_text_field( wp_unslash( $_POST['kss_article_price'] ) ) : '';
+	$credit_raw = isset( $_POST['kss_credit_cost'] ) ? sanitize_text_field( wp_unslash( $_POST['kss_credit_cost'] ) ) : '';
+
+	$price = is_numeric( $price_raw ) ? (float) $price_raw : 0.0;
+	$credit = is_numeric( $credit_raw ) ? absint( $credit_raw ) : 0;
+
+	update_post_meta( $post_id, 'kss_article_price', $price );
+	update_post_meta( $post_id, 'kss_credit_cost', $credit );
+	touchpoint_kss_trace_log( "ajax_save_ecommerce_meta post={$post_id} price={$price} credit={$credit}" );
+
+	wp_send_json_success( array(
+		'price' => $price,
+		'credit_cost' => $credit,
+	) );
+} );
+
 add_action( 'enqueue_block_editor_assets', function() {
 	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 	if ( ! $screen || 'post' !== $screen->post_type ) {
@@ -503,9 +585,40 @@ add_action( 'enqueue_block_editor_assets', function() {
 	$lead_label_json = wp_json_encode( $lead_label );
 	$script = <<<'JS'
 jQuery(function($){
-  var $list = $('.touchpoint-categories-list');
+  var $list = $('.touchpoint-categories-list').first();
   var $status = $('#touchpoint-category-status');
-  function showError(msg){$status.text(msg||'Unable to add category.');}
+  var $input = $('#touchpoint-category-input');
+  var $datalist = $('#touchpoint-category-options');
+  var $selectedWrap = $('#touchpoint-selected-categories');
+  var $addBtn = $('#touchpoint-add-category');
+  var hasCategoryUi = !!($list.length && $input.length && $datalist.length && $selectedWrap.length && $addBtn.length);
+  var initialLeadId = 0;
+  var currentLeadId = 0;
+  if (hasCategoryUi) {
+    initialLeadId = parseInt((window.wp && wp.data && wp.data.select && wp.data.select('core/editor') && wp.data.select('core/editor').getEditedPostAttribute('meta') || {})._lead_category_id || 0, 10) || 0;
+    currentLeadId = initialLeadId;
+  }
+  function showError(msg){ $status.text(msg || 'Unable to add category.'); }
+  function clearError(){ $status.text(''); }
+  function escHtml(str){
+    return String(str || '').replace(/[&<>"']/g, function(s){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s];
+    });
+  }
+  function normalize(str){
+    return $.trim(String(str || '')).toLowerCase();
+  }
+  function getCategoryMap(){
+    var map = {};
+    $list.find('input[type=checkbox][name="tax_input[category][]"]').each(function(){
+      var $box = $(this);
+      var id = parseInt($box.val(), 10);
+      if (!id) { return; }
+      var name = $.trim(String($box.data('category-name') || $box.closest('label').text() || $box.closest('li').text() || ''));
+      map[id] = { id: id, name: name, box: $box };
+    });
+    return map;
+  }
   function getSelected(){
     var ids = [];
     $list.find('input[type=checkbox]:checked').each(function(){
@@ -513,77 +626,287 @@ jQuery(function($){
     });
     return ids;
   }
+  function findCategoryByName(name){
+    var needle = normalize(name);
+    if (!needle) { return null; }
+    var found = null;
+    $list.find('input[type=checkbox][name="tax_input[category][]"]').each(function(){
+      if (found) { return; }
+      var $box = $(this);
+      var boxName = normalize($box.data('category-name') || $box.closest('label').text() || $box.closest('li').text() || '');
+      if (boxName === needle) { found = $box; }
+    });
+    return found;
+  }
   function setCategories(ids){
     if (window.wp && wp.data && wp.data.dispatch) {
       wp.data.dispatch('core/editor').editPost({categories: ids});
     }
   }
   function setLead(id){
-    if (window.wp && wp.data && wp.data.dispatch) {
-      wp.data.dispatch('core/editor').editPost({meta: {_lead_category_id: id}});
+    if (window.wp && wp.data && wp.data.dispatch && wp.data.select) {
+      var select = wp.data.select('core/editor');
+      var current = (select && select.getEditedPostAttribute && select.getEditedPostAttribute('meta')) || {};
+      var currentLead = parseInt(current._lead_category_id || 0, 10) || 0;
+      var nextLead = parseInt(id || 0, 10) || 0;
+      if (currentLead === nextLead) { return; }
+      wp.data.dispatch('core/editor').editPost({meta: {_lead_category_id: nextLead}});
     }
   }
-  $list.on('change', 'input[type=checkbox]', function(){
-    setCategories(getSelected());
-  });
-  $list.on('change', 'input[type=radio]', function(){
-    var id = parseInt($(this).val(), 10);
-    if (!isNaN(id)) {
-      var $box = $list.find('input[type=checkbox][value=' + id + ']');
-      if ($box.length && !$box.prop('checked')) {
-        $box.prop('checked', true);
-        setCategories(getSelected());
-      }
-      setLead(id);
+  function syncDatalist(){
+    var map = getCategoryMap();
+    var names = [];
+    Object.keys(map).forEach(function(id){
+      var name = map[id].name;
+      if (name && names.indexOf(name) === -1) { names.push(name); }
+    });
+    names.sort(function(a,b){ return a.localeCompare(b); });
+    var html = '';
+    names.forEach(function(name){
+      html += '<option value="' + escHtml(name) + '"></option>';
+    });
+    $datalist.html(html);
+  }
+  function renderSelected(preferredLeadId){
+    var selectedIds = getSelected();
+    var map = getCategoryMap();
+    var desired = parseInt(preferredLeadId || currentLeadId || 0, 10) || 0;
+    if (selectedIds.length && selectedIds.indexOf(desired) === -1) { desired = selectedIds[0]; }
+    if (!selectedIds.length) { desired = 0; }
+    currentLeadId = desired;
+    setLead(desired);
+    if (!selectedIds.length) {
+      $selectedWrap.html('<p class="description" style="margin:0;">No categories selected.</p>');
+      return;
     }
-  });
-  $('#touchpoint-add-category').on('click', function(){
-    var name = $.trim($('#touchpoint-new-category').val());
-    $status.text('');
-    if(!name){showError('Category name is required.');return;}
+    var html = '<table class="widefat striped"><thead><tr><th>Category</th><th style="width:72px;">Lead</th><th style="width:82px;">Action</th></tr></thead><tbody>';
+    selectedIds.forEach(function(id){
+      var item = map[id];
+      if (!item) { return; }
+      html += '<tr data-category-id="' + id + '">';
+      html += '<td>' + escHtml(item.name) + '</td>';
+      html += '<td style="text-align:center;"><input type="radio" name="touchpoint_lead_category_choice" value="' + id + '"' + (id === desired ? ' checked' : '') + ' /></td>';
+      html += '<td><button type="button" class="button-link-delete touchpoint-remove-category" data-category-id="' + id + '">Remove</button></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    $selectedWrap.html(html);
+  }
+  function selectCategoryBox($box, leadId){
+    if (!$box || !$box.length) { return; }
+    if (!$box.prop('checked')) {
+      $box.prop('checked', true);
+      setCategories(getSelected());
+    }
+    renderSelected(leadId || parseInt($box.val(), 10));
+  }
+  function addCategoryFromInput(){
+    var name = $.trim($input.val());
+    clearError();
+    if (!name) {
+      showError('Category name is required.');
+      return;
+    }
+    var $existing = findCategoryByName(name);
+    if ($existing && $existing.length) {
+      selectCategoryBox($existing, parseInt($existing.val(), 10));
+      $input.val('');
+      return;
+    }
     var nonce = $('#touchpoint-lead-category-nonce').val();
-    var data = {action:'touchpoint_add_category', name:name, nonce:nonce};
-    $.post(ajaxurl, data).done(function(resp){
-      if(!resp || !resp.success){
+    $.post(ajaxurl, {action:'touchpoint_add_category', name:name, nonce:nonce}).done(function(resp){
+      if (!resp || !resp.success) {
         showError(resp && resp.data && resp.data.message ? resp.data.message : 'Unable to add category.');
         return;
       }
-      var id = resp.data.id;
-      var label = $('<label/>', {css:{display:'inline-flex',alignItems:'center',gap:'6px'}});
-      label.append($('<input/>', {type:'checkbox', name:'tax_input[category][]', value:id, checked:true}));
-      label.append(document.createTextNode(' '+resp.data.name));
-      var leadLabel = $('<label/>', {css:{marginLeft:'12px'}});
-      leadLabel.append($('<input/>', {type:'radio', name:'touchpoint_lead_category', value:id}));
-      leadLabel.append(' ' + __LEAD_LABEL__);
-      var li = $('<li/>');
-      li.append(label).append(leadLabel);
-      $list.append(li);
-      $('#touchpoint-new-category').val('');
+      var id = parseInt(resp.data.id, 10);
+      var categoryName = $.trim(String(resp.data.name || name));
+      var $label = $('<label/>', {css:{display:'inline-flex',alignItems:'center',gap:'6px'}});
+      var $box = $('<input/>', {
+        type:'checkbox',
+        name:'tax_input[category][]',
+        value:id,
+        checked:true,
+        'data-category-name': categoryName
+      });
+      $label.append($box);
+      $label.append(document.createTextNode(' ' + categoryName));
+      $('<li/>').append($label).appendTo($list);
       setCategories(getSelected());
+      syncDatalist();
+      renderSelected(id);
+      $input.val('');
     }).fail(function(xhr){
       var msg = 'Unable to add category.';
-      if(xhr && xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message){
+      if (xhr && xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
         msg = xhr.responseJSON.data.message;
       }
       showError(msg);
     });
-  });
-
-  var $price = $('#kss_article_price');
-  var $credits = $('#kss_credit_cost');
+  }
+  if (hasCategoryUi) {
+    $addBtn.on('click', addCategoryFromInput);
+    $input.on('keydown', function(e){
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addCategoryFromInput();
+      }
+    });
+    $selectedWrap.on('change', 'input[type=radio][name=touchpoint_lead_category_choice]', function(){
+      var id = parseInt($(this).val(), 10) || 0;
+      currentLeadId = id;
+      setLead(id);
+      renderSelected(id);
+    });
+    $selectedWrap.on('click', '.touchpoint-remove-category', function(e){
+      e.preventDefault();
+      var id = parseInt($(this).data('category-id'), 10) || 0;
+      if (!id) { return; }
+      var $box = $list.find('input[type=checkbox][name="tax_input[category][]"][value="' + id + '"]');
+      if ($box.length) {
+        $box.prop('checked', false);
+        setCategories(getSelected());
+        renderSelected(currentLeadId);
+      }
+    });
+    $list.on('change', 'input[type=checkbox][name="tax_input[category][]"]', function(){
+      setCategories(getSelected());
+      renderSelected(currentLeadId);
+    });
+    syncDatalist();
+    renderSelected(initialLeadId);
+    if (window.MutationObserver) {
+      var observer = new MutationObserver(function(){
+        if ($('input[type=radio][name=touchpoint_lead_category]').length) {
+          $('input[type=radio][name=touchpoint_lead_category]').closest('label').remove();
+        }
+      });
+      observer.observe(document.body, {childList: true, subtree: true});
+    }
+  }
   function setMeta(key, value){
-    if (window.wp && wp.data && wp.data.dispatch) {
+    if (window.wp && wp.data && wp.data.dispatch && wp.data.select) {
+      var select = wp.data.select('core/editor');
+      var current = (select && select.getEditedPostAttribute && select.getEditedPostAttribute('meta')) || {};
+      var existing = current[key];
+      var next = value;
+      if (key === 'kss_article_price') {
+        existing = parseFloat(existing);
+        next = parseFloat(value);
+        if (isNaN(existing)) { existing = 0; }
+        if (isNaN(next)) { next = 0; }
+      } else if (key === 'kss_credit_cost' || key === '_lead_category_id') {
+        existing = parseInt(existing, 10);
+        next = parseInt(value, 10);
+        if (isNaN(existing)) { existing = 0; }
+        if (isNaN(next)) { next = 0; }
+      }
+      if (existing === next) { return; }
       var meta = {};
-      meta[key] = value;
+      meta[key] = next;
       wp.data.dispatch('core/editor').editPost({meta: meta});
     }
   }
-  $(document).on('change', '#kss_article_price', function(){
-    setMeta('kss_article_price', $(this).val());
+  // Bridge classic sidebar inputs to block-editor REST meta payload right
+  // before save/publish.
+  function applyCommerceMetaFromInputs() {
+    if (!(window.wp && wp.data && wp.data.dispatch && wp.data.select)) { return; }
+    var $price = $('#kss_article_price');
+    var $credits = $('#kss_credit_cost');
+    if (!$price.length || !$credits.length) { return; }
+    var priceNum = parseFloat($.trim(String($price.val() || '')));
+    var creditNum = parseInt($.trim(String($credits.val() || '')), 10);
+    if (isNaN(priceNum)) { priceNum = 0; }
+    if (isNaN(creditNum)) { creditNum = 0; }
+    var select = wp.data.select('core/editor');
+    var current = (select && select.getEditedPostAttribute && select.getEditedPostAttribute('meta')) || {};
+    var currentPrice = parseFloat(current.kss_article_price);
+    var currentCredit = parseInt(current.kss_credit_cost, 10);
+    if (isNaN(currentPrice)) { currentPrice = 0; }
+    if (isNaN(currentCredit)) { currentCredit = 0; }
+    if (currentPrice === priceNum && currentCredit === creditNum) { return; }
+    wp.data.dispatch('core/editor').editPost({
+      meta: {
+        kss_article_price: priceNum,
+        kss_credit_cost: creditNum
+      }
+    });
+  }
+  $(document).on('mousedown', '.editor-post-publish-button, .editor-post-save-draft, .editor-post-publish-panel__header-publish-button, .editor-post-publish-panel__toggle', function(){
+    applyCommerceMetaFromInputs();
   });
-  $(document).on('change', '#kss_credit_cost', function(){
-    var val = parseInt($(this).val(), 10);
-    setMeta('kss_credit_cost', isNaN(val) ? 0 : val);
+  $(document).on('keydown', function(e){
+    if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 's') {
+      applyCommerceMetaFromInputs();
+    }
+  });
+  function saveCommerceMetaAjax(priceRaw, creditRaw){
+    var $price = $('#kss_article_price');
+    var $credits = $('#kss_credit_cost');
+    var $nonce = $('#touchpoint_social_strip_nonce');
+    var $postId = $('#post_ID');
+    if (!$price.length || !$credits.length || !$nonce.length || !$postId.length) { return; }
+    if (typeof priceRaw === 'undefined') {
+      priceRaw = $.trim(String($price.val() || ''));
+    }
+    if (typeof creditRaw === 'undefined') {
+      creditRaw = $.trim(String($credits.val() || ''));
+    }
+    $.post(ajaxurl, {
+      action: 'touchpoint_save_ecommerce_meta',
+      nonce: $nonce.val(),
+      post_id: $postId.val(),
+      kss_article_price: priceRaw,
+      kss_credit_cost: creditRaw
+    });
+  }
+  function persistCommerceMetaNow() {
+    var $price = $('#kss_article_price');
+    var $credits = $('#kss_credit_cost');
+    var $postId = $('#post_ID');
+    if (!$price.length || !$credits.length || !$postId.length) { return; }
+    var postId = parseInt($postId.val(), 10) || 0;
+    if (!postId) { return; }
+    var priceRaw = $.trim(String($price.val() || ''));
+    var creditRaw = $.trim(String($credits.val() || ''));
+    var priceNum = parseFloat(priceRaw);
+    var creditNum = parseInt(creditRaw, 10);
+    if (isNaN(priceNum)) { priceNum = 0; }
+    if (isNaN(creditNum)) { creditNum = 0; }
+
+    if (window.wp && wp.apiFetch) {
+      wp.apiFetch({
+        path: '/wp/v2/posts/' + postId,
+        method: 'POST',
+        data: {
+          meta: {
+            kss_article_price: priceNum,
+            kss_credit_cost: creditNum
+          }
+        }
+      }).catch(function(){
+        saveCommerceMetaAjax(String(priceNum), String(creditNum));
+      });
+      return;
+    }
+
+    saveCommerceMetaAjax(String(priceNum), String(creditNum));
+  }
+  var commercePersistTimer = null;
+  function scheduleCommercePersist() {
+    if (commercePersistTimer) {
+      clearTimeout(commercePersistTimer);
+    }
+    commercePersistTimer = setTimeout(function(){
+      persistCommerceMetaNow();
+      commercePersistTimer = null;
+    }, 450);
+  }
+  $(document).on('input', '#kss_article_price, #kss_credit_cost', function(){
+    scheduleCommercePersist();
+  });
+  $(document).on('change blur', '#kss_article_price, #kss_credit_cost', function(){
+    persistCommerceMetaNow();
   });
 });
 JS;
@@ -1003,32 +1326,149 @@ add_action( 'save_post', function( $post_id ) {
 	if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
 		return;
 	}
-	if ( ! isset( $_POST['touchpoint_social_strip_nonce'] ) || ! wp_verify_nonce( $_POST['touchpoint_social_strip_nonce'], 'touchpoint_social_strip_save' ) ) {
-		return;
-	}
 	if ( ! current_user_can( 'edit_post', $post_id ) ) {
 		return;
 	}
 
-	$price = isset( $_POST['kss_article_price'] ) ? sanitize_text_field( wp_unslash( $_POST['kss_article_price'] ) ) : '';
-	$credit_cost = isset( $_POST['kss_credit_cost'] ) ? absint( $_POST['kss_credit_cost'] ) : 0;
-
-	if ( '' !== $price ) {
-		update_post_meta( $post_id, 'kss_article_price', $price );
-	} else {
-		delete_post_meta( $post_id, 'kss_article_price' );
+	// In block editor save flows, this callback can run without the actual
+	// field payload; do not overwrite persisted meta unless fields are present.
+	$has_price_field = array_key_exists( 'kss_article_price', $_POST );
+	$has_credit_field = array_key_exists( 'kss_credit_cost', $_POST );
+	$has_nonce = isset( $_POST['touchpoint_social_strip_nonce'] ) && wp_verify_nonce( $_POST['touchpoint_social_strip_nonce'], 'touchpoint_social_strip_save' );
+	if ( ! $has_nonce && ! $has_price_field && ! $has_credit_field ) {
+		return;
+	}
+	if ( ! $has_price_field && ! $has_credit_field ) {
+		return;
 	}
 
-	if ( $credit_cost > 0 ) {
-		update_post_meta( $post_id, 'kss_credit_cost', $credit_cost );
-	} else {
-		delete_post_meta( $post_id, 'kss_credit_cost' );
+	$price = $has_price_field ? sanitize_text_field( wp_unslash( $_POST['kss_article_price'] ) ) : null;
+	$credit_cost_raw = $has_credit_field ? sanitize_text_field( wp_unslash( $_POST['kss_credit_cost'] ) ) : null;
+
+	if ( null !== $price ) {
+		$price = trim( (string) $price );
+		if ( '' === $price ) {
+			// Empty payloads can occur in editor save cycles; keep existing meta.
+		} elseif ( is_numeric( $price ) ) {
+			update_post_meta( $post_id, 'kss_article_price', (float) $price );
+		}
+	}
+
+	if ( null !== $credit_cost_raw ) {
+		$credit_cost_raw = trim( (string) $credit_cost_raw );
+		if ( '' === $credit_cost_raw ) {
+			// Empty payloads can occur in editor save cycles; keep existing meta.
+		} elseif ( is_numeric( $credit_cost_raw ) ) {
+			$credit_cost = absint( $credit_cost_raw );
+			update_post_meta( $post_id, 'kss_credit_cost', $credit_cost );
+		}
 	}
 
 	delete_post_meta( $post_id, 'kss_show_gifting' );
 	delete_post_meta( $post_id, 'kss_gift_price' );
 	delete_post_meta( $post_id, 'kss_pdf_upload' );
 }, 20 );
+
+add_action( 'rest_after_insert_post', function( $post, $request ) {
+	if ( ! $post instanceof WP_Post || 'post' !== $post->post_type ) {
+		return;
+	}
+	if ( ! current_user_can( 'edit_post', $post->ID ) ) {
+		return;
+	}
+
+	$meta = $request->get_param( 'meta' );
+	if ( ! is_array( $meta ) ) {
+		return;
+	}
+
+	if ( array_key_exists( 'kss_article_price', $meta ) ) {
+		$value = $meta['kss_article_price'];
+		if ( is_string( $value ) ) {
+			$value = trim( $value );
+		}
+		if ( '' !== $value && null !== $value && is_numeric( $value ) ) {
+			update_post_meta( $post->ID, 'kss_article_price', (float) $value );
+		}
+	}
+
+	if ( array_key_exists( 'kss_credit_cost', $meta ) ) {
+		$value = $meta['kss_credit_cost'];
+		if ( is_string( $value ) ) {
+			$value = trim( $value );
+		}
+		if ( '' !== $value && null !== $value && is_numeric( $value ) ) {
+			update_post_meta( $post->ID, 'kss_credit_cost', absint( $value ) );
+		}
+	}
+}, 20, 2 );
+
+if ( ! function_exists( 'touchpoint_kss_trace_log' ) ) {
+	function touchpoint_kss_trace_log( string $message ): void {
+		error_log( '[KSS_TRACE] ' . $message );
+	}
+}
+
+add_action( 'save_post', function( $post_id ) {
+	if ( (int) $post_id !== 370 ) {
+		return;
+	}
+	$price = array_key_exists( 'kss_article_price', $_POST ) ? wp_unslash( (string) $_POST['kss_article_price'] ) : '__missing__';
+	$credit = array_key_exists( 'kss_credit_cost', $_POST ) ? wp_unslash( (string) $_POST['kss_credit_cost'] ) : '__missing__';
+	$keys = implode( ',', array_keys( $_POST ) );
+	touchpoint_kss_trace_log( "save_post start post=370 price={$price} credit={$credit} keys={$keys}" );
+}, 1 );
+
+add_action( 'save_post', function( $post_id ) {
+	if ( (int) $post_id !== 370 ) {
+		return;
+	}
+	$current_price = get_post_meta( $post_id, 'kss_article_price', true );
+	$current_credit = get_post_meta( $post_id, 'kss_credit_cost', true );
+	touchpoint_kss_trace_log( "save_post end post=370 stored_price={$current_price} stored_credit={$current_credit}" );
+}, 999 );
+
+add_action( 'rest_after_insert_post', function( $post, $request ) {
+	if ( ! $post instanceof WP_Post || (int) $post->ID !== 370 ) {
+		return;
+	}
+	$meta = $request->get_param( 'meta' );
+	$payload = is_array( $meta ) ? wp_json_encode( $meta ) : 'no-meta-payload';
+	touchpoint_kss_trace_log( "rest_after_insert_post post=370 meta_payload={$payload}" );
+}, 1, 2 );
+
+add_action( 'updated_post_meta', function( $meta_id, $object_id, $meta_key, $meta_value ) {
+	if ( (int) $object_id !== 370 ) {
+		return;
+	}
+	if ( ! in_array( (string) $meta_key, array( 'kss_article_price', 'kss_credit_cost' ), true ) ) {
+		return;
+	}
+	$value = is_scalar( $meta_value ) ? (string) $meta_value : wp_json_encode( $meta_value );
+	touchpoint_kss_trace_log( "updated_post_meta object=370 key={$meta_key} value={$value}" );
+}, 10, 4 );
+
+add_action( 'added_post_meta', function( $meta_id, $object_id, $meta_key, $meta_value ) {
+	if ( (int) $object_id !== 370 ) {
+		return;
+	}
+	if ( ! in_array( (string) $meta_key, array( 'kss_article_price', 'kss_credit_cost' ), true ) ) {
+		return;
+	}
+	$value = is_scalar( $meta_value ) ? (string) $meta_value : wp_json_encode( $meta_value );
+	touchpoint_kss_trace_log( "added_post_meta object=370 key={$meta_key} value={$value}" );
+}, 10, 4 );
+
+add_action( 'deleted_post_meta', function( $meta_ids, $object_id, $meta_key, $meta_value ) {
+	if ( (int) $object_id !== 370 ) {
+		return;
+	}
+	if ( ! in_array( (string) $meta_key, array( 'kss_article_price', 'kss_credit_cost' ), true ) ) {
+		return;
+	}
+	$value = is_scalar( $meta_value ) ? (string) $meta_value : wp_json_encode( $meta_value );
+	touchpoint_kss_trace_log( "deleted_post_meta object=370 key={$meta_key} value={$value}" );
+}, 10, 4 );
 	
 /* Load DM-Sans */
 	function touchpointcrm_fonts() {
@@ -1406,3 +1846,19 @@ add_filter( 'khm_stripe_membership_price_map', function( $map, $level_id ) {
 	// Return the entire map for bulk lookups
 	return $price_map;
 }, 10, 2 );
+
+/**
+ * Force-remove legacy KHM SEO social meta box from editor screens.
+ */
+function touchpoint_force_remove_legacy_social_meta_box() {
+	$post_types = get_post_types( array( 'public' => true ), 'names' );
+	foreach ( $post_types as $post_type ) {
+		remove_meta_box( 'khm-seo-social', $post_type, 'normal' );
+		remove_meta_box( 'khm-seo-social', $post_type, 'side' );
+		remove_meta_box( 'khm-seo-social', $post_type, 'advanced' );
+		remove_meta_box( 'khm_seo_social_meta', $post_type, 'normal' );
+		remove_meta_box( 'khm_seo_social_meta', $post_type, 'side' );
+		remove_meta_box( 'khm_seo_social_meta', $post_type, 'advanced' );
+	}
+}
+add_action( 'add_meta_boxes', 'touchpoint_force_remove_legacy_social_meta_box', 1000 );

@@ -31,6 +31,66 @@
     return "kh-smma-generate-modal";
   }
 
+  function getCategoryOptions() {
+    var options = window.khSmmaEditor && Array.isArray(window.khSmmaEditor.categoryOptions) ? window.khSmmaEditor.categoryOptions : [];
+    var deduped = {};
+    return options
+      .map(function (name) {
+        return String(name || "").trim();
+      })
+      .filter(function (name) {
+        if (!name) return false;
+        var key = name.toLowerCase();
+        if (deduped[key]) return false;
+        deduped[key] = true;
+        return true;
+      });
+  }
+
+  function categoryOptionsHtml() {
+    return getCategoryOptions()
+      .map(function (name) {
+        return '<option value="' + escapeHtml(name) + '"></option>';
+      })
+      .join("");
+  }
+
+  function normalizedCategoryValue(rawValue) {
+    var value = String(rawValue || "").trim();
+    if (!value) {
+      return "";
+    }
+    var options = getCategoryOptions();
+    var match = options.find(function (name) {
+      return name.toLowerCase() === value.toLowerCase();
+    });
+    return match || value;
+  }
+
+  function categoryOverridesFromModal() {
+    var leadEl = document.getElementById("kh-smma-lead-category");
+    var additionalOneEl = document.getElementById("kh-smma-additional-category-1");
+    var additionalTwoEl = document.getElementById("kh-smma-additional-category-2");
+
+    var leadCategory = normalizedCategoryValue(leadEl ? leadEl.value : "");
+    var additionalRaw = [
+      normalizedCategoryValue(additionalOneEl ? additionalOneEl.value : ""),
+      normalizedCategoryValue(additionalTwoEl ? additionalTwoEl.value : "")
+    ];
+    var additionalCategories = [];
+    additionalRaw.forEach(function (name) {
+      if (!name) return;
+      if (leadCategory && name.toLowerCase() === leadCategory.toLowerCase()) return;
+      if (additionalCategories.some(function (existing) { return existing.toLowerCase() === name.toLowerCase(); })) return;
+      additionalCategories.push(name);
+    });
+
+    return {
+      lead_category: leadCategory,
+      additional_categories: additionalCategories.slice(0, 2)
+    };
+  }
+
   function closeModal() {
     var node = document.getElementById(id());
     if (node && node.parentNode) {
@@ -137,6 +197,17 @@
       '<div class="kh-smma-modal-head"><h3>Generate Social Copy</h3><button type="button" class="kh-smma-modal-close button-link" id="kh-smma-gen-close" aria-label="Close">×</button></div>' +
       '<p>Standard mode will generate:</p>' +
       '<ul><li>1 LinkedIn post (title + excerpt + tags)</li><li>Google metadata draft (SEO title + meta description)</li></ul>' +
+      '<div class="kh-smma-category-fields">' +
+      '<h4 style="margin:10px 0 6px;">Categories</h4>' +
+      '<p style="margin:0 0 8px;color:#50575e;">Set lead/additional categories for hashtags and tag context.</p>' +
+      '<label for="kh-smma-lead-category">Lead Category</label>' +
+      '<input type="text" id="kh-smma-lead-category" list="kh-smma-category-options" placeholder="Start typing to search categories" value="' + escapeHtml((window.khSmmaEditor && window.khSmmaEditor.defaultLeadCategory) || "") + '" />' +
+      '<label for="kh-smma-additional-category-1">Additional Category 1</label>' +
+      '<input type="text" id="kh-smma-additional-category-1" list="kh-smma-category-options" placeholder="Optional additional category" value="' + escapeHtml((window.khSmmaEditor && Array.isArray(window.khSmmaEditor.defaultAdditionalCategories) && window.khSmmaEditor.defaultAdditionalCategories[0]) || "") + '" />' +
+      '<label for="kh-smma-additional-category-2">Additional Category 2</label>' +
+      '<input type="text" id="kh-smma-additional-category-2" list="kh-smma-category-options" placeholder="Optional additional category" value="' + escapeHtml((window.khSmmaEditor && Array.isArray(window.khSmmaEditor.defaultAdditionalCategories) && window.khSmmaEditor.defaultAdditionalCategories[1]) || "") + '" />' +
+      '<datalist id="kh-smma-category-options">' + categoryOptionsHtml() + "</datalist>" +
+      "</div>" +
       '<div class="kh-smma-modal-actions">' +
       '<button type="button" class="button" id="kh-smma-gen-cancel">Cancel</button>' +
       '<button type="button" class="button button-primary" id="kh-smma-gen-submit">Generate</button>' +
@@ -219,6 +290,13 @@
       standard_mode: true,
       generate_google_ads: true
     };
+    var categoryOverrides = categoryOverridesFromModal();
+    if (categoryOverrides.lead_category) {
+      payload.lead_category = categoryOverrides.lead_category;
+    }
+    if (categoryOverrides.additional_categories.length) {
+      payload.additional_categories = categoryOverrides.additional_categories;
+    }
 
     document.dispatchEvent(new CustomEvent("smma:generate.request", { detail: { post_id: postId, num_variants: count } }));
     renderInlineMessage("Generating variants...", false);

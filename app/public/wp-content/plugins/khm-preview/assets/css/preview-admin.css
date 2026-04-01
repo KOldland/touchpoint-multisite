@@ -27,6 +27,31 @@
     list-style: disc;
     margin-left: 20px;
 }
+.khm-preview-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.6;
+}
+.khm-preview-badge-active {
+    background: #d1e7dd;
+    color: #0f5132;
+}
+.khm-preview-badge-expired {
+    background: #fff3cd;
+    color: #664d03;
+}
+.khm-preview-badge-revoked {
+    background: #f8d7da;
+    color: #842029;
+}
+.khm-preview-url-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
 .hidden {
     display: none;
 }

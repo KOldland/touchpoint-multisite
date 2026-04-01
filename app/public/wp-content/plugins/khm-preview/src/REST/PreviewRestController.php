@@ -106,6 +106,7 @@ class PreviewRestController {
             'id'     => $result['id'],
             'token'  => $result['token'],
             'link'   => add_query_arg( [
+                'p'                 => $post_id,
                 'khm_preview_post'  => $post_id,
                 'khm_preview_token' => $result['token'],
             ], home_url( '/' ) ),
@@ -145,11 +146,20 @@ class PreviewRestController {
 
     public function get_post_link( WP_REST_Request $request ) {
         $post_id = (int) $request->get_param( 'post_id' );
-        $link    = $this->service->get_active_link( $post_id );
+        $link    = $this->service->get_latest_link( $post_id );
         if ( ! $link ) {
             return new WP_REST_Response( null, 204 );
         }
-        $link['hits'] = $this->analytics->get_recent_hits( (int) $link['id'] );
+
+        $is_expired = strtotime( (string) $link['expires_at'] ) < current_time( 'timestamp' );
+        $status     = (string) $link['status'];
+        if ( 'active' === $status && $is_expired ) {
+            $status = 'expired';
+        }
+
+        $link['status_display'] = $status;
+        $link['is_expired']     = $is_expired;
+        $link['hits']           = $this->analytics->get_recent_hits( (int) $link['id'] );
         return new WP_REST_Response( $link );
     }
 

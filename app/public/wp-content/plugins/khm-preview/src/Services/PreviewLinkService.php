@@ -40,6 +40,10 @@ class PreviewLinkService {
         return $this->repository->find_active_by_post( $post_id );
     }
 
+    public function get_latest_link( int $post_id ): ?array {
+        return $this->repository->find_latest_by_post( $post_id );
+    }
+
     public function revoke_link( int $id ): bool {
         return $this->repository->update_status( $id, 'revoked' );
     }

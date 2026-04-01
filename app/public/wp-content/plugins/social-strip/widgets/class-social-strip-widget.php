@@ -113,6 +113,14 @@ class KSS_Social_Strip_Widget extends Widget_Base {
 
         $widget_data = array_replace_recursive( $defaults, $data, $enhanced_data );
 
+        if ( current_user_can( 'edit_posts' ) ) {
+            echo "\n<!-- KSS_DEBUG post_id=" . esc_html( (string) $post_id ) .
+                " meta_price=" . esc_html( (string) $meta_price ) .
+                " meta_credit_cost=" . esc_html( (string) $meta_credit_cost ) .
+                " final_member_price=" . esc_html( (string) ( $widget_data['pricing']['member_price'] ?? '' ) ) .
+                " -->\n";
+        }
+
         // Pick the correct partial based on layout_mode
         if ($settings['layout_mode'] === 'horizontal') {
             $file = dirname(__DIR__) . '/partials/social-strip-horizontal.php';
