@@ -5,10 +5,12 @@
   "description": "MEM-06 Playwright + axe tests",
   "scripts": {
     "test:a11y": "playwright test landing_success_a11y.spec.js admin_membership_a11y.spec.js",
-    "test:snapshot": "playwright test landing_success_snapshot.spec.js"
+    "test:snapshot": "playwright test landing_success_snapshot.spec.js",
+    "test:quoteclub": "playwright test -c playwright.quoteclub.config.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
-    "axe-core": "^4.10.3"
+    "axe-core": "^4.10.3",
+    "jquery": "^3.7.1"
   }
 }

@@ -12,6 +12,18 @@ if (!defined('ABSPATH')) {
     define('ABSPATH', dirname(__DIR__, 4) . '/');
 }
 
+if (!defined('MINUTE_IN_SECONDS')) {
+    define('MINUTE_IN_SECONDS', 60);
+}
+
+if (!defined('HOUR_IN_SECONDS')) {
+    define('HOUR_IN_SECONDS', 60 * MINUTE_IN_SECONDS);
+}
+
+if (!defined('DAY_IN_SECONDS')) {
+    define('DAY_IN_SECONDS', 24 * HOUR_IN_SECONDS);
+}
+
 // Brain\Monkey setup for unit tests
 require_once dirname(__DIR__) . '/vendor/antecedent/patchwork/Patchwork.php';
 
@@ -779,6 +791,16 @@ if (!function_exists('wp_kses_post')) {
     }
 }
 
+if (!function_exists('wp_strip_all_tags')) {
+    function wp_strip_all_tags($text, $remove_breaks = false) {
+        $stripped = strip_tags((string) $text);
+        if ($remove_breaks) {
+            $stripped = preg_replace('/[\r\n\t ]+/', ' ', $stripped);
+        }
+        return trim((string) $stripped);
+    }
+}
+
 if (!function_exists('is_wp_error')) {
     function is_wp_error($thing) {
         return $thing instanceof WP_Error;
@@ -846,6 +868,15 @@ if (!function_exists('add_action')) {
 
 if (!function_exists('do_action')) {
     function do_action($hook, ...$args) {
+        if (!isset($GLOBALS['khm_test_actions_fired']) || !is_array($GLOBALS['khm_test_actions_fired'])) {
+            $GLOBALS['khm_test_actions_fired'] = [];
+        }
+
+        $GLOBALS['khm_test_actions_fired'][] = [
+            'hook' => (string) $hook,
+            'args' => $args,
+        ];
+
         return null;
     }
 }
@@ -895,7 +926,19 @@ if (!function_exists('wp_generate_uuid4')) {
 
 if (!function_exists('register_rest_route')) {
     function register_rest_route($namespace, $route, $args = [], $override = false) {
-        // Mock implementation - do nothing
+        global $khm_test_rest_routes;
+        if (!is_array($khm_test_rest_routes ?? null)) {
+            $khm_test_rest_routes = [];
+        }
+
+        $key = '/' . trim((string) $namespace, '/') . '/' . ltrim((string) $route, '/');
+        $khm_test_rest_routes[$key] = [
+            'namespace' => $namespace,
+            'route' => $route,
+            'args' => $args,
+            'override' => (bool) $override,
+        ];
+
         return true;
     }
 }

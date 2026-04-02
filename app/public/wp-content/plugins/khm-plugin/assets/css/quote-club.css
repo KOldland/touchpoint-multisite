@@ -1,0 +1,176 @@
+.khm-quoteclub {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 20px;
+}
+
+.khm-quoteclub-toolbar {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #d8dee8;
+  background: linear-gradient(145deg, #f7fafc, #eef4fb);
+}
+
+.khm-quoteclub-invite-status {
+  grid-column: 1 / -1;
+  display: none;
+  border: 1px solid #d8dee8;
+  border-left-width: 4px;
+  border-radius: 4px;
+  padding: 10px 12px;
+  background: #f8fbff;
+  color: #1b2430;
+  font-size: 14px;
+}
+
+.khm-quoteclub-invite-status.is-visible {
+  display: block;
+}
+
+.khm-quoteclub-invite-status.is-pending {
+  border-left-color: #0f5ea8;
+}
+
+.khm-quoteclub-invite-status.is-success {
+  border-left-color: #198754;
+  background: #f3fcf6;
+}
+
+.khm-quoteclub-invite-status.is-error {
+  border-left-color: #c0352b;
+  background: #fff7f6;
+}
+
+.khm-quoteclub-invite-status .khm-invite-status-main {
+  font-weight: 600;
+}
+
+.khm-quoteclub-invite-status .khm-invite-status-sub {
+  margin-top: 6px;
+  color: #5e6772;
+}
+
+.khm-quoteclub-invite-status .khm-invite-retry-btn {
+  margin-top: 8px;
+}
+
+.khm-quoteclub-toolbar input,
+.khm-quoteclub-toolbar select,
+.khm-quoteclub-toolbar button {
+  width: 100%;
+}
+
+.khm-quoteclub-results {
+  border: 1px solid #d8dee8;
+  background: #fff;
+  min-height: 420px;
+  max-height: 70vh;
+  overflow: auto;
+  padding: 10px;
+}
+
+.khm-quoteclub-result {
+  border-bottom: 1px solid #edf1f6;
+  padding: 12px 6px;
+}
+
+.khm-quoteclub-result:last-child {
+  border-bottom: 0;
+}
+
+.khm-quoteclub-result-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.khm-quoteclub-result-head h4 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.khm-score {
+  font-size: 12px;
+  background: #0f5ea8;
+  color: #fff;
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+
+.khm-quoteclub-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  color: #5e6772;
+  margin: 6px 0;
+}
+
+.khm-chip {
+  display: inline-block;
+  margin-right: 6px;
+  margin-bottom: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #edf4ff;
+  color: #0f5ea8;
+  font-size: 12px;
+}
+
+.khm-quoteclub-detail {
+  border: 1px solid #d8dee8;
+  background: #fff;
+  padding: 14px;
+  min-height: 420px;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.khm-session-date {
+  color: #637082;
+  margin-top: 0;
+}
+
+.khm-question {
+  border: 1px solid #e4e9ef;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: #fafcff;
+}
+
+.khm-question label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.khm-question textarea {
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.khm-question-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #5e6772;
+}
+
+.khm-quoteclub-empty {
+  padding: 20px;
+  text-align: center;
+  color: #5e6772;
+}
+
+@media (max-width: 980px) {
+  .khm-quoteclub {
+    grid-template-columns: 1fr;
+  }
+
+  .khm-quoteclub-toolbar {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+}

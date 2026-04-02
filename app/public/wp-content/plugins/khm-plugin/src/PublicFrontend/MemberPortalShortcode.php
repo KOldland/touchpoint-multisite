@@ -82,6 +82,30 @@ class MemberPortalShortcode {
                 'confirm_remove' => __('Remove this article from your library?', 'khm-membership'),
             ],
         ]);
+
+        wp_enqueue_style(
+            'khm-quote-club',
+            $plugin_url . 'assets/css/quote-club.css',
+            ['khm-member-portal'],
+            filemtime($plugin_path . 'assets/css/quote-club.css')
+        );
+
+        wp_enqueue_script(
+            'khm-quote-club',
+            $plugin_url . 'assets/js/quote-club.js',
+            ['jquery', 'khm-member-portal'],
+            filemtime($plugin_path . 'assets/js/quote-club.js'),
+            true
+        );
+
+        wp_localize_script('khm-quote-club', 'khmQuoteClub', [
+            'restUrl' => esc_url_raw(rest_url('khm/v1/portal/quoteclub/')),
+            'sponsorRestUrl' => esc_url_raw(rest_url('khm/v1/sponsor/')),
+            'nonce' => wp_create_nonce('wp_rest'),
+            'userId' => get_current_user_id(),
+            'inviteToken' => sanitize_text_field((string) ($_GET['khm_sponsor_invite'] ?? '')),
+            'inviteEmail' => sanitize_email((string) ($_GET['khm_sponsor_invite_email'] ?? '')),
+        ]);
     }
 
     /**
@@ -125,6 +149,9 @@ class MemberPortalShortcode {
                             break;
                         case 'account':
                             $this->render_account_tab($user_id);
+                            break;
+                        case 'quoteclub':
+                            $this->render_quoteclub_tab($user_id);
                             break;
                         default:
                             $this->render_dashboard_tab($user_id);
@@ -216,6 +243,7 @@ class MemberPortalShortcode {
             'credits' => ['label' => __('Credits', 'khm-membership'), 'icon' => 'dashicons-star-filled'],
             'membership' => ['label' => __('Membership', 'khm-membership'), 'icon' => 'dashicons-id'],
             'account' => ['label' => __('Account', 'khm-membership'), 'icon' => 'dashicons-admin-users'],
+            'quoteclub' => ['label' => __('Quote Club', 'khm-membership'), 'icon' => 'dashicons-format-quote'],
         ];
 
         $tabs = apply_filters('khm_portal_tabs', $tabs);
@@ -229,6 +257,38 @@ class MemberPortalShortcode {
                 </a>
             <?php endforeach; ?>
         </nav>
+        <?php
+    }
+
+    /**
+     * Render Quote Club tab
+     */
+    private function render_quoteclub_tab(int $user_id): void {
+        ?>
+        <div class="khm-portal-tab khm-quoteclub" data-user-id="<?= esc_attr($user_id); ?>">
+            <div class="khm-quoteclub-invite-status" role="status" aria-live="polite"></div>
+
+            <div class="khm-quoteclub-toolbar">
+                <input type="date" class="khm-filter-date-from" />
+                <input type="date" class="khm-filter-date-to" />
+                <input type="text" class="khm-filter-topics" placeholder="Topics (comma-separated)" />
+                <input type="text" class="khm-filter-portfolio" placeholder="Portfolio (comma-separated)" />
+                <input type="text" class="khm-filter-keywords" placeholder="Keywords" />
+                <select class="khm-filter-operator">
+                    <option value="AND"><?php esc_html_e('AND', 'khm-membership'); ?></option>
+                    <option value="OR"><?php esc_html_e('OR', 'khm-membership'); ?></option>
+                </select>
+                <select class="khm-saved-searches"></select>
+                <button type="button" class="button khm-quoteclub-search-btn"><?php esc_html_e('Search', 'khm-membership'); ?></button>
+                <button type="button" class="button khm-save-search-btn"><?php esc_html_e('Save Search', 'khm-membership'); ?></button>
+            </div>
+
+            <div class="khm-quoteclub-results"></div>
+            <div class="khm-quoteclub-detail">
+                <h3><?php esc_html_e('Session details', 'khm-membership'); ?></h3>
+                <p><?php esc_html_e('Select a result to view the brief and submit commentary.', 'khm-membership'); ?></p>
+            </div>
+        </div>
         <?php
     }
 

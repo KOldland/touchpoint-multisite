@@ -117,3 +117,26 @@ jobs:
         with:
           name: mem06-a11y-report
           path: app/public/wp-content/plugins/khm-plugin/artifacts/a11y
+
+  quoteclub-invite-ui:
+    name: quoteclub-invite-ui
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Playwright dependencies
+        working-directory: app/public/wp-content/plugins/khm-plugin/tests/UI
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+      - name: Run Quote Club invite browser gate
+        working-directory: app/public/wp-content/plugins/khm-plugin/tests/UI
+        run: npm run test:quoteclub
+      - name: Upload Quote Club Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mem06-quoteclub-invite-report
+          path: app/public/wp-content/plugins/khm-plugin/tests/UI/playwright-report
