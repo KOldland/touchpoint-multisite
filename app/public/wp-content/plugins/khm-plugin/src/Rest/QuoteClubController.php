@@ -38,6 +38,24 @@ class QuoteClubController {
         ]);
 
         register_rest_route('khm/v1', '/portal/quoteclub/commentary/(?P<id>\d+)', [
+            'methods' => 'GET',
+            'callback' => [$this, 'get_commentary_detail'],
+            'permission_callback' => [$this, 'check_editorial_auth'],
+        ]);
+
+        register_rest_route('khm/v1', '/portal/quoteclub/commentary/(?P<id>\d+)/approve', [
+            'methods' => 'POST',
+            'callback' => [$this, 'approve_commentary'],
+            'permission_callback' => [$this, 'check_editorial_auth'],
+        ]);
+
+        register_rest_route('khm/v1', '/portal/quoteclub/commentary/(?P<id>\d+)/reject', [
+            'methods' => 'POST',
+            'callback' => [$this, 'reject_commentary'],
+            'permission_callback' => [$this, 'check_editorial_auth'],
+        ]);
+
+        register_rest_route('khm/v1', '/portal/quoteclub/commentary/(?P<id>\d+)', [
             'methods' => 'PATCH',
             'callback' => [$this, 'update_commentary_status'],
             'permission_callback' => [$this, 'check_editorial_auth'],
@@ -75,6 +93,12 @@ class QuoteClubController {
         ]);
 
         register_rest_route('khm/v1', '/sponsor/invite/accept', [
+            'methods' => 'POST',
+            'callback' => [$this, 'accept_team_invite'],
+            'permission_callback' => [$this, 'check_invite_accept_auth'],
+        ]);
+
+        register_rest_route('khm/v1', '/sponsor/(?P<sponsor_id>\d+)/invite/accept', [
             'methods' => 'POST',
             'callback' => [$this, 'accept_team_invite'],
             'permission_callback' => [$this, 'check_invite_accept_auth'],
@@ -297,14 +321,13 @@ class QuoteClubController {
 
         $charged = false;
         if ($is_press_release) {
-            $charged = $this->credits->usePressReleaseCredit($user_id);
+            $charged = $this->consume_press_release_credit($user_id, $session_id);
             if (!$charged) {
                 return new WP_REST_Response(['success' => false, 'error' => 'insufficient_press_release_credits'], 402);
             }
             $credits_used = 1;
         } else {
-            $session_hash = abs(crc32($session_id));
-            $charged = $this->credits->useEditorialCredits($user_id, $credits_needed, 'quote_club_commentary', $session_hash);
+            $charged = $this->consume_editorial_credits($user_id, $credits_needed, $session_id);
             if (!$charged) {
                 return new WP_REST_Response(['success' => false, 'error' => 'insufficient_editorial_credits'], 402);
             }
@@ -343,7 +366,7 @@ class QuoteClubController {
             'success' => true,
             'commentary_id' => $commentary_id,
             'credits_used' => $credits_used,
-            'new_editorial_balance' => $this->credits->getEditorialCredits($user_id),
+            'new_editorial_balance' => $this->get_editorial_balance($user_id),
         ], 200);
     }
 
@@ -401,6 +424,92 @@ class QuoteClubController {
             'success' => true,
             'id' => $id,
             'status' => $status,
+        ], 200);
+    }
+
+    public function get_commentary_detail(WP_REST_Request $request): WP_REST_Response {
+        if (!$this->check_editorial_auth()) {
+            return new WP_REST_Response(['success' => false, 'error' => 'forbidden'], 403);
+        }
+
+        $id = (int) $request->get_param('id');
+        $commentary = $this->fetch_commentary($id);
+        if (!$commentary) {
+            return new WP_REST_Response(['success' => false, 'error' => 'not_found'], 404);
+        }
+
+        return new WP_REST_Response([
+            'success' => true,
+            'commentary' => $commentary,
+        ], 200);
+    }
+
+    public function approve_commentary(WP_REST_Request $request): WP_REST_Response {
+        if (!$this->check_editorial_auth()) {
+            return new WP_REST_Response(['success' => false, 'error' => 'forbidden'], 403);
+        }
+
+        $id = (int) $request->get_param('id');
+        $commentary = $this->fetch_commentary($id);
+        if (!$commentary) {
+            return new WP_REST_Response(['success' => false, 'error' => 'not_found'], 404);
+        }
+
+        $already_approved = (string) ($commentary['status'] ?? '') === 'approved';
+        if (!$already_approved) {
+            $ok = $this->persist_commentary_status($id, 'approved');
+            if (!$ok) {
+                return new WP_REST_Response(['success' => false, 'error' => 'update_failed'], 500);
+            }
+
+            do_action('khm_quoteclub_commentary_approved', $id, (int) ($commentary['post_id'] ?? 0), (int) ($commentary['user_id'] ?? 0));
+        }
+
+        $insert = (bool) $request->get_param('insert');
+        $target = sanitize_text_field((string) ($request->get_param('insert_target') ?: 'framework'));
+        if (!in_array($target, ['framework', 'post_content'], true)) {
+            $target = 'framework';
+        }
+
+        $inserted = false;
+        if ($insert) {
+            $inserted = $this->maybe_insert_commentary_content($commentary, $target);
+        }
+
+        return new WP_REST_Response([
+            'success' => true,
+            'id' => $id,
+            'status' => 'approved',
+            'already_approved' => $already_approved,
+            'inserted' => $inserted,
+            'insert_target' => $target,
+        ], 200);
+    }
+
+    public function reject_commentary(WP_REST_Request $request): WP_REST_Response {
+        if (!$this->check_editorial_auth()) {
+            return new WP_REST_Response(['success' => false, 'error' => 'forbidden'], 403);
+        }
+
+        $id = (int) $request->get_param('id');
+        $commentary = $this->fetch_commentary($id);
+        if (!$commentary) {
+            return new WP_REST_Response(['success' => false, 'error' => 'not_found'], 404);
+        }
+
+        $already_rejected = (string) ($commentary['status'] ?? '') === 'rejected';
+        if (!$already_rejected) {
+            $ok = $this->persist_commentary_status($id, 'rejected');
+            if (!$ok) {
+                return new WP_REST_Response(['success' => false, 'error' => 'update_failed'], 500);
+            }
+        }
+
+        return new WP_REST_Response([
+            'success' => true,
+            'id' => $id,
+            'status' => 'rejected',
+            'already_rejected' => $already_rejected,
         ], 200);
     }
 
@@ -618,38 +727,52 @@ class QuoteClubController {
                 return new WP_REST_Response(['success' => false, 'error' => 'email_mismatch'], 403);
             }
 
-            $existing_user = get_user_by('email', $invite_email);
-            if ($existing_user) {
-                $user_id = (int) $existing_user->ID;
-            } else {
-                $base_login = sanitize_user(current(explode('@', $invite_email)), true);
-                if ($base_login === '') {
-                    $base_login = 'sponsor_user';
-                }
-
-                $login = $base_login;
-                $suffix = 1;
-                while (username_exists($login)) {
-                    $suffix++;
-                    $login = $base_login . $suffix;
-                }
-
-                $password = wp_generate_password(20, true, true);
-                $user_id = wp_create_user($login, $password, $invite_email);
-                if (is_wp_error($user_id)) {
-                    return new WP_REST_Response(['success' => false, 'error' => 'user_create_failed'], 500);
-                }
-
-                wp_update_user([
-                    'ID' => $user_id,
-                    'first_name' => sanitize_text_field((string) ($invite['first_name'] ?? '')),
-                    'last_name' => sanitize_text_field((string) ($invite['last_name'] ?? '')),
-                ]);
-
-                wp_new_user_notification((int) $user_id, null, 'both');
+            $sponsor_id = (int) ($invite['sponsor_id'] ?? 0);
+            $route_sponsor_id = (int) $request->get_param('sponsor_id');
+            if ($route_sponsor_id > 0 && $route_sponsor_id !== $sponsor_id) {
+                return new WP_REST_Response(['success' => false, 'error' => 'sponsor_mismatch'], 403);
             }
 
-            $sponsor_id = (int) ($invite['sponsor_id'] ?? 0);
+            if (is_user_logged_in()) {
+                $current_user = wp_get_current_user();
+                $current_email = sanitize_email((string) ($current_user->user_email ?? ''));
+                if ($current_email === '' || strcasecmp($current_email, $invite_email) !== 0) {
+                    return new WP_REST_Response(['success' => false, 'error' => 'email_mismatch'], 403);
+                }
+                $user_id = (int) ($current_user->ID ?? 0);
+            } else {
+                $existing_user = get_user_by('email', $invite_email);
+                if ($existing_user) {
+                    $user_id = (int) $existing_user->ID;
+                } else {
+                    $base_login = sanitize_user(current(explode('@', $invite_email)), true);
+                    if ($base_login === '') {
+                        $base_login = 'sponsor_user';
+                    }
+
+                    $login = $base_login;
+                    $suffix = 1;
+                    while (username_exists($login)) {
+                        $suffix++;
+                        $login = $base_login . $suffix;
+                    }
+
+                    $password = wp_generate_password(20, true, true);
+                    $user_id = wp_create_user($login, $password, $invite_email);
+                    if (is_wp_error($user_id)) {
+                        return new WP_REST_Response(['success' => false, 'error' => 'user_create_failed'], 500);
+                    }
+
+                    wp_update_user([
+                        'ID' => $user_id,
+                        'first_name' => sanitize_text_field((string) ($invite['first_name'] ?? '')),
+                        'last_name' => sanitize_text_field((string) ($invite['last_name'] ?? '')),
+                    ]);
+
+                    wp_new_user_notification((int) $user_id, null, 'both');
+                }
+            }
+
             $added = $this->add_user_to_sponsor_team( $sponsor_id, (int) $user_id, $invite, $invite_email );
 
             if (!$added) {
@@ -697,6 +820,114 @@ class QuoteClubController {
 
     private function invite_accept_lock_key(string $token): string {
         return 'khm_qc_invite_accept_lock_' . md5($token);
+    }
+
+    protected function fetch_commentary(int $id): ?array {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'khm_sponsor_commentary';
+        $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $id), ARRAY_A);
+        return is_array($row) ? $row : null;
+    }
+
+    protected function persist_commentary_status(int $id, string $status): bool {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'khm_sponsor_commentary';
+        $updated = $wpdb->update(
+            $table,
+            [
+                'status' => $status,
+                'updated_at' => current_time('mysql'),
+            ],
+            [ 'id' => $id ],
+            ['%s', '%s'],
+            ['%d']
+        );
+
+        return $updated !== false;
+    }
+
+    protected function maybe_insert_commentary_content(array $commentary, string $target): bool {
+        $commentary_id = (int) ($commentary['id'] ?? 0);
+        $post_id = (int) ($commentary['post_id'] ?? 0);
+        if ($commentary_id <= 0 || $post_id <= 0) {
+            return false;
+        }
+
+        $marker_key = 'khm_qc_commentary_inserted_' . $commentary_id . '_' . $target;
+        if (get_option($marker_key, 0)) {
+            return false;
+        }
+
+        $content = wp_kses_post((string) ($commentary['commentary_text'] ?? ''));
+        if ($content === '') {
+            return false;
+        }
+
+        $content = wp_strip_all_tags($content);
+
+        if ($target === 'post_content') {
+            $post = get_post($post_id);
+            if (!$post) {
+                return false;
+            }
+
+            $new_content = trim((string) $post->post_content);
+            $new_content = $new_content === '' ? $content : ($new_content . "\n\n" . $content);
+
+            $result = wp_update_post([
+                'ID' => $post_id,
+                'post_content' => $new_content,
+            ], true);
+
+            if (is_wp_error($result)) {
+                return false;
+            }
+        } else {
+            $existing = (string) get_post_meta($post_id, 'framework', true);
+            $new_framework = trim($existing);
+            $new_framework = $new_framework === '' ? $content : ($new_framework . "\n\n" . $content);
+
+            $ok = update_post_meta($post_id, 'framework', $new_framework);
+            if ($ok === false) {
+                return false;
+            }
+        }
+
+        update_option($marker_key, 1, false);
+        return true;
+    }
+
+    protected function consume_editorial_credits(int $user_id, int $credits_needed, string $session_id): bool {
+        $session_hash = abs(crc32($session_id));
+
+        if (method_exists($this->credits, 'useEditorialCredits')) {
+            return (bool) $this->credits->useEditorialCredits($user_id, $credits_needed, 'quote_club_commentary', $session_hash);
+        }
+
+        return (bool) $this->credits->useCredits($user_id, $credits_needed, 'quote_club_commentary', $session_hash);
+    }
+
+    protected function consume_press_release_credit(int $user_id, string $session_id): bool {
+        if (method_exists($this->credits, 'usePressReleaseCredit')) {
+            return (bool) $this->credits->usePressReleaseCredit($user_id);
+        }
+
+        $session_hash = abs(crc32($session_id));
+        return (bool) $this->credits->useCredits($user_id, 1, 'quote_club_press_release', $session_hash);
+    }
+
+    protected function get_editorial_balance(int $user_id): int {
+        if (method_exists($this->credits, 'getEditorialCredits')) {
+            return (int) $this->credits->getEditorialCredits($user_id);
+        }
+
+        if (method_exists($this->credits, 'getUserCredits')) {
+            return (int) $this->credits->getUserCredits($user_id);
+        }
+
+        return 0;
     }
 
     private function tokenize_keywords(string $keywords, string $operator): array {
