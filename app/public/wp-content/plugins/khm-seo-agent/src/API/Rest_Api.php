@@ -73,10 +73,6 @@ class Rest_Api {
                     'type' => 'string',
                     'required' => true,
                 ),
-                'confirm_schema_changes' => array(
-                    'type' => 'boolean',
-                    'required' => false,
-                ),
             ),
         ) );
 
@@ -133,7 +129,6 @@ class Rest_Api {
         );
 
         $analysis = $analysis_engine->analyze( $data );
-        $this->persist_seo_score( $post_id, $analysis );
 
         if ( ! $this->is_openai_available() ) {
             return rest_ensure_response( array(
@@ -141,7 +136,7 @@ class Rest_Api {
                 'analysis' => $analysis,
                 'session_id' => null,
                 'job_id' => null,
-                'llm_output' => $this->get_fallback_payload( $post, $analysis, $keyword ),
+                'llm_output' => $this->get_fallback_payload( $analysis ),
                 'status' => 'fallback',
                 'error' => array(
                     'code' => 'openai_unavailable',
@@ -150,7 +145,7 @@ class Rest_Api {
             ) );
         }
 
-        $session_id = $this->create_dual_gpt_session( $post_id, $keyword );
+        $session_id = $this->create_dual_gpt_session( $post_id );
         if ( is_wp_error( $session_id ) ) {
             return $session_id;
         }
@@ -163,7 +158,7 @@ class Rest_Api {
                 'analysis' => $analysis,
                 'session_id' => $session_id,
                 'job_id' => null,
-                'llm_output' => $this->get_fallback_payload( $post, $analysis, $keyword ),
+                'llm_output' => $this->get_fallback_payload( $analysis ),
                 'status' => 'fallback',
                 'error' => array(
                     'code' => $job_id->get_error_code(),
@@ -171,6 +166,8 @@ class Rest_Api {
                 ),
             ) );
         }
+
+        $this->cache_audit_context( $job_id, $post_id, $analysis, $keyword );
 
         $job_result = $this->wait_for_dual_gpt_job( $job_id, 10 );
         if ( is_wp_error( $job_result ) ) {
@@ -189,7 +186,7 @@ class Rest_Api {
                 'analysis' => $analysis,
                 'session_id' => $session_id,
                 'job_id' => $job_id,
-                'llm_output' => $this->get_fallback_payload( $post, $analysis, $keyword ),
+                'llm_output' => $this->get_fallback_payload( $analysis ),
                 'status' => 'fallback',
                 'error' => array(
                     'code' => $job_result->get_error_code(),
@@ -205,7 +202,7 @@ class Rest_Api {
                 'analysis' => $analysis,
                 'session_id' => $session_id,
                 'job_id' => $job_id,
-                'llm_output' => $this->get_fallback_payload( $post, $analysis, $keyword ),
+                'llm_output' => $this->get_fallback_payload( $analysis ),
                 'status' => 'fallback',
                 'error' => array(
                     'code' => $llm_payload->get_error_code(),
@@ -221,7 +218,7 @@ class Rest_Api {
                 'analysis' => $analysis,
                 'session_id' => $session_id,
                 'job_id' => $job_id,
-                'llm_output' => $this->get_fallback_payload( $post, $analysis, $keyword ),
+                'llm_output' => $this->get_fallback_payload( $analysis ),
                 'status' => 'fallback',
                 'error' => array(
                     'code' => $validation->get_error_code(),
@@ -230,7 +227,7 @@ class Rest_Api {
             ) );
         }
 
-        $llm_payload = $this->enrich_llm_payload( $llm_payload, $post, $analysis, $keyword );
+        $llm_payload = $this->ensure_apply_actions( $llm_payload, $analysis, $post, $keyword );
 
         return rest_ensure_response( array(
             'post_id' => $post_id,
@@ -268,8 +265,22 @@ class Rest_Api {
         ) );
     }
 
-    private function get_fallback_payload( $post, $analysis, $keyword ) {
-        return $this->build_deterministic_payload( $post, $analysis, $keyword );
+    private function get_fallback_payload( $analysis ) {
+        $suggestions = $analysis['suggestions'] ?? array();
+        $issues = $analysis['technical_issues'] ?? array();
+        $fallback_actions = $this->build_fallback_apply_actions( 0, $analysis, '' );
+
+        return array(
+            'summary' => array(
+                'issues_total' => is_array( $issues ) ? count( $issues ) : 0,
+                'issues_high' => 0,
+                'suggestions_total' => is_array( $suggestions ) ? count( $suggestions ) : 0,
+            ),
+            'issues' => is_array( $issues ) ? array_slice( $issues, 0, 8 ) : array(),
+            'suggestions' => is_array( $suggestions ) ? array_slice( $suggestions, 0, 8 ) : array(),
+            'apply_actions' => $fallback_actions,
+            'upstream_signals' => array(),
+        );
     }
 
     private function is_openai_available() {
@@ -279,56 +290,6 @@ class Rest_Api {
 
         $connector = new \Dual_GPT_OpenAI_Connector();
         return $connector->validate_api_key();
-    }
-
-    /**
-     * Analyze the current post content with the KHM SEO analysis engine.
-     *
-     * @param int $post_id Post ID.
-     * @param string $keyword Optional focus keyword override.
-     * @return array|\WP_Error
-     */
-    private function analyze_post( $post_id, $keyword = '' ) {
-        $post = get_post( $post_id );
-        if ( ! $post ) {
-            return new \WP_Error( 'post_not_found', 'Post not found.', array( 'status' => 404 ) );
-        }
-
-        if ( ! function_exists( 'khm_seo' ) || ! khm_seo() ) {
-            return new \WP_Error( 'khm_seo_missing', 'KHM SEO is not available.', array( 'status' => 500 ) );
-        }
-
-        $analysis_engine = khm_seo()->get_analysis_engine();
-        if ( ! $analysis_engine ) {
-            return new \WP_Error( 'analysis_unavailable', 'KHM SEO analysis engine is not available.', array( 'status' => 500 ) );
-        }
-
-        $focus_keyword = get_post_meta( $post_id, '_khm_seo_focus_keyword', true );
-        if ( empty( $keyword ) && ! empty( $focus_keyword ) ) {
-            $keyword = $focus_keyword;
-        }
-
-        return $analysis_engine->analyze( array(
-            'post_id' => $post_id,
-            'title' => $post->post_title,
-            'content' => $post->post_content,
-            'meta_description' => get_post_meta( $post_id, '_khm_seo_description', true ),
-            'focus_keyword' => sanitize_text_field( $keyword ),
-        ) );
-    }
-
-    /**
-     * Persist the latest SEO score to post meta.
-     *
-     * @param int $post_id Post ID.
-     * @param array $analysis Analysis payload.
-     * @return int
-     */
-    private function persist_seo_score( $post_id, $analysis ) {
-        $score = max( 0, min( 100, (int) ( $analysis['overall_score'] ?? 0 ) ) );
-        update_post_meta( $post_id, '_khm_seo_score', $score );
-
-        return $score;
     }
 
     public function handle_audit_status( $request ) {
@@ -352,19 +313,16 @@ class Rest_Api {
             return $validation;
         }
 
-        $context = $this->get_job_context( $job_result );
+        $context = $this->get_cached_audit_context( $job_id );
         if ( $context ) {
-            $llm_payload = $this->enrich_llm_payload(
-                $llm_payload,
-                $context['post'],
-                $context['analysis'],
-                $context['keyword']
-            );
+            $post = get_post( (int) ( $context['post_id'] ?? 0 ) );
+            $analysis = is_array( $context['analysis'] ?? null ) ? $context['analysis'] : array();
+            $keyword = sanitize_text_field( (string) ( $context['keyword'] ?? '' ) );
+            $llm_payload = $this->ensure_apply_actions( $llm_payload, $analysis, $post, $keyword );
         }
 
         return rest_ensure_response( array(
             'job_id' => $job_id,
-            'analysis' => $context['analysis'] ?? null,
             'llm_output' => $llm_payload,
             'status' => 'completed',
         ) );
@@ -396,19 +354,10 @@ class Rest_Api {
         $actions = $request->get_param( 'actions' );
         $job_id = sanitize_text_field( $request->get_param( 'job_id' ) );
         $idempotency_key = sanitize_text_field( $request->get_param( 'idempotency_key' ) );
-        $confirm_schema_changes = $this->to_bool( $request->get_param( 'confirm_schema_changes' ) );
         $acting_user_id = get_current_user_id();
 
         if ( empty( $post_id ) || empty( $actions ) || empty( $job_id ) || empty( $idempotency_key ) ) {
             return new \WP_Error( 'invalid_apply', 'post_id, actions, job_id, and idempotency_key are required.', array( 'status' => 400 ) );
-        }
-
-        if ( $this->has_action_type( $actions, 'set_schema_config' ) && ! $confirm_schema_changes ) {
-            return new \WP_Error(
-                'schema_confirmation_required',
-                'Schema configuration changes require confirm_schema_changes=true.',
-                array( 'status' => 400 )
-            );
         }
 
         if ( ! class_exists( 'Dual_GPT_SEO_Tools' ) ) {
@@ -422,76 +371,21 @@ class Rest_Api {
             'acting_user_id' => $acting_user_id,
             'idempotency_key' => $idempotency_key,
             'job_id' => $job_id,
-            'allow_schema_write' => $confirm_schema_changes,
         ) );
-
-        if ( is_array( $result ) && ! empty( $result['success'] ) ) {
-            $existing_score = (int) get_post_meta( $post_id, '_khm_seo_score', true );
-            $analysis = $this->analyze_post( $post_id );
-
-            if ( ! is_wp_error( $analysis ) ) {
-                $next_score = $this->persist_seo_score( $post_id, $analysis );
-                $result['analysis'] = $analysis;
-
-                if ( ! isset( $result['changes'] ) || ! is_array( $result['changes'] ) ) {
-                    $result['changes'] = array();
-                }
-
-                $result['changes'][] = array(
-                    'meta_key' => '_khm_seo_score',
-                    'old' => $existing_score,
-                    'new' => $next_score,
-                );
-            }
-        }
 
         return rest_ensure_response( $result );
     }
 
-    private function has_action_type( $actions, $target_type ) {
-        if ( ! is_array( $actions ) ) {
-            return false;
-        }
+    private function create_dual_gpt_session( $post_id ) {
+        $preset_id = $this->ensure_seo_agent_preset();
 
-        foreach ( $actions as $action ) {
-            if ( ! is_array( $action ) ) {
-                continue;
-            }
-
-            if ( sanitize_key( $action['action_type'] ?? '' ) === $target_type ) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function to_bool( $value ) {
-        if ( is_bool( $value ) ) {
-            return $value;
-        }
-
-        if ( is_numeric( $value ) ) {
-            return intval( $value ) === 1;
-        }
-
-        if ( is_string( $value ) ) {
-            $normalized = strtolower( trim( $value ) );
-            return in_array( $normalized, array( '1', 'true', 'yes', 'on' ), true );
-        }
-
-        return false;
-    }
-
-    private function create_dual_gpt_session( $post_id, $keyword = '' ) {
         $request = new \WP_REST_Request( 'POST', '/dual-gpt/v1/sessions' );
         $request->set_param( 'role', 'seo' );
+        if ( '' !== $preset_id ) {
+            $request->set_param( 'preset_id', $preset_id );
+        }
         $request->set_param( 'title', 'SEO Agent - ' . current_time( 'mysql' ) );
         $request->set_param( 'post_id', $post_id );
-        $request->set_param( 'meta', array(
-            'source' => 'khm_seo_agent',
-            'focus_keyword' => sanitize_text_field( $keyword ),
-        ) );
 
         $response = rest_do_request( $request );
         if ( $response->is_error() ) {
@@ -506,11 +400,59 @@ class Rest_Api {
         return $data['session_id'];
     }
 
+    private function ensure_seo_agent_preset() {
+        if ( ! class_exists( 'Dual_GPT_DB_Handler' ) ) {
+            return '';
+        }
+
+        $db = new \Dual_GPT_DB_Handler();
+        $preset = $db->get_preset( 'seo-agent' );
+        if ( $preset ) {
+            return 'seo-agent';
+        }
+
+        if ( method_exists( $db, 'create_default_presets' ) ) {
+            $db->create_default_presets();
+            $preset = $db->get_preset( 'seo-agent' );
+            if ( $preset ) {
+                return 'seo-agent';
+            }
+        }
+
+        if ( method_exists( $db, 'insert_preset' ) ) {
+            $inserted = $db->insert_preset(
+                array(
+                    'id' => 'seo-agent',
+                    'name' => 'SEO Agent',
+                    'role' => 'seo',
+                    'system_prompt' => 'You are the KHM SEO Agent. Analyze content for SEO, prioritize improvements and produce structured JSON. Only use allowed tools. Do NOT apply changes directly without a confirmed apply action from a human. For upstream proposals return structured proposals and preview content. Return errors in a strict JSON schema when failing. Respect sponsor_safe and no_hallucination constraints.',
+                    'default_model' => 'gpt-4-turbo',
+                    'params_json' => wp_json_encode(
+                        array(
+                            'temperature' => 0.2,
+                            'max_tokens' => 2000,
+                        )
+                    ),
+                    'tool_whitelist' => wp_json_encode( array( 'seo_tools', 'research_tools' ) ),
+                    'is_locked' => true,
+                )
+            );
+            if ( ! is_wp_error( $inserted ) ) {
+                $preset = $db->get_preset( 'seo-agent' );
+                if ( $preset ) {
+                    return 'seo-agent';
+                }
+            }
+        }
+
+        return '';
+    }
+
     private function create_dual_gpt_job( $session_id, $prompt ) {
         $request = new \WP_REST_Request( 'POST', '/dual-gpt/v1/jobs' );
         $request->set_param( 'session_id', $session_id );
         $request->set_param( 'prompt', $prompt );
-        $request->set_param( 'model', 'gpt-4o' );
+        $request->set_param( 'model', 'gpt-4-turbo' );
         $request->set_param( 'idempotency_key', 'seo-agent-' . wp_generate_uuid4() );
 
         $response = rest_do_request( $request );
@@ -588,9 +530,6 @@ class Rest_Api {
             return new \WP_Error( 'empty_llm_content', 'Dual-GPT content is empty.', array( 'status' => 500 ) );
         }
 
-        // Strip markdown code fences if present
-        $content = preg_replace('/^```(?:json)?[\r\n]+|```[\r\n]*$/', '', trim($content));
-
         $decoded = json_decode( $content, true );
         if ( json_last_error() !== JSON_ERROR_NONE ) {
             return new \WP_Error( 'llm_invalid_json', 'LLM returned invalid JSON.', array(
@@ -628,398 +567,17 @@ class Rest_Api {
         return true;
     }
 
-    private function enrich_llm_payload( $payload, $post, $analysis, $keyword ) {
-        $baseline = $this->build_deterministic_payload( $post, $analysis, $keyword );
-
-        foreach ( array( 'issues', 'suggestions', 'apply_actions', 'upstream_signals' ) as $key ) {
-            if ( empty( $payload[ $key ] ) && ! empty( $baseline[ $key ] ) ) {
-                $payload[ $key ] = $baseline[ $key ];
-            }
-        }
-
-        if ( empty( $payload['summary'] ) || ! is_array( $payload['summary'] ) ) {
-            $payload['summary'] = array();
-        }
-
-        $payload['summary']['issues_total'] = max(
-            intval( $payload['summary']['issues_total'] ?? 0 ),
-            count( $payload['issues'] ?? array() )
-        );
-        $payload['summary']['issues_high'] = max(
-            intval( $payload['summary']['issues_high'] ?? 0 ),
-            $this->count_high_priority_items( $payload['issues'] ?? array() )
-        );
-        $payload['summary']['suggestions_total'] = max(
-            intval( $payload['summary']['suggestions_total'] ?? 0 ),
-            count( $payload['suggestions'] ?? array() ),
-            count( $payload['apply_actions'] ?? array() )
-        );
-
-        if ( empty( $payload['summary']['score'] ) && isset( $baseline['summary']['score'] ) ) {
-            $payload['summary']['score'] = $baseline['summary']['score'];
-        }
-
-        return $payload;
-    }
-
-    private function build_deterministic_payload( $post, $analysis, $keyword ) {
-        $issues = $this->map_analysis_items( $analysis['technical_issues'] ?? array(), 'issue' );
-        $suggestions = $this->map_analysis_items( $analysis['suggestions'] ?? array(), 'suggestion' );
-        $actions = $this->synthesize_apply_actions( $post, $analysis, $keyword );
-
-        return array(
-            'summary' => array(
-                'issues_total' => count( $issues ),
-                'issues_high' => $this->count_high_priority_items( $issues ),
-                'suggestions_total' => max( count( $suggestions ), count( $actions ) ),
-                'score' => intval( $analysis['overall_score'] ?? 0 ),
-            ),
-            'issues' => $issues,
-            'suggestions' => $suggestions,
-            'apply_actions' => $actions,
-            'upstream_signals' => array(
-                array(
-                    'source' => 'khm_seo_analysis_engine',
-                    'overall_score' => intval( $analysis['overall_score'] ?? 0 ),
-                    'focus_keyword' => $this->resolve_focus_keyword( $post, $keyword ),
-                ),
-            ),
-        );
-    }
-
-    private function get_job_context( $job ) {
-        if ( ! class_exists( 'Dual_GPT_DB_Handler' ) ) {
-            return null;
-        }
-
-        $session_id = sanitize_text_field( $job['session_id'] ?? '' );
-        if ( '' === $session_id ) {
-            return null;
-        }
-
-        $db = new \Dual_GPT_DB_Handler();
-        $session = $db->get_session( $session_id );
-        if ( ! is_array( $session ) ) {
-            return null;
-        }
-
-        $post_id = intval( $session['post_id'] ?? 0 );
-        if ( ! $post_id ) {
-            return null;
-        }
-
-        $post = get_post( $post_id );
-        if ( ! $post || ! function_exists( 'khm_seo' ) || ! khm_seo() ) {
-            return null;
-        }
-
-        $meta = json_decode( $session['meta_json'] ?? '', true );
-        if ( ! is_array( $meta ) ) {
-            $meta = array();
-        }
-
-        $keyword = sanitize_text_field( $meta['focus_keyword'] ?? '' );
-        if ( '' === $keyword ) {
-            $keyword = sanitize_text_field( get_post_meta( $post_id, '_khm_seo_focus_keyword', true ) );
-        }
-
-        $analysis = $this->analyze_post( $post_id, $keyword );
-        if ( is_wp_error( $analysis ) ) {
-            return null;
-        }
-
-        return array(
-            'post' => $post,
-            'analysis' => $analysis,
-            'keyword' => $keyword,
-        );
-    }
-
-    private function map_analysis_items( $items, $fallback_title ) {
-        $mapped = array();
-
-        if ( ! is_array( $items ) ) {
-            return $mapped;
-        }
-
-        foreach ( array_slice( $items, 0, 6 ) as $item ) {
-            if ( is_string( $item ) ) {
-                $mapped[] = array(
-                    'title' => ucfirst( $fallback_title ),
-                    'message' => sanitize_text_field( $item ),
-                    'priority' => 'medium',
-                );
-                continue;
-            }
-
-            if ( ! is_array( $item ) ) {
-                continue;
-            }
-
-            $message = $item['message'] ?? $item['action'] ?? $item['suggestion'] ?? '';
-            if ( '' === $message ) {
-                continue;
-            }
-
-            $mapped[] = array(
-                'title' => sanitize_text_field( $item['category'] ?? ucfirst( $fallback_title ) ),
-                'message' => sanitize_text_field( $message ),
-                'priority' => $this->normalize_priority( $item['priority'] ?? $item['impact'] ?? 'medium' ),
-            );
-        }
-
-        return $mapped;
-    }
-
-    private function synthesize_apply_actions( $post, $analysis, $keyword ) {
-        $actions = array();
-        $resolved_keyword = $this->resolve_focus_keyword( $post, $keyword );
-        $current_title = trim( (string) get_post_meta( $post->ID, '_khm_seo_title', true ) );
-        $current_description = trim( (string) get_post_meta( $post->ID, '_khm_seo_description', true ) );
-        $current_focus_keyword = trim( (string) get_post_meta( $post->ID, '_khm_seo_focus_keyword', true ) );
-        $current_keywords = trim( (string) get_post_meta( $post->ID, '_khm_seo_keywords', true ) );
-        $current_schema = get_post_meta( $post->ID, '_khm_seo_schema_config', true );
-
-        $recommended_title = $this->build_recommended_meta_title( $post, $resolved_keyword );
-        if ( '' !== $recommended_title && $recommended_title !== $current_title ) {
-            $actions[] = array(
-                'action_type' => 'set_meta_title',
-                'payload' => array( 'value' => $recommended_title ),
-            );
-        }
-
-        $recommended_description = $this->build_recommended_meta_description( $post, $resolved_keyword, $current_description );
-        if ( '' !== $recommended_description && $recommended_description !== $current_description ) {
-            $actions[] = array(
-                'action_type' => 'set_meta_description',
-                'payload' => array( 'value' => $recommended_description ),
-            );
-        }
-
-        if ( '' !== $resolved_keyword && $resolved_keyword !== $current_focus_keyword ) {
-            $actions[] = array(
-                'action_type' => 'set_focus_keyword',
-                'payload' => array( 'value' => $resolved_keyword ),
-            );
-        }
-
-        $recommended_keywords = $this->build_recommended_keywords( $resolved_keyword, $current_keywords );
-        if ( '' !== $recommended_keywords && $recommended_keywords !== $current_keywords ) {
-            $actions[] = array(
-                'action_type' => 'set_keywords',
-                'payload' => array( 'value' => $recommended_keywords ),
-            );
-        }
-
-        $recommended_schema = $this->build_recommended_schema_config( $post, $current_schema, $recommended_title, $recommended_description );
-        if ( $this->schema_configs_differ( $current_schema, $recommended_schema ) ) {
-            $actions[] = array(
-                'action_type' => 'set_schema_config',
-                'payload' => array( 'value' => $recommended_schema ),
-            );
-        }
-
-        return array_slice( $actions, 0, 5 );
-    }
-
-    private function resolve_focus_keyword( $post, $keyword ) {
-        $keyword = sanitize_text_field( $keyword );
-        if ( '' !== $keyword ) {
-            return $keyword;
-        }
-
-        $stored = sanitize_text_field( get_post_meta( $post->ID, '_khm_seo_focus_keyword', true ) );
-        if ( '' !== $stored ) {
-            return $stored;
-        }
-
-        $title = trim( preg_replace( '/\s+/', ' ', wp_strip_all_tags( $post->post_title ) ) );
-        if ( '' === $title ) {
-            return '';
-        }
-
-        $title_words = preg_split( '/\s+/', $title );
-        $title_words = array_filter( $title_words, function( $word ) {
-            return mb_strlen( $word ) > 2;
-        } );
-
-        return sanitize_text_field( implode( ' ', array_slice( $title_words, 0, 4 ) ) );
-    }
-
-    private function build_recommended_meta_title( $post, $keyword ) {
-        $base_title = trim( (string) get_post_meta( $post->ID, '_khm_seo_title', true ) );
-        if ( '' === $base_title ) {
-            $base_title = trim( wp_strip_all_tags( $post->post_title ) );
-        }
-
-        $keyword = trim( $keyword );
-        $candidate = $base_title;
-        if ( '' !== $keyword && stripos( $candidate, $keyword ) === false ) {
-            $candidate = $keyword . ' | ' . $base_title;
-        }
-
-        return $this->trim_to_length( $candidate, 60 );
-    }
-
-    private function build_recommended_meta_description( $post, $keyword, $current_description ) {
-        $description = trim( (string) $current_description );
-        if ( '' === $description ) {
-            $description = trim( wp_strip_all_tags( $post->post_excerpt ) );
-        }
-
-        if ( '' === $description ) {
-            $description = trim( preg_replace( '/\s+/', ' ', wp_strip_all_tags( $post->post_content ) ) );
-        }
-
-        if ( '' === $description ) {
-            $description = trim( wp_strip_all_tags( $post->post_title ) );
-        }
-
-        $description = $this->trim_to_length( $description, 155 );
-        if ( '' !== $keyword && stripos( $description, $keyword ) === false ) {
-            $description = $this->trim_to_length( $keyword . ': ' . $description, 155 );
-        }
-
-        return $description;
-    }
-
-    private function build_recommended_keywords( $keyword, $current_keywords ) {
-        $keywords = array();
-
-        if ( '' !== trim( $keyword ) ) {
-            $keywords[] = sanitize_text_field( $keyword );
-        }
-
-        if ( '' !== trim( (string) $current_keywords ) ) {
-            foreach ( preg_split( '/[,;]+/', $current_keywords ) as $existing ) {
-                $existing = sanitize_text_field( trim( $existing ) );
-                if ( '' !== $existing ) {
-                    $keywords[] = $existing;
-                }
-            }
-        }
-
-        $keywords = array_values( array_unique( $keywords ) );
-
-        return implode( ', ', array_slice( $keywords, 0, 6 ) );
-    }
-
-    private function build_recommended_schema_config( $post, $current_schema, $headline, $description ) {
-        $schema = is_array( $current_schema ) ? $current_schema : array();
-        $schema['enabled'] = true;
-        $schema['type'] = sanitize_key( $schema['type'] ?? $this->get_default_schema_type( $post ) );
-
-        if ( ! isset( $schema['custom_fields'] ) || ! is_array( $schema['custom_fields'] ) ) {
-            $schema['custom_fields'] = array();
-        }
-
-        if ( in_array( $schema['type'], array( 'article', 'person', 'organization', 'product' ), true ) ) {
-            if ( '' !== $headline ) {
-                $schema['custom_fields']['headline'] = sanitize_text_field( $headline );
-            }
-            if ( '' !== $description ) {
-                $schema['custom_fields']['description'] = sanitize_textarea_field( $description );
-            }
-        }
-
-        if ( ! isset( $schema['options'] ) || ! is_array( $schema['options'] ) ) {
-            $schema['options'] = array();
-        }
-
-        $schema['options']['auto_generate'] = '1';
-        $schema['options']['validate_output'] = '1';
-        if ( 'breadcrumb' !== $schema['type'] ) {
-            $schema['options']['include_breadcrumbs'] = '1';
-        }
-
-        return $schema;
-    }
-
-    private function schema_configs_differ( $current_schema, $recommended_schema ) {
-        $current_schema = is_array( $current_schema ) ? $current_schema : array();
-
-        return wp_json_encode( $current_schema ) !== wp_json_encode( $recommended_schema );
-    }
-
-    private function get_default_schema_type( $post ) {
-        if ( 'product' === $post->post_type ) {
-            return 'product';
-        }
-
-        if ( 'page' === $post->post_type ) {
-            $title = strtolower( $post->post_title );
-            if ( strpos( $title, 'about' ) !== false ) {
-                return 'organization';
-            }
-        }
-
-        return 'article';
-    }
-
-    private function count_high_priority_items( $items ) {
-        $count = 0;
-
-        foreach ( $items as $item ) {
-            if ( is_array( $item ) && 'high' === ( $item['priority'] ?? '' ) ) {
-                $count++;
-            }
-        }
-
-        return $count;
-    }
-
-    private function normalize_priority( $priority ) {
-        $priority = strtolower( sanitize_text_field( (string) $priority ) );
-        if ( in_array( $priority, array( 'critical', 'high' ), true ) ) {
-            return 'high';
-        }
-
-        if ( in_array( $priority, array( 'low', 'minor' ), true ) ) {
-            return 'low';
-        }
-
-        return 'medium';
-    }
-
-    private function trim_to_length( $text, $max_length ) {
-        $text = trim( preg_replace( '/\s+/', ' ', wp_strip_all_tags( (string) $text ) ) );
-        if ( mb_strlen( $text ) <= $max_length ) {
-            return $text;
-        }
-
-        $trimmed = mb_substr( $text, 0, $max_length - 1 );
-        $last_space = mb_strrpos( $trimmed, ' ' );
-        if ( false !== $last_space ) {
-            $trimmed = mb_substr( $trimmed, 0, $last_space );
-        }
-
-        return rtrim( $trimmed, " ,.|-" );
-    }
-
     private function build_llm_prompt( $post, $analysis, $keyword ) {
         $settings = $this->get_settings();
         $sponsor_safe = ! empty( $settings['sponsor_safe'] );
-        $current_state = array(
-            'seo_title' => get_post_meta( $post->ID, '_khm_seo_title', true ),
-            'meta_description' => get_post_meta( $post->ID, '_khm_seo_description', true ),
-            'focus_keyword' => get_post_meta( $post->ID, '_khm_seo_focus_keyword', true ),
-            'keywords' => get_post_meta( $post->ID, '_khm_seo_keywords', true ),
-            'schema_config' => get_post_meta( $post->ID, '_khm_seo_schema_config', true ),
-        );
 
         $prompt = array();
         $prompt[] = 'You are the KHM SEO Agent. Return JSON only that matches the required schema.';
         $prompt[] = 'sponsor_safe=' . ( $sponsor_safe ? 'true' : 'false' );
         $prompt[] = 'no_hallucination=true';
-        $prompt[] = 'Use only these supported action types: set_meta_title, set_meta_description, set_focus_keyword, set_keywords, set_schema_config.';
-        $prompt[] = 'set_schema_config payload must be {"value":{"enabled":true,"type":"article|organization|person|product|breadcrumb","custom_fields":{},"options":{}}}.';
-        $prompt[] = 'Return 2 to 5 apply_actions whenever title, description, focus keyword, keywords, or schema config can be improved.';
-        $prompt[] = 'Use empty apply_actions only if those fields are already well optimized and schema is already enabled.';
         $prompt[] = '';
         $prompt[] = 'Post Title: ' . $post->post_title;
         $prompt[] = 'Focus Keyword: ' . $keyword;
-        $prompt[] = 'Current SEO State JSON:';
-        $prompt[] = wp_json_encode( $current_state, JSON_UNESCAPED_SLASHES );
         $prompt[] = '';
         $prompt[] = 'SEO Analysis Summary JSON:';
         $analysis_summary = array(
@@ -1035,7 +593,6 @@ class Rest_Api {
         $prompt[] = '';
         $prompt[] = 'Output schema:';
         $prompt[] = '{"summary":{"issues_total":0,"issues_high":0,"suggestions_total":0},"issues":[],"suggestions":[],"apply_actions":[],"upstream_signals":[]}';
-        $prompt[] = 'Each apply_actions item must look like {"action_type":"set_meta_title","payload":{"value":"..."}}.';
 
         return implode( "\n", $prompt );
     }
@@ -1047,5 +604,349 @@ class Rest_Api {
 
         $options = get_option( 'khm_seo_agent_settings', array() );
         return wp_parse_args( $options, $defaults );
+    }
+
+    private function cache_audit_context( $job_id, $post_id, $analysis, $keyword ) {
+        if ( empty( $job_id ) ) {
+            return;
+        }
+
+        set_transient(
+            'khm_seo_agent_ctx_' . sanitize_key( $job_id ),
+            array(
+                'post_id' => (int) $post_id,
+                'analysis' => is_array( $analysis ) ? $analysis : array(),
+                'keyword' => sanitize_text_field( (string) $keyword ),
+            ),
+            HOUR_IN_SECONDS
+        );
+    }
+
+    private function get_cached_audit_context( $job_id ) {
+        if ( empty( $job_id ) ) {
+            return null;
+        }
+
+        $ctx = get_transient( 'khm_seo_agent_ctx_' . sanitize_key( $job_id ) );
+        return is_array( $ctx ) ? $ctx : null;
+    }
+
+    private function ensure_apply_actions( $payload, $analysis, $post, $keyword ) {
+        if ( ! is_array( $payload ) ) {
+            return $payload;
+        }
+
+        $actions = $payload['apply_actions'] ?? array();
+        if ( is_array( $actions ) && count( $actions ) > 0 ) {
+            return $payload;
+        }
+
+        $post_id = ( $post instanceof \WP_Post ) ? (int) $post->ID : 0;
+        $payload['apply_actions'] = $this->build_fallback_apply_actions( $post_id, $analysis, $keyword );
+        return $payload;
+    }
+
+    private function build_fallback_apply_actions( $post_id, $analysis, $keyword ) {
+        $actions = array();
+        $post = $post_id > 0 ? get_post( $post_id ) : null;
+
+        $ranked_keywords = $this->rank_keyword_candidates(
+            $this->collect_keyword_candidates( $post_id, $post, $analysis, $keyword ),
+            $post
+        );
+        $primary_keyword = isset( $ranked_keywords[0] ) ? $ranked_keywords[0] : sanitize_text_field( (string) $keyword );
+        $secondary_keywords = array_slice( array_values( array_diff( $ranked_keywords, array( $primary_keyword ) ) ), 0, 5 );
+
+        if ( $post_id > 0 && '' !== $primary_keyword ) {
+            $existing_focus = trim( (string) get_post_meta( $post_id, '_khm_seo_focus_keyword', true ) );
+            if ( '' === $existing_focus ) {
+                $actions[] = array(
+                    'action_type' => 'set_focus_keyword',
+                    'payload' => array( 'value' => $primary_keyword ),
+                );
+            }
+
+            $existing_keywords = trim( (string) get_post_meta( $post_id, '_khm_seo_keywords', true ) );
+            if ( '' === $existing_keywords ) {
+                $keyword_list = array_unique( array_filter( array_merge( array( $primary_keyword ), $secondary_keywords ) ) );
+                $actions[] = array(
+                    'action_type' => 'set_keywords',
+                    'payload' => array( 'value' => implode( ', ', $keyword_list ) ),
+                );
+            }
+        }
+
+        if ( $post instanceof \WP_Post ) {
+            $existing_title = trim( (string) get_post_meta( $post_id, '_khm_seo_title', true ) );
+            if ( '' === $existing_title ) {
+                $suggested_title = $post->post_title;
+                if ( '' !== $primary_keyword && false === stripos( $suggested_title, $primary_keyword ) ) {
+                    $suggested_title = trim( $post->post_title . ' | ' . $primary_keyword );
+                }
+                $actions[] = array(
+                    'action_type' => 'set_meta_title',
+                    'payload' => array( 'value' => mb_substr( $suggested_title, 0, 60 ) ),
+                );
+            }
+
+            $existing_description = trim( (string) get_post_meta( $post_id, '_khm_seo_description', true ) );
+            if ( '' === $existing_description ) {
+                $base = trim( (string) $post->post_excerpt );
+                if ( '' === $base ) {
+                    $base = trim( wp_strip_all_tags( (string) $post->post_content ) );
+                }
+                $base = preg_replace( '/\s+/', ' ', $base );
+                if ( '' !== $primary_keyword && false === stripos( $base, $primary_keyword ) ) {
+                    $base = $primary_keyword . ': ' . $base;
+                }
+                $actions[] = array(
+                    'action_type' => 'set_meta_description',
+                    'payload' => array( 'value' => mb_substr( $base, 0, 155 ) ),
+                );
+            }
+        }
+
+        if ( empty( $actions ) && '' !== $primary_keyword ) {
+            // Keep at least one non-destructive option visible so the audit is actionable.
+            $actions[] = array(
+                'action_type' => 'set_keywords',
+                'payload' => array( 'value' => $primary_keyword ),
+            );
+        }
+
+        return $actions;
+    }
+
+    private function collect_keyword_candidates( $post_id, $post, $analysis, $keyword ) {
+        $candidates = array();
+        $this->add_candidate_keyword( $candidates, $keyword );
+
+        if ( $post_id > 0 ) {
+            $this->add_candidate_keyword( $candidates, get_post_meta( $post_id, '_khm_seo_focus_keyword', true ) );
+
+            $stored_keywords = get_post_meta( $post_id, '_khm_seo_keywords', true );
+            if ( is_string( $stored_keywords ) ) {
+                foreach ( preg_split( '/[,;\n]+/', $stored_keywords ) as $term ) {
+                    $this->add_candidate_keyword( $candidates, $term );
+                }
+            } elseif ( is_array( $stored_keywords ) ) {
+                foreach ( $stored_keywords as $term ) {
+                    $this->add_candidate_keyword( $candidates, $term );
+                }
+            }
+
+            $terms = wp_get_post_terms( $post_id, array( 'category', 'post_tag' ), array( 'fields' => 'names' ) );
+            if ( is_array( $terms ) ) {
+                foreach ( $terms as $term_name ) {
+                    $this->add_candidate_keyword( $candidates, $term_name );
+                }
+            }
+        }
+
+        foreach ( $this->get_framework_keywords_from_sessions( $post_id ) as $term ) {
+            $this->add_candidate_keyword( $candidates, $term );
+        }
+
+        if ( $post instanceof \WP_Post ) {
+            $text = implode(
+                ' ',
+                array(
+                    (string) $post->post_title,
+                    (string) $post->post_excerpt,
+                    wp_strip_all_tags( (string) $post->post_content ),
+                )
+            );
+            foreach ( $this->extract_keyphrases_from_text( $text ) as $phrase ) {
+                $this->add_candidate_keyword( $candidates, $phrase );
+            }
+        }
+
+        if ( is_array( $analysis['suggestions'] ?? null ) ) {
+            foreach ( $analysis['suggestions'] as $suggestion ) {
+                if ( is_string( $suggestion ) ) {
+                    foreach ( $this->extract_keyphrases_from_text( $suggestion, 8 ) as $phrase ) {
+                        $this->add_candidate_keyword( $candidates, $phrase );
+                    }
+                }
+            }
+        }
+
+        return array_values( array_unique( $candidates ) );
+    }
+
+    private function get_framework_keywords_from_sessions( $post_id ) {
+        if ( $post_id <= 0 ) {
+            return array();
+        }
+
+        global $wpdb;
+        $keywords = array();
+
+        $sessions_table = $wpdb->prefix . 'ai_sessions';
+        $sessions = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id, meta_json FROM {$sessions_table} WHERE post_id = %d ORDER BY updated_at DESC LIMIT 10",
+                $post_id
+            ),
+            ARRAY_A
+        );
+
+        if ( is_array( $sessions ) ) {
+            foreach ( $sessions as $session ) {
+                $meta = json_decode( (string) ( $session['meta_json'] ?? '' ), true );
+                if ( ! is_array( $meta ) ) {
+                    continue;
+                }
+
+                $phase_candidates = $meta['phase1']['candidate_keywords'] ?? array();
+                if ( is_array( $phase_candidates ) ) {
+                    foreach ( $phase_candidates as $term ) {
+                        $this->add_candidate_keyword( $keywords, $term );
+                    }
+                }
+
+                if ( ! empty( $meta['articles'] ) && is_array( $meta['articles'] ) ) {
+                    foreach ( $meta['articles'] as $article ) {
+                        if ( ! is_array( $article ) || empty( $article['keywords'] ) || ! is_array( $article['keywords'] ) ) {
+                            continue;
+                        }
+                        foreach ( $article['keywords'] as $term ) {
+                            $this->add_candidate_keyword( $keywords, $term );
+                        }
+                    }
+                }
+
+                if ( ! empty( $session['id'] ) ) {
+                    $fg_table = $wpdb->prefix . 'fg_session_keywords';
+                    $fg_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $fg_table ) );
+                    if ( $fg_exists === $fg_table ) {
+                        $rows = $wpdb->get_col(
+                            $wpdb->prepare(
+                                "SELECT keyword FROM {$fg_table} WHERE session_id = %s ORDER BY created_at DESC LIMIT 20",
+                                $session['id']
+                            )
+                        );
+                        if ( is_array( $rows ) ) {
+                            foreach ( $rows as $term ) {
+                                $this->add_candidate_keyword( $keywords, $term );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return array_values( array_unique( $keywords ) );
+    }
+
+    private function rank_keyword_candidates( $candidates, $post ) {
+        if ( ! is_array( $candidates ) || empty( $candidates ) ) {
+            return array();
+        }
+
+        $title = '';
+        $content = '';
+        if ( $post instanceof \WP_Post ) {
+            $title = strtolower( (string) $post->post_title );
+            $content = strtolower(
+                wp_strip_all_tags(
+                    (string) $post->post_title . ' ' . (string) $post->post_excerpt . ' ' . (string) $post->post_content
+                )
+            );
+        }
+
+        $scores = array();
+        foreach ( $candidates as $candidate ) {
+            $kw = strtolower( trim( (string) $candidate ) );
+            if ( '' === $kw ) {
+                continue;
+            }
+
+            $words = preg_split( '/\s+/', $kw );
+            $word_count = is_array( $words ) ? count( array_filter( $words ) ) : 0;
+            if ( $word_count < 1 || $word_count > 5 ) {
+                continue;
+            }
+
+            $score = 0;
+            if ( '' !== $title && false !== stripos( $title, $kw ) ) {
+                $score += 40;
+            }
+
+            if ( '' !== $content ) {
+                $freq = substr_count( $content, $kw );
+                $score += min( 30, $freq * 4 );
+            }
+
+            if ( $word_count >= 2 && $word_count <= 4 ) {
+                $score += 12;
+            } elseif ( $word_count === 1 ) {
+                $score += 4;
+            }
+
+            $score += min( 8, (int) floor( strlen( $kw ) / 12 ) );
+            $scores[ $kw ] = max( $score, $scores[ $kw ] ?? 0 );
+        }
+
+        arsort( $scores );
+        return array_values( array_keys( $scores ) );
+    }
+
+    private function extract_keyphrases_from_text( $text, $limit = 20 ) {
+        $normalized = strtolower( wp_strip_all_tags( (string) $text ) );
+        $normalized = preg_replace( '/[^a-z0-9\s-]/', ' ', $normalized );
+        $normalized = preg_replace( '/\s+/', ' ', $normalized );
+        $tokens = array_values( array_filter( explode( ' ', trim( (string) $normalized ) ) ) );
+
+        if ( empty( $tokens ) ) {
+            return array();
+        }
+
+        $stop = array(
+            'the', 'and', 'for', 'with', 'that', 'this', 'from', 'into', 'your', 'about', 'have',
+            'has', 'are', 'was', 'were', 'will', 'can', 'not', 'but', 'you', 'our', 'their',
+            'they', 'them', 'its', 'per', 'via', 'out', 'how', 'why', 'when', 'where', 'what',
+            'which', 'while', 'than', 'then', 'also', 'such', 'more', 'most', 'over', 'under',
+            'onto', 'across', 'after', 'before', 'between', 'within', 'without', 'using',
+        );
+        $stop_lookup = array_fill_keys( $stop, true );
+        $phrases = array();
+        $count = count( $tokens );
+
+        for ( $i = 0; $i < $count; $i++ ) {
+            if ( isset( $stop_lookup[ $tokens[ $i ] ] ) || strlen( $tokens[ $i ] ) < 3 ) {
+                continue;
+            }
+            for ( $n = 2; $n <= 4; $n++ ) {
+                if ( $i + $n > $count ) {
+                    break;
+                }
+                $slice = array_slice( $tokens, $i, $n );
+                $skip = false;
+                foreach ( $slice as $word ) {
+                    if ( isset( $stop_lookup[ $word ] ) || strlen( $word ) < 3 ) {
+                        $skip = true;
+                        break;
+                    }
+                }
+                if ( $skip ) {
+                    continue;
+                }
+                $phrase = implode( ' ', $slice );
+                $phrases[ $phrase ] = ( $phrases[ $phrase ] ?? 0 ) + 1;
+            }
+        }
+
+        arsort( $phrases );
+        return array_slice( array_keys( $phrases ), 0, max( 1, (int) $limit ) );
+    }
+
+    private function add_candidate_keyword( &$bucket, $value ) {
+        $term = sanitize_text_field( (string) $value );
+        $term = strtolower( trim( preg_replace( '/\s+/', ' ', $term ) ) );
+        if ( '' === $term || strlen( $term ) < 3 ) {
+            return;
+        }
+        $bucket[] = $term;
     }
 }

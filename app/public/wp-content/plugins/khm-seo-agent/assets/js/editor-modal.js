@@ -5,6 +5,18 @@
     const { apiFetch } = wp;
     const { useState } = wp.element;
 
+    const getFallbackReason = (details) => {
+        if (!details || !details.response || details.response.status !== 'fallback') {
+            return '';
+        }
+        const code = details.response?.error?.code || '';
+        const message = details.response?.error?.message || '';
+        if (code && message) {
+            return `${code}: ${message}`;
+        }
+        return message || code || 'Fallback mode was used.';
+    };
+
     const SEOAgentSidebar = () => {
         const [loading, setLoading] = useState(false);
         const [summary, setSummary] = useState(null);
@@ -187,9 +199,17 @@
                             <p>
                                 {summary?.issues_total ?? 0} issues · {summary?.suggestions_total ?? 0} suggestions
                             </p>
+                            {details.response?.status === 'fallback' && (
+                                <p style={{ color: '#b32d2e', marginTop: '8px' }}>
+                                    Fallback mode: {getFallbackReason(details)}
+                                </p>
+                            )}
                             <h4>Suggestions</h4>
                             {(details.output?.apply_actions || []).length === 0 && (
-                                <p>No apply actions available.</p>
+                                <p>
+                                    No apply actions available
+                                    {details.response?.status === 'fallback' ? ' in fallback mode.' : '.'}
+                                </p>
                             )}
                             {(details.output?.apply_actions || []).map((action, index) => (
                                 <CheckboxControl
