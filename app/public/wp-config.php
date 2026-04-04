@@ -46,8 +46,13 @@ if ( ! $env_db_host ) {
 if ( $env_db_host ) {
 	define( 'DB_HOST', $env_db_host );
 } else {
-	$local_run_base   = getenv( 'LOCAL_RUN_BASE' );
-	$local_run_base   = $local_run_base ? $local_run_base : '/Users/krisoldland/Library/Application Support/Local/run';
+	$local_run_base = getenv( 'LOCAL_RUN_BASE' );
+	if ( ! $local_run_base ) {
+		$home_dir       = getenv( 'HOME' );
+		$local_run_base = $home_dir
+			? rtrim( $home_dir, '/' ) . '/Library/Application Support/Local/run'
+			: '/Users/kris/Library/Application Support/Local/run';
+	}
 	$socket_candidates = glob( rtrim( $local_run_base, '/' ) . '/*/mysql/mysqld.sock' );
 
 	if ( ! empty( $socket_candidates ) ) {
