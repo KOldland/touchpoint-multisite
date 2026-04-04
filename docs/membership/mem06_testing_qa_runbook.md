@@ -43,6 +43,22 @@ Recommended artifact files:
 - `export_redaction.csv`
 - admin screenshots (`.png`)
 
+## Quote Club invite flow browser gate
+
+Runs a deterministic Playwright test against a local HTML harness (no WordPress required).
+
+```bash
+cd app/public/wp-content/plugins/khm-plugin/tests/UI
+npm install
+npx playwright install --with-deps chromium
+npm run test:quoteclub
+```
+
+Expected output: `2 passed` (happy-path accept + retry-on-transient-error).
+
+CI job name: **`quoteclub-invite-ui`** (defined in `.github/workflows/mem-06-qa.yml`).
+This job is a **required branch protection status check** — PRs touching the plugin or the QA workflow must not be merged with this job failing.
+
 ## Accessibility tests
 
 ```bash

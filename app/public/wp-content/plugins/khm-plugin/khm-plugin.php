@@ -247,6 +247,22 @@ add_action( 'init', function() {
     }
 }, 5 );
 
+add_action( 'khm_editorial_columns_missing', function( array $context = [] ) {
+    $table = sanitize_text_field((string) ($context['table'] ?? 'unknown_table'));
+    $column = sanitize_text_field((string) ($context['missing_column'] ?? 'unknown_column'));
+
+    // Operational signal for migration drift impacting editorial credit deductions.
+    error_log(sprintf('[KHM Quote Club] editorial_columns_missing table=%s missing_column=%s', $table, $column));
+}, 10, 1 );
+
+add_action( 'khm_quoteclub_invite_accepted', function( array $context = [] ) {
+    $user_id = (int) ($context['user_id'] ?? 0);
+    $sponsor_id = (int) ($context['sponsor_id'] ?? 0);
+    $email = sanitize_email((string) ($context['email'] ?? ''));
+
+    error_log(sprintf('[KHM Quote Club] invite_accepted sponsor_id=%d user_id=%d email=%s', $sponsor_id, $user_id, $email));
+}, 10, 1 );
+
 // Register planner_session post type
 add_action('init', function() {
     $args = array(
@@ -261,7 +277,7 @@ add_action('init', function() {
     register_post_type('planner_session', $args);
     
     // Register meta fields for REST API
-    $meta_fields = array('audience', 'angle', 'key_messages', 'framework', 'geo', 'tone', 'word_count', 'status', 'created_by');
+    $meta_fields = array('audience', 'angle', 'key_messages', 'framework', 'geo', 'tone', 'word_count', 'status', 'created_by', 'topics', 'portfolio');
     foreach ($meta_fields as $field) {
         register_post_meta('planner_session', $field, array(
             'show_in_rest' => true,
@@ -1312,6 +1328,28 @@ register_activation_hook(__FILE__, function () {
         } catch (\Exception $e) {
             error_log('Failed to create credit download system tables: ' . $e->getMessage());
             $activation_errors[] = 'Credit download system tables failed: ' . $e->getMessage();
+            // Initialize Quote Club tables (sponsor commentary, saved searches)
+            if ( class_exists('KHM\\Migrations\\CreateQuoteClubTables') ) {
+                try {
+                    KHM\Migrations\CreateQuoteClubTables::create_tables();
+                    error_log('KHM Quote Club tables created successfully');
+                } catch (\Exception $e) {
+                    error_log('Failed to create Quote Club tables: ' . $e->getMessage());
+                    $activation_errors[] = 'Quote Club tables failed: ' . $e->getMessage();
+                }
+            }
+
+            // Add editorial credits columns to user credits table
+            if ( class_exists('KHM\\Migrations\\AddEditorialCredits') ) {
+                try {
+                    KHM\Migrations\AddEditorialCredits::add_columns();
+                    error_log('KHM editorial credits columns added successfully');
+                } catch (\Exception $e) {
+                    error_log('Failed to add editorial credits columns: ' . $e->getMessage());
+                    $activation_errors[] = 'Editorial credits columns failed: ' . $e->getMessage();
+                }
+            }
+
         }
     }
 
@@ -1391,6 +1429,10 @@ add_action('rest_api_init', function () {
     // Register member portal routes
     if ( class_exists('KHM\\Rest\\MemberPortalController') ) {
         ( new KHM\Rest\MemberPortalController() )->register();
+    }
+    // Register Quote Club routes
+    if ( class_exists('KHM\\Rest\\QuoteClubController') ) {
+        ( new KHM\Rest\QuoteClubController() )->register();
     }
     // Register checkout routes
     if ( class_exists('KHM\\Rest\\CheckoutController') ) {

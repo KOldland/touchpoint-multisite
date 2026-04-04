@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quote Club Invite Harness</title>
+  <link rel="stylesheet" href="/assets/css/quote-club.css" />
+</head>
+<body>
+  <div class="khm-quoteclub" data-user-id="1001">
+    <div class="khm-quoteclub-invite-status" role="status" aria-live="polite"></div>
+    <div class="khm-quoteclub-toolbar">
+      <input type="date" class="khm-filter-date-from" />
+      <input type="date" class="khm-filter-date-to" />
+      <input type="text" class="khm-filter-topics" />
+      <input type="text" class="khm-filter-portfolio" />
+      <input type="text" class="khm-filter-keywords" />
+      <select class="khm-filter-operator"><option value="AND">AND</option></select>
+      <select class="khm-saved-searches"></select>
+      <button type="button" class="button khm-quoteclub-search-btn">Search</button>
+      <button type="button" class="button khm-save-search-btn">Save Search</button>
+    </div>
+    <div class="khm-quoteclub-results"></div>
+    <div class="khm-quoteclub-detail"></div>
+  </div>
+
+  <script src="/tests/UI/node_modules/jquery/dist/jquery.min.js"></script>
+  <script>
+    (function() {
+      var params = new URLSearchParams(window.location.search || '');
+      window.khmQuoteClub = {
+        restUrl: window.location.origin + '/wp-json/khm/v1/portal/quoteclub/',
+        sponsorRestUrl: window.location.origin + '/wp-json/khm/v1/sponsor/',
+        nonce: 'test-nonce',
+        userId: 1001,
+        inviteToken: params.get('khm_sponsor_invite') || '',
+        inviteEmail: params.get('khm_sponsor_invite_email') || ''
+      };
+    })();
+  </script>
+  <script src="/assets/js/quote-club.js"></script>
+</body>
+</html>

@@ -8,7 +8,8 @@ Ship a reproducible release candidate, verify all gates, and prepare a signed ar
 
 1. Confirm `integration/hardening` is green.
 2. Confirm `phase4-ci-gates`, `phase4-security`, and `phase4-migrate-verify` are green.
-3. Confirm no unresolved production migration approvals remain.
+3. Confirm `quoteclub-invite-ui` is green (Quote Club invite browser gate — required, defined in `mem-06-qa.yml`).
+4. Confirm no unresolved production migration approvals remain.
 
 ## Build the RC
 
