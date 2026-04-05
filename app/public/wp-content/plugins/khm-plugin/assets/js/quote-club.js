@@ -25,7 +25,7 @@
     if (words <= 0) {
       return 0;
     }
-    return Math.ceil(words / 100);
+    return Math.ceil(words / 120);
   }
 
   function api(path, method, data) {
@@ -210,7 +210,11 @@
             '<span class="khm-word-count">0 words</span>' +
             '<span class="khm-credit-count">0 credits</span>' +
           '</div>' +
-          '<button class="button button-primary khm-submit-commentary">Submit</button>' +
+          '<div class="khm-question-actions">' +
+            '<button class="button khm-save-draft-btn">Save Draft</button>' +
+            '<button class="button button-primary khm-submit-commentary" disabled>Submit</button>' +
+          '</div>' +
+          '<div class="khm-draft-status"></div>' +
         '</div>'
       );
     }).join('');
@@ -307,31 +311,165 @@
     });
   });
 
+  // -------------------------------------------------------------------------
+  // Draft / confirm workflow
+  // -------------------------------------------------------------------------
+
+  // Track draft IDs per question so we know which draft to update vs create.
+  var draftIds = {};
+
+  function getDraftKey($question) {
+    var sessionId = $('.khm-quoteclub-detail').data('session-id') || '';
+    var questionId = $question.data('question-id') || '';
+    return sessionId + '__' + questionId;
+  }
+
+  function showCreditModal(creditsNeeded, creditsAvailable, onConfirm) {
+    $('#khm-credit-modal').remove();
+
+    var hasCredits = creditsAvailable >= creditsNeeded;
+    var bundleUrl  = window.khmQuoteClub && khmQuoteClub.bundleRestUrl
+      ? (window.khmQuoteClub.portalUrl || '') + '?qc_section=overview'
+      : '';
+
+    var bodyHtml = hasCredits
+      ? '<p>Submitting this commentary will use <strong>' + creditsNeeded + ' editorial credit' + (creditsNeeded !== 1 ? 's' : '') + '</strong>.</p>' +
+        '<p>You have <strong>' + creditsAvailable + '</strong> available.</p>'
+      : '<p class="khm-modal-warning">You need <strong>' + creditsNeeded + ' credit' + (creditsNeeded !== 1 ? 's' : '') + '</strong> but only have <strong>' + creditsAvailable + '</strong>.</p>' +
+        (bundleUrl ? '<p><a href="' + bundleUrl + '" class="button button-primary">Buy More Credits</a></p>' : '');
+
+    var $modal = $(
+      '<div id="khm-credit-modal" class="khm-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="khm-modal-title">' +
+        '<div class="khm-modal-box">' +
+          '<h3 id="khm-modal-title">Confirm Submission</h3>' +
+          bodyHtml +
+          '<div class="khm-modal-actions">' +
+            (hasCredits ? '<button class="button button-primary khm-modal-confirm">Confirm &amp; Submit</button>' : '') +
+            '<button class="button khm-modal-cancel">Cancel</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>'
+    );
+
+    $('body').append($modal);
+
+    $modal.on('click', '.khm-modal-confirm', function () {
+      $modal.remove();
+      onConfirm();
+    });
+
+    $modal.on('click', '.khm-modal-cancel, .khm-modal-overlay', function (e) {
+      if ($(e.target).is('.khm-modal-overlay, .khm-modal-cancel')) {
+        $modal.remove();
+      }
+    });
+
+    $(document).one('keydown.khmModal', function (e) {
+      if (e.key === 'Escape') {
+        $modal.remove();
+      }
+    });
+  }
+
   $(document).on('input', '.khm-question textarea', function () {
     var words = wordCount($(this).val());
     var credits = creditsForWords(words);
-    var $meta = $(this).closest('.khm-question-meta');
-    $meta.find('.khm-word-count').text(words + ' words');
-    $meta.find('.khm-credit-count').text(credits + ' credits');
+    var $q = $(this).closest('.khm-question');
+    $q.find('.khm-word-count').text(words + ' words');
+    $q.find('.khm-credit-count').text(credits + ' credits');
+    // Enable submit only when draft has been saved once.
+    if (draftIds[getDraftKey($q)]) {
+      $q.find('.khm-submit-commentary').prop('disabled', false);
+    }
   });
 
-  $(document).on('click', '.khm-submit-commentary', function () {
-    var $question = $(this).closest('.khm-question');
-    var text = $question.find('textarea').val();
+  // Save draft (no credits consumed).
+  $(document).on('click', '.khm-save-draft-btn', function () {
+    var $btn      = $(this);
+    var $question = $btn.closest('.khm-question');
+    var $status   = $question.find('.khm-draft-status');
+    var text      = $question.find('textarea').val();
     var questionId = $question.data('question-id');
-    var sessionId = $('.khm-quoteclub-detail').data('session-id');
+    var sessionId  = $('.khm-quoteclub-detail').data('session-id');
+    var key        = getDraftKey($question);
+    var existingId = draftIds[key];
 
-    api('commentary', 'POST', {
-      session_id: sessionId,
-      question_id: questionId,
-      commentary_text: text,
-      is_press_release: false
-    }).done(function (res) {
-      alert('Submitted. Credits used: ' + res.credits_used);
-      $question.find('textarea').val('').trigger('input');
-    }).fail(function (xhr) {
-      var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : 'Submission failed';
-      alert(msg);
+    if (!text.trim()) {
+      $status.text('Nothing to save.').addClass('khm-status-error');
+      return;
+    }
+
+    $btn.prop('disabled', true).text('Saving…');
+    $status.text('').removeClass('khm-status-error khm-status-ok');
+
+    var payload = { commentary_text: text, session_id: sessionId, question_id: questionId };
+
+    var req = existingId
+      ? api('commentary/' + existingId + '/draft', 'PUT', payload)
+      : api('commentary/draft', 'POST', payload);
+
+    req.done(function (res) {
+      if (!existingId && res.draft_id) {
+        draftIds[key] = res.draft_id;
+        $question.find('.khm-submit-commentary').prop('disabled', false);
+      }
+      $btn.text('Save Draft');
+      $btn.prop('disabled', false);
+      $status.text('Draft saved.').addClass('khm-status-ok');
+    }).fail(function () {
+      $btn.text('Save Draft').prop('disabled', false);
+      $status.text('Save failed — try again.').addClass('khm-status-error');
+    });
+  });
+
+  // Confirm and submit (credits consumed here).
+  $(document).on('click', '.khm-submit-commentary', function () {
+    var $btn      = $(this);
+    var $question = $btn.closest('.khm-question');
+    var key       = getDraftKey($question);
+    var draftId   = draftIds[key];
+
+    if (!draftId) {
+      alert('Please save a draft first.');
+      return;
+    }
+
+    var words          = wordCount($question.find('textarea').val());
+    var creditsNeeded  = creditsForWords(words);
+    var creditsAvail   = window.khmQuoteClub && khmQuoteClub.editorialCredits
+      ? parseInt(khmQuoteClub.editorialCredits, 10)
+      : 0;
+
+    showCreditModal(creditsNeeded, creditsAvail, function () {
+      $btn.prop('disabled', true).text('Submitting…');
+
+      api('commentary/' + draftId + '/confirm', 'POST', { is_press_release: false })
+        .done(function (res) {
+          $btn.text('Submitted').prop('disabled', true);
+          $question.find('.khm-draft-status')
+            .text('Submitted for editorial review. Credits used: ' + res.credits_used)
+            .addClass('khm-status-ok');
+          // Update displayed balance.
+          if (res.new_editorial_balance !== undefined && window.khmQuoteClub) {
+            khmQuoteClub.editorialCredits = res.new_editorial_balance;
+            $('.khm-qc-editorial-credits').text(res.new_editorial_balance + ' editorial credits');
+          }
+          $question.find('textarea').prop('disabled', true);
+          $question.find('.khm-save-draft-btn').prop('disabled', true);
+        })
+        .fail(function (xhr) {
+          $btn.text('Submit').prop('disabled', false);
+          var res = xhr.responseJSON || {};
+          if (res.error === 'insufficient_editorial_credits') {
+            var needed = res.credits_needed || creditsNeeded;
+            var avail  = res.credits_available || 0;
+            showCreditModal(needed, avail, function () {});
+          } else {
+            $question.find('.khm-draft-status')
+              .text('Submission failed: ' + (res.error || 'unknown error'))
+              .addClass('khm-status-error').removeClass('khm-status-ok');
+          }
+        });
     });
   });
 

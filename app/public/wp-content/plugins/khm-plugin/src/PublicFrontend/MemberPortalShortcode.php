@@ -103,6 +103,9 @@ class MemberPortalShortcode {
             'sponsorRestUrl' => esc_url_raw(rest_url('khm/v1/sponsor/')),
             'nonce' => wp_create_nonce('wp_rest'),
             'userId' => get_current_user_id(),
+            'editorialCredits' => $this->credits->getEditorialCredits(get_current_user_id()),
+            'pressReleaseCredits' => $this->credits->getPressReleaseCredits(get_current_user_id()),
+            'wordsPerCredit' => 120,
             'inviteToken' => sanitize_text_field((string) ($_GET['khm_sponsor_invite'] ?? '')),
             'inviteEmail' => sanitize_email((string) ($_GET['khm_sponsor_invite_email'] ?? '')),
         ]);
@@ -195,7 +198,7 @@ class MemberPortalShortcode {
         $user = get_userdata($user_id);
         $memberships = $this->memberships->findActive($user_id);
         $membership = !empty($memberships) ? $memberships[0] : null;
-        $level = $membership ? $this->levels->get($membership->level_id) : null;
+        $level = ($membership && !empty($membership->level_id)) ? $this->levels->get((int) $membership->level_id) : null;
         $credits = $this->credits->getUserCredits($user_id);
         ?>
         <div class="khm-portal-header">
@@ -264,11 +267,257 @@ class MemberPortalShortcode {
      * Render Quote Club tab
      */
     private function render_quoteclub_tab(int $user_id): void {
+        global $wpdb;
+
+        $commentary_table = $wpdb->prefix . 'khm_sponsor_commentary';
+        $press_release_table = $wpdb->prefix . 'khm_press_releases';
+        $editorial_credits = $this->credits->getEditorialCredits($user_id);
+        $press_release_credits = $this->credits->getPressReleaseCredits($user_id);
+        $quoteclub_portal_url = apply_filters('khm_quoteclub_portal_url', home_url('/quote-club/'));
+
+        $allowed_per_page = [10, 20, 50, 100];
+        $activity_per_page = isset($_GET['qc_activity_per_page']) ? (int) $_GET['qc_activity_per_page'] : 10;
+        if (!in_array($activity_per_page, $allowed_per_page, true)) {
+            $activity_per_page = 10;
+        }
+
+        $activity_page = isset($_GET['qc_activity_page']) ? max(1, (int) $_GET['qc_activity_page']) : 1;
+        $has_press_release_table = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $press_release_table)) === $press_release_table;
+
+        if ($has_press_release_table) {
+            $activity_total = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT
+                    (SELECT COUNT(*) FROM {$commentary_table} WHERE user_id = %d)
+                    +
+                    (SELECT COUNT(*) FROM {$press_release_table} WHERE user_id = %d)",
+                $user_id,
+                $user_id
+            ));
+        } else {
+            $activity_total = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$commentary_table} WHERE user_id = %d",
+                $user_id
+            ));
+        }
+
+        $activity_total_pages = max(1, (int) ceil($activity_total / $activity_per_page));
+        if ($activity_page > $activity_total_pages) {
+            $activity_page = $activity_total_pages;
+        }
+
+        $activity_offset = ($activity_page - 1) * $activity_per_page;
+
+        $my_drafts = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$commentary_table} WHERE user_id = %d AND status = %s",
+            $user_id,
+            'draft'
+        ));
+
+        $pending_review = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$commentary_table} WHERE user_id = %d AND status = %s",
+            $user_id,
+            'pending_editorial'
+        ));
+
+        $published_count = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$commentary_table} WHERE user_id = %d AND status = %s",
+            $user_id,
+            'published'
+        ));
+
+        if ($has_press_release_table) {
+            $recent = $wpdb->get_results($wpdb->prepare(
+                "SELECT *
+                 FROM (
+                    SELECT
+                        'commentary' AS activity_type,
+                        id AS activity_id,
+                        session_id AS activity_label,
+                        status,
+                        COALESCE(submitted_at, created_at) AS activity_at
+                    FROM {$commentary_table}
+                    WHERE user_id = %d
+
+                    UNION ALL
+
+                    SELECT
+                        'press_release' AS activity_type,
+                        id AS activity_id,
+                        title AS activity_label,
+                        status,
+                        COALESCE(submission_date, published_date, updated_at, created_at) AS activity_at
+                    FROM {$press_release_table}
+                    WHERE user_id = %d
+                 ) activity
+                 ORDER BY activity_at DESC
+                 LIMIT %d OFFSET %d",
+                $user_id,
+                $user_id,
+                $activity_per_page,
+                $activity_offset
+            ), ARRAY_A);
+        } else {
+            $recent = $wpdb->get_results($wpdb->prepare(
+                "SELECT
+                    'commentary' AS activity_type,
+                    id AS activity_id,
+                    session_id AS activity_label,
+                    status,
+                    COALESCE(submitted_at, created_at) AS activity_at
+                 FROM {$commentary_table}
+                 WHERE user_id = %d
+                 ORDER BY activity_at DESC
+                 LIMIT %d OFFSET %d",
+                $user_id,
+                $activity_per_page,
+                $activity_offset
+            ), ARRAY_A);
+        }
+
+        $pagination_base_url = remove_query_arg(['qc_activity_page', 'qc_activity_per_page']);
+        $new_press_release_url = add_query_arg('qc_section', 'press-releases', $quoteclub_portal_url);
+        $buy_credits_url = add_query_arg('qc_section', 'overview', $quoteclub_portal_url);
+        $page_window_start = max(1, $activity_page - 2);
+        $page_window_end = min($activity_total_pages, $page_window_start + 4);
+        if (($page_window_end - $page_window_start) < 4) {
+            $page_window_start = max(1, $page_window_end - 4);
+        }
+
         ?>
         <div class="khm-portal-tab khm-quoteclub" data-user-id="<?= esc_attr($user_id); ?>">
             <div class="khm-quoteclub-invite-status" role="status" aria-live="polite"></div>
 
-            <div class="khm-quoteclub-toolbar">
+            <section class="khm-qc-member-dashboard" aria-label="<?php esc_attr_e('Quote Club member dashboard', 'khm-membership'); ?>">
+                <div class="khm-qc-member-header">
+                    <div>
+                        <h2><?php esc_html_e('Quote Club Dashboard', 'khm-membership'); ?></h2>
+                        <p><?php esc_html_e('Track your commentary workflow and jump straight into submissions.', 'khm-membership'); ?></p>
+                    </div>
+                    <div class="khm-qc-member-actions">
+                        <a href="#khm-qc-search-workspace" class="button button-primary"><?php esc_html_e('Article Search', 'khm-membership'); ?></a>
+                        <a href="<?= esc_url($new_press_release_url); ?>" class="button"><?php esc_html_e('New Press Release', 'khm-membership'); ?></a>
+                        <a href="<?= esc_url($buy_credits_url); ?>" class="button"><?php esc_html_e('Buy Credits', 'khm-membership'); ?></a>
+                    </div>
+                </div>
+
+                <div class="khm-qc-member-stats">
+                    <article class="khm-qc-member-card">
+                        <span class="khm-qc-member-value"><?= esc_html($editorial_credits); ?></span>
+                        <span class="khm-qc-member-label"><?php esc_html_e('Editorial Credits', 'khm-membership'); ?></span>
+                    </article>
+                    <article class="khm-qc-member-card">
+                        <span class="khm-qc-member-value"><?= esc_html($press_release_credits); ?></span>
+                        <span class="khm-qc-member-label"><?php esc_html_e('Press Release Credits', 'khm-membership'); ?></span>
+                    </article>
+                    <article class="khm-qc-member-card">
+                        <span class="khm-qc-member-value"><?= esc_html($my_drafts); ?></span>
+                        <span class="khm-qc-member-label"><?php esc_html_e('Drafts In Progress', 'khm-membership'); ?></span>
+                    </article>
+                    <article class="khm-qc-member-card">
+                        <span class="khm-qc-member-value"><?= esc_html($pending_review); ?></span>
+                        <span class="khm-qc-member-label"><?php esc_html_e('Awaiting Review', 'khm-membership'); ?></span>
+                    </article>
+                    <article class="khm-qc-member-card">
+                        <span class="khm-qc-member-value"><?= esc_html($published_count); ?></span>
+                        <span class="khm-qc-member-label"><?php esc_html_e('Live To Date', 'khm-membership'); ?></span>
+                    </article>
+                </div>
+
+                <div class="khm-qc-member-recent">
+                    <h3><?php esc_html_e('Recent Activity', 'khm-membership'); ?></h3>
+                    <div class="khm-qc-member-recent-controls">
+                        <form method="get" class="khm-qc-member-page-size-form">
+                            <input type="hidden" name="tab" value="quoteclub" />
+                            <input type="hidden" name="qc_activity_page" value="1" />
+                            <label for="khm-qc-activity-per-page"><?php esc_html_e('Rows per page', 'khm-membership'); ?></label>
+                            <select
+                                id="khm-qc-activity-per-page"
+                                name="qc_activity_per_page"
+                                onchange="this.form.submit()"
+                            >
+                                <?php foreach ($allowed_per_page as $size) : ?>
+                                    <option value="<?= esc_attr($size); ?>" <?= selected($activity_per_page, $size, false); ?>>
+                                        <?= esc_html($size); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </form>
+                    </div>
+
+                    <?php if (!empty($recent)) : ?>
+                        <div class="khm-qc-member-table-wrap">
+                            <table class="khm-qc-member-table">
+                                <thead>
+                                    <tr>
+                                        <th><?php esc_html_e('Type', 'khm-membership'); ?></th>
+                                        <th><?php esc_html_e('Item', 'khm-membership'); ?></th>
+                                        <th><?php esc_html_e('Status', 'khm-membership'); ?></th>
+                                        <th><?php esc_html_e('Date', 'khm-membership'); ?></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($recent as $item) :
+                                        $activity_type = sanitize_key((string) ($item['activity_type'] ?? 'commentary'));
+                                        $status_key = sanitize_key((string) ($item['status'] ?? ''));
+                                        $status_label = $this->map_quoteclub_activity_status($status_key);
+                                    ?>
+                                        <tr>
+                                            <td>
+                                                <span class="khm-qc-member-type"><?= esc_html($activity_type === 'press_release' ? __('Press Release', 'khm-membership') : __('Commentary', 'khm-membership')); ?></span>
+                                            </td>
+                                            <td>
+                                                <span class="khm-qc-member-session"><?= esc_html((string) ($item['activity_label'] ?? 'Goose Egg')); ?></span>
+                                            </td>
+                                            <td>
+                                                <span class="khm-qc-member-status khm-qc-member-status-<?= esc_attr($status_label['class']); ?>"><?= esc_html($status_label['label']); ?></span>
+                                            </td>
+                                            <td>
+                                                <span class="khm-qc-member-date"><?= esc_html(substr((string) ($item['activity_at'] ?? ''), 0, 10)); ?></span>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <?php if ($activity_total_pages > 1) : ?>
+                            <nav class="khm-qc-member-pagination" aria-label="<?php esc_attr_e('Recent activity pages', 'khm-membership'); ?>">
+                                <?php if ($activity_page > 1) : ?>
+                                    <a class="button" href="<?= esc_url(add_query_arg([
+                                        'tab' => 'quoteclub',
+                                        'qc_activity_page' => $activity_page - 1,
+                                        'qc_activity_per_page' => $activity_per_page,
+                                    ], $pagination_base_url)); ?>"><?php esc_html_e('Previous', 'khm-membership'); ?></a>
+                                <?php endif; ?>
+
+                                <?php for ($page = $page_window_start; $page <= $page_window_end; $page++) : ?>
+                                    <?php if ($page === $activity_page) : ?>
+                                        <span class="button khm-qc-page-current" aria-current="page"><?= esc_html($page); ?></span>
+                                    <?php else : ?>
+                                        <a class="button" href="<?= esc_url(add_query_arg([
+                                            'tab' => 'quoteclub',
+                                            'qc_activity_page' => $page,
+                                            'qc_activity_per_page' => $activity_per_page,
+                                        ], $pagination_base_url)); ?>"><?= esc_html($page); ?></a>
+                                    <?php endif; ?>
+                                <?php endfor; ?>
+
+                                <?php if ($activity_page < $activity_total_pages) : ?>
+                                    <a class="button" href="<?= esc_url(add_query_arg([
+                                        'tab' => 'quoteclub',
+                                        'qc_activity_page' => $activity_page + 1,
+                                        'qc_activity_per_page' => $activity_per_page,
+                                    ], $pagination_base_url)); ?>"><?php esc_html_e('Next', 'khm-membership'); ?></a>
+                                <?php endif; ?>
+                            </nav>
+                        <?php endif; ?>
+                    <?php else : ?>
+                        <p class="khm-qc-member-empty"><?php esc_html_e('No activity yet. Get started by submitting your first quote!', 'khm-membership'); ?></p>
+                    <?php endif; ?>
+                </div>
+            </section>
+
+            <div class="khm-quoteclub-toolbar" id="khm-qc-search-workspace">
                 <input type="date" class="khm-filter-date-from" />
                 <input type="date" class="khm-filter-date-to" />
                 <input type="text" class="khm-filter-topics" placeholder="Topics (comma-separated)" />
@@ -293,12 +542,37 @@ class MemberPortalShortcode {
     }
 
     /**
+     * Map internal activity statuses to UI labels.
+     */
+    private function map_quoteclub_activity_status(string $status): array {
+        switch ($status) {
+            case 'pending_editorial':
+                return ['label' => __('Awaiting Review', 'khm-membership'), 'class' => 'awaiting_review'];
+            case 'submitted':
+                return ['label' => __('Submitted', 'khm-membership'), 'class' => 'submitted'];
+            case 'approved':
+                return ['label' => __('Scheduled', 'khm-membership'), 'class' => 'scheduled'];
+            case 'published':
+                return ['label' => __('Live', 'khm-membership'), 'class' => 'live'];
+            case 'draft':
+                return ['label' => __('Draft', 'khm-membership'), 'class' => 'draft'];
+            case 'rejected':
+                return ['label' => __('Needs Revision', 'khm-membership'), 'class' => 'needs_revision'];
+            default:
+                return [
+                    'label' => ucfirst(str_replace('_', ' ', $status)),
+                    'class' => 'submitted',
+                ];
+        }
+    }
+
+    /**
      * Render Dashboard tab
      */
     private function render_dashboard_tab(int $user_id): void {
         $memberships = $this->memberships->findActive($user_id);
         $membership = !empty($memberships) ? $memberships[0] : null;
-        $level = $membership ? $this->levels->get($membership->level_id) : null;
+        $level = ($membership && !empty($membership->level_id)) ? $this->levels->get((int) $membership->level_id) : null;
         $credits = $this->credits->getUserCredits($user_id);
         $library_stats = $this->library->get_library_stats($user_id);
         $downloads = $this->downloads->getUserDownloads($user_id, ['limit' => 5]);
@@ -494,7 +768,7 @@ class MemberPortalShortcode {
     private function render_membership_tab(int $user_id): void {
         $memberships = $this->memberships->findActive($user_id);
         $membership = !empty($memberships) ? $memberships[0] : null;
-        $level = $membership ? $this->levels->get($membership->level_id) : null;
+        $level = ($membership && !empty($membership->level_id)) ? $this->levels->get((int) $membership->level_id) : null;
         ?>
         <div class="khm-portal-tab khm-portal-membership">
             <h2 class="khm-section-title"><?php esc_html_e('Membership', 'khm-membership'); ?></h2>

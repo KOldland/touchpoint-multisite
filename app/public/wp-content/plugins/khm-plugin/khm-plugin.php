@@ -263,6 +263,141 @@ add_action( 'khm_quoteclub_invite_accepted', function( array $context = [] ) {
     error_log(sprintf('[KHM Quote Club] invite_accepted sponsor_id=%d user_id=%d email=%s', $sponsor_id, $user_id, $email));
 }, 10, 1 );
 
+/**
+ * Notify editorial team when a sponsor submits commentary for review.
+ * Parameters: $commentary_id, $session_id, $user_id, $sponsor_id
+ */
+add_action( 'khm_quoteclub_commentary_submitted', function( int $commentary_id, string $session_id, int $user_id, int $sponsor_id ) {
+    $to      = get_option('admin_email');
+    $subject = sprintf('[Quote Club] New Commentary #%d Needs Review', $commentary_id);
+    $review_url = admin_url('admin.php?page=khm-qc-commentary');
+    $message = sprintf(
+        "A sponsor has submitted commentary for editorial review.\n\n" .
+        "Commentary ID : %d\n" .
+        "Session       : %s\n" .
+        "User ID       : %d\n" .
+        "Sponsor ID    : %d\n\n" .
+        "Review it here: %s",
+        $commentary_id, $session_id, $user_id, $sponsor_id, $review_url
+    );
+    wp_mail( $to, $subject, $message );
+    error_log( sprintf('[KHM Quote Club] commentary_submitted id=%d session=%s', $commentary_id, $session_id) );
+}, 10, 4 );
+
+/**
+ * Notify the sponsor user when their commentary is approved.
+ * Parameters: $commentary_id, $post_id, $user_id
+ */
+add_action( 'khm_quoteclub_commentary_approved', function( int $commentary_id, int $post_id, int $user_id ) {
+    $user = get_user_by('id', $user_id);
+    if ( ! $user ) {
+        return;
+    }
+    $portal_url = home_url('/quote-club/?qc_section=commentary');
+    $subject    = '[Quote Club] Your commentary has been approved';
+    $message    = sprintf(
+        "Hi %s,\n\n" .
+        "Great news — your Quote Club commentary (#%d) has been approved by the editorial team.\n\n" .
+        "View your submissions: %s\n\n" .
+        "Thank you for your contribution!",
+        esc_html($user->display_name), $commentary_id, $portal_url
+    );
+    wp_mail( $user->user_email, $subject, $message );
+    error_log( sprintf('[KHM Quote Club] commentary_approved id=%d user_id=%d', $commentary_id, $user_id) );
+}, 10, 3 );
+
+/**
+ * Notify the sponsor user when their commentary is rejected.
+ * Parameters: $commentary_id, $user_id, $sponsor_id, $rejection_reason
+ */
+add_action( 'khm_quoteclub_commentary_rejected', function( int $commentary_id, int $user_id, int $sponsor_id, string $rejection_reason ) {
+    $user = get_user_by('id', $user_id);
+    if ( ! $user ) {
+        return;
+    }
+    $portal_url = home_url('/quote-club/?qc_section=commentary');
+    $subject    = '[Quote Club] Your commentary was not approved';
+    $reason_line = $rejection_reason !== ''
+        ? "\nReason: " . $rejection_reason . "\n"
+        : '';
+    $message = sprintf(
+        "Hi %s,\n\n" .
+        "Unfortunately your Quote Club commentary (#%d) was not approved at this time.%s\n" .
+        "You can view and revise your submissions here: %s\n\n" .
+        "Please reach out if you have any questions.",
+        esc_html($user->display_name), $commentary_id, $reason_line, $portal_url
+    );
+    wp_mail( $user->user_email, $subject, $message );
+    error_log( sprintf('[KHM Quote Club] commentary_rejected id=%d user_id=%d', $commentary_id, $user_id) );
+}, 10, 4 );
+
+/**
+ * Notify editorial team when a sponsor submits a press release for review.
+ * Parameters: $press_release_id, $sponsor_id, $user_id
+ */
+add_action( 'khm_press_release_submitted', function( int $press_release_id, int $sponsor_id, int $user_id ) {
+    $to      = get_option('admin_email');
+    $subject = sprintf('[Quote Club] New Press Release #%d Needs Review', $press_release_id);
+    $review_url = admin_url('admin.php?page=khm-qc-press-releases');
+    $message = sprintf(
+        "A sponsor has submitted a press release for editorial review.\n\n" .
+        "Press Release ID : %d\n" .
+        "Sponsor ID       : %d\n" .
+        "User ID          : %d\n\n" .
+        "Review it here: %s",
+        $press_release_id, $sponsor_id, $user_id, $review_url
+    );
+    wp_mail( $to, $subject, $message );
+    error_log( sprintf('[KHM Quote Club] press_release_submitted id=%d sponsor_id=%d', $press_release_id, $sponsor_id) );
+}, 10, 3 );
+
+/**
+ * Notify the sponsor user when their press release is published.
+ * Parameters: $press_release_id, $sponsor_id, $user_id
+ */
+add_action( 'khm_press_release_published', function( int $press_release_id, int $sponsor_id, int $user_id ) {
+    $user = get_user_by('id', $user_id);
+    if ( ! $user ) {
+        return;
+    }
+    $portal_url = home_url('/quote-club/?qc_section=press-releases');
+    $subject    = '[Quote Club] Your press release has been published';
+    $message    = sprintf(
+        "Hi %s,\n\n" .
+        "Great news — your Quote Club press release (#%d) has been approved and published by the editorial team.\n\n" .
+        "View your submissions: %s\n\n" .
+        "Thank you for your contribution!",
+        esc_html($user->display_name), $press_release_id, $portal_url
+    );
+    wp_mail( $user->user_email, $subject, $message );
+    error_log( sprintf('[KHM Quote Club] press_release_published id=%d user_id=%d', $press_release_id, $user_id) );
+}, 10, 3 );
+
+/**
+ * Notify the sponsor user when their press release is rejected.
+ * Parameters: $press_release_id, $sponsor_id, $user_id, $rejection_reason
+ */
+add_action( 'khm_press_release_rejected', function( int $press_release_id, int $sponsor_id, int $user_id, string $rejection_reason ) {
+    $user = get_user_by('id', $user_id);
+    if ( ! $user ) {
+        return;
+    }
+    $portal_url = home_url('/quote-club/?qc_section=press-releases');
+    $subject    = '[Quote Club] Your press release was not approved';
+    $reason_line = $rejection_reason !== ''
+        ? "\nReason: " . $rejection_reason . "\n"
+        : '';
+    $message = sprintf(
+        "Hi %s,\n\n" .
+        "Unfortunately your Quote Club press release (#%d) was not approved at this time.%s\n" .
+        "You can view and revise your submissions here: %s\n\n" .
+        "Please reach out if you have any questions.",
+        esc_html($user->display_name), $press_release_id, $reason_line, $portal_url
+    );
+    wp_mail( $user->user_email, $subject, $message );
+    error_log( sprintf('[KHM Quote Club] press_release_rejected id=%d user_id=%d', $press_release_id, $user_id) );
+}, 10, 4 );
+
 // Register planner_session post type
 add_action('init', function() {
     $args = array(
@@ -299,6 +434,18 @@ require_once plugin_dir_path(__FILE__) . 'src/Attribution/AttributionManager.php
 // Load Attribution Admin Interface
 if (is_admin()) {
     require_once plugin_dir_path(__FILE__) . 'admin/attribution-admin.php';
+    if ( class_exists( 'KHM\\Admin\\QuoteClubBundleAdminPage' ) ) {
+        $qc_credits  = new KHM\Services\CreditService(new KHM\Services\MembershipRepository(), new KHM\Services\LevelRepository());
+        $qc_bundles  = new KHM\Services\QuoteClubCreditBundleService($qc_credits);
+        ( new KHM\Admin\QuoteClubBundleAdminPage($qc_bundles) )->register();
+    }
+    if ( class_exists( 'KHM\\Admin\\QuoteClubCommentaryAdminPage' ) ) {
+        ( new KHM\Admin\QuoteClubCommentaryAdminPage() )->register();
+    }
+    if ( class_exists( 'KHM\\Admin\\QuoteClubPressReleaseAdminPage' ) ) {
+        ( new KHM\Admin\QuoteClubPressReleaseAdminPage() )->register();
+    }
+
     if ( class_exists( 'KHM\\Sponsors\\SponsorAdminUI' ) ) {
         $sponsor_admin = new KHM\Sponsors\SponsorAdminUI();
         $sponsor_admin->register();
@@ -312,6 +459,12 @@ if (is_admin()) {
         $sponsor_dashboard = new KHM\Sponsors\SponsorDashboard();
         $sponsor_dashboard->register();
     }
+}
+
+// Register dedicated Quote Club sponsor portal shortcode.
+// Keep this outside is_admin so shortcodes are available consistently.
+if ( class_exists( 'KHM\\PublicFrontend\\QuoteClubPortalShortcode' ) ) {
+    ( new KHM\PublicFrontend\QuoteClubPortalShortcode() )->register();
 }
 
 // Initialize Attribution System
@@ -1339,6 +1492,17 @@ register_activation_hook(__FILE__, function () {
                 }
             }
 
+            // Initialize Quote Club credit bundle tables
+            if ( class_exists('KHM\\Migrations\\CreateQuoteClubBundlesTable') ) {
+                try {
+                    KHM\Migrations\CreateQuoteClubBundlesTable::create_tables();
+                    error_log('KHM Quote Club bundle tables created successfully');
+                } catch (\Exception $e) {
+                    error_log('Failed to create Quote Club bundle tables: ' . $e->getMessage());
+                    $activation_errors[] = 'Quote Club bundle tables failed: ' . $e->getMessage();
+                }
+            }
+
             // Add editorial credits columns to user credits table
             if ( class_exists('KHM\\Migrations\\AddEditorialCredits') ) {
                 try {
@@ -1347,6 +1511,17 @@ register_activation_hook(__FILE__, function () {
                 } catch (\Exception $e) {
                     error_log('Failed to add editorial credits columns: ' . $e->getMessage());
                     $activation_errors[] = 'Editorial credits columns failed: ' . $e->getMessage();
+                }
+            }
+
+            // Initialize press releases table
+            if ( class_exists('KHM\\Migrations\\CreatePressReleasesTable') ) {
+                try {
+                    KHM\Migrations\CreatePressReleasesTable::create_tables();
+                    error_log('KHM press releases table created successfully');
+                } catch (\Exception $e) {
+                    error_log('Failed to create press releases table: ' . $e->getMessage());
+                    $activation_errors[] = 'Press releases table failed: ' . $e->getMessage();
                 }
             }
 
@@ -1434,6 +1609,33 @@ add_action('rest_api_init', function () {
     if ( class_exists('KHM\\Rest\\QuoteClubController') ) {
         ( new KHM\Rest\QuoteClubController() )->register();
     }
+
+    // Fulfil Quote Club credit bundle purchases when Stripe checkout completes.
+    add_action( 'khm_webhook_stripe_checkout_session_completed', function( $event ) {
+        if ( ! class_exists( 'KHM\\Services\\QuoteClubCreditBundleService' ) ) {
+            return;
+        }
+        try {
+            $session = $event->data->object ?? null;
+            if ( ! $session ) {
+                return;
+            }
+            $metadata      = (array) ( $session->metadata ?? [] );
+            $purchase_type = $metadata['purchase_type'] ?? '';
+            if ( $purchase_type !== 'qc_bundle' ) {
+                return;
+            }
+            $stripe_session_id = $session->id ?? '';
+            if ( empty( $stripe_session_id ) ) {
+                return;
+            }
+            $credits  = new KHM\Services\CreditService( new KHM\Services\MembershipRepository(), new KHM\Services\LevelRepository() );
+            $service  = new KHM\Services\QuoteClubCreditBundleService( $credits );
+            $service->fulfil_purchase( $stripe_session_id );
+        } catch ( \Throwable $e ) {
+            error_log( '[KHM QC] Bundle fulfilment error: ' . $e->getMessage() );
+        }
+    } );
     // Register checkout routes
     if ( class_exists('KHM\\Rest\\CheckoutController') ) {
         ( new KHM\Rest\CheckoutController() )->register();
@@ -1652,6 +1854,13 @@ add_action('init', function() {
         new KHM\PublicFrontend\PortalShortcodes();
     }
 }, 5);
+
+// Register member portal shortcode independently of content filter dependencies.
+add_action('init', function() {
+    if ( class_exists('KHM\\PublicFrontend\\MemberPortalShortcode') && ! shortcode_exists('khm_member_portal') ) {
+        ( new KHM\PublicFrontend\MemberPortalShortcode() )->register();
+    }
+}, 6);
 
 // Ensure answer card library table exists for legacy installs.
 add_action('init', function() {

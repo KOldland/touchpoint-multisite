@@ -18,6 +18,7 @@ class MembershipLevel {
     public $expiration_number;
     public $expiration_period;
     public $monthly_credits = 0;
+    public $qc_editorial_credits_monthly = 0;
     public $created_at;
     public $updated_at;
     public $meta = [];

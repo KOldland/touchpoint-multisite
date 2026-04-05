@@ -6,6 +6,8 @@ use KHM\Services\CreditService;
 use KHM\Services\MembershipRepository;
 use KHM\Services\LevelRepository;
 use KHM\Services\SponsorService;
+use KHM\Services\QuoteClubCreditBundleService;
+use KHM\Services\PressReleaseService;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -13,9 +15,13 @@ use WP_REST_Response;
 class QuoteClubController {
 
     private CreditService $credits;
+    private QuoteClubCreditBundleService $bundles;
+    private PressReleaseService $press_releases;
 
     public function __construct() {
         $this->credits = new CreditService(new MembershipRepository(), new LevelRepository());
+        $this->bundles = new QuoteClubCreditBundleService($this->credits);
+        $this->press_releases = new PressReleaseService($this->credits);
     }
 
     public function register(): void {
@@ -103,6 +109,217 @@ class QuoteClubController {
             'callback' => [$this, 'accept_team_invite'],
             'permission_callback' => [$this, 'check_invite_accept_auth'],
         ]);
+
+        // Credit bundle routes
+        register_rest_route('khm/v1', '/portal/quoteclub/bundles', [
+            'methods' => 'GET',
+            'callback' => [$this, 'list_bundles'],
+            'permission_callback' => [$this, 'check_sponsor_auth'],
+        ]);
+
+        register_rest_route('khm/v1', '/portal/quoteclub/bundles/(?P<id>\d+)/purchase', [
+            'methods' => 'POST',
+            'callback' => [$this, 'create_bundle_checkout'],
+            'permission_callback' => [$this, 'check_sponsor_auth'],
+        ]);
+
+        // Draft / confirm workflow
+        register_rest_route('khm/v1', '/portal/quoteclub/commentary/draft', [
+            'methods' => 'POST',
+            'callback' => [$this, 'save_draft'],
+            'permission_callback' => [$this, 'check_sponsor_auth'],
+        ]);
+
+        register_rest_route('khm/v1', '/portal/quoteclub/commentary/(?P<id>\d+)/draft', [
+            'methods' => 'PUT',
+            'callback' => [$this, 'update_draft'],
+            'permission_callback' => [$this, 'check_sponsor_auth'],
+        ]);
+
+        register_rest_route('khm/v1', '/portal/quoteclub/commentary/(?P<id>\d+)/confirm', [
+            'methods' => 'POST',
+            'callback' => [$this, 'confirm_commentary'],
+            'permission_callback' => [$this, 'check_sponsor_auth'],
+        ]);
+
+        // Sponsor's own commentary history
+        register_rest_route('khm/v1', '/portal/quoteclub/my-commentary', [
+            'methods' => 'GET',
+            'callback' => [$this, 'my_commentary'],
+            'permission_callback' => [$this, 'check_sponsor_auth'],
+        ]);
+
+        register_rest_route('khm/v1', '/portal/quoteclub/press-releases', [
+            'methods' => 'GET',
+            'callback' => [$this, 'list_press_releases'],
+            'permission_callback' => [$this, 'check_sponsor_auth'],
+        ]);
+
+        register_rest_route('khm/v1', '/portal/quoteclub/press-releases/draft', [
+            'methods' => 'POST',
+            'callback' => [$this, 'create_press_release_draft'],
+            'permission_callback' => [$this, 'check_sponsor_auth'],
+        ]);
+
+        register_rest_route('khm/v1', '/portal/quoteclub/press-releases/(?P<id>\d+)', [
+            'methods' => 'GET',
+            'callback' => [$this, 'get_press_release'],
+            'permission_callback' => [$this, 'check_sponsor_auth'],
+        ]);
+
+        register_rest_route('khm/v1', '/portal/quoteclub/press-releases/(?P<id>\d+)/draft', [
+            [
+                'methods' => 'PUT',
+                'callback' => [$this, 'update_press_release_draft'],
+                'permission_callback' => [$this, 'check_sponsor_auth'],
+            ],
+            [
+                'methods' => 'DELETE',
+                'callback' => [$this, 'delete_press_release_draft'],
+                'permission_callback' => [$this, 'check_sponsor_auth'],
+            ],
+        ]);
+
+        register_rest_route('khm/v1', '/portal/quoteclub/press-releases/(?P<id>\d+)/submit', [
+            'methods' => 'POST',
+            'callback' => [$this, 'submit_press_release'],
+            'permission_callback' => [$this, 'check_sponsor_auth'],
+        ]);
+
+        register_rest_route('khm/v1', '/portal/quoteclub/press-releases/submitted', [
+            'methods' => 'GET',
+            'callback' => [$this, 'list_submitted_press_releases'],
+            'permission_callback' => [$this, 'check_sponsor_auth'],
+        ]);
+
+        register_rest_route('khm/v1', '/portal/quoteclub/press-releases/(?P<id>\d+)/publish', [
+            'methods' => 'POST',
+            'callback' => [$this, 'publish_press_release'],
+            'permission_callback' => [$this, 'check_editorial_auth'],
+        ]);
+
+        register_rest_route('khm/v1', '/portal/quoteclub/press-releases/(?P<id>\d+)/reject', [
+            'methods' => 'POST',
+            'callback' => [$this, 'reject_press_release'],
+            'permission_callback' => [$this, 'check_editorial_auth'],
+        ]);
+    }
+
+    // -------------------------------------------------------------------------
+    // Credit bundle handlers
+    // -------------------------------------------------------------------------
+
+    /**
+     * GET /portal/quoteclub/bundles
+     * Returns all active credit bundles available for purchase.
+     */
+    public function list_bundles(WP_REST_Request $request): WP_REST_Response {
+        $bundles = $this->bundles->list_bundles(true);
+
+        return new WP_REST_Response([
+            'success' => true,
+            'bundles' => array_values(array_map(function($b) {
+                return [
+                    'id'                    => (int) $b->id,
+                    'name'                  => $b->name,
+                    'description'           => $b->description,
+                    'editorial_credits'     => (int) $b->editorial_credits,
+                    'press_release_credits' => (int) $b->press_release_credits,
+                    'price_cents'           => (int) $b->price_cents,
+                    'price_display'         => '$' . number_format((int) $b->price_cents / 100, 2),
+                ];
+            }, $bundles)),
+        ], 200);
+    }
+
+    /**
+     * POST /portal/quoteclub/bundles/{id}/purchase
+     * Creates a Stripe Checkout session for a credit bundle purchase.
+     * Responds with { checkout_url } for the frontend to redirect to.
+     */
+    public function create_bundle_checkout(WP_REST_Request $request): WP_REST_Response {
+        $bundle_id = (int) $request->get_param('id');
+        $bundle    = $this->bundles->get_bundle($bundle_id);
+
+        if (!$bundle || !$bundle->active) {
+            return new WP_REST_Response(['success' => false, 'error' => 'bundle_not_found'], 404);
+        }
+
+        $secret = function_exists('khm_get_stripe_secret')
+            ? (string) (khm_get_stripe_secret('KH_STRIPE_SECRET_KEY') ?? '')
+            : '';
+
+        if (empty($secret)) {
+            return new WP_REST_Response(['success' => false, 'error' => 'stripe_not_configured'], 500);
+        }
+
+        $user_id = get_current_user_id();
+        $user    = get_user_by('id', $user_id);
+        $email   = $user ? $user->user_email : '';
+
+        if (empty($email)) {
+            return new WP_REST_Response(['success' => false, 'error' => 'user_email_missing'], 400);
+        }
+
+        $sponsor    = SponsorService::get_user_sponsor($user_id);
+        $sponsor_id = isset($sponsor['id']) ? (int) $sponsor['id'] : 0;
+
+        try {
+            \Stripe\Stripe::setApiKey($secret);
+
+            // Use the bundle's Stripe price ID if set; otherwise, build a one-time price inline.
+            if (!empty($bundle->stripe_price_id)) {
+                $line_items = [['price' => $bundle->stripe_price_id, 'quantity' => 1]];
+            } else {
+                $line_items = [[
+                    'price_data' => [
+                        'currency'     => 'usd',
+                        'unit_amount'  => (int) $bundle->price_cents,
+                        'product_data' => ['name' => $bundle->name],
+                    ],
+                    'quantity' => 1,
+                ]];
+            }
+
+            $success_url = apply_filters(
+                'khm_qc_bundle_success_url',
+                home_url('/quote-club/?qc_bundle_success=1'),
+                $bundle_id,
+                $user_id
+            );
+            $cancel_url = apply_filters(
+                'khm_qc_bundle_cancel_url',
+                home_url('/quote-club/'),
+                $bundle_id,
+                $user_id
+            );
+
+            $session = \Stripe\Checkout\Session::create([
+                'mode'           => 'payment',
+                'line_items'     => $line_items,
+                'success_url'    => $success_url,
+                'cancel_url'     => $cancel_url,
+                'customer_email' => $email,
+                'metadata'       => [
+                    'purchase_type' => 'qc_bundle',
+                    'bundle_id'     => (string) $bundle_id,
+                    'user_id'       => (string) $user_id,
+                    'sponsor_id'    => (string) $sponsor_id,
+                ],
+            ]);
+
+            // Record the pending purchase.
+            $this->bundles->record_pending_purchase($user_id, $bundle_id, $session->id, $sponsor_id);
+
+            return new WP_REST_Response([
+                'success'      => true,
+                'checkout_url' => $session->url,
+            ], 200);
+
+        } catch (\Exception $e) {
+            error_log('[KHM QC] Bundle checkout session creation failed: ' . $e->getMessage());
+            return new WP_REST_Response(['success' => false, 'error' => 'stripe_error'], 500);
+        }
     }
 
     public function check_sponsor_auth(): bool {
@@ -317,7 +534,7 @@ class QuoteClubController {
         }
 
         $word_count = function_exists('khm_count_words') ? khm_count_words($text) : max(1, str_word_count(wp_strip_all_tags($text)));
-        $credits_needed = (int) ceil($word_count / 100);
+        $credits_needed = (int) ceil($word_count / 120);
 
         $charged = false;
         if ($is_press_release) {
@@ -348,11 +565,13 @@ class QuoteClubController {
                 'commentary_text' => $text,
                 'word_count' => $word_count,
                 'credits_used' => $credits_used,
+                'is_press_release' => $is_press_release ? 1 : 0,
                 'status' => 'pending_editorial',
+                'submitted_at' => current_time('mysql'),
                 'created_at' => current_time('mysql'),
                 'updated_at' => current_time('mysql'),
             ],
-            ['%d', '%s', '%d', '%s', '%d', '%s', '%d', '%d', '%s', '%s', '%s']
+            ['%d', '%s', '%d', '%s', '%d', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s']
         );
 
         if ($inserted === false) {
@@ -499,16 +718,37 @@ class QuoteClubController {
 
         $already_rejected = (string) ($commentary['status'] ?? '') === 'rejected';
         if (!$already_rejected) {
-            $ok = $this->persist_commentary_status($id, 'rejected');
+            $rejection_reason = sanitize_textarea_field((string) ($request->get_param('rejection_reason') ?: ''));
+
+            global $wpdb;
+            $ok = (bool) $wpdb->update(
+                $wpdb->prefix . 'khm_sponsor_commentary',
+                [
+                    'status'           => 'rejected',
+                    'rejection_reason' => $rejection_reason !== '' ? $rejection_reason : null,
+                    'updated_at'       => current_time('mysql'),
+                ],
+                ['id' => $id],
+                ['%s', '%s', '%s'],
+                ['%d']
+            );
+
             if (!$ok) {
                 return new WP_REST_Response(['success' => false, 'error' => 'update_failed'], 500);
             }
+
+            // Refund the press release credit if applicable.
+            if (!empty($commentary['is_press_release'])) {
+                $this->credits->refundPressReleaseCredit((int) $commentary['user_id']);
+            }
+
+            do_action('khm_quoteclub_commentary_rejected', $id, (int) ($commentary['user_id'] ?? 0), (int) ($commentary['sponsor_id'] ?? 0), $rejection_reason);
         }
 
         return new WP_REST_Response([
-            'success' => true,
-            'id' => $id,
-            'status' => 'rejected',
+            'success'          => true,
+            'id'               => $id,
+            'status'           => 'rejected',
             'already_rejected' => $already_rejected,
         ], 200);
     }
@@ -1042,5 +1282,742 @@ class QuoteClubController {
         $current['count'] = (int) $current['count'] + 1;
         set_transient($key, $current, HOUR_IN_SECONDS);
         return true;
+    }
+
+    // -------------------------------------------------------------------------
+    // Draft / confirm workflow
+    // -------------------------------------------------------------------------
+
+    /**
+     * POST /portal/quoteclub/commentary/draft
+     * Creates a new draft commentary — no credits are consumed yet.
+     * Returns the draft ID and a shareable draft_token.
+     */
+    public function save_draft(WP_REST_Request $request): WP_REST_Response {
+        $user_id = get_current_user_id();
+        $sponsor = SponsorService::get_user_sponsor($user_id);
+        $sponsor_id = (int) ($sponsor['id'] ?? 0);
+
+        $session_id   = sanitize_text_field((string) $request->get_param('session_id'));
+        $question_id  = sanitize_text_field((string) $request->get_param('question_id'));
+        $text         = wp_kses_post((string) $request->get_param('commentary_text'));
+        $post_id      = (int) $request->get_param('post_id');
+
+        if ($text === '') {
+            return new WP_REST_Response(['success' => false, 'error' => 'empty_commentary'], 400);
+        }
+
+        $word_count     = function_exists('khm_count_words') ? khm_count_words($text) : max(1, str_word_count(wp_strip_all_tags($text)));
+        $credits_needed = (int) ceil($word_count / 120);
+        $draft_token    = wp_generate_password(40, false, false);
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_sponsor_commentary';
+
+        $inserted = $wpdb->insert(
+            $table,
+            [
+                'sponsor_id'     => $sponsor_id,
+                'session_id'     => $session_id,
+                'post_id'        => $post_id > 0 ? $post_id : null,
+                'question_id'    => $question_id,
+                'user_id'        => $user_id,
+                'commentary_text'=> $text,
+                'word_count'     => $word_count,
+                'credits_used'   => 0,
+                'status'         => 'draft',
+                'draft_token'    => $draft_token,
+                'created_at'     => current_time('mysql'),
+                'updated_at'     => current_time('mysql'),
+            ],
+            ['%d', '%s', '%d', '%s', '%d', '%s', '%d', '%d', '%s', '%s', '%s', '%s']
+        );
+
+        if ($inserted === false) {
+            return new WP_REST_Response(['success' => false, 'error' => 'db_insert_failed'], 500);
+        }
+
+        $draft_id = (int) $wpdb->insert_id;
+
+        return new WP_REST_Response([
+            'success'        => true,
+            'draft_id'       => $draft_id,
+            'draft_token'    => $draft_token,
+            'word_count'     => $word_count,
+            'credits_needed' => $credits_needed,
+        ], 201);
+    }
+
+    /**
+     * PUT /portal/quoteclub/commentary/{id}/draft
+     * Updates a draft commentary (still no credits consumed).
+     * Only the owning user may update their own draft.
+     */
+    public function update_draft(WP_REST_Request $request): WP_REST_Response {
+        $user_id = get_current_user_id();
+        $id      = (int) $request->get_param('id');
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_sponsor_commentary';
+
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE id = %d AND user_id = %d",
+            $id,
+            $user_id
+        ), ARRAY_A);
+
+        if (!$row) {
+            return new WP_REST_Response(['success' => false, 'error' => 'not_found'], 404);
+        }
+
+        if ((string) $row['status'] !== 'draft') {
+            return new WP_REST_Response(['success' => false, 'error' => 'not_a_draft'], 409);
+        }
+
+        $text       = wp_kses_post((string) $request->get_param('commentary_text'));
+        $question_id = sanitize_text_field((string) ($request->get_param('question_id') ?: $row['question_id']));
+
+        if ($text === '') {
+            return new WP_REST_Response(['success' => false, 'error' => 'empty_commentary'], 400);
+        }
+
+        $word_count     = function_exists('khm_count_words') ? khm_count_words($text) : max(1, str_word_count(wp_strip_all_tags($text)));
+        $credits_needed = (int) ceil($word_count / 120);
+
+        $wpdb->update(
+            $table,
+            [
+                'commentary_text' => $text,
+                'question_id'     => $question_id,
+                'word_count'      => $word_count,
+                'updated_at'      => current_time('mysql'),
+            ],
+            ['id' => $id],
+            ['%s', '%s', '%d', '%s'],
+            ['%d']
+        );
+
+        return new WP_REST_Response([
+            'success'        => true,
+            'id'             => $id,
+            'word_count'     => $word_count,
+            'credits_needed' => $credits_needed,
+        ], 200);
+    }
+
+    /**
+     * POST /portal/quoteclub/commentary/{id}/confirm
+     * Finalises a draft: consumes credits and moves status to pending_editorial.
+     * Idempotent — calling again on an already-submitted commentary returns success.
+     */
+    public function confirm_commentary(WP_REST_Request $request): WP_REST_Response {
+        $user_id        = get_current_user_id();
+        $id             = (int) $request->get_param('id');
+        $is_press_release = (bool) $request->get_param('is_press_release');
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_sponsor_commentary';
+
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE id = %d AND user_id = %d",
+            $id,
+            $user_id
+        ), ARRAY_A);
+
+        if (!$row) {
+            return new WP_REST_Response(['success' => false, 'error' => 'not_found'], 404);
+        }
+
+        // Idempotent — already submitted.
+        if ((string) $row['status'] !== 'draft') {
+            return new WP_REST_Response([
+                'success'        => true,
+                'already_submitted' => true,
+                'status'         => $row['status'],
+                'credits_used'   => (int) $row['credits_used'],
+            ], 200);
+        }
+
+        $rate = $this->check_rate_limit($user_id);
+        if ($rate !== true) {
+            return new WP_REST_Response(['success' => false, 'error' => 'rate_limited'], 429);
+        }
+
+        $word_count     = (int) $row['word_count'];
+        $credits_needed = (int) ceil($word_count / 120);
+
+        $sponsor = SponsorService::get_user_sponsor($user_id);
+        $session_id = (string) $row['session_id'];
+
+        if ($is_press_release) {
+            $charged = $this->consume_press_release_credit($user_id, $session_id);
+            if (!$charged) {
+                return new WP_REST_Response(['success' => false, 'error' => 'insufficient_press_release_credits'], 402);
+            }
+            $credits_used = 1;
+        } else {
+            $charged = $this->consume_editorial_credits($user_id, $credits_needed, $session_id);
+            if (!$charged) {
+                // Return balance info so the JS can show the buy-credits CTA.
+                $balance = $this->get_editorial_balance($user_id);
+                return new WP_REST_Response([
+                    'success'          => false,
+                    'error'            => 'insufficient_editorial_credits',
+                    'credits_needed'   => $credits_needed,
+                    'credits_available'=> $balance,
+                ], 402);
+            }
+            $credits_used = $credits_needed;
+        }
+
+        $updated = $wpdb->update(
+            $table,
+            [
+                'status'          => 'pending_editorial',
+                'credits_used'    => $credits_used,
+                'is_press_release'=> $is_press_release ? 1 : 0,
+                'submitted_at'    => current_time('mysql'),
+                'updated_at'      => current_time('mysql'),
+            ],
+            ['id' => $id],
+            ['%s', '%d', '%d', '%s', '%s'],
+            ['%d']
+        );
+
+        if ($updated === false) {
+            // Credits already consumed — refund on best-effort basis.
+            if ($is_press_release) {
+                $this->credits->refundPressReleaseCredit($user_id);
+            }
+            return new WP_REST_Response(['success' => false, 'error' => 'db_update_failed'], 500);
+        }
+
+        do_action('khm_quoteclub_commentary_submitted', $id, $session_id, $user_id, (int) ($sponsor['id'] ?? 0));
+
+        return new WP_REST_Response([
+            'success'               => true,
+            'id'                    => $id,
+            'status'                => 'pending_editorial',
+            'credits_used'          => $credits_used,
+            'new_editorial_balance' => $this->get_editorial_balance($user_id),
+        ], 200);
+    }
+
+    /**
+     * GET /portal/quoteclub/my-commentary
+     * Returns the logged-in sponsor's commentary history (all statuses).
+     */
+    public function my_commentary(WP_REST_Request $request): WP_REST_Response {
+        global $wpdb;
+
+        $user_id    = get_current_user_id();
+        $sponsor    = SponsorService::get_user_sponsor($user_id);
+        $sponsor_id = (int) ($sponsor['id'] ?? 0);
+        $status     = sanitize_text_field((string) ($request->get_param('status') ?: ''));
+        $page       = max(1, (int) ($request->get_param('page') ?: 1));
+        $per_page   = min(50, max(1, (int) ($request->get_param('per_page') ?: 20)));
+        $offset     = ($page - 1) * $per_page;
+
+        $table = $wpdb->prefix . 'khm_sponsor_commentary';
+
+        if ($status !== '') {
+            $allowed_statuses = ['draft', 'pending_editorial', 'approved', 'rejected', 'published'];
+            if (!in_array($status, $allowed_statuses, true)) {
+                return new WP_REST_Response(['success' => false, 'error' => 'invalid_status'], 400);
+            }
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT id, session_id, question_id, word_count, credits_used, status,
+                        rejection_reason, created_at, submitted_at,
+                        LEFT(commentary_text, 200) AS commentary_excerpt
+                 FROM {$table}
+                 WHERE user_id = %d AND sponsor_id = %d AND status = %s
+                 ORDER BY created_at DESC
+                 LIMIT %d OFFSET %d",
+                $user_id, $sponsor_id, $status, $per_page, $offset
+            ), ARRAY_A);
+            $total = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE user_id = %d AND sponsor_id = %d AND status = %s",
+                $user_id, $sponsor_id, $status
+            ));
+        } else {
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT id, session_id, question_id, word_count, credits_used, status,
+                        rejection_reason, created_at, submitted_at,
+                        LEFT(commentary_text, 200) AS commentary_excerpt
+                 FROM {$table}
+                 WHERE user_id = %d AND sponsor_id = %d
+                 ORDER BY created_at DESC
+                 LIMIT %d OFFSET %d",
+                $user_id, $sponsor_id, $per_page, $offset
+            ), ARRAY_A);
+            $total = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE user_id = %d AND sponsor_id = %d",
+                $user_id, $sponsor_id
+            ));
+        }
+
+        return new WP_REST_Response([
+            'success' => true,
+            'meta'    => [
+                'page'     => $page,
+                'per_page' => $per_page,
+                'total'    => $total,
+            ],
+            'items' => $rows ?: [],
+        ], 200);
+    }
+
+    // -------------------------------------------------------------------------
+    // Press Release handlers
+    // -------------------------------------------------------------------------
+
+    /**
+     * GET /portal/quoteclub/press-releases
+     * Lists all press releases for the current sponsor (paginated).
+     */
+    public function list_press_releases(WP_REST_Request $request): WP_REST_Response {
+        global $wpdb;
+
+        $user_id    = get_current_user_id();
+        $sponsor    = SponsorService::get_user_sponsor($user_id);
+        $sponsor_id = (int) ($sponsor['id'] ?? 0);
+        $status     = sanitize_text_field((string) ($request->get_param('status') ?: ''));
+        $page       = max(1, (int) ($request->get_param('page') ?: 1));
+        $per_page   = min(50, max(1, (int) ($request->get_param('per_page') ?: 20)));
+        $offset     = ($page - 1) * $per_page;
+
+        $table = $wpdb->prefix . 'khm_press_releases';
+
+        if ($status !== '') {
+            $allowed_statuses = ['draft', 'submitted', 'published', 'rejected'];
+            if (!in_array($status, $allowed_statuses, true)) {
+                return new WP_REST_Response(['success' => false, 'error' => 'invalid_status'], 400);
+            }
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT id, title, status, excerpt, rejection_reason, created_at, updated_at,
+                        submission_date, published_date, LEFT(content, 300) AS fallback_excerpt
+                 FROM {$table}
+                 WHERE sponsor_id = %d AND status = %s
+                 ORDER BY created_at DESC
+                 LIMIT %d OFFSET %d",
+                $sponsor_id, $status, $per_page, $offset
+            ), ARRAY_A);
+            $total = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE sponsor_id = %d AND status = %s",
+                $sponsor_id, $status
+            ));
+        } else {
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT id, title, status, excerpt, rejection_reason, created_at, updated_at,
+                        submission_date, published_date, LEFT(content, 300) AS fallback_excerpt
+                 FROM {$table}
+                 WHERE sponsor_id = %d
+                 ORDER BY created_at DESC
+                 LIMIT %d OFFSET %d",
+                $sponsor_id, $per_page, $offset
+            ), ARRAY_A);
+            $total = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE sponsor_id = %d",
+                $sponsor_id
+            ));
+        }
+
+        $rows = array_map(function(array $row): array {
+            if (empty($row['excerpt']) && !empty($row['fallback_excerpt'])) {
+                $row['excerpt'] = $row['fallback_excerpt'];
+            }
+            unset($row['fallback_excerpt']);
+            return $row;
+        }, $rows ?: []);
+
+        return new WP_REST_Response([
+            'success' => true,
+            'meta'    => [
+                'page'     => $page,
+                'per_page' => $per_page,
+                'total'    => $total,
+            ],
+            'items' => $rows,
+        ], 200);
+    }
+
+    /**
+     * POST /portal/quoteclub/press-releases/draft
+     * Creates a new press release draft (no credits consumed yet).
+     */
+    public function create_press_release_draft(WP_REST_Request $request): WP_REST_Response {
+        $user_id = get_current_user_id();
+        $sponsor = SponsorService::get_user_sponsor($user_id);
+        $sponsor_id = (int) ($sponsor['id'] ?? 0);
+
+        $title   = sanitize_text_field((string) $request->get_param('title'));
+        $content = wp_kses_post((string) $request->get_param('content'));
+
+        if ($title === '' || $content === '') {
+            return new WP_REST_Response(['success' => false, 'error' => 'missing_required_fields'], 400);
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_press_releases';
+
+        $excerpt = wp_trim_words(wp_strip_all_tags($content), 30, '...');
+
+        $inserted = $wpdb->insert(
+            $table,
+            [
+                'sponsor_id'  => $sponsor_id,
+                'user_id'     => $user_id,
+                'title'       => $title,
+                'content'     => $content,
+                'excerpt'     => $excerpt,
+                'status'      => 'draft',
+                'created_at'  => current_time('mysql'),
+                'updated_at'  => current_time('mysql'),
+            ],
+            ['%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s']
+        );
+
+        if ($inserted === false) {
+            return new WP_REST_Response(['success' => false, 'error' => 'db_insert_failed'], 500);
+        }
+
+        $draft_id = (int) $wpdb->insert_id;
+
+        return new WP_REST_Response([
+            'success' => true,
+            'draft_id' => $draft_id,
+            'title' => $title,
+            'excerpt' => $excerpt,
+        ], 201);
+    }
+
+    /**
+     * GET /portal/quoteclub/press-releases/{id}
+     * Retrieves a single press release by ID.
+     */
+    public function get_press_release(WP_REST_Request $request): WP_REST_Response {
+        global $wpdb;
+
+        $user_id = get_current_user_id();
+        $sponsor = SponsorService::get_user_sponsor($user_id);
+        $sponsor_id = (int) ($sponsor['id'] ?? 0);
+        $id = (int) $request->get_param('id');
+
+        $table = $wpdb->prefix . 'khm_press_releases';
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE id = %d AND sponsor_id = %d",
+            $id,
+            $sponsor_id
+        ), ARRAY_A);
+
+        if (!$row) {
+            return new WP_REST_Response(['success' => false, 'error' => 'not_found'], 404);
+        }
+
+        return new WP_REST_Response([
+            'success' => true,
+            'press_release' => $row,
+        ], 200);
+    }
+
+    /**
+     * PUT /portal/quoteclub/press-releases/{id}/draft
+     * Updates a press release draft (no credits consumed yet).
+     */
+    public function update_press_release_draft(WP_REST_Request $request): WP_REST_Response {
+        $user_id = get_current_user_id();
+        $id = (int) $request->get_param('id');
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_press_releases';
+
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE id = %d AND user_id = %d",
+            $id,
+            $user_id
+        ), ARRAY_A);
+
+        if (!$row) {
+            return new WP_REST_Response(['success' => false, 'error' => 'not_found'], 404);
+        }
+
+        if ((string) $row['status'] !== 'draft') {
+            return new WP_REST_Response(['success' => false, 'error' => 'not_a_draft'], 409);
+        }
+
+        $title   = sanitize_text_field((string) ($request->get_param('title') ?: $row['title']));
+        $content = wp_kses_post((string) ($request->get_param('content') ?: $row['content']));
+
+        if ($title === '' || $content === '') {
+            return new WP_REST_Response(['success' => false, 'error' => 'missing_required_fields'], 400);
+        }
+
+        $excerpt = wp_trim_words(wp_strip_all_tags($content), 30, '...');
+
+        $updated = $wpdb->update(
+            $table,
+            [
+                'title'      => $title,
+                'content'    => $content,
+                'excerpt'    => $excerpt,
+                'updated_at' => current_time('mysql'),
+            ],
+            ['id' => $id],
+            ['%s', '%s', '%s', '%s'],
+            ['%d']
+        );
+
+        if ($updated === false) {
+            return new WP_REST_Response(['success' => false, 'error' => 'update_failed'], 500);
+        }
+
+        return new WP_REST_Response([
+            'success' => true,
+            'id' => $id,
+            'title' => $title,
+            'excerpt' => $excerpt,
+        ], 200);
+    }
+
+    /**
+     * DELETE /portal/quoteclub/press-releases/{id}/draft
+     * Deletes a draft press release only if still in draft status.
+     */
+    public function delete_press_release_draft(WP_REST_Request $request): WP_REST_Response {
+        $user_id = get_current_user_id();
+        $id = (int) $request->get_param('id');
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_press_releases';
+
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE id = %d AND user_id = %d",
+            $id,
+            $user_id
+        ), ARRAY_A);
+
+        if (!$row) {
+            return new WP_REST_Response(['success' => false, 'error' => 'not_found'], 404);
+        }
+
+        if ((string) $row['status'] !== 'draft') {
+            return new WP_REST_Response(['success' => false, 'error' => 'cannot_delete_non_draft'], 409);
+        }
+
+        $deleted = $wpdb->delete($table, ['id' => $id], ['%d']);
+        if ($deleted === false) {
+            return new WP_REST_Response(['success' => false, 'error' => 'delete_failed'], 500);
+        }
+
+        return new WP_REST_Response(['success' => true], 200);
+    }
+
+    /**
+     * POST /portal/quoteclub/press-releases/{id}/submit
+     * Submits a draft press release for editorial review (consumes 1 credit).
+     */
+    public function submit_press_release(WP_REST_Request $request): WP_REST_Response {
+        $user_id = get_current_user_id();
+        $sponsor = SponsorService::get_user_sponsor($user_id);
+        $sponsor_id = (int) ($sponsor['id'] ?? 0);
+        $id = (int) $request->get_param('id');
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_press_releases';
+
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE id = %d AND user_id = %d",
+            $id,
+            $user_id
+        ), ARRAY_A);
+
+        if (!$row) {
+            return new WP_REST_Response(['success' => false, 'error' => 'not_found'], 404);
+        }
+
+        if ((string) $row['status'] !== 'draft') {
+            return new WP_REST_Response(['success' => false, 'error' => 'invalid_status'], 409);
+        }
+
+        // Charge 1 press release credit
+        $charged = $this->consume_press_release_credit($user_id, 'press_release_' . $id);
+        if (!$charged) {
+            return new WP_REST_Response(['success' => false, 'error' => 'insufficient_press_release_credits'], 402);
+        }
+
+        $updated = $wpdb->update(
+            $table,
+            [
+                'status'          => 'submitted',
+                'submission_date' => current_time('mysql'),
+                'updated_at'      => current_time('mysql'),
+            ],
+            ['id' => $id],
+            ['%s', '%s', '%s'],
+            ['%d']
+        );
+
+        if ($updated === false) {
+            // Refund the credit on failure
+            $this->credits->refundPressReleaseCredit($user_id);
+            return new WP_REST_Response(['success' => false, 'error' => 'update_failed'], 500);
+        }
+
+        do_action('khm_press_release_submitted', $id, $sponsor_id, $user_id);
+
+        return new WP_REST_Response([
+            'success' => true,
+            'id' => $id,
+            'status' => 'submitted',
+            'credits_remaining' => $this->credits->getPressReleaseCredits($user_id),
+        ], 200);
+    }
+
+    /**
+     * GET /portal/quoteclub/press-releases/submitted
+     * Lists all submitted press releases for the current sponsor.
+     */
+    public function list_submitted_press_releases(WP_REST_Request $request): WP_REST_Response {
+        global $wpdb;
+
+        $user_id    = get_current_user_id();
+        $sponsor    = SponsorService::get_user_sponsor($user_id);
+        $sponsor_id = (int) ($sponsor['id'] ?? 0);
+        $page       = max(1, (int) ($request->get_param('page') ?: 1));
+        $per_page   = min(50, max(1, (int) ($request->get_param('per_page') ?: 20)));
+        $offset     = ($page - 1) * $per_page;
+
+        $table = $wpdb->prefix . 'khm_press_releases';
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT id, title, status, created_at, submission_date, published_date, rejection_reason,
+                    LEFT(content, 300) AS excerpt
+             FROM {$table}
+             WHERE sponsor_id = %d AND status IN ('submitted', 'published', 'rejected')
+             ORDER BY submission_date DESC
+             LIMIT %d OFFSET %d",
+            $sponsor_id, $per_page, $offset
+        ), ARRAY_A);
+        $total = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE sponsor_id = %d AND status IN ('submitted', 'published', 'rejected')",
+            $sponsor_id
+        ));
+
+        return new WP_REST_Response([
+            'success' => true,
+            'meta'    => [
+                'page'     => $page,
+                'per_page' => $per_page,
+                'total'    => $total,
+            ],
+            'items' => $rows ?: [],
+        ], 200);
+    }
+
+    /**
+     * POST /portal/quoteclub/press-releases/{id}/publish
+     * Publishes a submitted press release (editorial-only action).
+     */
+    public function publish_press_release(WP_REST_Request $request): WP_REST_Response {
+        if (!$this->check_editorial_auth()) {
+            return new WP_REST_Response(['success' => false, 'error' => 'forbidden'], 403);
+        }
+
+        $id = (int) $request->get_param('id');
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_press_releases';
+
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE id = %d",
+            $id
+        ), ARRAY_A);
+
+        if (!$row) {
+            return new WP_REST_Response(['success' => false, 'error' => 'not_found'], 404);
+        }
+
+        if ((string) $row['status'] !== 'submitted') {
+            return new WP_REST_Response(['success' => false, 'error' => 'invalid_status'], 409);
+        }
+
+        $updated = $wpdb->update(
+            $table,
+            [
+                'status'         => 'published',
+                'published_date' => current_time('mysql'),
+                'updated_at'     => current_time('mysql'),
+            ],
+            ['id' => $id],
+            ['%s', '%s', '%s'],
+            ['%d']
+        );
+
+        if ($updated === false) {
+            return new WP_REST_Response(['success' => false, 'error' => 'update_failed'], 500);
+        }
+
+        do_action('khm_press_release_published', $id, (int) $row['sponsor_id'], (int) $row['user_id']);
+
+        return new WP_REST_Response([
+            'success' => true,
+            'id' => $id,
+            'status' => 'published',
+        ], 200);
+    }
+
+    /**
+     * POST /portal/quoteclub/press-releases/{id}/reject
+     * Rejects a submitted press release and refunds the credit (editorial-only action).
+     */
+    public function reject_press_release(WP_REST_Request $request): WP_REST_Response {
+        if (!$this->check_editorial_auth()) {
+            return new WP_REST_Response(['success' => false, 'error' => 'forbidden'], 403);
+        }
+
+        $id = (int) $request->get_param('id');
+        $reason = sanitize_textarea_field((string) ($request->get_param('reason') ?: ''));
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_press_releases';
+
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE id = %d",
+            $id
+        ), ARRAY_A);
+
+        if (!$row) {
+            return new WP_REST_Response(['success' => false, 'error' => 'not_found'], 404);
+        }
+
+        if ((string) $row['status'] !== 'submitted') {
+            return new WP_REST_Response(['success' => false, 'error' => 'invalid_status'], 409);
+        }
+
+        $updated = $wpdb->update(
+            $table,
+            [
+                'status'        => 'rejected',
+                'rejection_reason' => $reason,
+                'updated_at'    => current_time('mysql'),
+            ],
+            ['id' => $id],
+            ['%s', '%s', '%s'],
+            ['%d']
+        );
+
+        if ($updated === false) {
+            return new WP_REST_Response(['success' => false, 'error' => 'update_failed'], 500);
+        }
+
+        // Refund the press release credit to the submitting user
+        $this->credits->refundPressReleaseCredit((int) $row['user_id']);
+
+        do_action('khm_press_release_rejected', $id, (int) $row['sponsor_id'], (int) $row['user_id'], $reason);
+
+        return new WP_REST_Response([
+            'success' => true,
+            'id' => $id,
+            'status' => 'rejected',
+        ], 200);
     }
 }

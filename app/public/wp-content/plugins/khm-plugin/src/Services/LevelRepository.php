@@ -358,6 +358,7 @@ class LevelRepository {
         if ( $withMeta ) {
             $level->meta = $this->getAllMeta((int) $level->id);
             $level->monthly_credits = (int) ($level->meta['monthly_credits'] ?? 0);
+            $level->qc_editorial_credits_monthly = (int) ($level->meta['qc_editorial_credits_monthly'] ?? 0);
         }
 
         return $level;

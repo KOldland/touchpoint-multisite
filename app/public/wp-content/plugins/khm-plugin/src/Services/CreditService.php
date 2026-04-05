@@ -614,6 +614,271 @@ class CreditService {
         ));
     }
 
+    // -------------------------------------------------------------------------
+    // Quote Club editorial & press-release credit methods
+    // These operate on the extra columns added by AddEditorialCredits migration:
+    // editorial_allocated_credits, editorial_bonus_credits, editorial_allocation_month,
+    // press_release_credits, press_release_credits_used
+    // -------------------------------------------------------------------------
+
+    /**
+     * Get user's current editorial credit balance (Quote Club).
+     * Auto-allocates this month's quota if not yet done.
+     */
+    public function getEditorialCredits(int $user_id): int {
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_user_credits';
+        $current_month = date('Y-m');
+
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT editorial_allocated_credits, editorial_bonus_credits, editorial_allocation_month
+             FROM {$table} WHERE user_id = %d AND allocation_month = %s LIMIT 1",
+            $user_id, $current_month
+        ));
+
+        if (!$row || $row->editorial_allocation_month !== $current_month) {
+            if ($this->allocateMonthlyEditorialCredits($user_id)) {
+                $row = $wpdb->get_row($wpdb->prepare(
+                    "SELECT editorial_allocated_credits, editorial_bonus_credits
+                     FROM {$table} WHERE user_id = %d AND allocation_month = %s LIMIT 1",
+                    $user_id, $current_month
+                ));
+            }
+        }
+
+        if (!$row) {
+            return 0;
+        }
+
+        return max(0, (int) $row->editorial_allocated_credits + (int) $row->editorial_bonus_credits);
+    }
+
+    /**
+     * Allocate monthly editorial credits for a user based on their Quote Club tier.
+     * Reads quota from level meta key 'qc_editorial_credits_monthly'.
+     */
+    public function allocateMonthlyEditorialCredits(int $user_id): bool {
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_user_credits';
+        $current_month = date('Y-m');
+
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, editorial_allocation_month FROM {$table}
+             WHERE user_id = %d AND allocation_month = %s LIMIT 1",
+            $user_id, $current_month
+        ));
+
+        if ($existing && $existing->editorial_allocation_month === $current_month) {
+            return true;
+        }
+
+        $membership = $this->memberships->findActive($user_id);
+        if (empty($membership)) {
+            return false;
+        }
+
+        $level_id = (int) $membership[0]->membership_id;
+        $quota = (int) $this->levels->getMeta($level_id, 'qc_editorial_credits_monthly', 0);
+        $quota = (int) apply_filters('khm_editorial_credits_monthly_quota', $quota, $user_id);
+
+        if ($existing) {
+            $wpdb->update(
+                $table,
+                [
+                    'editorial_allocated_credits' => $quota,
+                    'editorial_allocation_month'  => $current_month,
+                    'updated_at'                  => current_time('mysql'),
+                ],
+                ['id' => (int) $existing->id],
+                ['%d', '%s', '%s'],
+                ['%d']
+            );
+        } else {
+            $wpdb->insert(
+                $table,
+                [
+                    'user_id'                     => $user_id,
+                    'membership_level_id'         => $level_id,
+                    'allocation_month'            => $current_month,
+                    'allocated_credits'           => 0,
+                    'current_balance'             => 0,
+                    'total_used'                  => 0,
+                    'bonus_credits'               => 0,
+                    'editorial_allocated_credits' => $quota,
+                    'editorial_bonus_credits'     => 0,
+                    'editorial_allocation_month'  => $current_month,
+                    'press_release_credits'       => 1,
+                    'press_release_credits_used'  => 0,
+                    'credit_period_start'         => current_time('mysql'),
+                    'created_at'                  => current_time('mysql'),
+                    'updated_at'                  => current_time('mysql'),
+                ],
+                ['%d', '%d', '%s', '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%d', '%d', '%s', '%s', '%s']
+            );
+        }
+
+        do_action('khm_editorial_credits_allocated', $user_id, $quota, $current_month);
+        return true;
+    }
+
+    /**
+     * Consume editorial credits for a Quote Club commentary submission.
+     * Deducts from editorial_allocated_credits first, then editorial_bonus_credits.
+     */
+    public function useEditorialCredits(int $user_id, int $amount, string $purpose = 'quote_club_commentary', ?int $object_id = null): bool {
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_user_credits';
+        $current_month = date('Y-m');
+
+        if ($this->getEditorialCredits($user_id) < $amount) {
+            return false;
+        }
+
+        $wpdb->query('START TRANSACTION');
+        try {
+            $row = $wpdb->get_row($wpdb->prepare(
+                "SELECT id, editorial_allocated_credits, editorial_bonus_credits
+                 FROM {$table} WHERE user_id = %d AND allocation_month = %s LIMIT 1 FOR UPDATE",
+                $user_id, $current_month
+            ));
+
+            if (!$row || ((int) $row->editorial_allocated_credits + (int) $row->editorial_bonus_credits) < $amount) {
+                $wpdb->query('ROLLBACK');
+                return false;
+            }
+
+            $deduct_alloc = min($amount, (int) $row->editorial_allocated_credits);
+            $deduct_bonus = $amount - $deduct_alloc;
+
+            $updated = $wpdb->query($wpdb->prepare(
+                "UPDATE {$table}
+                 SET editorial_allocated_credits = editorial_allocated_credits - %d,
+                     editorial_bonus_credits     = editorial_bonus_credits - %d,
+                     updated_at                  = %s
+                 WHERE id = %d",
+                $deduct_alloc,
+                $deduct_bonus,
+                current_time('mysql'),
+                (int) $row->id
+            ));
+
+            if ($updated === false) {
+                throw new \Exception('Failed to deduct editorial credits');
+            }
+
+            $wpdb->query('COMMIT');
+            do_action('khm_editorial_credits_used', $user_id, $amount, $purpose, $object_id);
+            return true;
+
+        } catch (\Exception $e) {
+            $wpdb->query('ROLLBACK');
+            error_log('[KHM QC] Editorial credit deduction failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Add bonus editorial credits to a user (e.g. admin grant, bundle purchase).
+     */
+    public function addEditorialBonusCredits(int $user_id, int $amount, string $reason = 'manual'): bool {
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_user_credits';
+        $current_month = date('Y-m');
+
+        $this->allocateMonthlyEditorialCredits($user_id);
+
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$table}
+             SET editorial_bonus_credits = editorial_bonus_credits + %d,
+                 updated_at              = %s
+             WHERE user_id = %d AND allocation_month = %s",
+            $amount,
+            current_time('mysql'),
+            $user_id,
+            $current_month
+        ));
+
+        if ($updated !== false) {
+            do_action('khm_editorial_bonus_credits_added', $user_id, $amount, $reason);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Get user's remaining press release credits.
+     */
+    public function getPressReleaseCredits(int $user_id): int {
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_user_credits';
+        $current_month = date('Y-m');
+
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT press_release_credits, press_release_credits_used
+             FROM {$table} WHERE user_id = %d AND allocation_month = %s LIMIT 1",
+            $user_id, $current_month
+        ));
+
+        if (!$row) {
+            return 0;
+        }
+
+        return max(0, (int) $row->press_release_credits - (int) $row->press_release_credits_used);
+    }
+
+    /**
+     * Consume one press release credit.
+     */
+    public function usePressReleaseCredit(int $user_id): bool {
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_user_credits';
+        $current_month = date('Y-m');
+
+        if ($this->getPressReleaseCredits($user_id) < 1) {
+            return false;
+        }
+
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$table}
+             SET press_release_credits_used = press_release_credits_used + 1,
+                 updated_at                 = %s
+             WHERE user_id = %d AND allocation_month = %s
+               AND (press_release_credits - press_release_credits_used) >= 1",
+            current_time('mysql'),
+            $user_id,
+            $current_month
+        ));
+
+        if ($updated) {
+            do_action('khm_press_release_credit_used', $user_id);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Refund one press release credit (e.g. editorial rejection).
+     */
+    public function refundPressReleaseCredit(int $user_id): bool {
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_user_credits';
+        $current_month = date('Y-m');
+
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$table}
+             SET press_release_credits_used = GREATEST(0, press_release_credits_used - 1),
+                 updated_at                 = %s
+             WHERE user_id = %d AND allocation_month = %s",
+            current_time('mysql'),
+            $user_id,
+            $current_month
+        ));
+
+        return $updated !== false;
+    }
+
     /**
      * Get days remaining until credits expire for a free account user.
      *
