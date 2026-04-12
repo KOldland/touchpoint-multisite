@@ -147,10 +147,6 @@ class SchemaAdminManager {
      */
     public function add_schema_meta_boxes() {
         foreach ( $this->supported_post_types as $post_type ) {
-            // Posts run in automatic schema mode; no editor panel needed.
-            if ( 'post' === $post_type ) {
-                continue;
-            }
             \add_meta_box(
                 'khm-seo-schema',
                 __( 'Schema Markup', 'khm-seo' ),
@@ -173,11 +169,7 @@ class SchemaAdminManager {
         
         // Get current schema settings
         $current_schema = \get_post_meta( $post->ID, '_khm_seo_schema_config', true );
-        $force_article_schema = ( 'post' === $post->post_type );
         $current_type = $current_schema['type'] ?? $this->get_default_schema_type( $post );
-        if ( $force_article_schema ) {
-            $current_type = 'article';
-        }
         $custom_fields = $current_schema['custom_fields'] ?? array();
         
         include dirname( __FILE__ ) . '/templates/meta-box-schema.php';
@@ -206,27 +198,16 @@ class SchemaAdminManager {
         // Process schema configuration
         $schema_config = array();
         
-        $post = \get_post( $post_id );
-        $is_article_post = $post && 'post' === $post->post_type;
-
-        // Schema type (posts are always Article schema).
-        if ( $is_article_post ) {
-            $schema_config['type'] = 'article';
-        } elseif ( isset( $_POST['khm_seo_schema_type'] ) ) {
+        // Schema type
+        if ( isset( $_POST['khm_seo_schema_type'] ) ) {
             $schema_config['type'] = \sanitize_text_field( $_POST['khm_seo_schema_type'] );
         }
         
-        // Enable/disable schema (posts are always enabled).
-        if ( $is_article_post ) {
-            $schema_config['enabled'] = true;
-        } else {
-            $schema_config['enabled'] = isset( $_POST['khm_seo_schema_enabled'] ) ? true : false;
-        }
+        // Enable/disable schema
+        $schema_config['enabled'] = isset( $_POST['khm_seo_schema_enabled'] ) ? true : false;
         
         // Custom fields
-        if ( $is_article_post ) {
-            $schema_config['custom_fields'] = array();
-        } elseif ( isset( $_POST['khm_seo_schema_fields'] ) && is_array( $_POST['khm_seo_schema_fields'] ) ) {
+        if ( isset( $_POST['khm_seo_schema_fields'] ) && is_array( $_POST['khm_seo_schema_fields'] ) ) {
             $schema_config['custom_fields'] = array();
             
             foreach ( $_POST['khm_seo_schema_fields'] as $field_name => $field_value ) {
@@ -235,13 +216,7 @@ class SchemaAdminManager {
         }
         
         // Advanced options
-        if ( $is_article_post ) {
-            $schema_config['options'] = array(
-                'auto_generate' => '1',
-                'include_breadcrumbs' => '1',
-                'validate_output' => '1',
-            );
-        } elseif ( isset( $_POST['khm_seo_schema_options'] ) && is_array( $_POST['khm_seo_schema_options'] ) ) {
+        if ( isset( $_POST['khm_seo_schema_options'] ) && is_array( $_POST['khm_seo_schema_options'] ) ) {
             $schema_config['options'] = array();
             
             foreach ( $_POST['khm_seo_schema_options'] as $option_key => $option_value ) {

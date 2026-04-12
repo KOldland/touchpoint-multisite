@@ -149,11 +149,7 @@ class RestController {
         }
 
         if ( ! $this->flags->is_enabled( 'smma' ) ) {
-            return new WP_Error(
-                'kh_smma_disabled',
-                __( 'Social Campaigns is currently unavailable. Please ask an administrator to enable it in KH Social settings.', 'kh-smma' ),
-                array( 'status' => 403 )
-            );
+            return new WP_Error( 'kh_smma_disabled', __( 'SMMA feature is disabled by feature flag.', 'kh-smma' ), array( 'status' => 403 ) );
         }
 
         $nonce = $request->get_header( 'X-WP-Nonce' );
@@ -208,77 +204,13 @@ class RestController {
             $phase_tag = 'Attention';
         }
 
-        $post_id = (int) $payload['post_id'];
-        $standard_mode = true;
-        $post_title = trim( wp_strip_all_tags( (string) get_the_title( $post_id ) ) );
-        $post_excerpt = trim( wp_strip_all_tags( (string) get_the_excerpt( $post_id ) ) );
-        $seo_title = trim( (string) get_post_meta( $post_id, '_khm_seo_title', true ) );
-        $seo_description = trim( (string) get_post_meta( $post_id, '_khm_seo_description', true ) );
-        if ( '' === $seo_description ) {
-            // Backward compatibility for older installs that used a legacy key.
-            $seo_description = trim( (string) get_post_meta( $post_id, '_khm_seo_meta_description', true ) );
-        }
-        $canonical_url = $payload['canonical_url'] ?? '';
-        if ( empty( $canonical_url ) ) {
-            $canonical_url = (string) get_permalink( $post_id );
-        }
-
-        $lead_category = '';
-        $additional_categories = array();
-        $terms = get_the_category( $post_id );
-        if ( is_array( $terms ) && ! empty( $terms ) ) {
-            $lead_category = (string) ( $terms[0]->name ?? '' );
-            foreach ( $terms as $term_index => $term ) {
-                if ( 0 === $term_index ) {
-                    continue;
-                }
-                $name = (string) ( $term->name ?? '' );
-                if ( '' !== $name ) {
-                    $additional_categories[] = $name;
-                }
-                if ( count( $additional_categories ) >= 2 ) {
-                    break;
-                }
-            }
-        }
-
-        $lead_category_override = sanitize_text_field( (string) ( $payload['lead_category'] ?? '' ) );
-        if ( '' !== $lead_category_override ) {
-            $lead_category = $lead_category_override;
-        }
-
-        $additional_override = $payload['additional_categories'] ?? array();
-        if ( is_array( $additional_override ) ) {
-            $sanitized_additional = array();
-            foreach ( $additional_override as $entry ) {
-                $name = sanitize_text_field( (string) $entry );
-                if ( '' === $name ) {
-                    continue;
-                }
-                if ( '' !== $lead_category && 0 === strcasecmp( $lead_category, $name ) ) {
-                    continue;
-                }
-                if ( in_array( strtolower( $name ), array_map( 'strtolower', $sanitized_additional ), true ) ) {
-                    continue;
-                }
-                $sanitized_additional[] = $name;
-                if ( count( $sanitized_additional ) >= 2 ) {
-                    break;
-                }
-            }
-            if ( ! empty( $sanitized_additional ) ) {
-                $additional_categories = $sanitized_additional;
-            }
-        }
-
         // Log generation request
         $prompt_hash = hash( 'sha256', wp_json_encode( array(
-            'post_id'   => $post_id,
+            'post_id'   => (int) $payload['post_id'],
             'phase_tag' => $phase_tag,
             'tone'      => $payload['tone'] ?? 'Authority',
             'blocks_summary' => (string) ( $payload['blocks_summary'] ?? '' ),
             'geo_targets' => $payload['geo_targets'] ?? array(),
-            'standard_mode' => $standard_mode,
         ) ) );
         $request_id = sanitize_text_field( $request->get_header( 'X-Request-Id' ) ?: ( 'req_' . wp_generate_uuid4() ) );
 
@@ -290,24 +222,23 @@ class RestController {
         $start = microtime( true );
 
         $this->logger->log_generate_request(
-            $post_id,
+            (int) $payload['post_id'],
             get_current_user_id(),
             $prompt_hash,
             array(
                 'request_id'          => $request_id,
-                'num_variants'        => 1,
+                'num_variants'        => $payload['num_variants'] ?? 1,
                 'tone'                => $payload['tone'] ?? 'Authority',
                 'geo_targets'         => $payload['geo_targets'] ?? array(),
-                'generate_google_ads' => true,
-                'standard_mode'       => $standard_mode,
+                'generate_google_ads' => $payload['generate_google_ads'] ?? true,
             )
         );
 
         $result = $this->generator->generate( array(
-            'post_id'             => $post_id,
+            'post_id'             => (int) $payload['post_id'],
             'blocks_json'         => $payload['blocks_json'] ?? array(),
             'phase_tag'           => $phase_tag,
-            'num_variants'        => 1,
+            'num_variants'        => $payload['num_variants'] ?? 1,
             'series'              => (bool) ( $payload['series'] ?? false ),
             'tone'                => $payload['tone'] ?? 'Authority',
             'geo_targets'         => $payload['geo_targets'] ?? array(),
@@ -318,18 +249,12 @@ class RestController {
             'audience_presets'    => $payload['audience_presets'] ?? array(),
             'phase_context'       => $phase_context,
             'user_id'             => (int) ( $payload['user_id'] ?? get_current_user_id() ),
-            'generate_google_ads' => true,
-            'num_ad_groups'       => 1,
-            'title'               => '' !== $post_title ? $post_title : ( $payload['title'] ?? '' ),
-            'excerpt'             => $post_excerpt,
-            'seo_title'           => $seo_title,
-            'seo_description'     => $seo_description,
-            'lead_category'       => $lead_category,
-            'additional_categories' => $additional_categories,
-            'canonical_url'       => $canonical_url,
+            'generate_google_ads' => $payload['generate_google_ads'] ?? true,
+            'num_ad_groups'       => $payload['num_ad_groups'] ?? 2,
+            'title'               => $payload['title'] ?? '',
+            'canonical_url'       => $payload['canonical_url'] ?? '',
             'blocks_summary'      => $payload['blocks_summary'] ?? '',
-            'strict_llm_json'     => false,
-            'standard_mode'       => $standard_mode,
+            'strict_llm_json'     => true,
         ) );
         if ( is_wp_error( $result ) ) {
             $error_code = method_exists( $result, 'get_error_code' ) ? $result->get_error_code() : 'SMMA_ERR_INVALID_LLM';
@@ -455,13 +380,6 @@ class RestController {
         foreach ( $parsed_generated['variants'] as $variant ) {
             $variant_id = (string) ( $variant['variant_id'] ?? ( 'var_' . wp_generate_uuid4() ) );
             $compliance_meta = $this->compliance_service->evaluate_variant( $variant_id, (string) ( $variant['text'] ?? '' ) );
-            if ( $standard_mode ) {
-                $status = strtoupper( (string) ( $compliance_meta['compliance_status'] ?? 'OK' ) );
-                if ( 'WARN' === $status ) {
-                    $compliance_meta['compliance_status'] = 'OK';
-                    $compliance_meta['compliance_reason'] = '';
-                }
-            }
             $linked_in = array(
                 'variant_id' => $variant_id,
                 'text' => (string) ( $variant['text'] ?? '' ),
@@ -602,49 +520,18 @@ class RestController {
 
         $variant = $this->card1_store->get_variant( $variant_id );
         if ( empty( $variant ) ) {
-            $snapshot = $payload['variant_snapshot'] ?? array();
-            if ( is_array( $snapshot ) && ! empty( $snapshot['linkedIn'] ) && is_array( $snapshot['linkedIn'] ) ) {
-                $linked_in = (array) $snapshot['linkedIn'];
-                $linked_in['variant_id'] = $variant_id;
-                $google = ( isset( $snapshot['google'] ) && is_array( $snapshot['google'] ) ) ? $snapshot['google'] : array();
-                $this->card1_store->upsert_variant( 'rehydrate_' . wp_generate_uuid4(), $linked_in, $google );
-                $variant = $this->card1_store->get_variant( $variant_id );
-            }
+            return new WP_Error( 'SMMA_ERR_SCHEMA_INVALID', 'variant_id does not exist.', array( 'status' => 400 ) );
         }
-        if ( empty( $variant ) ) {
-            return new WP_Error( 'SMMA_ERR_SCHEMA_INVALID', 'This variant is no longer available. Please regenerate variants and try again.', array( 'status' => 400 ) );
+        $sponsor_id = (string) ( $payload['sponsor_id'] ?? '' );
+        if ( '' === $sponsor_id ) {
+            return new WP_Error( 'SMMA_ERR_SCHEMA_INVALID', 'sponsor_id is required.', array( 'status' => 400 ) );
         }
-        $campaign_type = sanitize_key( (string) ( $payload['campaign_type'] ?? 'organic_social' ) );
-        if ( ! in_array( $campaign_type, array( 'organic_social', 'linkedin_boost', 'google_ads' ), true ) ) {
-            $campaign_type = 'organic_social';
-        }
-
-        $is_paid_campaign = in_array( $campaign_type, array( 'linkedin_boost', 'google_ads' ), true );
-        $sponsor_id = sanitize_text_field( (string) ( $payload['sponsor_id'] ?? '' ) );
-        if ( 'linkedin_boost' === $campaign_type && '' === $sponsor_id ) {
-            return new WP_Error( 'SMMA_ERR_SCHEMA_INVALID', 'sponsor_id is required for linkedin_boost.', array( 'status' => 400 ) );
-        }
-        if ( '' !== $sponsor_id && function_exists( 'kh_ad_manager_get_sponsor_meta' ) ) {
+        if ( function_exists( 'kh_ad_manager_get_sponsor_meta' ) ) {
             $sponsor_meta = kh_ad_manager_get_sponsor_meta( (int) $sponsor_id );
             if ( empty( $sponsor_meta ) ) {
                 return new WP_Error( 'SMMA_ERR_SCHEMA_INVALID', 'Unknown sponsor_id.', array( 'status' => 400 ) );
             }
         }
-
-        $channels = (array) ( $payload['boost_options']['channels'] ?? array() );
-        $primary_channel = sanitize_text_field( (string) ( $channels[0] ?? 'linkedin' ) );
-        if ( 'linkedin_boost' === $campaign_type ) {
-            $primary_channel = 'linkedin';
-        } elseif ( 'google_ads' === $campaign_type ) {
-            $primary_channel = 'google';
-        }
-
-        $budget_cents = (int) ( $payload['boost_options']['budget_cents'] ?? 0 );
-        if ( ! $is_paid_campaign ) {
-            $budget_cents = 0;
-        }
-
-        $duration_days = max( 1, (int) ( $payload['boost_options']['duration_days'] ?? 1 ) );
 
         $gate = $this->schedule_controller->enforce_compliance_gate( $request );
         if ( is_wp_error( $gate ) ) {
@@ -687,23 +574,22 @@ class RestController {
             'operations' => array(
                 array(
                     'operation_id' => 'op_' . wp_generate_uuid4(),
-                    'type' => $is_paid_campaign ? 'CREATE_AD' : 'PUBLISH_POST',
-                    'channel' => $primary_channel,
+                    'type' => 'CREATE_AD',
+                    'channel' => sanitize_text_field( $payload['boost_options']['channels'][0] ?? 'linkedin' ),
                     'creative' => array(
-                        'headline' => mb_substr( (string) ( $variant['linkedIn']['text'] ?? 'Social post' ), 0, 30 ),
+                        'headline' => mb_substr( (string) ( $variant['linkedIn']['text'] ?? 'Boost campaign' ), 0, 30 ),
                         'body' => (string) ( $variant['linkedIn']['text'] ?? '' ),
                     ),
                     'bid' => array(
                         'type' => 'CPM',
-                        'amount' => (float) ( $budget_cents / 100 ),
+                        'amount' => (float) ( (int) ( $payload['boost_options']['budget_cents'] ?? 0 ) / 100 ),
                         'currency' => strtoupper( (string) ( $payload['boost_options']['currency'] ?? 'AUD' ) ),
                     ),
                     'start_time' => (string) ( $payload['schedule_time'] ?? gmdate( 'c' ) ),
-                    'end_time' => gmdate( 'c', strtotime( (string) ( $payload['schedule_time'] ?? gmdate( 'c' ) ) . ' +' . $duration_days . ' days' ) ),
+                    'end_time' => (string) ( $payload['schedule_time'] ?? gmdate( 'c' ) ),
                 ),
             ),
             'meta' => array(
-                'campaign_type' => $campaign_type,
                 'sponsor_id' => (string) ( $payload['sponsor_id'] ?? '' ),
                 'schedule_id' => '',
                 'idempotency_key' => $idempotency_key,
@@ -717,14 +603,7 @@ class RestController {
                 'variant_id' => $variant_id,
                 'sponsor_id' => $sponsor_id,
                 'schedule_time' => (string) ( $payload['schedule_time'] ?? '' ),
-                'boost_options' => array(
-                    'budget_cents' => $budget_cents,
-                    'currency' => strtoupper( (string) ( $payload['boost_options']['currency'] ?? 'AUD' ) ),
-                    'channels' => array( $primary_channel ),
-                    'duration_days' => $duration_days,
-                    'prioritize' => sanitize_text_field( (string) ( $payload['boost_options']['prioritize'] ?? 'reach' ) ),
-                    'campaign_type' => $campaign_type,
-                ),
+                'boost_options' => $payload['boost_options'] ?? array(),
                 'status' => $status,
                 'approval_required' => $approval_required,
                 'approval_status' => $approval_status,
@@ -747,7 +626,6 @@ class RestController {
                 'schedule_id' => $schedule['schedule_id'],
                 'variant_id' => $variant_id,
                 'sponsor_id' => (string) ( $payload['sponsor_id'] ?? '' ),
-                'campaign_type' => $campaign_type,
                 'status' => $schedule['status'],
                 'idempotent' => (bool) ( $row['idempotent'] ?? false ),
             ),
@@ -757,7 +635,6 @@ class RestController {
             'schedule_id'      => $schedule['schedule_id'],
             'sponsor_id'       => (string) ( $payload['sponsor_id'] ?? '' ),
             'variant_id'       => $variant_id,
-            'campaign_type'    => $campaign_type,
             'approval_required' => $approval_required,
             'approval_status'  => $approval_status,
             'compliance_status' => $compliance_status,

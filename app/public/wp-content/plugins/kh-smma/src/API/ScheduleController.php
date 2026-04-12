@@ -23,7 +23,7 @@ class ScheduleController {
 		$variant = $this->store->get_variant( $variant_id );
 
 		if ( empty( $variant ) ) {
-			return new WP_Error( 'SMMA_ERR_SCHEMA_INVALID', 'This variant is no longer available. Please regenerate variants and try again.', array( 'status' => 400 ) );
+			return new WP_Error( 'SMMA_ERR_SCHEMA_INVALID', 'variant_id does not exist.', array( 'status' => 400 ) );
 		}
 
 		$status = strtoupper( (string) ( $variant['linkedIn']['compliance_status'] ?? $variant['linkedIn']['compliance']['status'] ?? 'OK' ) );

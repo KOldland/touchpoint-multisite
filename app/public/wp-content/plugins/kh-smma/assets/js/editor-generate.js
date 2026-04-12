@@ -4,91 +4,11 @@
   window.KHSMMAEditor = window.KHSMMAEditor || {};
 
   var state = {
-    variants: [],
-    isGenerating: false
+    variants: []
   };
-
-  function allowedPlatforms() {
-    var configured = window.khSmmaEditor && Array.isArray(window.khSmmaEditor.allowedPlatforms) ? window.khSmmaEditor.allowedPlatforms : ["linkedin", "google"];
-    var cleaned = configured.filter(function (platform) {
-      return platform === "linkedin" || platform === "google";
-    });
-    return cleaned.length ? cleaned : ["linkedin"];
-  }
-
-  function generatePlatformOptionsHtml() {
-    var platforms = allowedPlatforms();
-    if (platforms.length === 2) {
-      return '<option value="linkedin">LinkedIn</option><option value="google">Google</option><option value="both" selected>LinkedIn + Google</option>';
-    }
-    if (platforms[0] === "google") {
-      return '<option value="google" selected>Google</option>';
-    }
-    return '<option value="linkedin" selected>LinkedIn</option>';
-  }
 
   function id() {
     return "kh-smma-generate-modal";
-  }
-
-  function getCategoryOptions() {
-    var options = window.khSmmaEditor && Array.isArray(window.khSmmaEditor.categoryOptions) ? window.khSmmaEditor.categoryOptions : [];
-    var deduped = {};
-    return options
-      .map(function (name) {
-        return String(name || "").trim();
-      })
-      .filter(function (name) {
-        if (!name) return false;
-        var key = name.toLowerCase();
-        if (deduped[key]) return false;
-        deduped[key] = true;
-        return true;
-      });
-  }
-
-  function categoryOptionsHtml() {
-    return getCategoryOptions()
-      .map(function (name) {
-        return '<option value="' + escapeHtml(name) + '"></option>';
-      })
-      .join("");
-  }
-
-  function normalizedCategoryValue(rawValue) {
-    var value = String(rawValue || "").trim();
-    if (!value) {
-      return "";
-    }
-    var options = getCategoryOptions();
-    var match = options.find(function (name) {
-      return name.toLowerCase() === value.toLowerCase();
-    });
-    return match || value;
-  }
-
-  function categoryOverridesFromModal() {
-    var leadEl = document.getElementById("kh-smma-lead-category");
-    var additionalOneEl = document.getElementById("kh-smma-additional-category-1");
-    var additionalTwoEl = document.getElementById("kh-smma-additional-category-2");
-
-    var leadCategory = normalizedCategoryValue(leadEl ? leadEl.value : "");
-    var additionalRaw = [
-      normalizedCategoryValue(additionalOneEl ? additionalOneEl.value : ""),
-      normalizedCategoryValue(additionalTwoEl ? additionalTwoEl.value : "")
-    ];
-    var additionalCategories = [];
-    additionalRaw.forEach(function (name) {
-      if (!name) return;
-      if (leadCategory && name.toLowerCase() === leadCategory.toLowerCase()) return;
-      if (additionalCategories.some(function (existing) { return existing.toLowerCase() === name.toLowerCase(); })) return;
-      additionalCategories.push(name);
-    });
-
-    return {
-      lead_category: leadCategory,
-      additional_categories: additionalCategories.slice(0, 2)
-    };
   }
 
   function closeModal() {
@@ -96,94 +16,11 @@
     if (node && node.parentNode) {
       node.parentNode.removeChild(node);
     }
-    document.removeEventListener("keydown", handleModalEscape);
-  }
-
-  function handleModalEscape(event) {
-    if (event.key !== "Escape") return;
-    if (state.isGenerating) return;
-    if (document.getElementById(id())) {
-      closeModal();
-    }
   }
 
   function findVariant(variantId) {
     return state.variants.find(function (v) {
       return String(v.variant_id) === String(variantId);
-    });
-  }
-
-  function escapeHtml(value) {
-    return String(value || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
-
-  function getWorkflowMessageNode() {
-    return document.getElementById("kh-smma-workflow-messages");
-  }
-
-  function renderInlineMessage(text, isError) {
-    var node = getWorkflowMessageNode();
-    if (!node) return;
-    node.textContent = text || "";
-    node.classList.toggle("is-error", !!isError);
-  }
-
-  function renderErrorNotice(message, options) {
-    var node = getWorkflowMessageNode();
-    if (!node) return false;
-
-    var opts = options || {};
-    node.classList.add("is-error");
-    node.innerHTML = "";
-
-    var text = document.createElement("p");
-    text.textContent = message || "Generation failed.";
-    node.appendChild(text);
-
-    var actions = document.createElement("div");
-    actions.className = "kh-smma-modal-actions";
-
-    if (opts.retry !== false) {
-      var retry = document.createElement("button");
-      retry.type = "button";
-      retry.className = "button";
-      retry.textContent = "Retry Generate";
-      retry.addEventListener("click", runGenerate);
-      actions.appendChild(retry);
-    }
-
-    if (opts.settingsUrl) {
-      var cta = document.createElement("a");
-      cta.className = "button button-secondary";
-      cta.href = opts.settingsUrl;
-      cta.target = "_blank";
-      cta.rel = "noopener noreferrer";
-      cta.textContent = "Open KH Social Settings";
-      actions.appendChild(cta);
-    }
-
-    if (actions.childNodes.length > 0) {
-      node.appendChild(actions);
-    }
-
-    return true;
-  }
-
-  function renderFeatureDisabledNotice(message) {
-    var dashboardUrl =
-      window.khSmmaEditor &&
-      window.khSmmaEditor.urls &&
-      window.khSmmaEditor.urls.dashboard
-        ? window.khSmmaEditor.urls.dashboard
-        : "";
-    return renderErrorNotice(message || "Social Campaigns is currently unavailable.", {
-      retry: true,
-      settingsUrl: dashboardUrl
     });
   }
 
@@ -194,20 +31,9 @@
     modal.className = "kh-smma-modal";
     modal.innerHTML =
       '<div class="kh-smma-modal-card">' +
-      '<div class="kh-smma-modal-head"><h3>Generate Social Copy</h3><button type="button" class="kh-smma-modal-close button-link" id="kh-smma-gen-close" aria-label="Close">×</button></div>' +
-      '<p>Standard mode will generate:</p>' +
-      '<ul><li>1 LinkedIn post (title + excerpt + tags)</li><li>Google metadata draft (SEO title + meta description)</li></ul>' +
-      '<div class="kh-smma-category-fields">' +
-      '<h4 style="margin:10px 0 6px;">Categories</h4>' +
-      '<p style="margin:0 0 8px;color:#50575e;">Set lead/additional categories for hashtags and tag context.</p>' +
-      '<label for="kh-smma-lead-category">Lead Category</label>' +
-      '<input type="text" id="kh-smma-lead-category" list="kh-smma-category-options" placeholder="Start typing to search categories" value="' + escapeHtml((window.khSmmaEditor && window.khSmmaEditor.defaultLeadCategory) || "") + '" />' +
-      '<label for="kh-smma-additional-category-1">Additional Category 1</label>' +
-      '<input type="text" id="kh-smma-additional-category-1" list="kh-smma-category-options" placeholder="Optional additional category" value="' + escapeHtml((window.khSmmaEditor && Array.isArray(window.khSmmaEditor.defaultAdditionalCategories) && window.khSmmaEditor.defaultAdditionalCategories[0]) || "") + '" />' +
-      '<label for="kh-smma-additional-category-2">Additional Category 2</label>' +
-      '<input type="text" id="kh-smma-additional-category-2" list="kh-smma-category-options" placeholder="Optional additional category" value="' + escapeHtml((window.khSmmaEditor && Array.isArray(window.khSmmaEditor.defaultAdditionalCategories) && window.khSmmaEditor.defaultAdditionalCategories[1]) || "") + '" />' +
-      '<datalist id="kh-smma-category-options">' + categoryOptionsHtml() + "</datalist>" +
-      "</div>" +
+      "<h3>Generate Variants</h3>" +
+      '<label>Number of Variants</label><input type="number" id="kh-smma-gen-count" min="1" max="5" value="3" />' +
+      '<label>Platform Target</label><select id="kh-smma-gen-platform"><option value="linkedin">LinkedIn</option><option value="google">Google</option><option value="both" selected>LinkedIn + Google</option></select>' +
       '<div class="kh-smma-modal-actions">' +
       '<button type="button" class="button" id="kh-smma-gen-cancel">Cancel</button>' +
       '<button type="button" class="button button-primary" id="kh-smma-gen-submit">Generate</button>' +
@@ -218,65 +44,20 @@
     document.body.appendChild(modal);
 
     document.getElementById("kh-smma-gen-cancel").addEventListener("click", closeModal);
-    document.getElementById("kh-smma-gen-close").addEventListener("click", closeModal);
     document.getElementById("kh-smma-gen-submit").addEventListener("click", runGenerate);
-    modal.addEventListener("click", function (event) {
-      if (event.target === modal && !state.isGenerating) {
-        closeModal();
-      }
-    });
-    document.addEventListener("keydown", handleModalEscape);
-  }
-
-  function setGenerateBusy(isBusy) {
-    state.isGenerating = !!isBusy;
-    var submit = document.getElementById("kh-smma-gen-submit");
-    var cancel = document.getElementById("kh-smma-gen-cancel");
-    if (submit) {
-      submit.disabled = state.isGenerating;
-      submit.textContent = state.isGenerating ? "Generating..." : "Generate";
-    }
-    if (cancel) {
-      cancel.disabled = state.isGenerating;
-    }
   }
 
   function runGenerate() {
-    if (state.isGenerating) {
-      return;
-    }
-
     var postId = Number(window.khSmmaEditor.postId || 0);
     if (!postId) {
       window.alert("Post must be saved before generating variants.");
       return;
     }
 
-    var count = 1;
-    var platform = "both";
-    var blocksSummary = "";
-    try {
-      if (
-        window.wp &&
-        window.wp.data &&
-        window.wp.data.select &&
-        window.wp.data.select("core/editor") &&
-        typeof window.wp.data.select("core/editor").getEditedPostContent === "function"
-      ) {
-        var raw = String(window.wp.data.select("core/editor").getEditedPostContent() || "");
-        blocksSummary = raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-      }
-    } catch (e) {
-      blocksSummary = "";
-    }
-    if (!blocksSummary) {
-      var contentEl = document.getElementById("content");
-      blocksSummary = contentEl ? String(contentEl.value || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() : "";
-    }
-    if (!blocksSummary) {
-      blocksSummary = "Summary unavailable.";
-    }
-    blocksSummary = blocksSummary.slice(0, 4000);
+    var count = Number(document.getElementById("kh-smma-gen-count").value || 3);
+    var platform = document.getElementById("kh-smma-gen-platform").value || "both";
+    var contentEl = document.getElementById("content");
+    var blocksSummary = contentEl ? String(contentEl.value || "").slice(0, 4000) : "Post content summary";
 
     var payload = {
       post_id: postId,
@@ -286,21 +67,10 @@
       consent: true,
       metadata: {
         target_platform: platform
-      },
-      standard_mode: true,
-      generate_google_ads: true
+      }
     };
-    var categoryOverrides = categoryOverridesFromModal();
-    if (categoryOverrides.lead_category) {
-      payload.lead_category = categoryOverrides.lead_category;
-    }
-    if (categoryOverrides.additional_categories.length) {
-      payload.additional_categories = categoryOverrides.additional_categories;
-    }
 
     document.dispatchEvent(new CustomEvent("smma:generate.request", { detail: { post_id: postId, num_variants: count } }));
-    renderInlineMessage("Generating variants...", false);
-    setGenerateBusy(true);
 
     fetch(window.khSmmaEditor.apiBase + "/generate", {
       method: "POST",
@@ -318,33 +88,17 @@
       })
       .then(function (result) {
         if (!result.ok) {
-          throw {
-            code: result.body && result.body.code ? result.body.code : "",
-            message: (result.body && (result.body.message || result.body.error)) || "Generation failed.",
-            status: result.body && result.body.data && result.body.data.status ? result.body.data.status : 0
-          };
+          throw new Error((result.body && (result.body.message || result.body.error)) || "Generation failed.");
         }
 
         state.variants = Array.isArray(result.body.variants) ? result.body.variants : [];
         var root = document.getElementById("kh-smma-variant-grid-root");
-        var modelName =
-          result.body &&
-          result.body.provenance &&
-          result.body.provenance.model
-            ? String(result.body.provenance.model)
-            : "unknown";
-        if (modelName === "fallback") {
-          renderInlineMessage(
-            "Generated " + state.variants.length + " fallback variant(s). Output may be generic - click Retry Generate for a richer model run.",
-            false
-          );
-        } else {
-          renderInlineMessage("Generated " + state.variants.length + " variant(s).", false);
+        var messages = document.getElementById("kh-smma-workflow-messages");
+        if (messages) {
+          messages.textContent = "Generated " + state.variants.length + " variant(s).";
         }
-        var isStandardMode = modelName === "standard-template-v1";
         var renderGrid = function () {
           window.KHSMMAEditor.VariantGrid.render(root, state.variants, {
-            showDetails: !isStandardMode,
             onEdit: function (variantId) {
               var variant = findVariant(variantId);
               if (!variant) return;
@@ -362,86 +116,15 @@
             onSchedule: function (variantId) {
               var variant = findVariant(variantId);
               if (!variant) return;
-              window.KHSMMAEditor.ScheduleModal.open(variant, null, variantId);
-            },
-            onPreview: function (variantId) {
-              var variant = findVariant(variantId);
-              if (!variant) return;
-              openPreviewModal(variant);
+              window.KHSMMAEditor.ScheduleModal.open(variant);
             }
           });
         };
         renderGrid();
       })
       .catch(function (err) {
-        if (err && err.code === "kh_smma_disabled") {
-          renderFeatureDisabledNotice(err.message);
-          return;
-        }
-        if (!renderErrorNotice((err && err.message) || "Generation failed.", { retry: true })) {
-          window.alert((err && err.message) || "Generation failed.");
-        }
-      })
-      .finally(function () {
-        setGenerateBusy(false);
+        window.alert(err.message || "Generation failed.");
       });
-  }
-
-  function openPreviewModal(variant) {
-    var modalId = "kh-smma-preview-modal";
-    var existing = document.getElementById(modalId);
-    if (existing && existing.parentNode) {
-      existing.parentNode.removeChild(existing);
-    }
-
-    var linkedIn = variant && variant.linkedIn ? variant.linkedIn : {};
-    var google = variant && variant.google && variant.google.ad_groups && variant.google.ad_groups[0] ? variant.google.ad_groups[0] : {};
-    var metaTitle = google.meta_title || (Array.isArray(google.headlines) ? (google.headlines[0] || "") : "");
-    var metaDescription = google.meta_description || (Array.isArray(google.descriptions) ? (google.descriptions[0] || "") : "");
-    var featuredImageUrl =
-      window.khSmmaEditor && window.khSmmaEditor.featuredImageUrl
-        ? String(window.khSmmaEditor.featuredImageUrl)
-        : "";
-
-    var modal = document.createElement("div");
-    modal.id = modalId;
-    modal.className = "kh-smma-modal";
-    modal.innerHTML =
-      '<div class="kh-smma-modal-card">' +
-      '<div class="kh-smma-modal-head"><h3>Post Preview</h3><button type="button" class="kh-smma-modal-close button-link" id="kh-smma-preview-close" aria-label="Close">×</button></div>' +
-      '<h4 style="margin:0 0 6px;">LinkedIn</h4>' +
-      (featuredImageUrl
-        ? '<img src="' + escapeHtml(featuredImageUrl) + '" alt="Featured image preview" style="display:block;max-width:100%;height:auto;border:1px solid #dcdcde;border-radius:6px;margin:0 0 8px;background:#fff;" />'
-        : "") +
-      '<p class="kh-smma-variant-text" style="border:1px solid #dcdcde;border-radius:6px;padding:10px;background:#fff;">' + escapeHtml(linkedIn.text || "") + "</p>" +
-      '<h4 style="margin:14px 0 6px;">Google Metadata</h4>' +
-      '<p style="margin:0 0 4px;"><strong>Title:</strong> ' + escapeHtml(metaTitle || "") + "</p>" +
-      '<p style="margin:0 0 10px;"><strong>Meta Description:</strong> ' + escapeHtml(metaDescription || "") + "</p>" +
-      '<div class="kh-smma-modal-actions"><button type="button" class="button" id="kh-smma-preview-cancel">Close</button></div>' +
-      "</div>";
-    document.body.appendChild(modal);
-
-    function closePreview() {
-      var node = document.getElementById(modalId);
-      if (node && node.parentNode) {
-        node.parentNode.removeChild(node);
-      }
-      document.removeEventListener("keydown", onEsc);
-    }
-    function onEsc(event) {
-      if (event.key === "Escape") {
-        closePreview();
-      }
-    }
-
-    document.getElementById("kh-smma-preview-close").addEventListener("click", closePreview);
-    document.getElementById("kh-smma-preview-cancel").addEventListener("click", closePreview);
-    modal.addEventListener("click", function (event) {
-      if (event.target === modal) {
-        closePreview();
-      }
-    });
-    document.addEventListener("keydown", onEsc);
   }
 
   function bindEntryButton() {
@@ -450,45 +133,9 @@
     button.addEventListener("click", openGenerateModal);
   }
 
-  function bindWorkspaceTabs() {
-    var workspace = document.getElementById("kh-smma-post-boost-workspace");
-    if (!workspace) return;
-
-    var tabs = Array.prototype.slice.call(workspace.querySelectorAll("[data-kh-social-tab]"));
-    var panels = Array.prototype.slice.call(workspace.querySelectorAll("[data-kh-social-panel]"));
-    if (!tabs.length || !panels.length) return;
-
-    function activate(tabKey) {
-      tabs.forEach(function (tab) {
-        var isActive = tab.getAttribute("data-kh-social-tab") === tabKey;
-        tab.classList.toggle("is-active", isActive);
-        tab.setAttribute("aria-selected", isActive ? "true" : "false");
-      });
-
-      panels.forEach(function (panel) {
-        var isActive = panel.getAttribute("data-kh-social-panel") === tabKey;
-        panel.classList.toggle("is-active", isActive);
-        panel.hidden = !isActive;
-      });
-    }
-
-    tabs.forEach(function (tab) {
-      tab.addEventListener("click", function () {
-        activate(tab.getAttribute("data-kh-social-tab"));
-      });
-    });
-  }
-
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () {
-      bindEntryButton();
-      bindWorkspaceTabs();
-    });
+    document.addEventListener("DOMContentLoaded", bindEntryButton);
   } else {
     bindEntryButton();
-    bindWorkspaceTabs();
   }
-
-  document.addEventListener("khSmmaOpenWorkflow", openGenerateModal);
-  window.KHSMMAEditor.openGenerateModal = openGenerateModal;
 })();

@@ -26,30 +26,6 @@ class SmmaGenerator {
     public function generate( array $input ) {
         $input = $this->hydrate_input( $input );
         $input = $this->hydrate_phase_context( $input );
-        $standard_mode = ! array_key_exists( 'standard_mode', $input ) || ! empty( $input['standard_mode'] );
-
-        if ( $standard_mode ) {
-            $linkedin_variant = $this->build_standard_linkedin_variant( $input );
-            $google_ad_draft = $this->build_standard_google_ad_draft( $input );
-
-            $response = array(
-                'variants'          => array( $linkedin_variant ),
-                'linkedin_variants' => array( $linkedin_variant ),
-                'google_ad_draft'   => $google_ad_draft,
-                'model'             => 'standard-template-v1',
-            );
-
-            $validation = $this->schema_validator->validate_generation_response( $response );
-            if ( is_wp_error( $validation ) ) {
-                $error_message = method_exists( $validation, 'get_error_message' ) ? $validation->get_error_message() : 'Schema validation failed';
-                if ( function_exists( 'error_log' ) ) {
-                    error_log( 'SMMA Standard Schema Validation Error: ' . $error_message );
-                }
-                $response['schema_validation_error'] = $error_message;
-            }
-
-            return $response;
-        }
 
         // Generate LinkedIn variants
         $linkedin_result = $this->generate_linkedin_variants( $input );
@@ -122,8 +98,13 @@ class SmmaGenerator {
                         $variants = $this->parse_response( $response );
                     }
 
-                    if ( $strict_mode && empty( $variants ) && function_exists( 'error_log' ) ) {
-                        error_log( 'SMMA strict JSON parse failed; using fallback variants.' );
+                    if ( $strict_mode && empty( $variants ) ) {
+                        return array(
+                            'variants' => array(),
+                            'model' => $model,
+                            'google_ad_draft' => array(),
+                            'error' => new WP_Error( 'SMMA_ERR_INVALID_LLM', 'LLM returned non-JSON or invalid JSON.' ),
+                        );
                     }
                 }
             }
@@ -325,50 +306,9 @@ class SmmaGenerator {
     }
 
     private function parse_payload( array $response ) {
-        $body = (string) ( $response['choices'][0]['message']['content'] ?? '' );
-        if ( '' === $body ) {
-            return null;
-        }
-
+        $body = $response['choices'][0]['message']['content'] ?? '';
         $decoded = json_decode( $body, true );
-        if ( is_array( $decoded ) ) {
-            return $decoded;
-        }
-
-        $candidate = $this->extract_json_candidate( $body );
-        if ( '' === $candidate ) {
-            return null;
-        }
-
-        $decoded = json_decode( $candidate, true );
         return is_array( $decoded ) ? $decoded : null;
-    }
-
-    private function extract_json_candidate( string $body ): string {
-        $trimmed = trim( $body );
-        if ( '' === $trimmed ) {
-            return '';
-        }
-
-        // Common model behavior: wrap JSON in markdown code fences.
-        if ( preg_match( '/```(?:json)?\s*(\{[\s\S]*\}|\[[\s\S]*\])\s*```/i', $trimmed, $matches ) ) {
-            return trim( (string) $matches[1] );
-        }
-
-        // Fallback: extract the widest object/array block from mixed text.
-        $first_obj = strpos( $trimmed, '{' );
-        $last_obj  = strrpos( $trimmed, '}' );
-        if ( false !== $first_obj && false !== $last_obj && $last_obj > $first_obj ) {
-            return substr( $trimmed, $first_obj, ( $last_obj - $first_obj ) + 1 );
-        }
-
-        $first_arr = strpos( $trimmed, '[' );
-        $last_arr  = strrpos( $trimmed, ']' );
-        if ( false !== $first_arr && false !== $last_arr && $last_arr > $first_arr ) {
-            return substr( $trimmed, $first_arr, ( $last_arr - $first_arr ) + 1 );
-        }
-
-        return '';
     }
 
     private function build_fallback_variants( array $input ): array {
@@ -378,40 +318,14 @@ class SmmaGenerator {
         $num     = (int) ( $input['num_variants'] ?? ( $input['user_controls']['num_variants'] ?? 1 ) );
         $num     = max( 1, min( 5, $num ) );
         $geo_targets = $input['geo_targets'] ?? array();
-        $title   = $this->resolve_source_title( $input, $post_id );
-        $summary = $this->resolve_source_summary( $input );
-        $keyword = $this->resolve_primary_keyword( $input );
-        $hooks   = array(
-            'Most field service teams are still leaving uptime gains on the table.',
-            'A practical operations playbook can outperform pure firefighting.',
-            'Better maintenance outcomes usually start with better workflow design.',
-            'Service leaders are winning by tightening process before adding complexity.',
-            'Small process shifts can create outsized reliability improvements.',
-        );
-        $ctas = array(
-            'What change would you pilot first in your workflow?',
-            'Where is your team seeing the biggest preventable delay today?',
-            'Which KPI would improve fastest if this was implemented this quarter?',
-            'Would this approach fit your current service model?',
-            'What would be the hardest part of rolling this out in your operation?',
-        );
 
         $variants = array();
         for ( $i = 0; $i < $num; $i++ ) {
             $variant_id = 'v-fallback-' . wp_generate_uuid4();
-            $hook = $hooks[ $i % count( $hooks ) ];
-            $cta  = $ctas[ $i % count( $ctas ) ];
-            $topic_line = '' !== $title ? $title : 'Operational reliability in field service';
-            $context_line = '' !== $summary
-                ? $summary
-                : 'Teams that standardize planning and execution reduce avoidable downtime and improve delivery confidence.';
-            if ( '' !== $keyword ) {
-                $context_line .= ' Focus area: ' . $keyword . '.';
-            }
             $variants[] = array(
                 'variant_id' => $variant_id,
                 'channel' => 'linkedin',
-                'text' => $hook . "\n\n" . $topic_line . "\n\n" . $context_line . "\n\n" . $cta,
+                'text' => sprintf( 'New insight from post %d. %s phase: explore the key takeaways and share your perspective.', $post_id, $phase ),
                 'phase_tag' => $phase,
                 'tone' => $tone,
                 'recommended_post_time_gmt' => time() + ( $i + 1 ) * 3600,
@@ -424,9 +338,9 @@ class SmmaGenerator {
                 'sponsor_flag' => ! empty( $input['sponsor_context'] ),
                 'sponsor_mode' => $input['sponsor_context']['policy'] ?? '',
                 'sponsor_asset' => $input['sponsor_context']['sponsor_assets'][0] ?? array(),
-                'compliance_notes' => 'OK: contextual fallback variant generated',
+                'compliance_notes' => 'OK: fallback variant generated',
                 'approval_required' => false,
-                'explainability' => 'Fallback used source title/summary and added a phase-aligned CTA for LinkedIn readability.',
+                'explainability' => 'Matches requested phase with a soft CTA and professional tone.',
                 'audit' => array(
                     'source_post_id' => $post_id,
                     'generated_by' => 'smma-ai-v1',
@@ -437,68 +351,6 @@ class SmmaGenerator {
         }
 
         return $variants;
-    }
-
-    private function resolve_source_title( array $input, int $post_id ): string {
-        $title = trim( (string) ( $input['title'] ?? '' ) );
-        if ( '' !== $title ) {
-            return $title;
-        }
-        if ( $post_id > 0 ) {
-            $post_title = get_the_title( $post_id );
-            if ( is_string( $post_title ) ) {
-                return trim( wp_strip_all_tags( $post_title ) );
-            }
-        }
-
-        return '';
-    }
-
-    private function resolve_source_summary( array $input ): string {
-        $summary = trim( (string) ( $input['blocks_summary'] ?? '' ) );
-        if ( '' === $summary ) {
-            return '';
-        }
-
-        $lower = strtolower( $summary );
-        if ( 'post content summary' === $lower || 'summary unavailable.' === $lower ) {
-            return '';
-        }
-
-        $summary = preg_replace( '/\s+/', ' ', wp_strip_all_tags( $summary ) );
-        $summary = trim( (string) $summary );
-        if ( '' === $summary ) {
-            return '';
-        }
-
-        if ( 0 === stripos( $summary, 'Post content summary' ) ) {
-            $summary = trim( substr( $summary, strlen( 'Post content summary' ) ) );
-        }
-        if ( '' === $summary ) {
-            return '';
-        }
-
-        if ( strlen( $summary ) > 220 ) {
-            $summary = substr( $summary, 0, 217 ) . '...';
-        }
-
-        return $summary;
-    }
-
-    private function resolve_primary_keyword( array $input ): string {
-        $keywords = $input['keywords'] ?? array();
-        if ( ! is_array( $keywords ) || empty( $keywords ) ) {
-            return '';
-        }
-
-        foreach ( $keywords as $keyword ) {
-            $value = trim( (string) $keyword );
-            if ( '' !== $value ) {
-                return $value;
-            }
-        }
-
-        return '';
     }
 
     private function build_geo_recommendations( array $geo_targets ): array {
@@ -620,155 +472,5 @@ class SmmaGenerator {
         $requested = max( 1, min( 5, $requested ) );
 
         return array_slice( $variants, 0, $requested );
-    }
-
-    private function build_standard_linkedin_variant( array $input ): array {
-        $post_id = (int) ( $input['post_id'] ?? 0 );
-        $title = $this->resolve_source_title( $input, $post_id );
-        $excerpt = trim( (string) ( $input['excerpt'] ?? '' ) );
-        if ( '' === $excerpt ) {
-            $excerpt = $this->resolve_source_summary( $input );
-        }
-        if ( '' === $excerpt ) {
-            $excerpt = 'New article now live with practical takeaways.';
-        }
-
-        $tags = array();
-        $lead = trim( (string) ( $input['lead_category'] ?? '' ) );
-        if ( '' !== $lead ) {
-            $tags[] = $lead;
-        }
-        $additional = $input['additional_categories'] ?? array();
-        if ( is_array( $additional ) ) {
-            foreach ( $additional as $entry ) {
-                $value = trim( (string) $entry );
-                if ( '' !== $value && ! in_array( $value, $tags, true ) ) {
-                    $tags[] = $value;
-                }
-                if ( count( $tags ) >= 3 ) {
-                    break;
-                }
-            }
-        }
-
-        $text_parts = array();
-        if ( '' !== $title ) {
-            $text_parts[] = $title;
-        }
-        $text_parts[] = $excerpt;
-        if ( ! empty( $tags ) ) {
-            $hashtags = array();
-            foreach ( $tags as $tag ) {
-                $hashtags[] = $this->format_hashtag( $tag );
-            }
-            $hashtags = array_values( array_filter( $hashtags ) );
-            if ( ! empty( $hashtags ) ) {
-                $text_parts[] = implode( ' ', $hashtags );
-            }
-        }
-
-        return array(
-            'variant_id' => 'v-standard-' . wp_generate_uuid4(),
-            'channel' => 'linkedin',
-            'text' => implode( "\n\n", $text_parts ),
-            'phase_tag' => $input['phase_tag'] ?? 'Attention',
-            'tone' => $input['tone'] ?? 'Authority',
-            'recommended_post_time_gmt' => time() + 3600,
-            'time_window' => '08:30-10:00 GMT',
-            'geo_recommendations' => $this->build_geo_recommendations( (array) ( $input['geo_targets'] ?? array() ) ),
-            'asset_hints' => array(
-                array(
-                    'type' => 'image',
-                    'description' => 'Feature image aligned with article theme',
-                ),
-            ),
-            'sponsor_flag' => ! empty( $input['sponsor_context'] ),
-            'sponsor_mode' => $input['sponsor_context']['policy'] ?? '',
-            'sponsor_asset' => $input['sponsor_context']['sponsor_assets'][0] ?? array(),
-            'compliance_notes' => 'OK: standard mode from title/excerpt/tags',
-            'approval_required' => false,
-            'explainability' => 'Generated from post title, excerpt, and category tags.',
-            'audit' => array(
-                'source_post_id' => $post_id,
-                'generated_by' => 'smma-standard-v1',
-                'model_version' => 'standard-template-v1',
-                'created_at' => time(),
-            ),
-        );
-    }
-
-    private function build_standard_google_ad_draft( array $input ): array {
-        $post_id = (int) ( $input['post_id'] ?? 0 );
-        $seo_title = trim( (string) ( $input['seo_title'] ?? '' ) );
-        $seo_desc = trim( (string) ( $input['seo_description'] ?? '' ) );
-        if ( '' === $seo_title ) {
-            $seo_title = $this->resolve_source_title( $input, $post_id );
-        }
-        if ( '' === $seo_desc ) {
-            $seo_desc = trim( (string) ( $input['excerpt'] ?? '' ) );
-        }
-        if ( '' === $seo_desc ) {
-            $seo_desc = $this->resolve_source_summary( $input );
-        }
-
-        $lead = trim( (string) ( $input['lead_category'] ?? '' ) );
-        if ( '' === $lead ) {
-            $lead = $this->resolve_primary_keyword( $input );
-        }
-        if ( '' === $lead ) {
-            $lead = 'Field Service Optimization';
-        }
-
-        $final_url = trim( (string) ( $input['canonical_url'] ?? '' ) );
-        if ( '' === $final_url ) {
-            $final_url = home_url( '/' );
-        }
-
-        return array(
-            'ad_groups' => array(
-                array(
-                    'keyword_cluster' => $lead,
-                    'headlines' => array(
-                        mb_substr( $seo_title ?: 'Field Service Insights', 0, 30 ),
-                        mb_substr( $lead . ' Strategies', 0, 30 ),
-                        'Read the Full Guide',
-                    ),
-                    'descriptions' => array(
-                        mb_substr( $seo_desc ?: 'Practical strategies to improve service outcomes and operational reliability.', 0, 90 ),
-                        mb_substr( 'Get actionable insights and implementation ideas for your team.', 0, 90 ),
-                    ),
-                    'final_url' => $final_url,
-                    'meta_title' => $seo_title,
-                    'meta_description' => $seo_desc,
-                ),
-            ),
-        );
-    }
-
-    private function format_hashtag( string $label ): string {
-        $clean = preg_replace( '/[^a-zA-Z0-9\s]/', ' ', $label );
-        $clean = trim( preg_replace( '/\s+/', ' ', (string) $clean ) );
-        if ( '' === $clean ) {
-            return '';
-        }
-
-        $words = explode( ' ', $clean );
-        $normalized = array();
-        foreach ( $words as $word ) {
-            if ( '' === $word ) {
-                continue;
-            }
-            if ( $word === strtolower( $word ) ) {
-                $normalized[] = ucfirst( $word );
-            } else {
-                $normalized[] = $word;
-            }
-        }
-
-        if ( empty( $normalized ) ) {
-            return '';
-        }
-
-        return '#' . implode( '', $normalized );
     }
 }

@@ -29,12 +29,8 @@ class PreviewAdminPage {
 
         $handle = 'khm-preview-admin';
         $plugin_file = dirname( __DIR__, 2 ) . '/khm-preview.php';
-        $css_path = dirname( __DIR__, 2 ) . '/assets/css/preview-admin.css';
-        $js_path  = dirname( __DIR__, 2 ) . '/assets/js/preview-admin.js';
-        $css_ver  = file_exists( $css_path ) ? (string) filemtime( $css_path ) : '0.1.0';
-        $js_ver   = file_exists( $js_path ) ? (string) filemtime( $js_path ) : '0.1.0';
-        wp_enqueue_style( $handle, plugins_url( 'assets/css/preview-admin.css', $plugin_file ), [], $css_ver );
-        wp_enqueue_script( $handle, plugins_url( 'assets/js/preview-admin.js', $plugin_file ), [], $js_ver, true );
+        wp_enqueue_style( $handle, plugins_url( 'assets/css/preview-admin.css', $plugin_file ), [], '0.1.0' );
+        wp_enqueue_script( $handle, plugins_url( 'assets/js/preview-admin.js', $plugin_file ), [], '0.1.0', true );
         wp_localize_script( $handle, 'khmPreviewData', [
             'restUrl' => rest_url( 'khm-preview/v1' ),
             'nonce'   => wp_create_nonce( 'wp_rest' ),

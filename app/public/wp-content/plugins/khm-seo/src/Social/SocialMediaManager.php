@@ -3,7 +3,7 @@
  * Social Media Manager - Phase 3.4
  * 
  * Advanced social media optimization for enhanced sharing and engagement.
- * Extends basic Open Graph and Twitter Card functionality.
+ * Extends basic Open Graph and Twitter Card functionality with rich previews.
  * 
  * Features:
  * - Enhanced Open Graph meta tags
@@ -11,6 +11,7 @@
  * - LinkedIn optimization
  * - Pinterest rich pins
  * - Custom social meta for posts
+ * - Social media preview generation
  * - Image optimization for social sharing
  * 
  * @package KHM_SEO\Social
@@ -26,7 +27,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Social Media Manager Class
- * Handles advanced social media optimization
+ * Handles advanced social media optimization and previews
  */
 class SocialMediaManager {
     
@@ -89,7 +90,16 @@ class SocialMediaManager {
         add_action( 'wp_head', array( $this, 'output_pinterest_tags' ), 16 );
         add_action( 'wp_head', array( $this, 'output_additional_social_tags' ), 18 );
         
-        // Legacy post-editor Social Media Optimization UI removed.
+        // Admin hooks for social meta configuration
+        add_action( 'add_meta_boxes', array( $this, 'add_social_meta_boxes' ) );
+        add_action( 'save_post', array( $this, 'save_social_meta_data' ) );
+        
+        // AJAX hooks for social preview
+        add_action( 'wp_ajax_khm_seo_social_preview', array( $this, 'ajax_social_preview' ) );
+        add_action( 'wp_ajax_khm_seo_generate_social_image', array( $this, 'ajax_generate_social_image' ) );
+        
+        // Admin assets
+        add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
     }
     
     /**
@@ -710,6 +720,11 @@ class SocialMediaManager {
         
         echo '</div>';
         
+        echo '<div class="social-preview-container">';
+        echo '<h4>' . __( 'Social Media Previews', 'khm-seo' ) . '</h4>';
+        echo '<button type="button" class="button" onclick="khmSeoGenerateSocialPreviews()">' . __( 'Generate Previews', 'khm-seo' ) . '</button>';
+        echo '<div id="social-previews"></div>';
+        echo '</div>';
     }
     
     /**
@@ -791,6 +806,29 @@ class SocialMediaManager {
                 }
             }
         }
+    }
+    
+    /**
+     * AJAX handler for social media preview
+     */
+    public function ajax_social_preview() {
+        \check_ajax_referer( 'khm_seo_ajax', 'nonce' );
+        
+        $post_id = intval( $_POST['post_id'] ?? 0 );
+        $platform = sanitize_text_field( $_POST['platform'] ?? 'facebook' );
+        
+        if ( ! $post_id ) {
+            \wp_send_json_error( __( 'Invalid post ID', 'khm-seo' ) );
+        }
+        
+        $preview_data = array(
+            'title' => $this->get_social_title( $platform ),
+            'description' => $this->get_social_description( $platform ),
+            'image' => $this->get_social_image( $platform ),
+            'url' => \get_permalink( $post_id ),
+        );
+        
+        \wp_send_json_success( $preview_data );
     }
     
     /**

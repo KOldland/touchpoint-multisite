@@ -45,7 +45,7 @@ class AdminManager {
         
         // Meta boxes for posts and pages
         add_action( 'add_meta_boxes', array( $this, 'add_meta_boxes' ) );
-        // Boost Visibility stays as an admin workspace, not an editor-side panel.
+        add_action( 'add_meta_boxes', array( $this, 'add_boost_visibility_meta_box' ) );
         add_action( 'edit_form_after_title', array( $this, 'render_editor_score_panel' ) );
         add_action( 'save_post', array( $this, 'save_post_meta' ) );
         
@@ -193,6 +193,7 @@ class AdminManager {
             'order' => 'DESC',
         ) );
 
+        $social_url = $selected_post ? admin_url( 'admin.php?page=khm-seo-social-preview&khm_post_type=' . $selected_type . '&khm_post_id=' . $selected_post->ID ) : '';
         $geo_url = $selected_post ? admin_url( 'admin.php?page=khm-seo-geo-post&khm_post_type=' . $selected_type . '&khm_post_id=' . $selected_post->ID ) : '';
         $health_url = $selected_post ? admin_url( 'admin.php?page=khm-seo-post-health&khm_post_type=' . $selected_type . '&khm_post_id=' . $selected_post->ID ) : '';
 
@@ -203,7 +204,7 @@ class AdminManager {
         <div class="wrap">
             <h1><?php esc_html_e( 'Boost Visibility', 'khm-seo' ); ?></h1>
             <p class="description">
-                <?php esc_html_e( 'Publish first, then manage promotion planning, GEO, and post health from here.', 'khm-seo' ); ?>
+                <?php esc_html_e( 'Publish first, then manage GEO, social previews, and post health from here.', 'khm-seo' ); ?>
             </p>
 
             <?php if ( ! $dep_smma || ! $dep_agent || ! $dep_adman ) : ?>
@@ -544,12 +545,13 @@ class AdminManager {
                 <hr />
                 <h2><?php echo esc_html( get_the_title( $selected_post ) ); ?></h2>
                 <p>
-                    <a class="button button-primary" href="<?php echo esc_url( $geo_url ); ?>"><?php esc_html_e( 'Open GEO Manager', 'khm-seo' ); ?></a>
+                    <a class="button button-primary" href="<?php echo esc_url( $social_url ); ?>"><?php esc_html_e( 'Open Social Media Manager', 'khm-seo' ); ?></a>
+                    <a class="button button-secondary" href="<?php echo esc_url( $geo_url ); ?>"><?php esc_html_e( 'Open GEO Manager', 'khm-seo' ); ?></a>
                     <a class="button button-secondary" href="<?php echo esc_url( $health_url ); ?>"><?php esc_html_e( 'Open Post Health', 'khm-seo' ); ?></a>
                 </p>
             <?php else : ?>
                 <div class="notice notice-info" style="margin-top:16px;">
-                    <p><?php esc_html_e( 'Choose a published item to unlock promotion, GEO, and post health workflows.', 'khm-seo' ); ?></p>
+                    <p><?php esc_html_e( 'Choose a published item to unlock GEO and Social workflows.', 'khm-seo' ); ?></p>
                 </div>
             <?php endif; ?>
         </div>
@@ -831,11 +833,13 @@ class AdminManager {
             return;
         }
 
+        $social_url = admin_url( 'admin.php?page=khm-seo-social-preview&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID );
         $geo_url = admin_url( 'admin.php?page=khm-seo-geo-post&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID );
         $health_url = admin_url( 'admin.php?page=khm-seo-post-health&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID );
         $hub_url = admin_url( 'admin.php?page=khm-seo-boost-visibility&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID );
 
         echo '<p><a class="button button-primary" href="' . esc_url( $hub_url ) . '">' . esc_html__( 'Boost Visibility', 'khm-seo' ) . '</a></p>';
+        echo '<p><a class="button button-secondary" href="' . esc_url( $social_url ) . '">' . esc_html__( 'Social Media Manager', 'khm-seo' ) . '</a></p>';
         echo '<p><button class="button button-secondary khm-geo-suggestions-btn" type="button">' . esc_html__( 'GEO AnswerCards', 'khm-seo' ) . '</button></p>';
         echo '<p><a class="button button-secondary" href="' . esc_url( $health_url ) . '">' . esc_html__( 'Post Health', 'khm-seo' ) . '</a></p>';
     }
@@ -855,6 +859,7 @@ class AdminManager {
         $actions['boost_visibility'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-boost-visibility&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID ) ) . '">' . esc_html__( 'Boost Visibility', 'khm-seo' ) . '</a>';
         $actions['smma_promote'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-boost-visibility&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID . '&smma_action=promote' ) ) . '">' . esc_html__( 'Promote', 'khm-seo' ) . '</a>';
         $actions['smma_boost'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-boost-visibility&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID . '&smma_action=boost' ) ) . '">' . esc_html__( 'Boost', 'khm-seo' ) . '</a>';
+        $actions['boost_social'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-social-preview&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID ) ) . '">' . esc_html__( 'Social', 'khm-seo' ) . '</a>';
         $actions['boost_geo'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-geo-post&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID ) ) . '">' . esc_html__( 'GEO', 'khm-seo' ) . '</a>';
         $actions['boost_health'] = '<a href="' . esc_url( admin_url( 'admin.php?page=khm-seo-post-health&khm_post_type=' . $post->post_type . '&khm_post_id=' . $post->ID ) ) . '">' . esc_html__( 'Post Health', 'khm-seo' ) . '</a>';
 
@@ -1062,78 +1067,11 @@ class AdminManager {
             return $fallback_score;
         }
 
-        $calculated_score = $this->calculate_live_seo_score( $post_id );
-        if ( $calculated_score > 0 ) {
-            update_post_meta( $post_id, '_khm_seo_score', $calculated_score );
-            return $calculated_score;
-        }
-
         return 0;
     }
 
     /**
-     * Calculate a live SEO score for a post when no stored score exists.
-     *
-     * @param int $post_id Post ID.
-     * @return int
-     */
-    private function calculate_live_seo_score( $post_id ) {
-        if ( ! class_exists( '\\KHM_SEO\\Analysis\\AnalysisEngine' ) ) {
-            return 0;
-        }
-
-        $post = get_post( $post_id );
-        if ( ! $post ) {
-            return 0;
-        }
-
-        $analysis_engine = new \KHM_SEO\Analysis\AnalysisEngine( $this->get_live_analysis_engine_config() );
-        $analysis = $analysis_engine->analyze( array(
-            'post_id' => $post_id,
-            'title' => $post->post_title,
-            'content' => $post->post_content,
-            'meta_description' => get_post_meta( $post_id, '_khm_seo_description', true ),
-            'focus_keyword' => get_post_meta( $post_id, '_khm_seo_focus_keyword', true ),
-        ) );
-
-        if ( ! is_array( $analysis ) || ! isset( $analysis['overall_score'] ) ) {
-            return 0;
-        }
-
-        return max( 0, min( 100, (int) round( $analysis['overall_score'] ) ) );
-    }
-
-    /**
-     * Provide default analysis engine config for live score fallback.
-     *
-     * @return array
-     */
-    private function get_live_analysis_engine_config() {
-        $options = get_option( 'khm_seo_analysis', array() );
-
-        return wp_parse_args( $options, array(
-            'keywords' => array(
-                'target_density_min' => 0.5,
-                'target_density_max' => 2.5,
-                'max_keyword_stuffing' => 3.0,
-            ),
-            'readability' => array(
-                'max_sentence_length' => 20,
-                'max_paragraph_length' => 150,
-                'transition_word_threshold' => 30,
-                'passive_voice_threshold' => 10,
-            ),
-            'content' => array(
-                'min_word_count' => 300,
-                'optimal_word_count' => 1000,
-                'power_word_density' => 1.0,
-                'min_cta_count' => 1,
-            ),
-        ) );
-    }
-
-    /**
-     * Resolve GEO score from AnswerCard score first, then KHM cache, then derived AnswerCard scoring.
+     * Resolve GEO score from post meta first, then derive it from AnswerCard widgets.
      *
      * @param int $post_id Post ID.
      * @return int
@@ -1406,17 +1344,10 @@ class AdminManager {
                 KHM_SEO_VERSION 
             );
             
-            $script_deps = array( 'jquery' );
-            if ( in_array( $hook_suffix, array( 'post.php', 'post-new.php' ), true ) ) {
-                $script_deps[] = 'wp-element';
-                $script_deps[] = 'wp-plugins';
-                $script_deps[] = 'wp-edit-post';
-            }
-
             wp_enqueue_script( 
                 'khm-seo-admin', 
                 KHM_SEO_PLUGIN_URL . 'assets/js/admin.js', 
-                $script_deps, 
+                array( 'jquery' ), 
                 KHM_SEO_VERSION, 
                 true 
             );

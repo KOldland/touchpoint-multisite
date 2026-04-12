@@ -107,7 +107,6 @@ class EditorMetaBox {
     private function build_preview_url( int $post_id, string $token ): string {
         return add_query_arg(
             [
-                'p'               => $post_id,
                 'khm_preview_post' => $post_id,
                 'khm_preview_token'=> $token,
             ],

@@ -46,15 +46,6 @@ class PreviewLinkRepository {
         return $row ?: null;
     }
 
-    public function find_latest_by_post( int $post_id ): ?array {
-        $sql = $this->db->prepare(
-            "SELECT * FROM {$this->table()} WHERE post_id = %d ORDER BY id DESC LIMIT 1",
-            $post_id
-        );
-        $row = $this->db->get_row( $sql, ARRAY_A );
-        return $row ?: null;
-    }
-
     public function update_status( int $id, string $status ): bool {
         return (bool) $this->db->update(
             $this->table(),

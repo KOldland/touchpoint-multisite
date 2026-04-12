@@ -40,66 +40,20 @@
         state.link = link;
         const details = el('khm-preview-details');
         if (!link) {
-            details.innerHTML = '<p>No preview link history for this post yet.</p>';
-            el('khm-preview-actions').classList.remove('hidden');
+            details.innerHTML = '<p>No active preview link for this post.</p>';
+            el('khm-preview-actions').classList.add('hidden');
             el('khm-preview-hits').innerHTML = '';
             return;
         }
-
         el('khm-preview-actions').classList.remove('hidden');
-        const previewUrl = `${window.location.origin}/?p=${link.post_id}&khm_preview_post=${link.post_id}&khm_preview_token=${link.token}`;
-        const status = String(link.status_display || link.status || '').toLowerCase();
-        const isActive = status === 'active';
-        const statusClass = isActive ? 'khm-preview-badge-active' : (status === 'expired' ? 'khm-preview-badge-expired' : 'khm-preview-badge-revoked');
-        const statusLabel = status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
-        const linkHint = isActive ? '' : '<p class="description">This link is not currently valid. Create/Refresh to issue a new one.</p>';
+        const previewUrl = `${window.location.origin}/?khm_preview_post=${link.post_id}&khm_preview_token=${link.token}`;
         details.innerHTML = `
-            <p><strong>Status:</strong> <span class="khm-preview-badge ${statusClass}">${statusLabel}</span></p>
+            <p><strong>Status:</strong> ${link.status}</p>
             <p><strong>Expires:</strong> ${link.expires_at}</p>
-            <p><strong>Preview URL:</strong><br/><code id="khm-preview-url">${previewUrl}</code></p>
-            <p class="khm-preview-url-actions">
-                <button type="button" class="button" id="khm-preview-copy-url" data-preview-url="${previewUrl.replace(/"/g, '&quot;')}" ${isActive ? '' : 'disabled'}>Copy Link</button>
-                ${isActive
-                    ? `<a class="button" id="khm-preview-open-url" href="${previewUrl.replace(/"/g, '&quot;')}" target="_blank" rel="noopener">Open Link</a>`
-                    : '<button type="button" class="button" id="khm-preview-open-url" disabled>Open Link</button>'
-                }
-            </p>
-            ${linkHint}
+            <p><strong>Preview URL:</strong><br/><code>${previewUrl}</code></p>
         `;
         const hits = (link.hits || []).map((hit) => `<li>${hit.viewed_at} — ${hit.ip || 'n/a'}</li>`).join('');
         el('khm-preview-hits').innerHTML = hits ? `<h3>Recent Views</h3><ul>${hits}</ul>` : '<p>No previews recorded.</p>';
-
-        const revokeButton = el('khm-preview-revoke');
-        const extendButton = el('khm-preview-extend');
-        if (revokeButton) revokeButton.disabled = !isActive;
-        if (extendButton) extendButton.disabled = !isActive;
-
-    }
-
-    function copyText(value) {
-        if (!value) return;
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(value)
-                .then(() => message('Preview URL copied.', 'success'))
-                .catch(() => fallbackCopy(value));
-            return;
-        }
-        fallbackCopy(value);
-    }
-
-    function fallbackCopy(value) {
-        const input = document.createElement('input');
-        input.value = value;
-        document.body.appendChild(input);
-        input.select();
-        try {
-            document.execCommand('copy');
-            message('Preview URL copied.', 'success');
-        } catch (err) {
-            message('Could not copy URL automatically.', 'error');
-        } finally {
-            document.body.removeChild(input);
-        }
     }
 
     function setPostId(value) {
@@ -116,7 +70,7 @@
         api(`/posts/${postId}/link`, { method: 'GET' })
             .then((data) => {
                 renderLink(data);
-                message(data ? 'Preview link loaded.' : 'No preview link yet for this post.', 'success');
+                message('Preview link loaded.', 'success');
             })
             .catch((error) => message(error.message, 'error'));
     }
@@ -212,21 +166,6 @@
         el('khm-preview-create').addEventListener('click', createLink);
         el('khm-preview-revoke').addEventListener('click', revokeLink);
         el('khm-preview-extend').addEventListener('click', extendLink);
-        container.addEventListener('click', (event) => {
-            const target = event.target;
-            if (!target) {
-                return;
-            }
-            if (target.id === 'khm-preview-copy-url') {
-                const value = String(target.getAttribute('data-preview-url') || '');
-                if (!value) {
-                    message('No preview URL available to copy.', 'error');
-                    return;
-                }
-                copyText(value);
-            }
-        });
-
         const recentSelect = el('khm-preview-recent');
         const searchInput  = el('khm-preview-search');
         if (recentSelect) {
