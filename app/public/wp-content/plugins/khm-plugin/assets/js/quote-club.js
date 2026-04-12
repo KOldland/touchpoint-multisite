@@ -3,6 +3,9 @@
 
   var inviteRequestInFlight = false;
   var inviteRetryPayload = null;
+  var knownTopicMap = {};
+  var knownTopics = [];
+  var topicSuggestCache = {};
 
   function tokenizeKeywords(input) {
     return (input || '')
@@ -11,6 +14,297 @@
         return item.trim();
       })
       .filter(Boolean);
+  }
+
+  function getCombinedTopics() {
+    var $categorySelect = $('.khm-filter-categories');
+    var selectedCategories = $categorySelect.val();
+    if (!Array.isArray(selectedCategories) || !selectedCategories.length) {
+      // Fallback: legacy single-category select
+      var topLineCategory = ($('.khm-filter-top-line-category').val() || '').trim();
+      selectedCategories = topLineCategory ? [topLineCategory] : [];
+    }
+
+    if ($categorySelect.length && selectedCategories.length) {
+      var allCategoryValues = [];
+      $categorySelect.find('option').each(function () {
+        var value = ($(this).val() || '').toString().trim();
+        if (value) {
+          allCategoryValues.push(value);
+        }
+      });
+
+      var allSelected = allCategoryValues.length > 0 && selectedCategories.length === allCategoryValues.length &&
+        allCategoryValues.every(function (value) {
+          return selectedCategories.indexOf(value) !== -1;
+        });
+
+      if (allSelected) {
+        selectedCategories = [];
+      }
+    }
+
+    var additionalTopics = tokenizeKeywords($('.khm-filter-topics').val());
+    additionalTopics.forEach(function (t) {
+      if (selectedCategories.indexOf(t) === -1) {
+        selectedCategories.push(t);
+      }
+    });
+    return selectedCategories;
+  }
+
+  function addKnownTopics(topics) {
+    if (!Array.isArray(topics)) {
+      return;
+    }
+
+    topics.forEach(function (topic) {
+      var normalized = (topic || '').toString().trim();
+      if (!normalized) {
+        return;
+      }
+
+      var key = normalized.toLowerCase();
+      if (knownTopicMap[key]) {
+        return;
+      }
+
+      knownTopicMap[key] = true;
+      knownTopics.push(normalized);
+    });
+  }
+
+  function getTopicAutocomplete($input) {
+    if (!$input || !$input.length) {
+      return $();
+    }
+
+    return $input.closest('.khm-topic-autocomplete');
+  }
+
+  function closeTopicSuggestMenu($input) {
+    var $wrap = getTopicAutocomplete($input);
+    if (!$wrap.length) {
+      return;
+    }
+
+    $wrap.removeClass('is-open');
+    $wrap.find('.khm-topic-suggest-menu').empty().removeAttr('data-active-index');
+  }
+
+  function getTopicInputParts(inputValue) {
+    var value = inputValue || '';
+    var lastComma = value.lastIndexOf(',');
+
+    return {
+      prefix: lastComma >= 0 ? value.substring(0, lastComma + 1).replace(/\s*$/, '') + ' ' : '',
+      term: (lastComma >= 0 ? value.substring(lastComma + 1) : value).replace(/^\s+/, ''),
+      before: lastComma >= 0 ? value.substring(0, lastComma + 1) : ''
+    };
+  }
+
+  function setActiveTopicSuggestion($menu, nextIndex) {
+    var $items = $menu.find('.khm-topic-suggest-item');
+    if (!$items.length) {
+      $menu.removeAttr('data-active-index');
+      return;
+    }
+
+    if (nextIndex < 0) {
+      nextIndex = $items.length - 1;
+    }
+    if (nextIndex >= $items.length) {
+      nextIndex = 0;
+    }
+
+    $items.removeClass('is-active').attr('aria-selected', 'false');
+    $items.eq(nextIndex).addClass('is-active').attr('aria-selected', 'true');
+    $menu.attr('data-active-index', nextIndex);
+  }
+
+  function renderTopicSuggestMenu($input, suggestions) {
+    var $wrap = getTopicAutocomplete($input);
+    var $menu = $wrap.find('.khm-topic-suggest-menu');
+    if (!$wrap.length || !$menu.length) {
+      return;
+    }
+
+    $menu.empty();
+    if (!suggestions.length) {
+      closeTopicSuggestMenu($input);
+      return;
+    }
+
+    suggestions.forEach(function (topic, index) {
+      var $item = $('<button type="button" class="khm-topic-suggest-item" role="option">')
+        .attr('data-topic', topic)
+        .attr('aria-selected', index === 0 ? 'true' : 'false')
+        .toggleClass('is-active', index === 0)
+        .text(topic);
+      $menu.append($item);
+    });
+
+    $menu.attr('data-active-index', 0);
+    $wrap.addClass('is-open');
+  }
+
+  function applyTopicSuggestion($input, topic) {
+    var parts = getTopicInputParts($input.val());
+    var before = parts.before;
+    var nextValue = before ? before.replace(/\s*$/, '') + ' ' + topic + ', ' : topic + ', ';
+
+    $input.val(nextValue).trigger('change').trigger('input');
+    closeTopicSuggestMenu($input);
+  }
+
+  function getLocalTopicMatches(term) {
+    var token = (term || '').trim().toLowerCase();
+    if (!token) {
+      return [];
+    }
+
+    return knownTopics.filter(function (topic) {
+      return topic.toLowerCase().indexOf(token) !== -1;
+    }).slice(0, 12);
+  }
+
+  function loadRemoteTopicSuggestions(term, callback) {
+    var key = (term || '').trim().toLowerCase();
+    if (!key) {
+      callback([]);
+      return;
+    }
+
+    if (topicSuggestCache[key]) {
+      callback(topicSuggestCache[key]);
+      return;
+    }
+
+    api('topic-suggestions', 'GET', { q: term, limit: 12 }).done(function (res) {
+      var suggestions = Array.isArray(res && res.suggestions) ? res.suggestions : [];
+      addKnownTopics(suggestions);
+      topicSuggestCache[key] = suggestions;
+      callback(suggestions);
+    }).fail(function () {
+      callback([]);
+    });
+  }
+
+  function openTopicSuggestions($input) {
+    var parts = getTopicInputParts($input.val());
+    var term = parts.term;
+    if (term.length < 2) {
+      closeTopicSuggestMenu($input);
+      return;
+    }
+
+    var localMatches = getLocalTopicMatches(term);
+    renderTopicSuggestMenu($input, localMatches);
+
+    loadRemoteTopicSuggestions(term, function (remoteMatches) {
+      var merged = [];
+      var seen = {};
+
+      localMatches.concat(remoteMatches).forEach(function (topic) {
+        var key = (topic || '').toLowerCase();
+        if (!topic || seen[key]) {
+          return;
+        }
+        seen[key] = true;
+        merged.push(topic);
+      });
+
+      renderTopicSuggestMenu($input, merged.slice(0, 12));
+    });
+  }
+
+  function harvestTopicsFromSearchResults(results) {
+    if (!Array.isArray(results)) {
+      return;
+    }
+
+    results.forEach(function (item) {
+      addKnownTopics(item && item.topics ? item.topics : []);
+    });
+  }
+
+  function warmTopicSuggestions() {
+    api('upcoming', 'GET', { limit: 100 }).done(function (res) {
+      if (!res || !Array.isArray(res.sessions)) {
+        return;
+      }
+
+      res.sessions.forEach(function (session) {
+        addKnownTopics(session && session.topics ? session.topics : []);
+      });
+    });
+  }
+
+  function formatDateYmd(dateObj) {
+    if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
+      return '';
+    }
+    return dateObj.toISOString().slice(0, 10);
+  }
+
+  function getDateBoundsForRange(rangeKey) {
+    var key = (rangeKey || 'all').toLowerCase();
+    if (key === 'all') {
+      return { date_from: '', date_to: '' };
+    }
+
+    var today = new Date();
+    var end = new Date(today.getTime());
+    if (key === 'week') {
+      end.setDate(end.getDate() + 7);
+    } else {
+      end.setDate(end.getDate() + 30);
+    }
+
+    return {
+      date_from: formatDateYmd(today),
+      date_to: formatDateYmd(end)
+    };
+  }
+
+  function inferDateRangeFromBounds(dateFrom, dateTo) {
+    var from = (dateFrom || '').trim();
+    var to = (dateTo || '').trim();
+    if (!from || !to) {
+      return 'all';
+    }
+
+    var fromDate = new Date(from + 'T00:00:00');
+    var toDate = new Date(to + 'T00:00:00');
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      return 'all';
+    }
+
+    var ms = toDate.getTime() - fromDate.getTime();
+    var days = Math.round(ms / (24 * 60 * 60 * 1000));
+    if (days <= 7) {
+      return 'week';
+    }
+    if (days <= 31) {
+      return 'month';
+    }
+    return 'all';
+  }
+
+  function buildSearchQueryFromUI() {
+    var dateRange = ($('.khm-filter-date-range').val() || 'all').trim().toLowerCase();
+    var dateBounds = getDateBoundsForRange(dateRange);
+
+    return {
+      date_range: dateRange,
+      date_from: dateBounds.date_from,
+      date_to: dateBounds.date_to,
+      topics: getCombinedTopics(),
+      keywords: $('.khm-filter-keywords').val(),
+      operator: $('.khm-filter-operator').val() || 'AND',
+      page: 1,
+      per_page: 20
+    };
   }
 
   function wordCount(text) {
@@ -230,7 +524,7 @@
   function loadSavedSearches() {
     api('saved-searches', 'GET').done(function (res) {
       var $select = $('.khm-saved-searches');
-      $select.empty().append('<option value="">Saved searches</option>');
+      $select.empty().append('<option value="">— Saved Searches —</option>');
       (res.saved_searches || []).forEach(function (item) {
         $select.append('<option value="' + item.id + '">' + item.name + '</option>');
       });
@@ -240,35 +534,22 @@
 
   function performSearch(query) {
     api('search', 'GET', query).done(function (res) {
-      renderResults(res.results || []);
+      var results = res.results || [];
+      harvestTopicsFromSearchResults(results);
+      renderResults(results);
     });
   }
 
   $(document).on('click', '.khm-quoteclub-search-btn', function () {
-    var query = {
-      date_from: $('.khm-filter-date-from').val(),
-      date_to: $('.khm-filter-date-to').val(),
-      topics: tokenizeKeywords($('.khm-filter-topics').val()),
-      portfolios: tokenizeKeywords($('.khm-filter-portfolio').val()),
-      keywords: $('.khm-filter-keywords').val(),
-      operator: $('.khm-filter-operator').val() || 'AND',
-      page: 1,
-      per_page: 20
-    };
+    var query = buildSearchQueryFromUI();
     performSearch(query);
   });
 
   $(document).on('click', '.khm-save-search-btn', function () {
+    var query = buildSearchQueryFromUI();
     var payload = {
       name: window.prompt('Saved search name:'),
-      query: {
-        date_from: $('.khm-filter-date-from').val(),
-        date_to: $('.khm-filter-date-to').val(),
-        topics: tokenizeKeywords($('.khm-filter-topics').val()),
-        portfolios: tokenizeKeywords($('.khm-filter-portfolio').val()),
-        keywords: $('.khm-filter-keywords').val(),
-        operator: $('.khm-filter-operator').val() || 'AND'
-      }
+      query: query
     };
 
     if (!payload.name) {
@@ -289,14 +570,80 @@
     }
 
     var q = selected.query || {};
-    $('.khm-filter-date-from').val(q.date_from || '');
-    $('.khm-filter-date-to').val(q.date_to || '');
-    $('.khm-filter-topics').val((q.topics || []).join(', '));
-    $('.khm-filter-portfolio').val((q.portfolios || []).join(', '));
+    var resolvedDateRange = (q.date_range || '').trim().toLowerCase();
+    if (!resolvedDateRange) {
+      resolvedDateRange = inferDateRangeFromBounds(q.date_from || '', q.date_to || '');
+    }
+    if (!resolvedDateRange) {
+      resolvedDateRange = 'all';
+    }
+    $('.khm-filter-date-range').val(resolvedDateRange);
+    // Restore multi-select categories
+    var savedTopics = Array.isArray(q.topics) ? q.topics.slice() : [];
+    var availableCatVals = {};
+    $('.khm-filter-categories option').each(function () {
+      availableCatVals[$(this).val()] = true;
+    });
+    var savedCategories = savedTopics.filter(function (t) { return availableCatVals[t]; });
+    var remainingTopics = savedTopics.filter(function (t) { return !availableCatVals[t]; });
+    $('.khm-filter-categories').val(savedCategories);
+    // Legacy: also restore single-category select if present
+    var topLineLegacy = q.top_line_category || (savedCategories.length ? savedCategories[0] : '');
+    $('.khm-filter-top-line-category').val(topLineLegacy);
+
+    $('.khm-filter-topics').val(remainingTopics.join(', '));
     $('.khm-filter-keywords').val(q.keywords || '');
     $('.khm-filter-operator').val(q.operator || 'AND');
 
-    performSearch(q);
+    performSearch(buildSearchQueryFromUI());
+  });
+
+  $(document).on('input focus', '.khm-filter-topics', function () {
+    openTopicSuggestions($(this));
+  });
+
+  $(document).on('keydown', '.khm-filter-topics', function (event) {
+    var $input = $(this);
+    var $menu = getTopicAutocomplete($input).find('.khm-topic-suggest-menu');
+    var $items = $menu.find('.khm-topic-suggest-item');
+    if (!$items.length) {
+      return;
+    }
+
+    var activeIndex = parseInt($menu.attr('data-active-index') || '0', 10);
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveTopicSuggestion($menu, activeIndex + 1);
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveTopicSuggestion($menu, activeIndex - 1);
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      applyTopicSuggestion($input, $items.eq(activeIndex).data('topic'));
+      return;
+    }
+    if (event.key === 'Escape') {
+      closeTopicSuggestMenu($input);
+    }
+  });
+
+  $(document).on('mousedown', '.khm-topic-suggest-item', function (event) {
+    event.preventDefault();
+    applyTopicSuggestion($(this).closest('.khm-topic-autocomplete').find('.khm-filter-topics'), $(this).data('topic'));
+  });
+
+  $(document).on('click', function (event) {
+    var $target = $(event.target);
+    if ($target.closest('.khm-topic-autocomplete').length) {
+      return;
+    }
+    $('.khm-filter-topics').each(function () {
+      closeTopicSuggestMenu($(this));
+    });
   });
 
   $(document).on('click', '.khm-view-session', function () {
@@ -488,11 +835,9 @@
 
     loadSavedSearches();
     maybeAcceptInviteFromUrl();
+    warmTopicSuggestions();
 
-    var today = new Date();
-    var plus42 = new Date(today.getTime() + 42 * 24 * 60 * 60 * 1000);
-    $('.khm-filter-date-from').val(today.toISOString().slice(0, 10));
-    $('.khm-filter-date-to').val(plus42.toISOString().slice(0, 10));
+    $('.khm-filter-date-range').val('all');
 
     $('.khm-quoteclub-search-btn').trigger('click');
   });

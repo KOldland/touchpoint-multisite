@@ -37,6 +37,12 @@ class QuoteClubController {
             'permission_callback' => [$this, 'check_sponsor_auth'],
         ]);
 
+        register_rest_route('khm/v1', '/portal/quoteclub/topic-suggestions', [
+            'methods' => 'GET',
+            'callback' => [$this, 'topic_suggestions'],
+            'permission_callback' => [$this, 'check_sponsor_auth'],
+        ]);
+
         register_rest_route('khm/v1', '/portal/quoteclub/commentary', [
             'methods' => 'POST',
             'callback' => [$this, 'submit_commentary'],
@@ -359,6 +365,7 @@ class QuoteClubController {
         $per_page = min(50, max(1, (int) ($request->get_param('per_page') ?: 20)));
         $date_from = sanitize_text_field((string) $request->get_param('date_from'));
         $date_to = sanitize_text_field((string) $request->get_param('date_to'));
+        $top_line_category = sanitize_text_field((string) $request->get_param('top_line_category'));
         $topics = $request->get_param('topics');
         $portfolios = $request->get_param('portfolios');
         $keywords = sanitize_text_field((string) $request->get_param('keywords'));
@@ -369,6 +376,59 @@ class QuoteClubController {
         }
         if (!is_array($portfolios)) {
             $portfolios = [];
+        }
+
+        if ($top_line_category !== '' && !in_array($top_line_category, $topics, true)) {
+            array_unshift($topics, $top_line_category);
+        }
+
+        $topics = array_values(array_filter(array_map(static function ($topic): string {
+            return sanitize_text_field((string) $topic);
+        }, $topics), static function (string $topic): bool {
+            return $topic !== '';
+        }));
+
+        if (!empty($topics)) {
+            $category_terms = get_terms([
+                'taxonomy' => 'category',
+                'hide_empty' => false,
+                'fields' => 'names',
+            ]);
+
+            if (!is_wp_error($category_terms) && is_array($category_terms) && !empty($category_terms)) {
+                $category_lookup = [];
+                foreach ($category_terms as $term_name) {
+                    $name = sanitize_text_field((string) $term_name);
+                    if ($name === '') {
+                        continue;
+                    }
+                    $category_lookup[strtolower($name)] = true;
+                }
+
+                if (!empty($category_lookup)) {
+                    $topic_lookup = [];
+                    foreach ($topics as $topic) {
+                        $topic_lookup[strtolower($topic)] = $topic;
+                    }
+
+                    $has_all_categories = true;
+                    foreach (array_keys($category_lookup) as $category_key) {
+                        if (!isset($topic_lookup[$category_key])) {
+                            $has_all_categories = false;
+                            break;
+                        }
+                    }
+
+                    if ($has_all_categories) {
+                        $topics = [];
+                        foreach ($topic_lookup as $topic_key => $topic_value) {
+                            if (!isset($category_lookup[$topic_key])) {
+                                $topics[] = $topic_value;
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         $meta_query = ['relation' => 'AND'];
@@ -497,6 +557,7 @@ class QuoteClubController {
                 'title' => get_the_title($post),
                 'scheduled_publish' => mysql2date('Y-m-d', $post->post_date, false),
                 'brief' => wp_trim_words(wp_strip_all_tags((string) $post->post_content), 100, '...'),
+                'topics' => $this->normalize_list_meta((string) get_post_meta($post->ID, 'topics', true)),
                 'questions' => $questions,
             ];
         }
@@ -504,6 +565,67 @@ class QuoteClubController {
         return new WP_REST_Response([
             'success' => true,
             'sessions' => $sessions,
+        ], 200);
+    }
+
+    public function topic_suggestions(WP_REST_Request $request): WP_REST_Response {
+        global $wpdb;
+
+        $limit = min(20, max(1, (int) ($request->get_param('limit') ?: 12)));
+        $query = sanitize_text_field((string) $request->get_param('q'));
+
+        $suggestions = [];
+
+        // Canonical source: native WP post categories (topics are categories).
+        $category_terms = get_terms([
+            'taxonomy' => 'category',
+            'hide_empty' => false,
+            'fields' => 'names',
+        ]);
+
+        if (!is_wp_error($category_terms) && is_array($category_terms)) {
+            foreach ($category_terms as $name) {
+                $topic = sanitize_text_field((string) $name);
+                if ($topic === '') {
+                    continue;
+                }
+                $suggestions[strtolower($topic)] = $topic;
+            }
+        }
+
+        // Fallback source: planner_session topics meta.
+        $rows = $wpdb->get_col(
+            "SELECT pm.meta_value
+             FROM {$wpdb->postmeta} pm
+             INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+             WHERE p.post_type = 'planner_session'
+               AND p.post_status IN ('publish', 'future', 'draft', 'pending')
+               AND pm.meta_key = 'topics'
+               AND pm.meta_value <> ''"
+        );
+
+        foreach ((array) $rows as $value) {
+            foreach ($this->normalize_list_meta((string) $value) as $topic) {
+                if ($topic === '') {
+                    continue;
+                }
+                $suggestions[strtolower($topic)] = $topic;
+            }
+        }
+
+        $suggestions = array_values($suggestions);
+        sort($suggestions, SORT_NATURAL | SORT_FLAG_CASE);
+
+        if ($query !== '') {
+            $query_lc = strtolower($query);
+            $suggestions = array_values(array_filter($suggestions, static function (string $topic) use ($query_lc): bool {
+                return strpos(strtolower($topic), $query_lc) !== false;
+            }));
+        }
+
+        return new WP_REST_Response([
+            'success' => true,
+            'suggestions' => array_slice($suggestions, 0, $limit),
         ], 200);
     }
 

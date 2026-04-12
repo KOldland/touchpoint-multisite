@@ -152,7 +152,6 @@ const EditorialPlannerApp = () => {
     const [synopsisPlanError, setSynopsisPlanError] = useState('');
     const [synopsisGenerateLoading, setSynopsisGenerateLoading] = useState(false);
     const [synopsisTotal, setSynopsisTotal] = useState(20);
-    const [synopsisCompactSuggestion, setSynopsisCompactSuggestion] = useState(null);
     const [citationSegmentFilter, setCitationSegmentFilter] = useState('all');
     const [lowCitationBatchLoading, setLowCitationBatchLoading] = useState(false);
     const [focusDirty, setFocusDirty] = useState(false);
@@ -1910,7 +1909,6 @@ const EditorialPlannerApp = () => {
         setSynopsisModalOpen(true);
         setSynopsisPlanLoading(true);
         setSynopsisPlanError('');
-        setSynopsisCompactSuggestion(null);
         try {
             const data = await apiFetch({
                 path: 'dual-gpt/v1/planner/synopsis-plan',
@@ -1931,44 +1929,6 @@ const EditorialPlannerApp = () => {
         setSynopsisPlan((prev) => ({ ...prev, [topic]: count }));
     };
 
-    const suggestCompactSynopsisTotal = () => {
-        const topicCount = Math.max(1, Object.keys(synopsisPlan || {}).length);
-        const reducedByRatio = Math.max(topicCount, Math.floor((Number(synopsisTotal) || 1) * 0.6));
-        if (reducedByRatio < synopsisTotal) {
-            return reducedByRatio;
-        }
-        return Math.max(topicCount, Math.max(1, synopsisTotal - 1));
-    };
-
-    const applyCompactSynopsisPlan = async () => {
-        if (!sessionDetail?.id) {
-            return;
-        }
-        const compactTotal = synopsisCompactSuggestion?.suggestedTotal || suggestCompactSynopsisTotal();
-        try {
-            setSynopsisPlanLoading(true);
-            setSynopsisPlanError('');
-            const data = await apiFetch({
-                path: 'dual-gpt/v1/planner/synopsis-plan',
-                method: 'POST',
-                data: { session_id: sessionDetail.id, total: compactTotal },
-            });
-            setSynopsisTotal(compactTotal);
-            setSynopsisPlan(data.plan || {});
-            setSynopsisCompactSuggestion(null);
-            dispatch('core/notices').createNotice(
-                'success',
-                `Compact plan applied (target ${compactTotal}).`,
-                { type: 'snackbar' }
-            );
-        } catch (error) {
-            console.error('Failed to apply compact synopsis plan:', error);
-            setSynopsisPlanError(error.message || 'Failed to apply compact plan.');
-        } finally {
-            setSynopsisPlanLoading(false);
-        }
-    };
-
     const handleGenerateSynopses = async () => {
         if (!sessionDetail || !sessionDetail.id) {
             dispatch('core/notices').createNotice(
@@ -1980,26 +1940,9 @@ const EditorialPlannerApp = () => {
         }
 
         try {
-            setSynopsisPlanError('');
-            const baselineArticlesCount = Array.isArray(sessionDetail?.meta?.articles)
-                ? sessionDetail.meta.articles.length
-                : 0;
-            let effectivePlan = synopsisPlan;
-
-            if (synopsisPlanTotal !== synopsisTotal) {
-                const recalculated = await apiFetch({
-                    path: 'dual-gpt/v1/planner/synopsis-plan',
-                    method: 'POST',
-                    data: { session_id: sessionDetail.id, total: synopsisTotal },
-                });
-                effectivePlan = recalculated?.plan || synopsisPlan;
-                setSynopsisPlan(effectivePlan);
-            }
-
             console.log('[Planner] Generate synopses click', {
                 sessionId: sessionDetail.id,
-                plan: effectivePlan,
-                baselineArticlesCount,
+                plan: synopsisPlan,
             });
             setSynopsisGenerateLoading(true);
             dispatch('core/notices').createNotice(
@@ -2007,121 +1950,43 @@ const EditorialPlannerApp = () => {
                 'Generating synopses...',
                 { type: 'snackbar' }
             );
-            const synopsisResponse = await apiFetch({
+            await apiFetch({
                 path: 'dual-gpt/v1/planner/synopses',
                 method: 'POST',
-                data: { session_id: sessionDetail.id, plan: effectivePlan, batch_size: SYNOPSIS_BATCH_SIZE },
+                data: { session_id: sessionDetail.id, plan: synopsisPlan, batch_size: SYNOPSIS_BATCH_SIZE },
             });
-            const synopsisJobIds = Array.isArray(synopsisResponse?.job_ids) ? synopsisResponse.job_ids : [];
-            setSynopsisCompactSuggestion(null);
 
             dispatch('core/notices').createNotice(
                 'success',
-                `Article synopses queued (${synopsisResponse?.batch_count || 0} batch${(synopsisResponse?.batch_count || 0) === 1 ? '' : 'es'}). Refreshing to display results...`,
+                'Article synopses queued. Refreshing to display results...',
                 { type: 'snackbar' }
             );
-            if (!synopsisJobIds.length) {
-                dispatch('core/notices').createNotice(
-                    'warning',
-                    'Synopses request returned without job IDs. Falling back to session polling.',
-                    { type: 'snackbar' }
-                );
-            }
 
-            // Keep the synopsis modal open with loading state while generating.
-            // Use an interval poller (instead of recursive timeouts) to avoid silent callback drops.
+            // Keep the synopsis modal open with loading state while generating
+            // Poll for updates until synopses appear
             let pollCount = 0;
             const maxPolls = 120; // 120 * 2.5s = 5 minutes max
-            const intervalId = window.setInterval(async () => {
+            const pollSynopses = async () => {
                 pollCount++;
-                let jobsStatus = null;
-
-                if (synopsisJobIds.length) {
-                    try {
-                        jobsStatus = await apiFetch({
-                            path: 'dual-gpt/v1/planner/jobs-status',
-                            method: 'POST',
-                            data: { session_id: sessionDetail.id, job_ids: synopsisJobIds },
-                        });
-                    } catch (statusError) {
-                        console.warn('[Planner] Failed to check synopsis job status:', statusError);
+                await refreshSessionDetail();
+                const articlesCount = sessionDetail?.meta?.articles?.length || 0;
+                if (articlesCount > 0 || pollCount >= maxPolls) {
+                    setSynopsisGenerateLoading(false);
+                    setSynopsisModalOpen(false);
+                    if (articlesCount > 0) {
+                        dispatch('core/notices').createNotice(
+                            'success',
+                            `${articlesCount} article synopses generated successfully.`,
+                            { type: 'snackbar' }
+                        );
                     }
-                }
-
-                const refreshed = await refreshSessionDetail();
-                const articlesCount = refreshed?.meta?.articles?.length || 0;
-                const createdNewSynopses = articlesCount > baselineArticlesCount;
-                const allJobsComplete = synopsisJobIds.length
-                    ? Boolean(jobsStatus?.all_complete)
-                    : false;
-                const failedCount = Number(jobsStatus?.failed_count || 0);
-                const timedOut = pollCount >= maxPolls;
-                const shouldFinish = createdNewSynopses || allJobsComplete || timedOut;
-
-                if (!shouldFinish) {
                     return;
                 }
-
-                window.clearInterval(intervalId);
-                setSynopsisGenerateLoading(false);
-                setSynopsisModalOpen(false);
-
-                if (createdNewSynopses) {
-                    const createdCount = Math.max(0, articlesCount - baselineArticlesCount);
-                    dispatch('core/notices').createNotice(
-                        'success',
-                        `${createdCount} article synopses generated successfully.`,
-                        { type: 'snackbar' }
-                    );
-                    return;
-                }
-
-                if (allJobsComplete && failedCount > 0) {
-                    const firstFailure = Array.isArray(jobsStatus?.jobs)
-                        ? jobsStatus.jobs.find((job) => job.status === 'failed')
-                        : null;
-                    dispatch('core/notices').createNotice(
-                        'error',
-                        firstFailure?.error_message || 'Synopsis generation failed. Please review job errors and retry.',
-                        { type: 'snackbar' }
-                    );
-                    return;
-                }
-
-                if (allJobsComplete) {
-                    dispatch('core/notices').createNotice(
-                        'success',
-                        'Synopsis jobs completed. Refreshing article list now.',
-                        { type: 'snackbar' }
-                    );
-                    return;
-                }
-
-                dispatch('core/notices').createNotice(
-                    'warning',
-                    'Synopses were queued, but no new synopsis records were detected yet. Check queue status and retry in a moment.',
-                    { type: 'snackbar' }
-                );
-            }, 2500);
+                setTimeout(pollSynopses, 2500);
+            };
+            setTimeout(pollSynopses, 2500);
         } catch (error) {
             console.error('Synopsis generation failed:', error);
-            const errorCode = String(error?.code || '');
-            const errorMessage = String(error?.message || '');
-            const isPromptTooLong = errorCode === 'prompt_too_long' || /prompt too long/i.test(errorMessage);
-            if (isPromptTooLong) {
-                const suggestedTotal = suggestCompactSynopsisTotal();
-                setSynopsisCompactSuggestion({ suggestedTotal });
-                setSynopsisPlanError(
-                    `Prompt too long for current synopsis volume. Try compact mode (suggested target: ${suggestedTotal}).`
-                );
-                dispatch('core/notices').createNotice(
-                    'warning',
-                    `Prompt too long. Use Compact Plan (target ${suggestedTotal}) and retry.`,
-                    { type: 'snackbar' }
-                );
-                setSynopsisGenerateLoading(false);
-                return;
-            }
             dispatch('core/notices').createNotice(
                 'error',
                 error.message || 'Synopsis generation failed.',
@@ -2848,7 +2713,7 @@ const EditorialPlannerApp = () => {
                 return null;
             }
             const citationsCount = Array.isArray(phase.citations) ? phase.citations.length : 0;
-            const phaseSummary = phase.summary || phase.payload?.summary || phase.payload?.article_summary || '';
+            const phaseSummary = phase.summary || phase.payload?.article_summary || '';
             const hasSummary = !!(phaseSummary && String(phaseSummary).trim());
             const hasError = !!(phase.error_message && String(phase.error_message).trim());
             const isExpanded = !!expandedPhases[key];
@@ -2955,14 +2820,7 @@ const EditorialPlannerApp = () => {
                     )
                 );
             }
-            const phase2Payload =
-                key === 'phase2'
-                    ? (sessionDetail?.meta?.phase2 && typeof sessionDetail.meta.phase2 === 'object'
-                        ? sessionDetail.meta.phase2
-                        : (sessionDetail?.meta?.phases?.phase2?.payload || {}))
-                    : null;
-
-            if (key === 'phase2' && Array.isArray(phase2Payload?.keyword_metrics) && phase2Payload.keyword_metrics.length) {
+            if (key === 'phase2' && sessionDetail?.meta?.phase2?.keyword_metrics?.length) {
                 detailBlocks.push(
                     wp.element.createElement(
                         'div',
@@ -2988,7 +2846,7 @@ const EditorialPlannerApp = () => {
                             wp.element.createElement(
                                 'tbody',
                                 null,
-                                phase2Payload.keyword_metrics.slice(0, 10).map((item, idx) =>
+                                sessionDetail.meta.phase2.keyword_metrics.slice(0, 10).map((item, idx) =>
                                     wp.element.createElement(
                                         'tr',
                                         { key: `kw-${idx}` },
@@ -3005,14 +2863,14 @@ const EditorialPlannerApp = () => {
                     )
                 );
             }
-            if (key === 'phase2' && Array.isArray(phase2Payload?.ranked_keywords) && phase2Payload.ranked_keywords.length) {
+            if (key === 'phase2' && sessionDetail?.meta?.phase2?.ranked_keywords?.length) {
                 detailBlocks.push(
                     wp.element.createElement(
                         'div',
                         { key: 'ranked-keywords-phase2', style: { marginTop: '10px' } },
                         wp.element.createElement('strong', null, 'Priority Ranking'),
                         renderList(
-                            phase2Payload.ranked_keywords.slice(0, 10).map((item) => {
+                            sessionDetail.meta.phase2.ranked_keywords.slice(0, 10).map((item) => {
                                 const score = item.priority_score != null ? item.priority_score : '—';
                                 const volume = item.search_volume ?? '—';
                                 const cpc = item.cpc ?? '—';
@@ -3027,7 +2885,7 @@ const EditorialPlannerApp = () => {
                         'div',
                         { key: 'serp-signals-phase2', style: { marginTop: '8px' } },
                         wp.element.createElement('strong', null, 'SERP Signals'),
-                        phase2Payload.ranked_keywords.slice(0, 6).map((item, idx) =>
+                        sessionDetail.meta.phase2.ranked_keywords.slice(0, 6).map((item, idx) =>
                             wp.element.createElement(
                                 'div',
                                 { key: `serp-${idx}`, style: { marginTop: '6px' } },
@@ -4983,25 +4841,6 @@ const EditorialPlannerApp = () => {
                                       { status: 'warning', isDismissible: false },
                                       `Total synopses do not match target (${synopsisTotal}). You can still generate, or adjust counts.`
                                   ),
-                              synopsisCompactSuggestion &&
-                                  wp.element.createElement(
-                                      Notice,
-                                      { status: 'warning', isDismissible: false },
-                                      `Compact mode suggested to avoid prompt-length failures (target ${synopsisCompactSuggestion.suggestedTotal}).`,
-                                      wp.element.createElement(
-                                          'div',
-                                          { style: { marginTop: '8px' } },
-                                          wp.element.createElement(
-                                              Button,
-                                              {
-                                                  isSecondary: true,
-                                                  onClick: applyCompactSynopsisPlan,
-                                                  disabled: synopsisPlanLoading || synopsisGenerateLoading,
-                                              },
-                                              'Use Compact Plan'
-                                          )
-                                      )
-                                  ),
                               wp.element.createElement(
                                   'div',
                                   { style: { marginTop: '12px', maxWidth: '240px' } },
@@ -6063,25 +5902,6 @@ const EditorialPlannerApp = () => {
                                   Notice,
                                   { status: 'warning', isDismissible: false },
                                   `Total synopses do not match target (${synopsisTotal}). You can still generate, or adjust counts.`
-                              ),
-                          synopsisCompactSuggestion &&
-                              wp.element.createElement(
-                                  Notice,
-                                  { status: 'warning', isDismissible: false },
-                                  `Compact mode suggested to avoid prompt-length failures (target ${synopsisCompactSuggestion.suggestedTotal}).`,
-                                  wp.element.createElement(
-                                      'div',
-                                      { style: { marginTop: '8px' } },
-                                      wp.element.createElement(
-                                          Button,
-                                          {
-                                              isSecondary: true,
-                                              onClick: applyCompactSynopsisPlan,
-                                              disabled: synopsisPlanLoading || synopsisGenerateLoading,
-                                          },
-                                          'Use Compact Plan'
-                                      )
-                                  )
                               ),
                           wp.element.createElement(
                               'div',

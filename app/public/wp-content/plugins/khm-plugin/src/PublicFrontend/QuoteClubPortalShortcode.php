@@ -101,6 +101,7 @@ class QuoteClubPortalShortcode {
 			'inviteToken'   => sanitize_text_field( (string) ( $_GET['khm_sponsor_invite'] ?? '' ) ),
 			'inviteEmail'   => sanitize_email( (string) ( $_GET['khm_sponsor_invite_email'] ?? '' ) ),
 			'wordsPerCredit'=> 120,
+			'availableCategories' => $this->get_top_line_categories(),
 		] );
 	}
 
@@ -292,6 +293,7 @@ class QuoteClubPortalShortcode {
 	}
 
 	private function render_commentary_section( int $user_id, ?array $sponsor ): void {
+		$categories = $this->get_top_line_categories();
 		?>
 		<div class="khm-qc-section khm-qc-commentary">
 			<!-- Invite / accept status banner -->
@@ -300,15 +302,28 @@ class QuoteClubPortalShortcode {
 			<h2><?php esc_html_e( 'Search Articles &amp; Submit Commentary', 'khm-membership' ); ?></h2>
 
 			<div class="khm-quoteclub-toolbar">
-				<input type="date" class="khm-filter-date-from" aria-label="<?php esc_attr_e( 'From date', 'khm-membership' ); ?>">
-				<input type="date" class="khm-filter-date-to" aria-label="<?php esc_attr_e( 'To date', 'khm-membership' ); ?>">
-				<input type="text" class="khm-filter-topics" placeholder="<?php esc_attr_e( 'Topics (comma-separated)', 'khm-membership' ); ?>">
-				<input type="text" class="khm-filter-portfolio" placeholder="<?php esc_attr_e( 'Portfolio (comma-separated)', 'khm-membership' ); ?>">
+				<select class="khm-filter-date-range" aria-label="<?php esc_attr_e( 'Date range', 'khm-membership' ); ?>">
+					<option value="all"><?php esc_html_e( 'All', 'khm-membership' ); ?></option>
+					<option value="week"><?php esc_html_e( 'Within the next week', 'khm-membership' ); ?></option>
+					<option value="month"><?php esc_html_e( 'Within the next month', 'khm-membership' ); ?></option>
+				</select>
+				<?php if ( ! empty( $categories ) ) : ?>
+				<select multiple class="khm-filter-categories" aria-label="<?php esc_attr_e( 'Categories', 'khm-membership' ); ?>">
+					<?php foreach ( $categories as $cat ) : ?>
+						<option value="<?php echo esc_attr( $cat ); ?>"><?php echo esc_html( $cat ); ?></option>
+					<?php endforeach; ?>
+				</select>
+				<?php endif; ?>
+				<div class="khm-topic-autocomplete">
+					<input type="text" class="khm-filter-topics" autocomplete="off" placeholder="<?php esc_attr_e( 'Topics', 'khm-membership' ); ?>">
+					<div class="khm-topic-suggest-menu" role="listbox" aria-label="<?php esc_attr_e( 'Topic suggestions', 'khm-membership' ); ?>"></div>
+				</div>
 				<input type="text" class="khm-filter-keywords" placeholder="<?php esc_attr_e( 'Keywords', 'khm-membership' ); ?>">
 				<select class="khm-filter-operator" aria-label="<?php esc_attr_e( 'Keyword operator', 'khm-membership' ); ?>">
 					<option value="AND"><?php esc_html_e( 'AND', 'khm-membership' ); ?></option>
 					<option value="OR"><?php esc_html_e( 'OR', 'khm-membership' ); ?></option>
 				</select>
+				<p class="khm-filter-operator-help"><?php esc_html_e( 'Keyword match: AND requires all words, OR matches any word. Use AND to narrow and OR to broaden.', 'khm-membership' ); ?></p>
 				<select class="khm-saved-searches" aria-label="<?php esc_attr_e( 'Saved searches', 'khm-membership' ); ?>">
 					<option value=""><?php esc_html_e( '— Saved Searches —', 'khm-membership' ); ?></option>
 				</select>
@@ -329,338 +344,261 @@ class QuoteClubPortalShortcode {
 	}
 
 	private function render_press_releases_section( int $user_id, ?array $sponsor ): void {
+		$sponsor_id = isset( $sponsor['id'] ) ? (int) $sponsor['id'] : 0;
 		?>
 		<div class="khm-qc-section khm-qc-press-releases">
 			<h2><?php esc_html_e( 'Press Releases', 'khm-membership' ); ?></h2>
-			<p class="khm-qc-section-intro"><?php esc_html_e( 'Draft, revise, and submit press releases for editorial approval.', 'khm-membership' ); ?></p>
-
+			
 			<div class="khm-qc-pr-toolbar">
-				<div class="khm-qc-pr-filters" role="tablist" aria-label="<?php esc_attr_e( 'Press release filters', 'khm-membership' ); ?>">
-					<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-pr-filter is-active" data-status="all"><?php esc_html_e( 'All', 'khm-membership' ); ?></button>
-					<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-pr-filter" data-status="draft"><?php esc_html_e( 'Drafts', 'khm-membership' ); ?></button>
-					<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-pr-filter" data-status="submitted"><?php esc_html_e( 'Submitted', 'khm-membership' ); ?></button>
-					<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-pr-filter" data-status="published"><?php esc_html_e( 'Published', 'khm-membership' ); ?></button>
-					<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-pr-filter" data-status="rejected"><?php esc_html_e( 'Rejected', 'khm-membership' ); ?></button>
-				</div>
-				<button type="button" class="khm-qc-btn khm-qc-btn-primary" id="khm-qc-pr-create-btn"><?php esc_html_e( 'Create Press Release', 'khm-membership' ); ?></button>
+				<button class="khm-qc-btn khm-qc-btn-primary" id="pr-create-btn">
+					<?php esc_html_e( '+ Create New Press Release', 'khm-membership' ); ?>
+				</button>
 			</div>
 
-			<div class="khm-qc-alert khm-qc-alert-error" id="khm-qc-pr-error" hidden></div>
-			<div id="khm-qc-pr-list" class="khm-qc-pr-list" aria-live="polite"></div>
+			<!-- Press release list -->
+			<div id="pr-list" class="khm-qc-pr-list"></div>
 
-			<div id="khm-qc-pr-form-modal" class="khm-qc-modal" hidden>
+			<!-- Create/Edit form modal -->
+			<div id="pr-form-modal" class="khm-qc-modal" style="display:none">
 				<div class="khm-qc-modal-content">
 					<div class="khm-qc-modal-header">
-						<h3 id="khm-qc-pr-form-title"><?php esc_html_e( 'Create Press Release', 'khm-membership' ); ?></h3>
-						<button type="button" class="khm-qc-modal-close" id="khm-qc-pr-form-close" aria-label="<?php esc_attr_e( 'Close', 'khm-membership' ); ?>">&times;</button>
+						<h3 id="pr-form-title"><?php esc_html_e( 'Create Press Release', 'khm-membership' ); ?></h3>
+						<button class="khm-qc-modal-close" id="pr-form-close">×</button>
 					</div>
 					<div class="khm-qc-modal-body">
-						<form id="khm-qc-pr-form">
+						<form id="pr-form">
 							<div class="khm-qc-form-group">
-								<label for="khm-qc-pr-title"><?php esc_html_e( 'Title', 'khm-membership' ); ?></label>
-								<input type="text" id="khm-qc-pr-title" name="title" class="khm-qc-input" maxlength="255" required>
+								<label for="pr-title"><?php esc_html_e( 'Title', 'khm-membership' ); ?> *</label>
+								<input type="text" id="pr-title" name="title" required maxlength="255"
+									   placeholder="<?php esc_attr_e( 'Press release title', 'khm-membership' ); ?>"
+									   class="khm-qc-input">
 							</div>
 							<div class="khm-qc-form-group">
-								<label for="khm-qc-pr-content"><?php esc_html_e( 'Content', 'khm-membership' ); ?></label>
-								<textarea id="khm-qc-pr-content" name="content" class="khm-qc-textarea" rows="10" required></textarea>
-								<small><?php esc_html_e( 'Your draft stays editable until you submit it for review.', 'khm-membership' ); ?></small>
+								<label for="pr-content"><?php esc_html_e( 'Content', 'khm-membership' ); ?> *</label>
+								<textarea id="pr-content" name="content" required rows="8"
+										  placeholder="<?php esc_attr_e( 'Write your press release content here...', 'khm-membership' ); ?>"
+										  class="khm-qc-textarea"></textarea>
+								<small><?php esc_html_e( 'Press releases can be any length.', 'khm-membership' ); ?></small>
 							</div>
 						</form>
 					</div>
 					<div class="khm-qc-modal-footer">
-						<button type="button" class="khm-qc-btn khm-qc-btn-secondary" id="khm-qc-pr-form-cancel"><?php esc_html_e( 'Cancel', 'khm-membership' ); ?></button>
-						<button type="button" class="khm-qc-btn khm-qc-btn-primary" id="khm-qc-pr-save-btn"><?php esc_html_e( 'Save Draft', 'khm-membership' ); ?></button>
-						<button type="button" class="khm-qc-btn khm-qc-btn-success" id="khm-qc-pr-submit-btn" hidden><?php esc_html_e( 'Save and Submit', 'khm-membership' ); ?></button>
+						<button class="khm-qc-btn" id="pr-form-cancel"><?php esc_html_e( 'Cancel', 'khm-membership' ); ?></button>
+						<button class="khm-qc-btn khm-qc-btn-primary" id="pr-form-save-draft"><?php esc_html_e( 'Save Draft', 'khm-membership' ); ?></button>
+						<button class="khm-qc-btn khm-qc-btn-success" id="pr-form-submit" style="display:none">
+							<?php esc_html_e( 'Save & Submit (1 Credit)', 'khm-membership' ); ?>
+						</button>
 					</div>
 				</div>
 			</div>
 
-			<div id="khm-qc-pr-confirm-modal" class="khm-qc-modal" hidden>
-				<div class="khm-qc-modal-content khm-qc-modal-content-narrow">
+			<!-- View/Confirm modal -->
+			<div id="pr-confirm-modal" class="khm-qc-modal" style="display:none">
+				<div class="khm-qc-modal-content" style="max-width:700px">
 					<div class="khm-qc-modal-header">
 						<h3><?php esc_html_e( 'Confirm Submission', 'khm-membership' ); ?></h3>
-						<button type="button" class="khm-qc-modal-close" id="khm-qc-pr-confirm-close" aria-label="<?php esc_attr_e( 'Close', 'khm-membership' ); ?>">&times;</button>
+						<button class="khm-qc-modal-close" id="pr-confirm-close">×</button>
 					</div>
 					<div class="khm-qc-modal-body">
-						<div id="khm-qc-pr-confirm-preview" class="khm-qc-pr-confirm-preview"></div>
+						<div id="pr-confirm-preview" style="background:#f9f9f9;padding:1rem;border-radius:4px;margin-bottom:1rem"></div>
 						<div class="khm-qc-alert khm-qc-alert-info">
-							<strong><?php esc_html_e( 'Cost:', 'khm-membership' ); ?></strong>
-							<?php esc_html_e( '1 press release credit', 'khm-membership' ); ?>
+							<strong><?php esc_html_e( 'Cost:', 'khm-membership' ); ?></strong> 
+							<?php esc_html_e( '1 Press Release Credit', 'khm-membership' ); ?>
 						</div>
 					</div>
 					<div class="khm-qc-modal-footer">
-						<button type="button" class="khm-qc-btn khm-qc-btn-secondary" id="khm-qc-pr-confirm-cancel"><?php esc_html_e( 'Back', 'khm-membership' ); ?></button>
-						<button type="button" class="khm-qc-btn khm-qc-btn-success" id="khm-qc-pr-confirm-submit"><?php esc_html_e( 'Confirm and Submit', 'khm-membership' ); ?></button>
+						<button class="khm-qc-btn" id="pr-confirm-cancel"><?php esc_html_e( 'Back to Edit', 'khm-membership' ); ?></button>
+						<button class="khm-qc-btn khm-qc-btn-success" id="pr-confirm-submit"><?php esc_html_e( 'Confirm & Submit', 'khm-membership' ); ?></button>
 					</div>
 				</div>
 			</div>
 
 			<script>
 			(function($) {
-				var baseUrl = khmQuoteClub.restUrl + 'press-releases';
+				var restUrl = khmQuoteClub.restUrl + 'press-releases';
 				var nonce = khmQuoteClub.nonce;
-				var list = [];
-				var currentStatus = 'all';
-				var currentId = null;
+				var currentPrId = null;
+				var prList = [];
 
-				function request(path, method, data) {
-					return $.ajax({
-						url: baseUrl + (path ? '/' + path : ''),
-						method: method,
-						contentType: method === 'GET' ? undefined : 'application/json',
-						data: method === 'GET' ? data : JSON.stringify(data || {}),
+				// Load and display PR list
+				function loadPrList() {
+					$.ajax({
+						url: restUrl,
+						method: 'GET',
 						headers: { 'X-WP-Nonce': nonce },
 						dataType: 'json'
+					}).done(function(res) {
+						if (res.success && res.items) {
+							prList = res.items;
+							renderPrList();
+						}
 					});
 				}
 
-				function showToast(message) {
-					var $toast = $('#khm-qc-toast');
-					if (!$toast.length) {
-						return;
+				// Render PR list UI
+				function renderPrList() {
+					var html = '';
+					if (prList.length === 0) {
+						html = '<p class="khm-qc-empty"><?php esc_html_e( 'No press releases yet. Create one to get started.', 'khm-membership' ); ?></p>';
+					} else {
+						html = '<div class="khm-qc-pr-items">';
+						$.each(prList, function(i, pr) {
+							var statusClass = 'khm-qc-badge-' + pr.status;
+							var actions = '';
+							if (pr.status === 'draft') {
+								actions = '<button class="khm-qc-btn khm-qc-btn-sm pr-edit-btn" data-id="' + pr.id + '">Edit</button> ';
+								actions += '<button class="khm-qc-btn khm-qc-btn-sm pr-delete-btn" data-id="' + pr.id + '">Delete</button>';
+							}
+							html += '<div class="khm-qc-pr-item">' +
+								'<div class="khm-qc-pr-item-header">' +
+								'<h4>' + (pr.title || '(Untitled)') + '</h4>' +
+								'<span class="khm-qc-badge ' + statusClass + '">' + pr.status + '</span>' +
+								'</div>' +
+								'<p class="khm-qc-pr-item-excerpt">' + (pr.excerpt || '') + '</p>' +
+								'<div class="khm-qc-pr-item-meta">' +
+								'<small>Created: ' + pr.created_at.substring(0, 10) + '</small>' +
+								(pr.status === 'published' ? '<small>Published: ' + pr.published_date.substring(0, 10) + '</small>' : '') +
+								(pr.status === 'rejected' ? '<small style="color:#991b1b">Rejected</small>' : '') +
+								'</div>' +
+								(actions ? '<div class="khm-qc-pr-item-actions">' + actions + '</div>' : '') +
+								'</div>';
+						});
+						html += '</div>';
 					}
-					$toast.text(message).addClass('is-visible');
-					window.clearTimeout($toast.data('timeoutId'));
-					$toast.data('timeoutId', window.setTimeout(function() {
-						$toast.removeClass('is-visible');
-					}, 2400));
-				}
+					$('#pr-list').html(html);
 
-				function showError(message) {
-					$('#khm-qc-pr-error').text(message).prop('hidden', false);
-				}
-
-				function clearError() {
-					$('#khm-qc-pr-error').prop('hidden', true).text('');
-				}
-
-				function statusLabel(status) {
-					return (status || '').charAt(0).toUpperCase() + (status || '').slice(1);
-				}
-
-				function renderList() {
-					var items = list.filter(function(item) {
-						return currentStatus === 'all' ? true : item.status === currentStatus;
+					// Bind edit/delete buttons
+					$('.pr-edit-btn').on('click', function() {
+						var id = $(this).data('id');
+						var pr = prList.find(p => p.id == id);
+						if (pr && pr.status === 'draft') {
+							editPr(id, pr.title, pr.content);
+						}
 					});
 
-					if (!items.length) {
-						$('#khm-qc-pr-list').html('<p class="khm-qc-empty"><?php echo esc_js( __( 'No press releases in this view yet.', 'khm-membership' ) ); ?></p>');
-						return;
-					}
-
-					var html = '<div class="khm-qc-pr-items">';
-					items.forEach(function(item) {
-						var excerpt = item.excerpt || '';
-						var submissionDate = item.submission_date ? item.submission_date.substring(0, 10) : '';
-						var publishedDate = item.published_date ? item.published_date.substring(0, 10) : '';
-						html += '<article class="khm-qc-pr-item">';
-						html += '<div class="khm-qc-pr-item-header"><div><h3>' + $('<div/>').text(item.title || '<?php echo esc_js( __( '(Untitled)', 'khm-membership' ) ); ?>').html() + '</h3>';
-						html += '<p class="khm-qc-pr-item-meta">';
-						html += '<?php echo esc_js( __( 'Created', 'khm-membership' ) ); ?>: ' + (item.created_at ? item.created_at.substring(0, 10) : '-');
-						if (submissionDate) {
-							html += ' | <?php echo esc_js( __( 'Submitted', 'khm-membership' ) ); ?>: ' + submissionDate;
+					$('.pr-delete-btn').on('click', function() {
+						if (confirm('<?php esc_attr_e( 'Delete this draft?', 'khm-membership' ); ?>')) {
+							var id = $(this).data('id');
+							$.ajax({
+								url: restUrl + '/' + id,
+								method: 'DELETE',
+								headers: { 'X-WP-Nonce': nonce }
+							}).done(function() {
+								loadPrList();
+							});
 						}
-						if (publishedDate) {
-							html += ' | <?php echo esc_js( __( 'Published', 'khm-membership' ) ); ?>: ' + publishedDate;
-						}
-						html += '</p></div>';
-						html += '<span class="khm-qc-badge khm-qc-badge-' + item.status + '">' + statusLabel(item.status) + '</span></div>';
-						html += '<p class="khm-qc-pr-item-excerpt">' + $('<div/>').text(excerpt).html() + '</p>';
-						if (item.rejection_reason) {
-							html += '<p class="khm-qc-pr-rejection"><?php echo esc_js( __( 'Rejection reason:', 'khm-membership' ) ); ?> ' + $('<div/>').text(item.rejection_reason).html() + '</p>';
-						}
-						html += '<div class="khm-qc-pr-item-actions">';
-						if (item.status === 'draft') {
-							html += '<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-pr-edit" data-id="' + item.id + '"><?php echo esc_js( __( 'Edit', 'khm-membership' ) ); ?></button>';
-							html += '<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-pr-delete" data-id="' + item.id + '"><?php echo esc_js( __( 'Delete', 'khm-membership' ) ); ?></button>';
-							html += '<button type="button" class="khm-qc-btn khm-qc-btn-success khm-qc-pr-open-submit" data-id="' + item.id + '"><?php echo esc_js( __( 'Submit', 'khm-membership' ) ); ?></button>';
-						}
-						html += '</div></article>';
 					});
-					html += '</div>';
-					$('#khm-qc-pr-list').html(html);
 				}
 
-				function loadList() {
-					clearError();
-					request('', 'GET', currentStatus === 'all' ? {} : { status: currentStatus })
-						.done(function(response) {
-							list = response.items || [];
-							renderList();
-						})
-						.fail(function(xhr) {
-							showError(((xhr.responseJSON && xhr.responseJSON.error) || '<?php echo esc_js( __( 'Unable to load press releases.', 'khm-membership' ) ); ?>'));
-						});
+				// Create new PR
+				$('#pr-create-btn').on('click', function() {
+					currentPrId = null;
+					$('#pr-form').trigger('reset');
+					$('#pr-form-title').text('<?php esc_html_e( 'Create Press Release', 'khm-membership' ); ?>');
+					$('#pr-form-submit').hide();
+					$('#pr-form-save-draft').show();
+					$('#pr-form-modal').fadeIn();
+				});
+
+				// Edit existing PR
+				function editPr(id, title, content) {
+					currentPrId = id;
+					$('#pr-title').val(title || '');
+					$('#pr-content').val(content || '');
+					$('#pr-form-title').text('<?php esc_html_e( 'Edit Press Release', 'khm-membership' ); ?>');
+					$('#pr-form-submit').show();
+					$('#pr-form-save-draft').text('<?php esc_html_e( 'Save Changes', 'khm-membership' ); ?>');
+					$('#pr-form-modal').fadeIn();
 				}
 
-				function openModal(selector) {
-					$(selector).prop('hidden', false);
-				}
-
-				function closeModal(selector) {
-					$(selector).prop('hidden', true);
-				}
-
-				function resetForm() {
-					currentId = null;
-					$('#khm-qc-pr-form')[0].reset();
-					$('#khm-qc-pr-form-title').text('<?php echo esc_js( __( 'Create Press Release', 'khm-membership' ) ); ?>');
-					$('#khm-qc-pr-save-btn').text('<?php echo esc_js( __( 'Save Draft', 'khm-membership' ) ); ?>').prop('disabled', false);
-					$('#khm-qc-pr-submit-btn').prop('hidden', true).prop('disabled', false).text('<?php echo esc_js( __( 'Save and Submit', 'khm-membership' ) ); ?>');
-				}
-
-				function openDraft(id) {
-					clearError();
-					request(String(id), 'GET', {})
-						.done(function(response) {
-							var item = response.press_release || {};
-							currentId = item.id;
-							$('#khm-qc-pr-title').val(item.title || '');
-							$('#khm-qc-pr-content').val(item.content || '');
-							$('#khm-qc-pr-form-title').text('<?php echo esc_js( __( 'Edit Press Release', 'khm-membership' ) ); ?>');
-							$('#khm-qc-pr-save-btn').text('<?php echo esc_js( __( 'Save Changes', 'khm-membership' ) ); ?>').prop('disabled', false);
-							$('#khm-qc-pr-submit-btn').prop('hidden', false);
-							openModal('#khm-qc-pr-form-modal');
-						})
-						.fail(function(xhr) {
-							showError(((xhr.responseJSON && xhr.responseJSON.error) || '<?php echo esc_js( __( 'Unable to load the selected draft.', 'khm-membership' ) ); ?>'));
-						});
-				}
-
-				function saveDraft(afterSave) {
-					var payload = {
-						title: $.trim($('#khm-qc-pr-title').val()),
-						content: $.trim($('#khm-qc-pr-content').val())
-					};
-
-					if (!payload.title || !payload.content) {
-						showError('<?php echo esc_js( __( 'Please provide both a title and content.', 'khm-membership' ) ); ?>');
+				// Save draft
+				$('#pr-form-save-draft').on('click', function() {
+					var title = $('#pr-title').val().trim();
+					var content = $('#pr-content').val().trim();
+					if (!title || !content) {
+						alert('<?php esc_attr_e( 'Please fill in title and content.', 'khm-membership' ); ?>');
 						return;
 					}
 
-					clearError();
-					$('#khm-qc-pr-save-btn').prop('disabled', true).text('<?php echo esc_js( __( 'Saving...', 'khm-membership' ) ); ?>');
-					$('#khm-qc-pr-submit-btn').prop('disabled', true);
+					$(this).prop('disabled', true).text('Saving…');
 
-					var path = currentId ? String(currentId) + '/draft' : 'draft';
-					var method = currentId ? 'PUT' : 'POST';
-
-					request(path, method, payload)
-						.done(function(response) {
-							if (!currentId && response.draft_id) {
-								currentId = response.draft_id;
-								$('#khm-qc-pr-submit-btn').prop('hidden', false);
-							}
-							$('#khm-qc-pr-save-btn').prop('disabled', false).text(currentId ? '<?php echo esc_js( __( 'Save Changes', 'khm-membership' ) ); ?>' : '<?php echo esc_js( __( 'Save Draft', 'khm-membership' ) ); ?>');
-							$('#khm-qc-pr-submit-btn').prop('disabled', false);
-							if (typeof afterSave === 'function') {
-								afterSave();
-								return;
-							}
-							closeModal('#khm-qc-pr-form-modal');
-							showToast('<?php echo esc_js( __( 'Draft saved.', 'khm-membership' ) ); ?>');
-							loadList();
-						})
-						.fail(function(xhr) {
-							showError(((xhr.responseJSON && xhr.responseJSON.error) || '<?php echo esc_js( __( 'Unable to save your draft.', 'khm-membership' ) ); ?>'));
-							$('#khm-qc-pr-save-btn').prop('disabled', false).text(currentId ? '<?php echo esc_js( __( 'Save Changes', 'khm-membership' ) ); ?>' : '<?php echo esc_js( __( 'Save Draft', 'khm-membership' ) ); ?>');
-							$('#khm-qc-pr-submit-btn').prop('disabled', false);
-						});
-				}
-
-				function openConfirm() {
-					$('#khm-qc-pr-confirm-preview').html(
-						'<h4>' + $('<div/>').text($('#khm-qc-pr-title').val()).html() + '</h4>' +
-						'<p>' + $('<div/>').text($('#khm-qc-pr-content').val().slice(0, 280)).html() + '</p>'
-					);
-					closeModal('#khm-qc-pr-form-modal');
-					openModal('#khm-qc-pr-confirm-modal');
-				}
-
-				function submitCurrentDraft() {
-					if (!currentId) {
-						return;
+					var method, url, data;
+					if (currentPrId) {
+						method = 'PUT';
+						url = restUrl + '/' + currentPrId;
+						data = { title: title, content: content };
+					} else {
+						method = 'POST';
+						url = restUrl;
+						data = { title: title, content: content };
 					}
 
-					$('#khm-qc-pr-confirm-submit').prop('disabled', true).text('<?php echo esc_js( __( 'Submitting...', 'khm-membership' ) ); ?>');
-					request(String(currentId) + '/submit', 'POST', {})
-						.done(function(response) {
-							if (typeof response.credits_remaining !== 'undefined') {
-								$('#qc-pr-balance').text(response.credits_remaining);
+					$.ajax({
+						url: url,
+						method: method,
+						contentType: 'application/json',
+						data: JSON.stringify(data),
+						headers: { 'X-WP-Nonce': nonce },
+						dataType: 'json'
+					}).done(function(res) {
+						$('#pr-form-modal').fadeOut();
+						loadPrList();
+						if (!currentPrId) {
+							$('#pr-form-save-draft').prop('disabled', false).text('<?php esc_html_e( 'Save Draft', 'khm-membership' ); ?>');
+						}
+					}).fail(function() {
+						alert('<?php esc_attr_e( 'Failed to save draft.', 'khm-membership' ); ?>');
+						$('#pr-form-save-draft').prop('disabled', false);
+					});
+				});
+
+				// Submit for review
+				$('#pr-form-submit').on('click', function() {
+					var pr = prList.find(p => p.id == currentPrId);
+					if (!pr) return;
+
+					// Show confirmation modal
+					var preview = '<h4>' + pr.title + '</h4><p>' + pr.excerpt + '</p>';
+					$('#pr-confirm-preview').html(preview);
+					$('#pr-form-modal').fadeOut();
+					$('#pr-confirm-modal').fadeIn();
+				});
+
+				// Confirm submission
+				$('#pr-confirm-submit').on('click', function() {
+					$(this).prop('disabled', true).text('Submitting…');
+
+					$.ajax({
+						url: restUrl + '/' + currentPrId + '/submit',
+						method: 'POST',
+						headers: { 'X-WP-Nonce': nonce },
+						dataType: 'json'
+					}).done(function(res) {
+						if (res.success) {
+							$('#pr-confirm-modal').fadeOut();
+							loadPrList();
+							// Update credit balance
+							if (res.credits_remaining !== undefined) {
+								$('#qc-pr-balance').text(res.credits_remaining);
 							}
-							closeModal('#khm-qc-pr-confirm-modal');
-							resetForm();
-							showToast('<?php echo esc_js( __( 'Press release submitted for review.', 'khm-membership' ) ); ?>');
-							loadList();
-						})
-						.fail(function(xhr) {
-							closeModal('#khm-qc-pr-confirm-modal');
-							openModal('#khm-qc-pr-form-modal');
-							showError(((xhr.responseJSON && xhr.responseJSON.error) || '<?php echo esc_js( __( 'Submission failed.', 'khm-membership' ) ); ?>'));
-						})
-						.always(function() {
-							$('#khm-qc-pr-confirm-submit').prop('disabled', false).text('<?php echo esc_js( __( 'Confirm and Submit', 'khm-membership' ) ); ?>');
-						});
-				}
-
-				$(document).on('click', '.khm-qc-pr-filter', function() {
-					$('.khm-qc-pr-filter').removeClass('is-active');
-					$(this).addClass('is-active');
-					currentStatus = $(this).data('status');
-					loadList();
+						} else if (res.error === 'insufficient_press_release_credits') {
+							alert('<?php esc_attr_e( 'Insufficient credits. Please purchase more.', 'khm-membership' ); ?>');
+						}
+					}).always(function() {
+						$('#pr-confirm-submit').prop('disabled', false).text('<?php esc_html_e( 'Confirm & Submit', 'khm-membership' ); ?>');
+					});
 				});
 
-				$('#khm-qc-pr-create-btn').on('click', function() {
-					resetForm();
-					clearError();
-					openModal('#khm-qc-pr-form-modal');
+				// Close modals
+				['#pr-form-close', '#pr-form-cancel'].forEach(function(sel) {
+					$(sel).on('click', function() { $('#pr-form-modal').fadeOut(); });
+				});
+				['#pr-confirm-close', '#pr-confirm-cancel'].forEach(function(sel) {
+					$(sel).on('click', function() { $('#pr-confirm-modal').fadeOut(); });
 				});
 
-				$('#khm-qc-pr-save-btn').on('click', function() {
-					saveDraft();
-				});
-
-				$('#khm-qc-pr-submit-btn').on('click', function() {
-					saveDraft(openConfirm);
-				});
-
-				$('#khm-qc-pr-confirm-submit').on('click', function() {
-					submitCurrentDraft();
-				});
-
-				$(document).on('click', '.khm-qc-pr-edit', function() {
-					openDraft($(this).data('id'));
-				});
-
-				$(document).on('click', '.khm-qc-pr-open-submit', function() {
-					openDraft($(this).data('id'));
-				});
-
-				$(document).on('click', '.khm-qc-pr-delete', function() {
-					var id = $(this).data('id');
-					if (!window.confirm('<?php echo esc_js( __( 'Delete this draft?', 'khm-membership' ) ); ?>')) {
-						return;
-					}
-					request(String(id) + '/draft', 'DELETE', {})
-						.done(function() {
-							showToast('<?php echo esc_js( __( 'Draft deleted.', 'khm-membership' ) ); ?>');
-							loadList();
-						})
-						.fail(function(xhr) {
-							showError(((xhr.responseJSON && xhr.responseJSON.error) || '<?php echo esc_js( __( 'Unable to delete the draft.', 'khm-membership' ) ); ?>'));
-						});
-				});
-
-				$('#khm-qc-pr-form-close, #khm-qc-pr-form-cancel').on('click', function() {
-					closeModal('#khm-qc-pr-form-modal');
-				});
-
-				$('#khm-qc-pr-confirm-close, #khm-qc-pr-confirm-cancel').on('click', function() {
-					closeModal('#khm-qc-pr-confirm-modal');
-					openModal('#khm-qc-pr-form-modal');
-				});
-
-				loadList();
+				// Initial load
+				loadPrList();
 			})(jQuery);
 			</script>
 		</div>
@@ -704,6 +642,29 @@ class QuoteClubPortalShortcode {
 		</div>
 		<?php
 		return ob_get_clean();
+	}
+
+	/**
+	 * Fetch top-line categories from the shared Dual GPT option.
+	 *
+	 * @return array<int, string>
+	 */
+	private function get_top_line_categories(): array {
+		$stored = get_option( 'dual_gpt_top_line_categories', null );
+		if ( ! is_array( $stored ) || empty( $stored ) ) {
+			return [];
+		}
+		$categories = [];
+		foreach ( $stored as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$name = sanitize_text_field( (string) ( $row['name'] ?? '' ) );
+			if ( $name !== '' ) {
+				$categories[] = $name;
+			}
+		}
+		return array_values( array_unique( $categories ) );
 	}
 
 	private function render_access_denied(): string {

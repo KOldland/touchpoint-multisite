@@ -4871,6 +4871,7 @@ class Dual_GPT_Plugin {
                 $meta['synopses_error'] = '';
             }
             $db->update_session_meta($session['id'], $meta);
+            $this->sync_planner_session_topics_meta($session, $meta);
 
             // Phase 3: Silent auto dive-deeper safety net.
             $this->maybe_auto_dive_after_synopses($session, $meta, $db);
@@ -5132,6 +5133,83 @@ class Dual_GPT_Plugin {
             $planner_meta['frameworks'] = $frameworks;
             $db->update_session_meta($planner_session_id, $planner_meta);
         }
+    }
+
+    private function resolve_planner_session_post_id($session, $meta = array()) {
+        $candidates = array(
+            intval($session['post_id'] ?? 0),
+            intval($meta['planner_session_post_id'] ?? 0),
+            intval($meta['planner_post_id'] ?? 0),
+        );
+
+        foreach ($candidates as $post_id) {
+            if ($post_id <= 0) {
+                continue;
+            }
+            if (get_post_type($post_id) === 'planner_session') {
+                return $post_id;
+            }
+        }
+
+        return 0;
+    }
+
+    private function collect_planner_topics_from_meta($meta) {
+        $topics = array();
+
+        if (!is_array($meta)) {
+            return $topics;
+        }
+
+        if (!empty($meta['lead_category'])) {
+            $topics[] = sanitize_text_field((string) $meta['lead_category']);
+        }
+
+        $articles = isset($meta['articles']) && is_array($meta['articles']) ? $meta['articles'] : array();
+        foreach ($articles as $article) {
+            if (!is_array($article)) {
+                continue;
+            }
+
+            foreach (array('topic', 'lead_category') as $field) {
+                $value = sanitize_text_field((string) ($article[$field] ?? ''));
+                if ($value !== '') {
+                    $topics[] = $value;
+                }
+            }
+        }
+
+        $validated_topics = $meta['phases']['phase4']['payload']['validated_topics'] ?? array();
+        if (is_array($validated_topics)) {
+            foreach ($validated_topics as $topic) {
+                if (is_array($topic)) {
+                    $value = sanitize_text_field((string) ($topic['topic'] ?? $topic['name'] ?? ''));
+                } else {
+                    $value = sanitize_text_field((string) $topic);
+                }
+
+                if ($value !== '') {
+                    $topics[] = $value;
+                }
+            }
+        }
+
+        $topics = array_values(array_unique(array_filter(array_map('trim', $topics))));
+        return $topics;
+    }
+
+    private function sync_planner_session_topics_meta($session, $meta) {
+        $post_id = $this->resolve_planner_session_post_id($session, $meta);
+        if ($post_id <= 0) {
+            return;
+        }
+
+        $topics = $this->collect_planner_topics_from_meta($meta);
+        if (empty($topics)) {
+            return;
+        }
+
+        update_post_meta($post_id, 'topics', wp_json_encode($topics));
     }
 
     private function maybe_update_planner_meta_failure($job, $session, $error_message) {
@@ -5893,8 +5971,87 @@ class Dual_GPT_Plugin {
             return null;
         }
 
+        $this->apply_author_post_categories($post_id, $article, $session);
         $this->apply_author_post_tags($post_id, $article);
         return $post_id;
+    }
+
+    private function extract_author_post_categories($article, $session = array()) {
+        $categories = array();
+        $session_meta = array();
+        if (isset($session['meta']) && is_array($session['meta'])) {
+            $session_meta = $session['meta'];
+        } elseif (!empty($session['meta_json']) && is_string($session['meta_json'])) {
+            $decoded = json_decode($session['meta_json'], true);
+            if (is_array($decoded)) {
+                $session_meta = $decoded;
+            }
+        }
+
+        $topic = trim((string) ($article['topic'] ?? ''));
+        if ($topic !== '') {
+            $categories[] = $topic;
+        }
+
+        $lead_category = trim((string) ($article['lead_category'] ?? ''));
+        if ($lead_category === '') {
+            $lead_category = trim((string) ($session_meta['lead_category'] ?? ''));
+        }
+        if ($lead_category !== '') {
+            $categories[] = $lead_category;
+        }
+
+        return array_values(array_unique(array_filter(array_map('sanitize_text_field', $categories))));
+    }
+
+    private function ensure_post_category_term($category_name) {
+        $category_name = sanitize_text_field((string) $category_name);
+        if ($category_name === '') {
+            return 0;
+        }
+
+        $existing = term_exists($category_name, 'category');
+        if (is_array($existing) && !empty($existing['term_id'])) {
+            return (int) $existing['term_id'];
+        }
+        if (is_int($existing)) {
+            return (int) $existing;
+        }
+
+        $created = wp_insert_term($category_name, 'category');
+        if (is_wp_error($created) || empty($created['term_id'])) {
+            error_log('[PLANNER][AUTHOR] Failed to create category term: ' . $category_name);
+            return 0;
+        }
+
+        return (int) $created['term_id'];
+    }
+
+    private function apply_author_post_categories($post_id, $article, $session = array()) {
+        if (empty($post_id) || !taxonomy_exists('category')) {
+            return;
+        }
+
+        $category_names = $this->extract_author_post_categories($article, $session);
+        if (empty($category_names)) {
+            return;
+        }
+
+        $category_ids = array();
+        foreach ($category_names as $category_name) {
+            $term_id = $this->ensure_post_category_term($category_name);
+            if ($term_id > 0) {
+                $category_ids[] = $term_id;
+            }
+        }
+
+        $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids))));
+        if (empty($category_ids)) {
+            return;
+        }
+
+        wp_set_post_categories((int) $post_id, $category_ids, false);
+        update_post_meta((int) $post_id, '_lead_category_id', (int) $category_ids[0]);
     }
 
     private function extract_author_post_tags($article) {
@@ -6451,6 +6608,7 @@ class Dual_GPT_Plugin {
         }
 
         $this->insert_blocks_into_post($post_id, $gutenberg_blocks);
+        $this->apply_author_post_categories($post_id, $article);
         $this->apply_author_post_tags($post_id, $article);
         return true;
     }

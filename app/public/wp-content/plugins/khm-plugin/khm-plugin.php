@@ -618,6 +618,14 @@ function khm_register_elementor_widgets( $widgets_manager ) {
         'TestPortalDashboard_Widget.php',
         'MembershipCheckoutButton_Widget.php',
         'CommerceCheckoutButton_Widget.php',
+        'QuoteClubWidgetSupport.php',
+        'QuoteClubInviteStatus_Widget.php',
+        'QuoteClubHeader_Widget.php',
+        'QuoteClubStats_Widget.php',
+        'QuoteClubActivity_Widget.php',
+        'QuoteClubSearchToolbar_Widget.php',
+        'QuoteClubResults_Widget.php',
+        'QuoteClubSessionDetail_Widget.php',
     ];
 
     foreach ( $widget_files as $file ) {
@@ -756,6 +764,63 @@ function khm_register_elementor_widgets( $widgets_manager ) {
             $widgets_manager->register( new \KHM\Elementor\Widgets\CommerceCheckoutButton_Widget() );
         } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
             $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\CommerceCheckoutButton_Widget() );
+        }
+    }
+
+    // Quote Club modular widgets
+    if ( class_exists( '\KHM\Elementor\Widgets\QuoteClubInviteStatus_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\QuoteClubInviteStatus_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\QuoteClubInviteStatus_Widget() );
+        }
+    }
+
+    if ( class_exists( '\KHM\Elementor\Widgets\QuoteClubHeader_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\QuoteClubHeader_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\QuoteClubHeader_Widget() );
+        }
+    }
+
+    if ( class_exists( '\KHM\Elementor\Widgets\QuoteClubStats_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\QuoteClubStats_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\QuoteClubStats_Widget() );
+        }
+    }
+
+    if ( class_exists( '\KHM\Elementor\Widgets\QuoteClubActivity_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\QuoteClubActivity_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\QuoteClubActivity_Widget() );
+        }
+    }
+
+    if ( class_exists( '\KHM\Elementor\Widgets\QuoteClubSearchToolbar_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\QuoteClubSearchToolbar_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\QuoteClubSearchToolbar_Widget() );
+        }
+    }
+
+    if ( class_exists( '\KHM\Elementor\Widgets\QuoteClubResults_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\QuoteClubResults_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\QuoteClubResults_Widget() );
+        }
+    }
+
+    if ( class_exists( '\KHM\Elementor\Widgets\QuoteClubSessionDetail_Widget' ) ) {
+        if ( method_exists( $widgets_manager, 'register' ) ) {
+            $widgets_manager->register( new \KHM\Elementor\Widgets\QuoteClubSessionDetail_Widget() );
+        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\QuoteClubSessionDetail_Widget() );
         }
     }
 

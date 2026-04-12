@@ -14,6 +14,61 @@
   background: linear-gradient(145deg, #f7fafc, #eef4fb);
 }
 
+.khm-topic-autocomplete {
+  position: relative;
+}
+
+.khm-topic-autocomplete .khm-filter-topics {
+  width: 100%;
+}
+
+.khm-filter-operator-help {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #5f6b7a;
+}
+
+.khm-topic-suggest-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: none;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #c3cdd9;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(24, 39, 75, 0.12);
+}
+
+.khm-topic-autocomplete.is-open .khm-topic-suggest-menu {
+  display: block;
+}
+
+.khm-topic-suggest-item {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid #edf1f6;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.khm-topic-suggest-item:last-child {
+  border-bottom: 0;
+}
+
+.khm-topic-suggest-item:hover,
+.khm-topic-suggest-item.is-active {
+  background: #eaf3ff;
+  color: #0f5ea8;
+}
+
 .khm-quoteclub-invite-status {
   grid-column: 1 / -1;
   display: none;
