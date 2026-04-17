@@ -1,0 +1,121 @@
+/* Atomic Search Widget — frontend styles */
+.khm-atomic-search-widget {
+    max-width: 680px;
+    font-family: inherit;
+    margin: 1.5rem 0;
+}
+
+.khm-atomic-search-title {
+    font-size: 1.25rem;
+    margin: 0 0 0.75rem;
+}
+
+.khm-atomic-search-input-row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.khm-atomic-search-input {
+    flex: 1;
+    padding: 0.6rem 0.75rem;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.khm-atomic-search-input:focus {
+    border-color: #0073aa;
+    box-shadow: 0 0 0 2px rgba(0,115,170,0.2);
+}
+
+.khm-atomic-search-btn {
+    padding: 0.6rem 1.1rem;
+    font-size: 1rem;
+    background: #0073aa;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+
+.khm-atomic-search-btn:hover,
+.khm-atomic-search-btn:focus {
+    background: #005a87;
+}
+
+.khm-atomic-search-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Spinner */
+.khm-atomic-search-spinner {
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 3px solid #e0e0e0;
+    border-top-color: #0073aa;
+    border-radius: 50%;
+    animation: khm-spin 0.7s linear infinite;
+    margin: 1rem 0;
+}
+
+@keyframes khm-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Results */
+.khm-atomic-search-results {
+    margin-top: 1.25rem;
+}
+
+.khm-atomic-search-answer {
+    line-height: 1.7;
+    background: #f9f9f9;
+    border-left: 3px solid #0073aa;
+    padding: 0.75rem 1rem;
+    border-radius: 0 4px 4px 0;
+    white-space: pre-wrap;
+}
+
+.khm-atomic-search-sources-heading {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #666;
+    margin: 1rem 0 0.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.khm-atomic-search-sources ul {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 0.875rem;
+}
+
+.khm-atomic-search-sources li {
+    margin-bottom: 0.2rem;
+}
+
+.khm-atomic-search-sources a {
+    color: #0073aa;
+    text-decoration: none;
+}
+
+.khm-atomic-search-sources a:hover {
+    text-decoration: underline;
+}
+
+/* Error */
+.khm-atomic-search-error {
+    color: #c0392b;
+    font-size: 0.9rem;
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #f5c6cb;
+    background: #fff5f5;
+    border-radius: 4px;
+}

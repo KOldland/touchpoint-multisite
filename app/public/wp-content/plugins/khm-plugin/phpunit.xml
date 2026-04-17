@@ -20,6 +20,9 @@
         <testsuite name="Membership Integration Tests">
             <directory>tests/Membership</directory>
         </testsuite>
+        <testsuite name="Atomic Tests">
+            <directory>tests/Atomic</directory>
+        </testsuite>
     </testsuites>
     <coverage processUncoveredFiles="true">
         <include>

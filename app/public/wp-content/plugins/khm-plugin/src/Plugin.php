@@ -1,6 +1,15 @@
 <?php
 namespace KHM;
 
+use KHM\Atomic\AtomicArticleGenerator;
+use KHM\Atomic\AtomicArticlePostType;
+use KHM\Atomic\AtomicEmbeddingService;
+use KHM\Atomic\AtomicMetaBox;
+use KHM\Atomic\AtomicRegenerateEndpoint;
+use KHM\Atomic\AtomicSchemaEmitter;
+use KHM\Atomic\AtomicSearchEndpoint;
+use KHM\Atomic\AtomicSearchWidget;
+use KHM\Migrations\AtomicEmbeddingsMigration;
 use KHM\Services\MarketingSuiteServices;
 use KHM\Services\MembershipRepository;
 use KHM\Services\OrderRepository;
@@ -22,6 +31,7 @@ class Plugin {
 
     public static function on_init() {
         // Register custom post types, shortcodes, etc.
+        self::initialize_atomic();
     }
 
     /**
@@ -52,6 +62,25 @@ class Plugin {
         } catch (\Exception $e) {
             error_log('Failed to initialize KHM Marketing Suite: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Bootstrap the Atomic Articles subsystem (CPT, REST endpoints, cron, widgets).
+     *
+     * @return void
+     */
+    public static function initialize_atomic(): void {
+        // Run DB migration idempotently on every boot so the table is always present.
+        AtomicEmbeddingsMigration::run();
+
+        ( new AtomicArticlePostType() )->register();
+        ( new AtomicSchemaEmitter() )->register();
+        ( new AtomicArticleGenerator() )->register();
+        ( new AtomicMetaBox() )->register();
+        ( new AtomicEmbeddingService() )->register();
+        ( new AtomicRegenerateEndpoint() )->register();
+        ( new AtomicSearchEndpoint() )->register();
+        ( new AtomicSearchWidget() )->register();
     }
 
     public static function get_dir() {
