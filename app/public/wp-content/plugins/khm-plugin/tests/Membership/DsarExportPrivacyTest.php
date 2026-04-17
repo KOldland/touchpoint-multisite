@@ -14,6 +14,12 @@ class DsarExportPrivacyTest extends TestCase {
         $GLOBALS['khm_test_current_user_id'] = 0;
     }
 
+    protected function tearDown(): void {
+        $GLOBALS['khm_test_current_user_id'] = 0;
+        $GLOBALS['khm_test_current_user_caps'] = [];
+        parent::tearDown();
+    }
+
     public function testDsarExportRedactsWhenConsentFalse(): void {
         if (!class_exists('ZipArchive')) {
             $this->markTestSkipped('ZipArchive extension not available in test runtime.');

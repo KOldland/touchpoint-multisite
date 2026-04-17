@@ -280,6 +280,25 @@ class CheckoutController {
     }
 
     /**
+     * Normalise a boolean-like value to a Stripe-safe metadata string ('1' or '0').
+     *
+     * Accepts true/false, 1/0, 'true'/'false', 'yes'/'no', '1'/'0'.
+     * Everything else (null, empty string, unknown strings) returns '0'.
+     *
+     * @param mixed $value
+     */
+    protected function normalize_bool_metadata( $value ): string {
+        if ( is_bool( $value ) ) {
+            return $value ? '1' : '0';
+        }
+        if ( is_int( $value ) || is_float( $value ) ) {
+            return $value ? '1' : '0';
+        }
+        $str = strtolower( trim( (string) $value ) );
+        return in_array( $str, [ '1', 'true', 'yes' ], true ) ? '1' : '0';
+    }
+
+    /**
      * @param array<string,mixed> $params
      * @return object
      */

@@ -14,6 +14,12 @@ class DsarTest extends TestCase {
         $GLOBALS['khm_test_current_user_caps'] = [];
     }
 
+    protected function tearDown(): void {
+        $GLOBALS['khm_test_current_user_id'] = 0;
+        $GLOBALS['khm_test_current_user_caps'] = [];
+        parent::tearDown();
+    }
+
     public function test_authenticated_user_can_request_anonymize_dsar_and_admin_can_approve(): void {
         global $wpdb;
         $table = $wpdb->prefix . 'promotion_attribution';

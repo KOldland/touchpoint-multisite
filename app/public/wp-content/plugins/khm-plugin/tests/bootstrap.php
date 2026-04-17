@@ -531,6 +531,12 @@ if (!function_exists('sanitize_text_field')) {
     }
 }
 
+if (!function_exists('sanitize_textarea_field')) {
+    function sanitize_textarea_field($str) {
+        return strip_tags((string) $str);
+    }
+}
+
 if (!function_exists('sanitize_user')) {
     function sanitize_user($username, $strict = false) {
         $username = strtolower((string) $username);

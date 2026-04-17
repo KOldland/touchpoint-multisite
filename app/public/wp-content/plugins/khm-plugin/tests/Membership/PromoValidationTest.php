@@ -5,12 +5,19 @@ namespace KHM\Tests\Membership;
 use KHM\Membership\SignupEndpoint;
 use KHM\Rest\CheckoutController;
 use KHM\Services\DiscountCodeService;
+use KHM\Services\LevelPriceResolver;
 use PHPUnit\Framework\TestCase;
 use WP_REST_Request;
 
 class PromoValidationTest extends TestCase {
     /** @var array<int,array{tag:string,callback:mixed,priority:int}> */
     private array $registeredFilters = [];
+
+    protected function setUp(): void {
+        parent::setUp();
+        $cache = new \ReflectionProperty( LevelPriceResolver::class, 'cache' );
+        $cache->setValue( null, [] );
+    }
 
     protected function tearDown(): void {
         if ( function_exists( 'remove_filter' ) ) {
