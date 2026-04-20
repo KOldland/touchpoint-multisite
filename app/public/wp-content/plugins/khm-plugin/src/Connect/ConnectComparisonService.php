@@ -11,7 +11,14 @@ class ConnectComparisonService {
 	const MAX_PROVIDERS = 5;
 
 	private const DEFAULT_FIELDS = array(
+		'provider_type',
 		'deployment',
+		'deployment_modes',
+		'support_tiers',
+		'onboarding_days',
+		'budget_range',
+		'company_size_range',
+		'sweet_spot_summary',
 		'pricing_model',
 		'support_model',
 		'implementation_time',
@@ -33,7 +40,7 @@ class ConnectComparisonService {
 
 			$has_value = false;
 			foreach ( $providers as $provider ) {
-				$value = $this->normalize_field_value( $provider['comparison_fields'][ $field_key ] ?? '' );
+				$value = $this->resolve_provider_field_value( $provider, $field_key );
 				if ( '' !== $value ) {
 					$has_value = true;
 				}
@@ -87,6 +94,12 @@ class ConnectComparisonService {
 					$available[ $key ] = true;
 				}
 			}
+
+			foreach ( self::DEFAULT_FIELDS as $default_key ) {
+				if ( '' !== $this->resolve_provider_field_value( $provider, $default_key ) ) {
+					$available[ $default_key ] = true;
+				}
+			}
 		}
 
 		$ordered = array();
@@ -106,13 +119,55 @@ class ConnectComparisonService {
 	private function summarize_provider( array $provider ): array {
 		return array(
 			'id' => (int) ( $provider['id'] ?? 0 ),
+			'provider_id' => (int) ( $provider['id'] ?? 0 ),
 			'name' => (string) ( $provider['name'] ?? '' ),
 			'slug' => (string) ( $provider['slug'] ?? '' ),
 			'description' => (string) ( $provider['description'] ?? '' ),
 			'website_url' => (string) ( $provider['website_url'] ?? '' ),
+			'provider_type' => (string) ( $provider['provider_type'] ?? '' ),
 			'commentary_enabled' => ! empty( $provider['commentary_enabled'] ),
 			'ad_targeting_enabled' => ! empty( $provider['ad_targeting_enabled'] ),
 		);
+	}
+
+	private function resolve_provider_field_value( array $provider, string $field_key ): string {
+		$field_key = sanitize_key( $field_key );
+		$fields    = is_array( $provider['comparison_fields'] ?? null ) ? $provider['comparison_fields'] : array();
+
+		if ( isset( $fields[ $field_key ] ) ) {
+			$value = $this->normalize_field_value( $fields[ $field_key ] );
+			if ( '' !== $value ) {
+				return $value;
+			}
+		}
+
+		switch ( $field_key ) {
+			case 'provider_type':
+				return $this->normalize_field_value( $provider['provider_type'] ?? '' );
+			case 'sweet_spot_summary':
+			case 'fit_notes':
+				return $this->normalize_field_value( $provider['sweet_spot_summary'] ?? '' );
+			case 'regions':
+				return $this->normalize_field_value( $provider['regions'] ?? array() );
+			case 'deployment':
+			case 'deployment_modes':
+				return $this->normalize_field_value( $provider['deployment_modes'] ?? array() );
+			case 'support_model':
+			case 'support_tiers':
+				return $this->normalize_field_value( $provider['support_tiers'] ?? array() );
+			case 'implementation_time':
+			case 'onboarding':
+			case 'onboarding_days':
+				return ! empty( $provider['onboarding_days'] ) ? (int) $provider['onboarding_days'] . ' days' : '';
+			case 'budget_range':
+				return $this->format_range( $provider['budget_min'] ?? null, $provider['budget_max'] ?? null, '$' );
+			case 'company_size_range':
+				return $this->format_range( $provider['company_size_min'] ?? null, $provider['company_size_max'] ?? null, '' );
+			case 'overview':
+				return $this->normalize_field_value( $provider['description'] ?? '' );
+		}
+
+		return '';
 	}
 
 	private function normalize_field_value( $value ): string {
@@ -121,6 +176,25 @@ class ConnectComparisonService {
 		}
 
 		return trim( sanitize_text_field( (string) $value ) );
+	}
+
+	private function format_range( $minValue, $maxValue, string $prefix ): string {
+		$min = is_numeric( $minValue ) ? (int) $minValue : 0;
+		$max = is_numeric( $maxValue ) ? (int) $maxValue : 0;
+
+		if ( $min <= 0 && $max <= 0 ) {
+			return '';
+		}
+
+		if ( $min > 0 && $max > 0 ) {
+			return sprintf( '%s%d - %s%d', $prefix, $min, $prefix, $max );
+		}
+
+		if ( $min > 0 ) {
+			return sprintf( '%s%d+', $prefix, $min );
+		}
+
+		return sprintf( 'Up to %s%d', $prefix, $max );
 	}
 
 	private function humanize_key( string $key ): string {

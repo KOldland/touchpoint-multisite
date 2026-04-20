@@ -9,6 +9,7 @@ use KHM\Services\LevelRepository;
 use KHM\Services\SponsorService;
 use KHM\Services\QuoteClubCreditBundleService;
 use KHM\Services\PressReleaseService;
+use KHM\Sponsors\SponsorMigration;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -782,6 +783,7 @@ class QuoteClubController {
             $title_context,
             $site_id
         );
+        $providers = $this->enrich_connect_provider_candidates_for_hover_cards(is_array($providers) ? $providers : []);
 
         $ad_targeting = apply_filters(
             'khm_connect_dynamic_ad_targeting',
@@ -1342,6 +1344,177 @@ class QuoteClubController {
                 $context
             )
         );
+    }
+
+    protected function enrich_connect_provider_candidates_for_hover_cards(array $providers): array {
+        if ($providers === []) {
+            return [];
+        }
+
+        $sponsor_ids = [];
+        foreach ($providers as $provider) {
+            $sponsor_id = (int) ($provider['sponsor_id'] ?? 0);
+            if ($sponsor_id > 0) {
+                $sponsor_ids[] = $sponsor_id;
+            }
+        }
+
+        $sponsor_map = $this->load_sponsors_for_provider_cards($sponsor_ids);
+        $enriched = [];
+
+        foreach ($providers as $provider) {
+            if (!is_array($provider)) {
+                continue;
+            }
+
+            $sponsor_id = (int) ($provider['sponsor_id'] ?? 0);
+            $sponsor = $sponsor_id > 0 ? ($sponsor_map[$sponsor_id] ?? null) : null;
+            $membership_levels = $this->extract_sponsor_membership_levels_for_cards($sponsor);
+            $is_quote_club_member = $this->levels_match_any($membership_levels, ['quote_club', 'quoteclub', 'quote-club']);
+            $is_tech_connect_member = $this->levels_match_any($membership_levels, ['tech.connect', 'tech_connect', 'tech-connect', 'techconnect']);
+
+            $primary_contact_email = $this->resolve_primary_contact_email_for_cards($sponsor);
+            $provider_email = sanitize_email((string) ($provider['contact_email'] ?? ''));
+            $email = $provider_email !== '' ? $provider_email : $primary_contact_email;
+
+            $provider['hover_card'] = [
+                'eligible' => $is_quote_club_member && $is_tech_connect_member,
+                'quote_club_member' => $is_quote_club_member,
+                'tech_connect_member' => $is_tech_connect_member,
+                'contributor_name' => sanitize_text_field((string) ($provider['contact_name'] ?? ($sponsor['name'] ?? ''))),
+                'contributor_email' => '',
+                'mediated_intro' => true,
+            ];
+
+            $provider['contact_email'] = '';
+            $enriched[] = $provider;
+        }
+
+        return $enriched;
+    }
+
+    protected function load_sponsors_for_provider_cards(array $sponsor_ids): array {
+        global $wpdb;
+
+        $sponsor_ids = array_values(array_unique(array_filter(array_map('intval', $sponsor_ids))));
+        if ($sponsor_ids === []) {
+            return [];
+        }
+
+        $table = SponsorMigration::sponsors_table_name();
+        $placeholders = implode(',', array_fill(0, count($sponsor_ids), '%d'));
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id, name, contact_email, primary_contact_email, team_members, team_member_levels FROM {$table} WHERE id IN ({$placeholders})",
+                ...$sponsor_ids
+            ),
+            ARRAY_A
+        );
+
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $mapped = [];
+        foreach ($rows as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            if ($id > 0) {
+                $mapped[$id] = $row;
+            }
+        }
+
+        return $mapped;
+    }
+
+    protected function extract_sponsor_membership_levels_for_cards(?array $sponsor): array {
+        if (!is_array($sponsor)) {
+            return [];
+        }
+
+        $levels = [];
+        $team_levels = (string) ($sponsor['team_member_levels'] ?? '');
+        if ($team_levels !== '') {
+            $decoded = json_decode($team_levels, true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $value) {
+                    $normalized = strtolower(trim((string) $value));
+                    if ($normalized !== '') {
+                        $levels[] = $normalized;
+                    }
+                }
+            }
+        }
+
+        $team_members_raw = (string) ($sponsor['team_members'] ?? '');
+        if ($team_members_raw !== '') {
+            $members = json_decode($team_members_raw, true);
+            if (is_array($members)) {
+                foreach ($members as $member) {
+                    if (!is_array($member)) {
+                        continue;
+                    }
+
+                    $member_level = strtolower(trim((string) ($member['membership_level'] ?? '')));
+                    if ($member_level !== '') {
+                        $levels[] = $member_level;
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($levels));
+    }
+
+    protected function levels_match_any(array $levels, array $needles): bool {
+        if ($levels === [] || $needles === []) {
+            return false;
+        }
+
+        foreach ($levels as $level) {
+            $normalized_level = strtolower(trim((string) $level));
+            if ($normalized_level === '') {
+                continue;
+            }
+
+            foreach ($needles as $needle) {
+                $normalized_needle = strtolower(trim((string) $needle));
+                if ($normalized_needle !== '' && strpos($normalized_level, $normalized_needle) !== false) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    protected function resolve_primary_contact_email_for_cards(?array $sponsor): string {
+        if (!is_array($sponsor)) {
+            return '';
+        }
+
+        $team_members_raw = (string) ($sponsor['team_members'] ?? '');
+        if ($team_members_raw !== '') {
+            $members = json_decode($team_members_raw, true);
+            if (is_array($members)) {
+                foreach ($members as $member) {
+                    if (!is_array($member)) {
+                        continue;
+                    }
+
+                    $work_email = sanitize_email((string) ($member['work_email'] ?? ''));
+                    if ($work_email !== '') {
+                        return $work_email;
+                    }
+                }
+            }
+        }
+
+        $primary = sanitize_email((string) ($sponsor['primary_contact_email'] ?? ''));
+        if ($primary !== '') {
+            return $primary;
+        }
+
+        return sanitize_email((string) ($sponsor['contact_email'] ?? ''));
     }
 
     protected function count_words(string $text): int {

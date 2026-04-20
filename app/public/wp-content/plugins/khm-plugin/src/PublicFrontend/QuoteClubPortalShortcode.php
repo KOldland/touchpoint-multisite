@@ -86,15 +86,29 @@ class QuoteClubPortalShortcode {
 			true
 		);
 
+		wp_enqueue_script(
+			'khm-quote-club-connect',
+			$plugin_url . 'assets/js/quote-club-connect.js',
+			[ 'jquery', 'khm-quote-club' ],
+			file_exists( $plugin_path . 'assets/js/quote-club-connect.js' )
+				? filemtime( $plugin_path . 'assets/js/quote-club-connect.js' )
+				: '1',
+			true
+		);
+
 		$user_id = get_current_user_id();
 		$sponsor = SponsorService::get_user_sponsor( $user_id );
 
 		wp_localize_script( 'khm-quote-club', 'khmQuoteClub', [
 			'restUrl'       => esc_url_raw( rest_url( 'khm/v1/portal/quoteclub/' ) ),
+			'connectRestUrl'=> esc_url_raw( rest_url( 'khm/v1/connect/' ) ),
 			'sponsorRestUrl'=> esc_url_raw( rest_url( 'khm/v1/sponsor/' ) ),
 			'bundleRestUrl' => esc_url_raw( rest_url( 'khm/v1/portal/quoteclub/bundles' ) ),
+			'portalUrl'     => esc_url_raw( get_permalink( $post ) ?: home_url( '/quote-club/' ) ),
 			'nonce'         => wp_create_nonce( 'wp_rest' ),
 			'userId'        => $user_id,
+			'currentUserName' => sanitize_text_field( (string) wp_get_current_user()->display_name ),
+			'currentUserEmail' => sanitize_email( (string) wp_get_current_user()->user_email ),
 			'sponsorId'     => isset( $sponsor['id'] ) ? (int) $sponsor['id'] : 0,
 			'editorialCredits' => $this->credits->getEditorialCredits( $user_id ),
 			'pressReleaseCredits' => $this->credits->getPressReleaseCredits( $user_id ),
@@ -103,6 +117,7 @@ class QuoteClubPortalShortcode {
 			'wordsPerCredit'=> 120,
 			'availableCategories' => $this->get_top_line_categories(),
 		] );
+
 	}
 
 	// -------------------------------------------------------------------------
@@ -137,6 +152,9 @@ class QuoteClubPortalShortcode {
 				<div class="khm-qc-portal-content">
 					<?php
 					switch ( $section ) {
+						case 'connect':
+							$this->render_connect_section( $user_id, $sponsor );
+							break;
 						case 'commentary':
 							$this->render_commentary_section( $user_id, $sponsor );
 							break;
@@ -207,6 +225,7 @@ class QuoteClubPortalShortcode {
 	private function render_nav( string $current_section ): void {
 		$sections = [
 			'overview'       => [ 'label' => __( 'Overview', 'khm-membership' ),       'icon' => 'dashicons-chart-bar' ],
+			'connect'        => [ 'label' => __( 'Connect', 'khm-membership' ),        'icon' => 'dashicons-networking' ],
 			'commentary'     => [ 'label' => __( 'Commentary', 'khm-membership' ),      'icon' => 'dashicons-format-quote' ],
 			'press-releases' => [ 'label' => __( 'Press Releases', 'khm-membership' ),  'icon' => 'dashicons-media-document' ],
 			'tracking'       => [ 'label' => __( 'Tracking', 'khm-membership' ),        'icon' => 'dashicons-chart-line' ],
@@ -284,9 +303,175 @@ class QuoteClubPortalShortcode {
 			<?php endif; ?>
 
 			<div class="khm-qc-quick-links">
+				<a href="<?php echo esc_url( add_query_arg( 'qc_section', 'connect' ) ); ?>" class="khm-qc-btn khm-qc-btn-secondary">
+					<?php esc_html_e( 'Manage Connect Offerings →', 'khm-membership' ); ?>
+				</a>
 				<a href="<?php echo esc_url( add_query_arg( 'qc_section', 'commentary' ) ); ?>" class="khm-qc-btn khm-qc-btn-secondary">
 					<?php esc_html_e( 'Search Articles & Submit Commentary →', 'khm-membership' ); ?>
 				</a>
+			</div>
+		</div>
+		<?php
+	}
+
+	private function render_connect_section( int $user_id, ?array $sponsor ): void {
+		$categories = $this->get_top_line_categories();
+		?>
+		<div class="khm-qc-section khm-qc-connect">
+			<div class="khm-qc-connect-shell" data-sponsor-id="<?php echo esc_attr( (int) ( $sponsor['id'] ?? 0 ) ); ?>">
+				<div class="khm-qc-connect-hero">
+					<div>
+						<h2><?php esc_html_e( 'Connect Offerings', 'khm-membership' ); ?></h2>
+						<p><?php esc_html_e( 'Manage the provider offerings that power comparison, guided matching, commentary eligibility, and future intro workflows.', 'khm-membership' ); ?></p>
+					</div>
+					<div class="khm-qc-connect-status" role="status" aria-live="polite"></div>
+				</div>
+
+				<div class="khm-qc-connect-grid">
+					<section class="khm-qc-connect-panel khm-qc-connect-list-panel">
+						<div class="khm-qc-connect-panel-head">
+							<div>
+								<h3><?php esc_html_e( 'Your Live Offerings', 'khm-membership' ); ?></h3>
+								<p><?php esc_html_e( 'These records are owned by your sponsor account and scoped to this site.', 'khm-membership' ); ?></p>
+							</div>
+							<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-connect-new"><?php esc_html_e( 'New Offering', 'khm-membership' ); ?></button>
+						</div>
+						<div class="khm-qc-connect-list"></div>
+					</section>
+
+					<section class="khm-qc-connect-panel khm-qc-connect-form-panel">
+						<div class="khm-qc-connect-panel-head">
+							<div>
+								<h3><?php esc_html_e( 'Offering Details', 'khm-membership' ); ?></h3>
+								<p><?php esc_html_e( 'Use typed fields for fit and delivery, then keep advanced comparison and matching metadata in JSON until the guided workflow expands.', 'khm-membership' ); ?></p>
+							</div>
+						</div>
+
+						<form class="khm-qc-connect-form" id="khm-qc-connect-form">
+							<input type="hidden" name="id" value="" />
+
+							<div class="khm-qc-connect-form-grid">
+								<label>
+									<span><?php esc_html_e( 'Name', 'khm-membership' ); ?></span>
+									<input type="text" name="name" required />
+								</label>
+								<label>
+									<span><?php esc_html_e( 'Slug', 'khm-membership' ); ?></span>
+									<input type="text" name="slug" placeholder="auto-from-name" />
+								</label>
+								<label>
+									<span><?php esc_html_e( 'Website URL', 'khm-membership' ); ?></span>
+									<input type="url" name="website_url" placeholder="https://example.com" />
+								</label>
+								<label>
+									<span><?php esc_html_e( 'Provider Type', 'khm-membership' ); ?></span>
+									<select name="provider_type">
+										<option value=""><?php esc_html_e( 'Select type', 'khm-membership' ); ?></option>
+										<option value="agency"><?php esc_html_e( 'Agency', 'khm-membership' ); ?></option>
+										<option value="platform"><?php esc_html_e( 'Platform', 'khm-membership' ); ?></option>
+										<option value="consultancy"><?php esc_html_e( 'Consultancy', 'khm-membership' ); ?></option>
+										<option value="data-provider"><?php esc_html_e( 'Data Provider', 'khm-membership' ); ?></option>
+										<option value="other"><?php esc_html_e( 'Other', 'khm-membership' ); ?></option>
+									</select>
+								</label>
+								<label class="khm-qc-connect-span-2">
+									<span><?php esc_html_e( 'Description', 'khm-membership' ); ?></span>
+									<textarea name="description" rows="3"></textarea>
+								</label>
+								<label class="khm-qc-connect-span-2">
+									<span><?php esc_html_e( 'Sweet Spot Summary', 'khm-membership' ); ?></span>
+									<textarea name="sweet_spot_summary" rows="3" placeholder="Who you are best for, typical use cases, and what makes the fit strong."></textarea>
+								</label>
+								<label>
+									<span><?php esc_html_e( 'Title Contexts', 'khm-membership' ); ?></span>
+									<input type="text" name="titles" placeholder="finance, saas, cybersecurity" list="khm-qc-connect-title-contexts" />
+								</label>
+								<label>
+									<span><?php esc_html_e( 'Regions', 'khm-membership' ); ?></span>
+									<input type="text" name="regions" placeholder="uk, europe, north-america" />
+								</label>
+								<label>
+									<span><?php esc_html_e( 'Deployment Modes', 'khm-membership' ); ?></span>
+									<input type="text" name="deployment_modes" placeholder="self-serve, managed-service" />
+								</label>
+								<label>
+									<span><?php esc_html_e( 'Support Tiers', 'khm-membership' ); ?></span>
+									<input type="text" name="support_tiers" placeholder="email, dedicated-csm" />
+								</label>
+								<label>
+									<span><?php esc_html_e( 'Company Size Min', 'khm-membership' ); ?></span>
+									<input type="number" min="0" name="company_size_min" />
+								</label>
+								<label>
+									<span><?php esc_html_e( 'Company Size Max', 'khm-membership' ); ?></span>
+									<input type="number" min="0" name="company_size_max" />
+								</label>
+								<label>
+									<span><?php esc_html_e( 'Budget Min', 'khm-membership' ); ?></span>
+									<input type="number" min="0" name="budget_min" />
+								</label>
+								<label>
+									<span><?php esc_html_e( 'Budget Max', 'khm-membership' ); ?></span>
+									<input type="number" min="0" name="budget_max" />
+								</label>
+								<label>
+									<span><?php esc_html_e( 'Typical Onboarding Days', 'khm-membership' ); ?></span>
+									<input type="number" min="0" name="onboarding_days" />
+								</label>
+								<label>
+									<span><?php esc_html_e( 'Status', 'khm-membership' ); ?></span>
+									<select name="status">
+										<option value="active"><?php esc_html_e( 'Active', 'khm-membership' ); ?></option>
+										<option value="inactive"><?php esc_html_e( 'Inactive', 'khm-membership' ); ?></option>
+									</select>
+								</label>
+								<label class="khm-qc-connect-check">
+									<input type="checkbox" name="commentary_enabled" value="1" />
+									<span><?php esc_html_e( 'Eligible for commentary contexts', 'khm-membership' ); ?></span>
+								</label>
+								<label class="khm-qc-connect-check">
+									<input type="checkbox" name="ad_targeting_enabled" value="1" />
+									<span><?php esc_html_e( 'Eligible for ad targeting', 'khm-membership' ); ?></span>
+								</label>
+								<label class="khm-qc-connect-span-2">
+									<span><?php esc_html_e( 'Comparison Fields JSON', 'khm-membership' ); ?></span>
+									<textarea name="comparison_fields" rows="6" spellcheck="false">{}</textarea>
+								</label>
+								<label class="khm-qc-connect-span-2">
+									<span><?php esc_html_e( 'Match Rules JSON', 'khm-membership' ); ?></span>
+									<textarea name="match_rules" rows="6" spellcheck="false">{}</textarea>
+								</label>
+							</div>
+
+							<div class="khm-qc-connect-actions">
+								<button type="submit" class="khm-qc-btn khm-qc-btn-primary khm-qc-connect-save"><?php esc_html_e( 'Save Offering', 'khm-membership' ); ?></button>
+								<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-connect-reset"><?php esc_html_e( 'Reset', 'khm-membership' ); ?></button>
+								<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-connect-delete" style="display:none"><?php esc_html_e( 'Delete', 'khm-membership' ); ?></button>
+							</div>
+						</form>
+
+						<datalist id="khm-qc-connect-title-contexts">
+							<?php foreach ( $categories as $category ) : ?>
+								<option value="<?php echo esc_attr( sanitize_title( $category ) ); ?>"></option>
+							<?php endforeach; ?>
+						</datalist>
+					</section>
+
+					<section class="khm-qc-connect-panel khm-qc-connect-inbox-panel khm-qc-connect-span-full">
+						<div class="khm-qc-connect-panel-head">
+							<div>
+								<h3><?php esc_html_e( 'Intro Inbox', 'khm-membership' ); ?></h3>
+								<p><?php esc_html_e( 'Replies stay platform-mediated until a buyer explicitly requests handover and your team confirms it.', 'khm-membership' ); ?></p>
+							</div>
+						</div>
+						<div class="khm-qc-connect-inbox-grid">
+							<div class="khm-qc-connect-thread-list"></div>
+							<div class="khm-qc-connect-thread-detail">
+								<div class="khm-qc-connect-empty"><?php esc_html_e( 'Select an intro thread to review messages, reply, and manage handover.', 'khm-membership' ); ?></div>
+							</div>
+						</div>
+					</section>
+				</div>
 			</div>
 		</div>
 		<?php

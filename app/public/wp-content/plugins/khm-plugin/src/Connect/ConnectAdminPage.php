@@ -113,6 +113,47 @@ class ConnectAdminPage {
 								<td><input class="regular-text" type="url" id="khm_connect_website" name="website_url" value="<?php echo esc_attr( (string) ( $edit_provider['website_url'] ?? '' ) ); ?>" /></td>
 							</tr>
 							<tr>
+								<th scope="row"><label for="khm_connect_provider_type"><?php esc_html_e( 'Provider Type', 'khm-membership' ); ?></label></th>
+								<td><input class="regular-text" type="text" id="khm_connect_provider_type" name="provider_type" value="<?php echo esc_attr( (string) ( $edit_provider['provider_type'] ?? '' ) ); ?>" /><p class="description"><?php esc_html_e( 'Examples: agency, platform, consultancy, data-provider.', 'khm-membership' ); ?></p></td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="khm_connect_sweet_spot_summary"><?php esc_html_e( 'Sweet Spot Summary', 'khm-membership' ); ?></label></th>
+								<td><textarea class="large-text" rows="3" id="khm_connect_sweet_spot_summary" name="sweet_spot_summary"><?php echo esc_textarea( (string) ( $edit_provider['sweet_spot_summary'] ?? '' ) ); ?></textarea></td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="khm_connect_regions"><?php esc_html_e( 'Regions', 'khm-membership' ); ?></label></th>
+								<td><input class="regular-text" type="text" id="khm_connect_regions" name="regions" value="<?php echo esc_attr( implode( ', ', $edit_provider['regions'] ?? array() ) ); ?>" /><p class="description"><?php esc_html_e( 'Comma-separated region slugs or labels.', 'khm-membership' ); ?></p></td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="khm_connect_deployment_modes"><?php esc_html_e( 'Deployment Modes', 'khm-membership' ); ?></label></th>
+								<td><input class="regular-text" type="text" id="khm_connect_deployment_modes" name="deployment_modes" value="<?php echo esc_attr( implode( ', ', $edit_provider['deployment_modes'] ?? array() ) ); ?>" /></td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="khm_connect_support_tiers"><?php esc_html_e( 'Support Tiers', 'khm-membership' ); ?></label></th>
+								<td><input class="regular-text" type="text" id="khm_connect_support_tiers" name="support_tiers" value="<?php echo esc_attr( implode( ', ', $edit_provider['support_tiers'] ?? array() ) ); ?>" /></td>
+							</tr>
+							<tr>
+								<th scope="row"><?php esc_html_e( 'Fit Range', 'khm-membership' ); ?></th>
+								<td>
+									<input class="small-text" type="number" min="0" name="company_size_min" value="<?php echo esc_attr( (string) ( $edit_provider['company_size_min'] ?? '' ) ); ?>" />
+									<span><?php esc_html_e( 'to', 'khm-membership' ); ?></span>
+									<input class="small-text" type="number" min="0" name="company_size_max" value="<?php echo esc_attr( (string) ( $edit_provider['company_size_max'] ?? '' ) ); ?>" />
+									<p class="description"><?php esc_html_e( 'Typical company size range the provider is best suited for.', 'khm-membership' ); ?></p>
+								</td>
+							</tr>
+							<tr>
+								<th scope="row"><?php esc_html_e( 'Budget Range', 'khm-membership' ); ?></th>
+								<td>
+									<input class="small-text" type="number" min="0" name="budget_min" value="<?php echo esc_attr( (string) ( $edit_provider['budget_min'] ?? '' ) ); ?>" />
+									<span><?php esc_html_e( 'to', 'khm-membership' ); ?></span>
+									<input class="small-text" type="number" min="0" name="budget_max" value="<?php echo esc_attr( (string) ( $edit_provider['budget_max'] ?? '' ) ); ?>" />
+								</td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="khm_connect_onboarding_days"><?php esc_html_e( 'Typical Onboarding Days', 'khm-membership' ); ?></label></th>
+								<td><input class="small-text" type="number" min="0" id="khm_connect_onboarding_days" name="onboarding_days" value="<?php echo esc_attr( (string) ( $edit_provider['onboarding_days'] ?? '' ) ); ?>" /></td>
+							</tr>
+							<tr>
 								<th scope="row"><label for="khm_connect_status"><?php esc_html_e( 'Status', 'khm-membership' ); ?></label></th>
 								<td>
 									<select id="khm_connect_status" name="status">
@@ -164,6 +205,16 @@ class ConnectAdminPage {
 				'slug'                 => isset( $_POST['slug'] ) ? wp_unslash( $_POST['slug'] ) : '',
 				'sponsor_id'           => isset( $_POST['sponsor_id'] ) ? absint( $_POST['sponsor_id'] ) : 0,
 				'website_url'          => isset( $_POST['website_url'] ) ? wp_unslash( $_POST['website_url'] ) : '',
+				'provider_type'        => isset( $_POST['provider_type'] ) ? wp_unslash( $_POST['provider_type'] ) : '',
+				'sweet_spot_summary'   => isset( $_POST['sweet_spot_summary'] ) ? wp_unslash( $_POST['sweet_spot_summary'] ) : '',
+				'regions'              => isset( $_POST['regions'] ) ? wp_unslash( $_POST['regions'] ) : '',
+				'deployment_modes'     => isset( $_POST['deployment_modes'] ) ? wp_unslash( $_POST['deployment_modes'] ) : '',
+				'support_tiers'        => isset( $_POST['support_tiers'] ) ? wp_unslash( $_POST['support_tiers'] ) : '',
+				'company_size_min'     => isset( $_POST['company_size_min'] ) ? wp_unslash( $_POST['company_size_min'] ) : null,
+				'company_size_max'     => isset( $_POST['company_size_max'] ) ? wp_unslash( $_POST['company_size_max'] ) : null,
+				'budget_min'           => isset( $_POST['budget_min'] ) ? wp_unslash( $_POST['budget_min'] ) : null,
+				'budget_max'           => isset( $_POST['budget_max'] ) ? wp_unslash( $_POST['budget_max'] ) : null,
+				'onboarding_days'      => isset( $_POST['onboarding_days'] ) ? wp_unslash( $_POST['onboarding_days'] ) : null,
 				'status'               => isset( $_POST['status'] ) ? wp_unslash( $_POST['status'] ) : 'active',
 				'titles'               => isset( $_POST['titles'] ) ? wp_unslash( $_POST['titles'] ) : '',
 				'description'          => isset( $_POST['description'] ) ? wp_unslash( $_POST['description'] ) : '',

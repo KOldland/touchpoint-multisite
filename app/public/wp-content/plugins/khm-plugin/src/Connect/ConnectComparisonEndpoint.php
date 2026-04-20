@@ -64,6 +64,8 @@ class ConnectComparisonEndpoint {
 				'site_id' => $site_id,
 				'title_context' => $title_context,
 				'comparison' => $matrix,
+				'providers' => array_values( $matrix['providers'] ?? array() ),
+				'matrix' => array_values( $matrix['rows'] ?? array() ),
 			)
 		);
 	}

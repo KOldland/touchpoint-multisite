@@ -45,10 +45,11 @@ class ConnectShortlistService {
 		$reasons = array();
 
 		$score += $this->score_term_set( $criteria['industries'], $rules['industries'] ?? array(), 25, 'Industry fit', $reasons );
-		$score += $this->score_term_set( $criteria['regions'], $rules['regions'] ?? array(), 20, 'Regional fit', $reasons );
-		$score += $this->score_term_set( $criteria['company_sizes'], $rules['company_sizes'] ?? array(), 15, 'Company-size fit', $reasons );
-		$score += $this->score_term_set( $criteria['deployment'], $rules['deployment'] ?? array(), 15, 'Deployment fit', $reasons );
+		$score += $this->score_term_set( $criteria['regions'], $this->merge_term_sources( $rules['regions'] ?? array(), $provider['regions'] ?? array() ), 20, 'Regional fit', $reasons );
+		$score += $this->score_company_size_fit( $criteria['company_sizes'], $rules['company_sizes'] ?? array(), $provider, $reasons );
+		$score += $this->score_term_set( $criteria['deployment'], $this->merge_term_sources( $rules['deployment'] ?? array(), $provider['deployment_modes'] ?? array() ), 15, 'Deployment fit', $reasons );
 		$score += $this->score_budget( $criteria['budget'], $rules, $reasons );
+		$score += $this->score_typed_budget( $criteria['budget'], $provider, $reasons );
 		$score += $this->score_keyword_fit( $criteria['keywords'], $rules['keywords'] ?? array(), $reasons );
 
 		if ( '' !== $title_context ) {
@@ -122,6 +123,10 @@ class ConnectShortlistService {
 		return array_values( array_filter( array_unique( $normalized ) ) );
 	}
 
+	private function merge_term_sources( $primary, $secondary ): array {
+		return array_values( array_unique( array_merge( $this->normalize_list( $primary ), $this->normalize_list( $secondary ) ) ) );
+	}
+
 	private function score_term_set( array $wanted, $available, float $points, string $label, array &$reasons ): float {
 		$available = $this->normalize_list( $available );
 		if ( empty( $wanted ) || empty( $available ) ) {
@@ -164,6 +169,76 @@ class ConnectShortlistService {
 		return 15.0;
 	}
 
+	private function score_typed_budget( float $budget, array $provider, array &$reasons ): float {
+		if ( $budget <= 0 ) {
+			return 0.0;
+		}
+
+		$min = isset( $provider['budget_min'] ) ? (float) $provider['budget_min'] : 0.0;
+		$max = isset( $provider['budget_max'] ) ? (float) $provider['budget_max'] : 0.0;
+
+		if ( $min <= 0 && $max <= 0 ) {
+			return 0.0;
+		}
+
+		if ( $min > 0 && $budget < $min ) {
+			return 0.0;
+		}
+
+		if ( $max > 0 && $budget > $max ) {
+			return 4.0;
+		}
+
+		$reasons[] = 'Typed budget range aligned';
+
+		return 10.0;
+	}
+
+	private function score_company_size_fit( array $requested_sizes, $rule_sizes, array $provider, array &$reasons ): float {
+		$score = $this->score_term_set( $requested_sizes, $rule_sizes, 15, 'Company-size fit', $reasons );
+		if ( $score > 0 ) {
+			return $score;
+		}
+
+		$provider_buckets = $this->company_size_buckets_for_provider( $provider );
+		if ( empty( $requested_sizes ) || empty( $provider_buckets ) ) {
+			return 0.0;
+		}
+
+		$matches = array_intersect( $requested_sizes, $provider_buckets );
+		if ( empty( $matches ) ) {
+			return 0.0;
+		}
+
+		$reasons[] = sprintf( 'Typed company-size fit: %s', implode( ', ', $matches ) );
+
+		return round( 15 * ( count( $matches ) / max( 1, count( $requested_sizes ) ) ), 2 );
+	}
+
+	private function company_size_buckets_for_provider( array $provider ): array {
+		$min = isset( $provider['company_size_min'] ) ? (int) $provider['company_size_min'] : 0;
+		$max = isset( $provider['company_size_max'] ) ? (int) $provider['company_size_max'] : 0;
+
+		if ( $min <= 0 && $max <= 0 ) {
+			return array();
+		}
+
+		$range_max = $max > 0 ? $max : max( $min, 1000000 );
+		$buckets   = array();
+
+		if ( $min <= 199 && $range_max >= 1 ) {
+			$buckets[] = 'smb';
+		}
+		if ( $min <= 999 && $range_max >= 200 ) {
+			$buckets[] = 'mid-market';
+		}
+		if ( $range_max >= 1000 ) {
+			$buckets[] = 'enterprise';
+		}
+
+		return array_values( array_unique( $buckets ) );
+	}
+
 	private function score_keyword_fit( array $keywords, $available, array &$reasons ): float {
 		$available = $this->normalize_keywords( $available );
 		if ( empty( $keywords ) || empty( $available ) ) {
@@ -188,6 +263,22 @@ class ConnectShortlistService {
 			if ( isset( $fields[ $key ] ) && '' !== (string) $fields[ $key ] ) {
 				$summary[ $key ] = (string) $fields[ $key ];
 			}
+		}
+
+		if ( ! empty( $provider['provider_type'] ) ) {
+			$summary['provider_type'] = (string) $provider['provider_type'];
+		}
+
+		if ( ! empty( $provider['deployment_modes'] ) ) {
+			$summary['deployment_modes'] = implode( ', ', (array) $provider['deployment_modes'] );
+		}
+
+		if ( ! empty( $provider['support_tiers'] ) ) {
+			$summary['support_tiers'] = implode( ', ', (array) $provider['support_tiers'] );
+		}
+
+		if ( ! empty( $provider['onboarding_days'] ) ) {
+			$summary['onboarding_days'] = (int) $provider['onboarding_days'] . ' days';
 		}
 
 		return $summary;

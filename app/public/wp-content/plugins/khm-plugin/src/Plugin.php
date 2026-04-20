@@ -4,6 +4,8 @@ namespace KHM;
 use KHM\Connect\ConnectShortlistEndpoint;
 use KHM\Connect\ConnectComparisonEndpoint;
 use KHM\Connect\ConnectAdminPage;
+use KHM\Connect\ConnectIntroThreadEndpoint;
+use KHM\Connect\ConnectSponsorProviderEndpoint;
 use KHM\Atomic\AtomicArticleGenerator;
 use KHM\Atomic\AtomicArticlePostType;
 use KHM\Atomic\AtomicEmbeddingService;
@@ -15,6 +17,7 @@ use KHM\Atomic\AtomicSearchWidget;
 use KHM\Migrations\AtomicEmbeddingsMigration;
 use KHM\Migrations\AddCommentaryConnectColumns;
 use KHM\Migrations\ConnectProvidersMigration;
+use KHM\Migrations\ConnectWorkflowMigration;
 use KHM\Services\MarketingSuiteServices;
 use KHM\Services\MembershipRepository;
 use KHM\Services\OrderRepository;
@@ -96,11 +99,14 @@ class Plugin {
      */
     public static function initialize_connect(): void {
         ConnectProvidersMigration::run();
+        ConnectWorkflowMigration::run();
         AddCommentaryConnectColumns::run();
 
         ( new ConnectShortlistEndpoint() )->register();
         ( new ConnectComparisonEndpoint() )->register();
+        ( new ConnectIntroThreadEndpoint() )->register();
         ( new ConnectAdminPage() )->register();
+        ( new ConnectSponsorProviderEndpoint() )->register();
     }
 
     public static function get_dir() {

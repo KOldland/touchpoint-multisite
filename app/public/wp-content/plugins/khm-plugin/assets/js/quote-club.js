@@ -6,6 +6,11 @@
   var knownTopicMap = {};
   var knownTopics = [];
   var topicSuggestCache = {};
+  var connectCompareStorageKey = 'khm_qc_saved_connect_providers';
+  var connectIntroThreadsKey = 'khm_qc_intro_threads';
+  var hoverHideTimer = null;
+  var hoverCardVisible = false;
+  var activeIntroProvider = null;
 
   function tokenizeKeywords(input) {
     return (input || '')
@@ -351,6 +356,525 @@
     });
   }
 
+  function connectApi(path, method, data) {
+    return $.ajax({
+      url: (window.khmQuoteClub && khmQuoteClub.connectRestUrl ? khmQuoteClub.connectRestUrl : '') + path,
+      method: method,
+      contentType: method === 'POST' || method === 'PATCH' ? 'application/json' : undefined,
+      processData: method === 'GET',
+      headers: {
+        'X-WP-Nonce': window.khmQuoteClub ? khmQuoteClub.nonce : ''
+      },
+      dataType: 'json',
+      data: method === 'GET' ? (data || {}) : JSON.stringify(data || {})
+    });
+  }
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function normalizeUrl(value) {
+    var url = (value || '').toString().trim();
+    if (!url) {
+      return '';
+    }
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
+    }
+    return url;
+  }
+
+  function getSavedConnectProviders() {
+    if (!window.localStorage) {
+      return [];
+    }
+
+    try {
+      var raw = window.localStorage.getItem(connectCompareStorageKey);
+      var decoded = raw ? JSON.parse(raw) : [];
+      return Array.isArray(decoded) ? decoded : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function setSavedConnectProviders(items) {
+    if (!window.localStorage) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(connectCompareStorageKey, JSON.stringify(Array.isArray(items) ? items : []));
+    } catch (e) {
+      // Storage can be disabled or full; this feature gracefully degrades.
+    }
+  }
+
+  function getStoredIntroThreads() {
+    if (!window.localStorage) {
+      return [];
+    }
+    try {
+      var raw = window.localStorage.getItem(connectIntroThreadsKey);
+      var decoded = raw ? JSON.parse(raw) : [];
+      return Array.isArray(decoded) ? decoded : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function storeIntroThread(threadId, buyerToken, providerId, providerName, sessionId) {
+    if (!window.localStorage) {
+      return;
+    }
+    var threads = getStoredIntroThreads();
+    var i, idx = -1;
+    for (i = 0; i < threads.length; i++) {
+      if (parseInt(threads[i].thread_id, 10) === parseInt(threadId, 10)) {
+        idx = i;
+        break;
+      }
+    }
+    var entry = {
+      thread_id: parseInt(threadId, 10),
+      buyer_token: buyerToken,
+      provider_id: parseInt(providerId, 10),
+      provider_name: providerName || '',
+      session_id: sessionId || '',
+      handover_status: 'not_started',
+      created_at: new Date().toISOString()
+    };
+    if (idx >= 0) {
+      threads[idx] = entry;
+    } else {
+      threads.unshift(entry);
+    }
+    try {
+      window.localStorage.setItem(connectIntroThreadsKey, JSON.stringify(threads.slice(0, 50)));
+    } catch (e) {}
+  }
+
+  function updateStoredThreadHandoverStatus(threadId, status) {
+    if (!window.localStorage) {
+      return;
+    }
+    var threads = getStoredIntroThreads();
+    var i;
+    for (i = 0; i < threads.length; i++) {
+      if (parseInt(threads[i].thread_id, 10) === parseInt(threadId, 10)) {
+        threads[i].handover_status = status;
+        break;
+      }
+    }
+    try {
+      window.localStorage.setItem(connectIntroThreadsKey, JSON.stringify(threads));
+    } catch (e) {}
+  }
+
+  function renderBuyerThreadPanel(sessionId) {
+    var $zone = $('.khm-connect-my-threads');
+    if (!$zone.length) {
+      return;
+    }
+
+    var all = getStoredIntroThreads();
+    var threads = all.filter(function (t) { return t.session_id === String(sessionId); });
+
+    if (!threads.length) {
+      $zone.html('');
+      return;
+    }
+
+    // Refresh handover statuses from the API (fire-and-forget; re-render on response).
+    threads.forEach(function (t) {
+      connectApi('intro-threads/' + t.thread_id + '/status?buyer_token=' + encodeURIComponent(t.buyer_token), 'GET').done(function (res) {
+        if (res && res.handover_status && res.handover_status !== t.handover_status) {
+          updateStoredThreadHandoverStatus(t.thread_id, res.handover_status);
+          renderBuyerThreadPanelFromStorage(String(sessionId));
+        }
+      });
+    });
+
+    renderBuyerThreadPanelFromStorage(String(sessionId));
+  }
+
+  function renderBuyerThreadPanelFromStorage(sessionId) {
+    var $zone = $('.khm-connect-my-threads');
+    if (!$zone.length) {
+      return;
+    }
+
+    var all = getStoredIntroThreads();
+    var threads = all.filter(function (t) { return t.session_id === String(sessionId); });
+
+    if (!threads.length) {
+      $zone.html('');
+      return;
+    }
+
+    var handoverLabels = {
+      not_started: 'Awaiting sponsor reply',
+      buyer_requested: 'Direct contact requested — awaiting sponsor confirmation',
+      confirmed: 'Direct contact confirmed'
+    };
+    var handoverClasses = {
+      not_started: '',
+      buyer_requested: 'is-pending',
+      confirmed: 'is-confirmed'
+    };
+
+    var html = '<h4 class="khm-connect-my-threads-heading">My intro requests for this session</h4>';
+    html += '<div class="khm-connect-my-threads-list">';
+    threads.forEach(function (t) {
+      var hs = t.handover_status || 'not_started';
+      var label = handoverLabels[hs] || hs;
+      var cls = handoverClasses[hs] || '';
+      var showBtn = hs === 'not_started';
+      html +=
+        '<div class="khm-connect-thread-item">' +
+          '<div class="khm-connect-thread-item-head">' +
+            '<strong>' + escapeHtml(t.provider_name || 'Provider') + '</strong>' +
+            '<span class="khm-connect-handover-badge ' + cls + '">' + escapeHtml(label) + '</span>' +
+          '</div>' +
+          (showBtn
+            ? '<button type="button" class="button button-small khm-connect-request-handover"' +
+                ' data-thread-id="' + escapeHtml(String(t.thread_id)) + '"' +
+                ' data-buyer-token="' + escapeHtml(t.buyer_token) + '">Request direct contact</button>'
+            : '') +
+        '</div>';
+    });
+    html += '</div>';
+    $zone.html(html);
+  }
+
+  function updateCompareCount() {
+    var count = getSavedConnectProviders().length;
+    $('.khm-connect-compare-count').text(String(count));
+  }
+
+  function addPotentialProvider(provider) {
+    var providerId = parseInt(provider && provider.provider_id, 10);
+    if (!providerId) {
+      return false;
+    }
+
+    var existing = getSavedConnectProviders();
+    var alreadySaved = existing.some(function (item) {
+      return parseInt(item && item.provider_id, 10) === providerId;
+    });
+
+    if (alreadySaved) {
+      return false;
+    }
+
+    existing.push({
+      provider_id: providerId,
+      sponsor_id: parseInt(provider.sponsor_id || 0, 10),
+      name: provider.name || '',
+      website: normalizeUrl(provider.website || ''),
+      contact_email: provider.contact_email || '',
+      saved_at: new Date().toISOString()
+    });
+
+    setSavedConnectProviders(existing.slice(0, 20));
+    updateCompareCount();
+    return true;
+  }
+
+  function ensureProviderHoverCard() {
+    var $existing = $('#khm-connect-hover-card');
+    if ($existing.length) {
+      return $existing;
+    }
+
+    var $card = $(
+      '<div id="khm-connect-hover-card" class="khm-connect-hover-card" role="dialog" aria-hidden="true">' +
+        '<div class="khm-connect-hover-card-inner"></div>' +
+      '</div>'
+    );
+
+    $('body').append($card);
+
+    $card.on('mouseenter', function () {
+      if (hoverHideTimer) {
+        window.clearTimeout(hoverHideTimer);
+        hoverHideTimer = null;
+      }
+    });
+
+    $card.on('mouseleave', function () {
+      hideProviderHoverCard();
+    });
+
+    return $card;
+  }
+
+  function ensureIntroModal() {
+    var $existing = $('#khm-connect-intro-modal');
+    if ($existing.length) {
+      return $existing;
+    }
+
+    var $modal = $(
+      '<div id="khm-connect-intro-modal" class="khm-connect-intro-modal" aria-hidden="true">' +
+        '<div class="khm-connect-intro-dialog" role="dialog" aria-modal="true" aria-labelledby="khm-connect-intro-title">' +
+          '<h4 id="khm-connect-intro-title">Request mediated intro</h4>' +
+          '<p class="khm-connect-intro-description">Your request goes to the sponsor inbox. Replies stay platform-mediated until you request handover and the sponsor confirms it.</p>' +
+          '<form class="khm-connect-intro-form">' +
+            '<div class="khm-connect-intro-grid">' +
+              '<label>Name<input type="text" name="buyer_name" required></label>' +
+              '<label>Email<input type="email" name="buyer_email" required></label>' +
+            '</div>' +
+            '<label>Company<input type="text" name="buyer_company"></label>' +
+            '<label>Why are you a fit?<textarea name="message" rows="5" required></textarea></label>' +
+            '<div class="khm-connect-intro-status" aria-live="polite"></div>' +
+            '<div class="khm-connect-intro-actions">' +
+              '<button type="button" class="button khm-connect-intro-cancel">Cancel</button>' +
+              '<button type="submit" class="button button-primary khm-connect-intro-submit">Send request</button>' +
+            '</div>' +
+          '</form>' +
+        '</div>' +
+      '</div>'
+    );
+
+    $('body').append($modal);
+    return $modal;
+  }
+
+  function closeIntroModal() {
+    var $modal = $('#khm-connect-intro-modal');
+    if (!$modal.length) {
+      return;
+    }
+
+    $modal.removeClass('is-visible').attr('aria-hidden', 'true');
+    activeIntroProvider = null;
+  }
+
+  function openIntroModal(provider) {
+    var $modal = ensureIntroModal();
+    var $form = $modal.find('form');
+    var buyerName = (window.khmQuoteClub && khmQuoteClub.currentUserName) ? khmQuoteClub.currentUserName : '';
+    var buyerEmail = (window.khmQuoteClub && khmQuoteClub.currentUserEmail) ? khmQuoteClub.currentUserEmail : '';
+
+    activeIntroProvider = provider || null;
+    $form.trigger('reset');
+    $form.find('[name="buyer_name"]').val(buyerName);
+    $form.find('[name="buyer_email"]').val(buyerEmail);
+    $form.find('[name="message"]').val(provider && provider.name ? ('We would like a mediated intro to ' + provider.name + '. Please share fit, implementation approach, and next steps.') : '');
+    $modal.find('.khm-connect-intro-status').removeClass('is-error is-success').text('');
+    $modal.addClass('is-visible').attr('aria-hidden', 'false');
+  }
+
+  function hideProviderHoverCard(immediate) {
+    var $card = $('#khm-connect-hover-card');
+    if (!$card.length) {
+      return;
+    }
+
+    var run = function () {
+      $card.removeClass('is-visible').attr('aria-hidden', 'true');
+      hoverCardVisible = false;
+    };
+
+    if (immediate) {
+      run();
+      return;
+    }
+
+    if (hoverHideTimer) {
+      window.clearTimeout(hoverHideTimer);
+    }
+    hoverHideTimer = window.setTimeout(run, 120);
+  }
+
+  function positionProviderHoverCard($card, $anchor) {
+    var rect = $anchor[0].getBoundingClientRect();
+    var top = rect.bottom + window.scrollY + 10;
+    var left = rect.left + window.scrollX;
+
+    $card.css({ top: top + 'px', left: left + 'px' });
+
+    var cardWidth = $card.outerWidth();
+    var viewportRight = window.scrollX + window.innerWidth - 16;
+    if (left + cardWidth > viewportRight) {
+      left = Math.max(window.scrollX + 12, viewportRight - cardWidth);
+      $card.css({ left: left + 'px' });
+    }
+  }
+
+  function showProviderHoverCard($anchor, provider) {
+    if (!provider || !provider.hover_card || !provider.hover_card.eligible) {
+      return;
+    }
+
+    var $card = ensureProviderHoverCard();
+    if (hoverHideTimer) {
+      window.clearTimeout(hoverHideTimer);
+      hoverHideTimer = null;
+    }
+
+    var website = normalizeUrl(provider.website || '');
+    var contributor = (provider.hover_card.contributor_name || provider.name || '').toString().trim();
+    var supportsIntro = !provider.hover_card || provider.hover_card.mediated_intro !== false;
+
+    var actions = '';
+    if (website) {
+      actions += '<a class="button button-small" target="_blank" rel="noopener noreferrer" href="' + escapeHtml(website) + '">Visit site</a>';
+    }
+    if (supportsIntro) {
+      actions += '<button type="button" class="button button-small khm-connect-request-intro" data-provider-id="' + escapeHtml(provider.provider_id) + '">Request intro</button>';
+    }
+    actions += '<button type="button" class="button button-primary button-small khm-connect-save-provider" data-provider-id="' + escapeHtml(provider.provider_id) + '">Add to potential providers</button>';
+
+    $card.find('.khm-connect-hover-card-inner').html(
+      '<h4>' + escapeHtml(provider.name || 'Provider') + '</h4>' +
+      (provider.description ? '<p>' + escapeHtml(provider.description) + '</p>' : '') +
+      '<p class="khm-connect-contributor"><strong>Contributor:</strong> ' + escapeHtml(contributor || 'Not available') + '</p>' +
+      '<div class="khm-connect-hover-actions">' + actions + '</div>'
+    );
+
+    $card.data('provider', provider);
+    $card.addClass('is-visible').attr('aria-hidden', 'false');
+    hoverCardVisible = true;
+    positionProviderHoverCard($card, $anchor);
+  }
+
+  function parseProviderData($source) {
+    var $item = $source.closest('.khm-connect-provider-item');
+    var $data = $item.find('.khm-connect-provider-data');
+    if (!$data.length) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(decodeURIComponent($data.attr('data-provider') || ''));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function renderConnectProviders(session, providers) {
+    var $container = $('.khm-connect-provider-list');
+    if (!$container.length) {
+      return;
+    }
+
+    if (!Array.isArray(providers) || !providers.length) {
+      $container.html('<p class="khm-connect-empty">No sponsored provider matches for this session yet.</p>');
+      updateCompareCount();
+      return;
+    }
+
+    var html = providers.map(function (provider) {
+      var website = normalizeUrl(provider.website || '');
+      var hoverEligible = !!(provider.hover_card && provider.hover_card.eligible);
+      var chips = [];
+      var providerPayload = encodeURIComponent(JSON.stringify({
+        provider_id: provider.provider_id,
+        sponsor_id: provider.sponsor_id,
+        name: provider.name,
+        website: website,
+        description: provider.description || '',
+        hover_card: provider.hover_card || {},
+        hover_enabled: hoverEligible
+      }));
+
+      if (provider.hover_card && provider.hover_card.quote_club_member) {
+        chips.push('<span class="khm-connect-chip">Quote Club</span>');
+      }
+      if (provider.hover_card && provider.hover_card.tech_connect_member) {
+        chips.push('<span class="khm-connect-chip">Tech.Connect</span>');
+      }
+
+      return (
+        '<div class="khm-connect-provider-item" data-provider-id="' + escapeHtml(provider.provider_id) + '">' +
+          '<div class="khm-connect-provider-main">' +
+            (website
+              ? '<a class="khm-connect-provider-link" target="_blank" rel="noopener noreferrer" href="' + escapeHtml(website) + '">' + escapeHtml(provider.name || 'Provider') + '</a>'
+              : '<span class="khm-connect-provider-link is-static">' + escapeHtml(provider.name || 'Provider') + '</span>') +
+            (chips.length ? '<div class="khm-connect-provider-chips">' + chips.join('') + '</div>' : '') +
+            (provider.description ? '<p>' + escapeHtml(provider.description) + '</p>' : '') +
+          '</div>' +
+          '<div class="khm-connect-provider-actions">' +
+            '<button type="button" class="button button-small khm-connect-add-inline" data-provider-id="' + escapeHtml(provider.provider_id) + '">Add to potential providers</button>' +
+          '</div>' +
+          '<span class="khm-connect-provider-data" data-provider="' + providerPayload + '" hidden></span>' +
+        '</div>'
+      );
+    }).join('');
+
+    $container.html(html);
+    $('.khm-connect-compare-results').empty();
+    $('.khm-connect-compare-btn').attr('data-session-id', session.session_id || '');
+    updateCompareCount();
+  }
+
+  function loadSessionConnectProviders(session) {
+    var $container = $('.khm-connect-provider-list');
+    if (!$container.length || !session || !session.session_id) {
+      return;
+    }
+
+    $container.html('<p class="khm-connect-loading">Loading sponsored provider matches...</p>');
+
+    api('session/' + session.session_id + '/connect-providers', 'GET', { limit: 5 }).done(function (res) {
+      renderConnectProviders(session, (res && res.providers) ? res.providers : []);
+    }).fail(function () {
+      $container.html('<p class="khm-connect-empty">Could not load providers right now.</p>');
+      updateCompareCount();
+    });
+  }
+
+  function renderCompareResults(response) {
+    var $target = $('.khm-connect-compare-results');
+    if (!$target.length) {
+      return;
+    }
+
+    var comparison = response && response.comparison ? response.comparison : (response || {});
+    var providers = Array.isArray(comparison && comparison.providers)
+      ? comparison.providers
+      : (Array.isArray(response && response.providers) ? response.providers : []);
+    var matrix = Array.isArray(comparison && comparison.matrix)
+      ? comparison.matrix
+      : (Array.isArray(response && response.matrix) ? response.matrix : []);
+
+    if (providers.length < 2 || !matrix.length) {
+      $target.html('<p class="khm-connect-empty">Comparison data is not available yet for these providers.</p>');
+      return;
+    }
+
+    var header = providers.map(function (provider) {
+      return '<th>' + escapeHtml(provider.name || 'Provider') + '</th>';
+    }).join('');
+
+    var rows = matrix.map(function (row) {
+      var values = Array.isArray(row && row.values)
+        ? row.values.map(function (value) {
+            return '<td>' + escapeHtml(value || '-') + '</td>';
+          }).join('')
+        : '';
+
+      return '<tr><th>' + escapeHtml(row && row.label ? row.label : 'Field') + '</th>' + values + '</tr>';
+    }).join('');
+
+    $target.html(
+      '<div class="khm-connect-compare-table-wrap">' +
+        '<table class="khm-connect-compare-table">' +
+          '<thead><tr><th>Field</th>' + header + '</tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>' +
+      '</div>'
+    );
+  }
+
   function getInviteParams() {
     var token = '';
     var email = '';
@@ -517,8 +1041,21 @@
       '<h3>' + session.title + '</h3>' +
       '<p class="khm-session-date">Scheduled: ' + session.scheduled_publish + '</p>' +
       '<p class="khm-session-brief">' + (session.brief || '') + '</p>' +
+      '<div class="khm-connect-provider-zone">' +
+        '<div class="khm-connect-provider-heading">Sponsored provider matches</div>' +
+        '<div class="khm-connect-provider-list"></div>' +
+        '<div class="khm-connect-compare-tools">' +
+          '<span>Potential providers saved: <strong class="khm-connect-compare-count">0</strong></span>' +
+          '<button type="button" class="button button-secondary khm-connect-compare-btn" data-session-id="' + session.session_id + '">Compare saved providers</button>' +
+        '</div>' +
+        '<div class="khm-connect-compare-results"></div>' +
+        '<div class="khm-connect-my-threads"></div>' +
+      '</div>' +
       '<div class="khm-questions">' + questionsHtml + '</div>'
     ).attr('data-session-id', session.session_id);
+
+    renderBuyerThreadPanel(String(session.session_id));
+    loadSessionConnectProviders(session);
   }
 
   function loadSavedSearches() {
@@ -655,6 +1192,165 @@
       if (session) {
         renderSession(session);
       }
+    });
+  });
+
+  $(document).on('mouseenter focus', '.khm-connect-provider-link', function () {
+    var provider = parseProviderData($(this));
+    if (!provider || !provider.hover_enabled) {
+      return;
+    }
+
+    showProviderHoverCard($(this), provider);
+  });
+
+  $(document).on('mouseleave blur', '.khm-connect-provider-link', function () {
+    hideProviderHoverCard(false);
+  });
+
+  $(document).on('click', '.khm-connect-save-provider, .khm-connect-add-inline', function () {
+    var provider = parseProviderData($(this));
+    if (!provider) {
+      return;
+    }
+
+    var added = addPotentialProvider(provider);
+    if (added) {
+      $(this).text('Saved').prop('disabled', true);
+    }
+  });
+
+  $(document).on('click', '.khm-connect-request-intro', function () {
+    var provider = parseProviderData($(this));
+    if (!provider) {
+      return;
+    }
+
+    hideProviderHoverCard(true);
+    openIntroModal(provider);
+  });
+
+  $(document).on('click', '.khm-connect-compare-btn', function () {
+    var providerIds = getSavedConnectProviders().map(function (item) {
+      return parseInt(item && item.provider_id, 10);
+    }).filter(Boolean);
+
+    if (providerIds.length < 2) {
+      $('.khm-connect-compare-results').html('<p class="khm-connect-empty">Add at least two providers before running a comparison.</p>');
+      return;
+    }
+
+    var $btn = $(this);
+    var $results = $('.khm-connect-compare-results');
+    $btn.prop('disabled', true).text('Comparing...');
+    $results.html('<p class="khm-connect-loading">Building comparison...</p>');
+
+    connectApi('compare', 'POST', {
+      provider_ids: providerIds,
+      fields: ['overview', 'pricing', 'sla', 'security', 'onboarding', 'fit_notes']
+    }).done(function (res) {
+      renderCompareResults(res || {});
+    }).fail(function () {
+      $results.html('<p class="khm-connect-empty">Comparison is temporarily unavailable.</p>');
+    }).always(function () {
+      $btn.prop('disabled', false).text('Compare saved providers');
+    });
+  });
+
+  $(document).on('click', function (event) {
+    if ($(event.target).closest('.khm-connect-provider-link, #khm-connect-hover-card').length) {
+      return;
+    }
+    if ($(event.target).closest('.khm-connect-intro-dialog').length) {
+      return;
+    }
+    if (hoverCardVisible) {
+      hideProviderHoverCard(true);
+    }
+    if ($(event.target).is('.khm-connect-intro-modal.is-visible')) {
+      closeIntroModal();
+    }
+  });
+
+  $(document).on('click', '.khm-connect-intro-cancel', function () {
+    closeIntroModal();
+  });
+
+  $(document).on('click', '.khm-connect-request-handover', function () {
+    var $button = $(this);
+    var threadId = parseInt($button.data('thread-id'), 10) || 0;
+    var buyerToken = ($button.data('buyer-token') || '').toString();
+    var sessionId = $('.khm-quoteclub-detail').data('session-id') || '';
+
+    if (!threadId || !buyerToken) {
+      return;
+    }
+
+    if (!window.confirm('Request direct contact with this sponsor? They will confirm before contact details are exchanged.')) {
+      return;
+    }
+
+    $button.prop('disabled', true).text('Requesting...');
+
+    connectApi('intro-threads/' + threadId + '/handover', 'POST', { buyer_token: buyerToken }).done(function () {
+      updateStoredThreadHandoverStatus(threadId, 'buyer_requested');
+      renderBuyerThreadPanel(String(sessionId));
+    }).fail(function (xhr) {
+      var res = xhr && xhr.responseJSON ? xhr.responseJSON : {};
+      alert(res.message || 'Unable to request handover right now. Please try again.');
+      $button.prop('disabled', false).text('Request direct contact');
+    });
+  });
+
+  $(document).on('submit', '.khm-connect-intro-form', function (event) {
+    var $form = $(this);
+    var $modal = $('#khm-connect-intro-modal');
+    var $status = $modal.find('.khm-connect-intro-status');
+    var $submit = $form.find('.khm-connect-intro-submit');
+    var detailSessionId = $('.khm-quoteclub-detail').data('session-id') || '';
+    var payload;
+
+    event.preventDefault();
+
+    if (!activeIntroProvider || !activeIntroProvider.provider_id) {
+      $status.addClass('is-error').removeClass('is-success').text('Provider details are missing. Close this dialog and try again.');
+      return;
+    }
+
+    payload = {
+      provider_id: parseInt(activeIntroProvider.provider_id, 10) || 0,
+      session_id: detailSessionId || '',
+      buyer_name: $form.find('[name="buyer_name"]').val().trim(),
+      buyer_email: $form.find('[name="buyer_email"]').val().trim(),
+      buyer_company: $form.find('[name="buyer_company"]').val().trim(),
+      message: $form.find('[name="message"]').val().trim()
+    };
+
+    $submit.prop('disabled', true).text('Sending...');
+    $status.removeClass('is-error is-success').text('Sending intro request...');
+
+    connectApi('intro-threads', 'POST', payload).done(function (res) {
+      var threadId = res && res.thread_id ? res.thread_id : 0;
+      var buyerToken = res && res.buyer_token ? res.buyer_token : '';
+      if (threadId && buyerToken) {
+        storeIntroThread(
+          threadId,
+          buyerToken,
+          payload.provider_id,
+          activeIntroProvider && activeIntroProvider.name ? activeIntroProvider.name : '',
+          payload.session_id
+        );
+        renderBuyerThreadPanel(payload.session_id);
+      }
+      $status.removeClass('is-error').addClass('is-success').text('Intro request sent. The sponsor can now reply from the Connect inbox.');
+      window.setTimeout(function () {
+        closeIntroModal();
+      }, 1200);
+    }).fail(function (xhr) {
+      var res = xhr && xhr.responseJSON ? xhr.responseJSON : {};
+      $status.removeClass('is-success').addClass('is-error').text(res.message || 'Unable to send intro request right now.');
+    }).always(function () {
+      $submit.prop('disabled', false).text('Send request');
     });
   });
 
@@ -836,6 +1532,7 @@
     loadSavedSearches();
     maybeAcceptInviteFromUrl();
     warmTopicSuggestions();
+    updateCompareCount();
 
     $('.khm-filter-date-range').val('all');
 

@@ -98,11 +98,15 @@ class MemberPortalShortcode {
             true
         );
 
+        $current_user = wp_get_current_user();
         wp_localize_script('khm-quote-club', 'khmQuoteClub', [
             'restUrl' => esc_url_raw(rest_url('khm/v1/portal/quoteclub/')),
             'sponsorRestUrl' => esc_url_raw(rest_url('khm/v1/sponsor/')),
+            'connectRestUrl' => esc_url_raw(rest_url('khm/v1/connect/')),
             'nonce' => wp_create_nonce('wp_rest'),
             'userId' => get_current_user_id(),
+            'currentUserName' => $current_user->exists() ? esc_html($current_user->display_name) : '',
+            'currentUserEmail' => $current_user->exists() ? sanitize_email($current_user->user_email) : '',
             'editorialCredits' => $this->credits->getEditorialCredits(get_current_user_id()),
             'pressReleaseCredits' => $this->credits->getPressReleaseCredits(get_current_user_id()),
             'wordsPerCredit' => 120,

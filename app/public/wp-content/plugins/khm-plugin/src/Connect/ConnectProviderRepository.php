@@ -96,6 +96,31 @@ class ConnectProviderRepository {
 		return array_map( array( $this, 'hydrate_row' ), $allowed_rows );
 	}
 
+	public function list_for_sponsor( int $sponsor_id ): array {
+		if ( $sponsor_id <= 0 ) {
+			return array();
+		}
+
+		global $wpdb;
+
+		$table   = $wpdb->prefix . 'connect_providers';
+		$blog_id = $this->current_blog_id();
+		$rows    = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT * FROM {$table} WHERE sponsor_id = %d AND blog_id IN (0, %d) ORDER BY updated_at DESC, id DESC LIMIT 100",
+				$sponsor_id,
+				$blog_id
+			),
+			ARRAY_A
+		);
+
+		if ( ! is_array( $rows ) ) {
+			return array();
+		}
+
+		return array_map( array( $this, 'hydrate_row' ), $rows );
+	}
+
 	public function save( array $data ): int {
 		global $wpdb;
 
@@ -140,6 +165,12 @@ class ConnectProviderRepository {
 			$status = 'active';
 		}
 
+		$company_size_min = $this->normalize_nullable_int( $data['company_size_min'] ?? null );
+		$company_size_max = $this->normalize_nullable_int( $data['company_size_max'] ?? null );
+		$budget_min       = $this->normalize_nullable_int( $data['budget_min'] ?? null );
+		$budget_max       = $this->normalize_nullable_int( $data['budget_max'] ?? null );
+		$onboarding_days  = $this->normalize_nullable_int( $data['onboarding_days'] ?? null );
+
 		return array(
 			'blog_id'              => isset( $data['blog_id'] ) ? (int) $data['blog_id'] : ( isset( $existing['blog_id'] ) ? (int) $existing['blog_id'] : $this->current_blog_id() ),
 			'sponsor_id'           => isset( $data['sponsor_id'] ) ? absint( $data['sponsor_id'] ) : null,
@@ -147,6 +178,16 @@ class ConnectProviderRepository {
 			'slug'                 => $slug,
 			'description'          => sanitize_textarea_field( (string) ( $data['description'] ?? '' ) ),
 			'website_url'          => $this->normalize_url( (string) ( $data['website_url'] ?? '' ) ),
+			'provider_type'        => sanitize_key( (string) ( $data['provider_type'] ?? '' ) ),
+			'sweet_spot_summary'   => sanitize_textarea_field( (string) ( $data['sweet_spot_summary'] ?? '' ) ),
+			'company_size_min'     => $company_size_min,
+			'company_size_max'     => $company_size_max,
+			'budget_min'           => $budget_min,
+			'budget_max'           => $budget_max,
+			'onboarding_days'      => $onboarding_days,
+			'regions'              => wp_json_encode( $this->normalize_titles( $data['regions'] ?? array() ) ),
+			'deployment_modes'     => wp_json_encode( $this->normalize_titles( $data['deployment_modes'] ?? array() ) ),
+			'support_tiers'        => wp_json_encode( $this->normalize_titles( $data['support_tiers'] ?? array() ) ),
 			'status'               => $status,
 			'commentary_enabled'   => ! empty( $data['commentary_enabled'] ) ? 1 : 0,
 			'ad_targeting_enabled' => ! empty( $data['ad_targeting_enabled'] ) ? 1 : 0,
@@ -232,6 +273,27 @@ class ConnectProviderRepository {
 		return is_string( $sanitized ) ? $sanitized : '';
 	}
 
+	private function normalize_nullable_int( $value ): ?int {
+		if ( '' === $value || null === $value ) {
+			return null;
+		}
+
+		if ( is_string( $value ) ) {
+			$value = trim( $value );
+			if ( '' === $value ) {
+				return null;
+			}
+		}
+
+		$normalized = is_numeric( $value ) ? (int) $value : null;
+
+		if ( null === $normalized ) {
+			return null;
+		}
+
+		return max( 0, $normalized );
+	}
+
 	private function hydrate_row( array $row ): array {
 		return array(
 			'id'                   => (int) ( $row['id'] ?? 0 ),
@@ -241,6 +303,16 @@ class ConnectProviderRepository {
 			'slug'                 => (string) ( $row['slug'] ?? '' ),
 			'description'          => (string) ( $row['description'] ?? '' ),
 			'website_url'          => (string) ( $row['website_url'] ?? '' ),
+			'provider_type'        => (string) ( $row['provider_type'] ?? '' ),
+			'sweet_spot_summary'   => (string) ( $row['sweet_spot_summary'] ?? '' ),
+			'company_size_min'     => isset( $row['company_size_min'] ) ? (int) $row['company_size_min'] : null,
+			'company_size_max'     => isset( $row['company_size_max'] ) ? (int) $row['company_size_max'] : null,
+			'budget_min'           => isset( $row['budget_min'] ) ? (int) $row['budget_min'] : null,
+			'budget_max'           => isset( $row['budget_max'] ) ? (int) $row['budget_max'] : null,
+			'onboarding_days'      => isset( $row['onboarding_days'] ) ? (int) $row['onboarding_days'] : null,
+			'regions'              => $this->decode_json_array( $row['regions'] ?? '' ),
+			'deployment_modes'     => $this->decode_json_array( $row['deployment_modes'] ?? '' ),
+			'support_tiers'        => $this->decode_json_array( $row['support_tiers'] ?? '' ),
 			'status'               => (string) ( $row['status'] ?? 'inactive' ),
 			'commentary_enabled'   => ! empty( $row['commentary_enabled'] ),
 			'ad_targeting_enabled' => ! empty( $row['ad_targeting_enabled'] ),
