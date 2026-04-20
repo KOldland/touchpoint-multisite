@@ -2,6 +2,7 @@
 
 namespace KHM\Rest;
 
+use KHM\Connect\ConnectQuoteClubService;
 use KHM\Services\CreditService;
 use KHM\Services\MembershipRepository;
 use KHM\Services\LevelRepository;
@@ -77,6 +78,11 @@ class QuoteClubController {
             'methods' => 'GET',
             'callback' => [$this, 'get_session_commentary'],
             'permission_callback' => [$this, 'check_editorial_auth'],
+        ]);
+        register_rest_route('khm/v1', '/portal/quoteclub/session/(?P<session_id>[a-zA-Z0-9\-_]+)/connect-providers', [
+            'methods' => 'GET',
+            'callback' => [$this, 'get_session_connect_providers'],
+            'permission_callback' => [$this, 'check_sponsor_auth'],
         ]);
 
         register_rest_route('khm/v1', '/portal/quoteclub/saved-searches', [
@@ -630,6 +636,11 @@ class QuoteClubController {
     }
 
     public function submit_commentary(WP_REST_Request $request) {
+        $site_error = $this->validate_connect_site_context($request);
+        if ($site_error instanceof WP_REST_Response) {
+            return $site_error;
+        }
+
         $user_id = get_current_user_id();
         if (!$user_id) {
             return new WP_Error('auth_required', 'Login required', ['status' => 401]);
@@ -650,12 +661,18 @@ class QuoteClubController {
         $text = wp_kses_post((string) $request->get_param('commentary_text'));
         $is_press_release = (bool) $request->get_param('is_press_release');
         $post_id = (int) $request->get_param('post_id');
+        $connect_provider_id = (int) $request->get_param('connect_provider_id');
+        $title_context = sanitize_text_field((string) $request->get_param('title_context'));
+        $connect_provider_snapshot = $this->resolve_connect_provider_snapshot($connect_provider_id, $title_context);
+        if ($connect_provider_id > 0 && !is_array($connect_provider_snapshot)) {
+            return new WP_REST_Response(['success' => false, 'error' => 'connect_provider_not_available'], 404);
+        }
 
         if ($text === '') {
             return new WP_REST_Response(['success' => false, 'error' => 'empty_commentary'], 400);
         }
 
-        $word_count = function_exists('khm_count_words') ? khm_count_words($text) : max(1, str_word_count(wp_strip_all_tags($text)));
+        $word_count = $this->count_words($text);
         $credits_needed = (int) ceil($word_count / 120);
 
         $charged = false;
@@ -682,6 +699,8 @@ class QuoteClubController {
                 'sponsor_id' => (int) ($sponsor['id'] ?? 0),
                 'session_id' => $session_id,
                 'post_id' => $post_id > 0 ? $post_id : null,
+                'connect_provider_id' => $connect_provider_id > 0 ? $connect_provider_id : null,
+                'connect_provider_snapshot' => $connect_provider_snapshot ? wp_json_encode($connect_provider_snapshot) : null,
                 'question_id' => $question_id,
                 'user_id' => $user_id,
                 'commentary_text' => $text,
@@ -693,7 +712,7 @@ class QuoteClubController {
                 'created_at' => current_time('mysql'),
                 'updated_at' => current_time('mysql'),
             ],
-            ['%d', '%s', '%d', '%s', '%d', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s']
+            ['%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s']
         );
 
         if ($inserted === false) {
@@ -702,6 +721,15 @@ class QuoteClubController {
 
         $commentary_id = (int) $wpdb->insert_id;
         do_action('khm_quoteclub_commentary_submitted', $commentary_id, $session_id, $user_id, (int) ($sponsor['id'] ?? 0));
+        $this->dispatch_connect_ad_targeting_hook('commentary_submitted', [
+            'commentary_id' => $commentary_id,
+            'session_id' => $session_id,
+            'user_id' => $user_id,
+            'sponsor_id' => (int) ($sponsor['id'] ?? 0),
+            'connect_provider_id' => $connect_provider_id,
+            'connect_provider_snapshot' => $connect_provider_snapshot,
+            'title_context' => $title_context,
+        ]);
 
         return new WP_REST_Response([
             'success' => true,
@@ -727,6 +755,56 @@ class QuoteClubController {
         return new WP_REST_Response([
             'success' => true,
             'items' => $rows ?: [],
+        ], 200);
+    }
+
+    public function get_session_connect_providers(WP_REST_Request $request): WP_REST_Response {
+        $site_error = $this->validate_connect_site_context($request);
+        if ($site_error instanceof WP_REST_Response) {
+            return $site_error;
+        }
+
+        $site_id = $this->current_site_id();
+        $session_id = sanitize_text_field((string) $request->get_param('session_id'));
+        $title_context = sanitize_text_field((string) ($request->get_param('title_context') ?: ''));
+        $limit = min(5, max(1, (int) ($request->get_param('limit') ?: 3)));
+
+        $session_context = $this->get_session_context_for_connect($session_id);
+        if (empty($session_context)) {
+            return new WP_REST_Response(['success' => false, 'error' => 'session_not_found'], 404);
+        }
+
+        $providers = $this->get_connect_quoteclub_service()->match_for_session($session_context, $title_context, $limit);
+        $providers = apply_filters(
+            'khm_connect_quoteclub_provider_candidates',
+            $providers,
+            $session_context,
+            $title_context,
+            $site_id
+        );
+
+        $ad_targeting = apply_filters(
+            'khm_connect_dynamic_ad_targeting',
+            [],
+            is_array($providers) ? $providers : [],
+            $session_context,
+            $title_context,
+            $site_id
+        );
+
+        $this->dispatch_connect_ad_targeting_hook('providers_listed', [
+            'session_id' => $session_id,
+            'title_context' => $title_context,
+            'providers' => is_array($providers) ? array_values($providers) : [],
+            'ad_targeting' => is_array($ad_targeting) ? $ad_targeting : [],
+        ]);
+
+        return new WP_REST_Response([
+            'success' => true,
+            'site_id' => $site_id,
+            'session_id' => $session_id,
+            'providers' => is_array($providers) ? array_values($providers) : [],
+            'ad_targeting' => is_array($ad_targeting) ? $ad_targeting : [],
         ], 200);
     }
 
@@ -1192,6 +1270,88 @@ class QuoteClubController {
         return is_array($row) ? $row : null;
     }
 
+    protected function get_connect_quoteclub_service(): ConnectQuoteClubService {
+        return new ConnectQuoteClubService();
+    }
+
+    protected function get_session_context_for_connect(string $session_id): ?array {
+        $query = new \WP_Query([
+            'post_type' => 'planner_session',
+            'post_status' => ['publish', 'future', 'draft', 'pending'],
+            'posts_per_page' => 1,
+            'meta_query' => [[
+                'key' => 'session_id',
+                'value' => $session_id,
+                'compare' => '=',
+            ]],
+        ]);
+
+        $post = $query->posts[0] ?? null;
+        if (!$post) {
+            return null;
+        }
+
+        return [
+            'session_id' => $session_id,
+            'post_id' => (int) $post->ID,
+            'title' => get_the_title($post),
+            'topics' => $this->normalize_list_meta((string) get_post_meta($post->ID, 'topics', true)),
+            'portfolio' => (string) get_post_meta($post->ID, 'portfolio', true),
+            'key_messages' => (string) get_post_meta($post->ID, 'key_messages', true),
+        ];
+    }
+
+    protected function resolve_connect_provider_snapshot(int $provider_id, string $title_context = ''): ?array {
+        if ($provider_id <= 0) {
+            return null;
+        }
+
+        return $this->get_connect_quoteclub_service()->get_provider_snapshot($provider_id, $title_context);
+    }
+
+    protected function current_site_id(): int {
+        $current_site_id = function_exists('get_current_blog_id') ? (int) get_current_blog_id() : 1;
+
+        return max(1, (int) apply_filters('khm_connect_current_blog_id', $current_site_id));
+    }
+
+    protected function validate_connect_site_context(WP_REST_Request $request): ?WP_REST_Response {
+        $requested_site_id = (int) $request->get_param('site_id');
+        $current_site_id = $this->current_site_id();
+
+        if ($requested_site_id > 0 && $requested_site_id !== $current_site_id) {
+            return new WP_REST_Response([
+                'success' => false,
+                'error' => 'connect_site_context_mismatch',
+                'site_id' => $current_site_id,
+            ], 403);
+        }
+
+        return null;
+    }
+
+    protected function dispatch_connect_ad_targeting_hook(string $event, array $context): void {
+        do_action(
+            'khm_connect_dynamic_ad_targeting_context',
+            $event,
+            array_merge(
+                [
+                    'site_id' => $this->current_site_id(),
+                    'source' => 'quoteclub',
+                ],
+                $context
+            )
+        );
+    }
+
+    protected function count_words(string $text): int {
+        if (function_exists('khm_count_words')) {
+            return (int) call_user_func('khm_count_words', $text);
+        }
+
+        return max(1, str_word_count(wp_strip_all_tags($text)));
+    }
+
     protected function persist_commentary_status(int $id, string $status): bool {
         global $wpdb;
 
@@ -1416,6 +1576,11 @@ class QuoteClubController {
      * Returns the draft ID and a shareable draft_token.
      */
     public function save_draft(WP_REST_Request $request): WP_REST_Response {
+        $site_error = $this->validate_connect_site_context($request);
+        if ($site_error instanceof WP_REST_Response) {
+            return $site_error;
+        }
+
         $user_id = get_current_user_id();
         $sponsor = SponsorService::get_user_sponsor($user_id);
         $sponsor_id = (int) ($sponsor['id'] ?? 0);
@@ -1424,12 +1589,18 @@ class QuoteClubController {
         $question_id  = sanitize_text_field((string) $request->get_param('question_id'));
         $text         = wp_kses_post((string) $request->get_param('commentary_text'));
         $post_id      = (int) $request->get_param('post_id');
+        $connect_provider_id = (int) $request->get_param('connect_provider_id');
+        $title_context = sanitize_text_field((string) $request->get_param('title_context'));
+        $connect_provider_snapshot = $this->resolve_connect_provider_snapshot($connect_provider_id, $title_context);
+        if ($connect_provider_id > 0 && !is_array($connect_provider_snapshot)) {
+            return new WP_REST_Response(['success' => false, 'error' => 'connect_provider_not_available'], 404);
+        }
 
         if ($text === '') {
             return new WP_REST_Response(['success' => false, 'error' => 'empty_commentary'], 400);
         }
 
-        $word_count     = function_exists('khm_count_words') ? khm_count_words($text) : max(1, str_word_count(wp_strip_all_tags($text)));
+        $word_count     = $this->count_words($text);
         $credits_needed = (int) ceil($word_count / 120);
         $draft_token    = wp_generate_password(40, false, false);
 
@@ -1442,6 +1613,8 @@ class QuoteClubController {
                 'sponsor_id'     => $sponsor_id,
                 'session_id'     => $session_id,
                 'post_id'        => $post_id > 0 ? $post_id : null,
+                'connect_provider_id' => $connect_provider_id > 0 ? $connect_provider_id : null,
+                'connect_provider_snapshot' => $connect_provider_snapshot ? wp_json_encode($connect_provider_snapshot) : null,
                 'question_id'    => $question_id,
                 'user_id'        => $user_id,
                 'commentary_text'=> $text,
@@ -1452,7 +1625,7 @@ class QuoteClubController {
                 'created_at'     => current_time('mysql'),
                 'updated_at'     => current_time('mysql'),
             ],
-            ['%d', '%s', '%d', '%s', '%d', '%s', '%d', '%d', '%s', '%s', '%s', '%s']
+            ['%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%d', '%d', '%s', '%s', '%s', '%s']
         );
 
         if ($inserted === false) {
@@ -1476,6 +1649,11 @@ class QuoteClubController {
      * Only the owning user may update their own draft.
      */
     public function update_draft(WP_REST_Request $request): WP_REST_Response {
+        $site_error = $this->validate_connect_site_context($request);
+        if ($site_error instanceof WP_REST_Response) {
+            return $site_error;
+        }
+
         $user_id = get_current_user_id();
         $id      = (int) $request->get_param('id');
 
@@ -1497,25 +1675,33 @@ class QuoteClubController {
         }
 
         $text       = wp_kses_post((string) $request->get_param('commentary_text'));
+        $connect_provider_id = (int) $request->get_param('connect_provider_id');
+        $title_context = sanitize_text_field((string) $request->get_param('title_context'));
+        $connect_provider_snapshot = $this->resolve_connect_provider_snapshot($connect_provider_id, $title_context);
+        if ($connect_provider_id > 0 && !is_array($connect_provider_snapshot)) {
+            return new WP_REST_Response(['success' => false, 'error' => 'connect_provider_not_available'], 404);
+        }
         $question_id = sanitize_text_field((string) ($request->get_param('question_id') ?: $row['question_id']));
 
         if ($text === '') {
             return new WP_REST_Response(['success' => false, 'error' => 'empty_commentary'], 400);
         }
 
-        $word_count     = function_exists('khm_count_words') ? khm_count_words($text) : max(1, str_word_count(wp_strip_all_tags($text)));
+        $word_count     = $this->count_words($text);
         $credits_needed = (int) ceil($word_count / 120);
 
         $wpdb->update(
             $table,
             [
                 'commentary_text' => $text,
+                'connect_provider_id' => $connect_provider_id > 0 ? $connect_provider_id : (int) ($row['connect_provider_id'] ?? 0),
+                'connect_provider_snapshot' => $connect_provider_snapshot ? wp_json_encode($connect_provider_snapshot) : (string) ($row['connect_provider_snapshot'] ?? ''),
                 'question_id'     => $question_id,
                 'word_count'      => $word_count,
                 'updated_at'      => current_time('mysql'),
             ],
             ['id' => $id],
-            ['%s', '%s', '%d', '%s'],
+            ['%s', '%d', '%s', '%s', '%d', '%s'],
             ['%d']
         );
 
@@ -1533,6 +1719,11 @@ class QuoteClubController {
      * Idempotent — calling again on an already-submitted commentary returns success.
      */
     public function confirm_commentary(WP_REST_Request $request): WP_REST_Response {
+        $site_error = $this->validate_connect_site_context($request);
+        if ($site_error instanceof WP_REST_Response) {
+            return $site_error;
+        }
+
         $user_id        = get_current_user_id();
         $id             = (int) $request->get_param('id');
         $is_press_release = (bool) $request->get_param('is_press_release');
@@ -1615,6 +1806,14 @@ class QuoteClubController {
         }
 
         do_action('khm_quoteclub_commentary_submitted', $id, $session_id, $user_id, (int) ($sponsor['id'] ?? 0));
+        $this->dispatch_connect_ad_targeting_hook('commentary_confirmed', [
+            'commentary_id' => $id,
+            'session_id' => $session_id,
+            'user_id' => $user_id,
+            'sponsor_id' => (int) ($sponsor['id'] ?? 0),
+            'connect_provider_id' => (int) ($row['connect_provider_id'] ?? 0),
+            'connect_provider_snapshot' => json_decode((string) ($row['connect_provider_snapshot'] ?? ''), true) ?: null,
+        ]);
 
         return new WP_REST_Response([
             'success'               => true,
@@ -1649,7 +1848,7 @@ class QuoteClubController {
             }
             $rows = $wpdb->get_results($wpdb->prepare(
                 "SELECT id, session_id, question_id, word_count, credits_used, status,
-                        rejection_reason, created_at, submitted_at,
+                        rejection_reason, connect_provider_id, connect_provider_snapshot, created_at, submitted_at,
                         LEFT(commentary_text, 200) AS commentary_excerpt
                  FROM {$table}
                  WHERE user_id = %d AND sponsor_id = %d AND status = %s
@@ -1664,7 +1863,7 @@ class QuoteClubController {
         } else {
             $rows = $wpdb->get_results($wpdb->prepare(
                 "SELECT id, session_id, question_id, word_count, credits_used, status,
-                        rejection_reason, created_at, submitted_at,
+                        rejection_reason, connect_provider_id, connect_provider_snapshot, created_at, submitted_at,
                         LEFT(commentary_text, 200) AS commentary_excerpt
                  FROM {$table}
                  WHERE user_id = %d AND sponsor_id = %d

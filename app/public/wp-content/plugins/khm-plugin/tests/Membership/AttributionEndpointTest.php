@@ -168,4 +168,33 @@ class AttributionEndpointTest extends TestCase {
         $this->assertEquals(200, $response->get_status());
         $this->assertTrue($response->get_data()['success']);
     }
+
+    public function test_accepts_connect_conversion_types() {
+        $request = new WP_REST_Request('POST');
+        $request->set_body(json_encode([
+            'conversion_type' => 'connect_mql',
+            'consent' => true,
+            'user_id' => 321,
+            'schedule_id' => 55,
+            'reference' => 'connect-ref-1',
+            'reference_metadata' => [
+                'provider_id' => 9,
+                'title_context' => 'the-engineer',
+            ],
+        ]));
+
+        $response = $this->endpoint->handle_request($request);
+
+        $this->assertEquals(200, $response->get_status());
+        $this->assertTrue($response->get_data()['success']);
+
+        global $wpdb;
+        $record = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$this->table_name} WHERE id = %d",
+            $response->get_data()['id']
+        ), ARRAY_A);
+
+        $this->assertNotNull($record);
+        $this->assertEquals('connect_mql', $record['conversion_type']);
+    }
 }

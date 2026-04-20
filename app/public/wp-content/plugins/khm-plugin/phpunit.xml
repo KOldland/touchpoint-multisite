@@ -16,6 +16,7 @@
             <directory>tests/Rest</directory>
             <directory>tests/CLI</directory>
             <directory>tests/Admin</directory>
+            <directory>tests/Connect</directory>
         </testsuite>
         <testsuite name="Membership Integration Tests">
             <directory>tests/Membership</directory>

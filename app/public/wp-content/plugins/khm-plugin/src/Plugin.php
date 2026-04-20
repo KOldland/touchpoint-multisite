@@ -1,6 +1,9 @@
 <?php
 namespace KHM;
 
+use KHM\Connect\ConnectShortlistEndpoint;
+use KHM\Connect\ConnectComparisonEndpoint;
+use KHM\Connect\ConnectAdminPage;
 use KHM\Atomic\AtomicArticleGenerator;
 use KHM\Atomic\AtomicArticlePostType;
 use KHM\Atomic\AtomicEmbeddingService;
@@ -10,6 +13,8 @@ use KHM\Atomic\AtomicSchemaEmitter;
 use KHM\Atomic\AtomicSearchEndpoint;
 use KHM\Atomic\AtomicSearchWidget;
 use KHM\Migrations\AtomicEmbeddingsMigration;
+use KHM\Migrations\AddCommentaryConnectColumns;
+use KHM\Migrations\ConnectProvidersMigration;
 use KHM\Services\MarketingSuiteServices;
 use KHM\Services\MembershipRepository;
 use KHM\Services\OrderRepository;
@@ -32,6 +37,7 @@ class Plugin {
     public static function on_init() {
         // Register custom post types, shortcodes, etc.
         self::initialize_atomic();
+        self::initialize_connect();
     }
 
     /**
@@ -81,6 +87,20 @@ class Plugin {
         ( new AtomicRegenerateEndpoint() )->register();
         ( new AtomicSearchEndpoint() )->register();
         ( new AtomicSearchWidget() )->register();
+    }
+
+    /**
+     * Bootstrap the initial Connect.Net subsystem.
+     *
+     * @return void
+     */
+    public static function initialize_connect(): void {
+        ConnectProvidersMigration::run();
+        AddCommentaryConnectColumns::run();
+
+        ( new ConnectShortlistEndpoint() )->register();
+        ( new ConnectComparisonEndpoint() )->register();
+        ( new ConnectAdminPage() )->register();
     }
 
     public static function get_dir() {

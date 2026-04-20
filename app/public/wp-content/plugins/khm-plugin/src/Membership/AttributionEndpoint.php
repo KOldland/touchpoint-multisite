@@ -20,11 +20,11 @@ class AttributionEndpoint {
 
         // Basic validation
         $conversion_type = sanitize_text_field($p['conversion_type'] ?? '');
-        $allowed = ['signup','signup_no_consent','trial','paid','paid_no_consent','demo_request'];
+        $allowed = ['signup','signup_no_consent','trial','paid','paid_no_consent','demo_request','connect_click','connect_mql','connect_paid'];
         if (! in_array($conversion_type, $allowed, true)) {
             return new \WP_REST_Response([
                 'error' => 'invalid conversion_type',
-                'details' => 'Allowed values are: signup, trial, paid, demo_request'
+                'details' => 'Allowed values are: signup, trial, paid, demo_request, connect_click, connect_mql, connect_paid'
             ], 400);
         }
 

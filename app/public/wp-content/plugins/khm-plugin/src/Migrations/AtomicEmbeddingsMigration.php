@@ -62,8 +62,26 @@ class AtomicEmbeddingsMigration {
   PRIMARY KEY (post_id)
 ) {$charset_collate};";
 
-        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-        dbDelta( $sql );
+        if ( ! method_exists( $wpdb, 'tables' ) || ! defined( 'WP_CONTENT_DIR' ) ) {
+            $wpdb->query( $sql );
+            return;
+        }
+
+        if ( function_exists( 'dbDelta' ) ) {
+            dbDelta( $sql );
+            return;
+        }
+
+        $upgrade_file = defined( 'ABSPATH' ) ? ABSPATH . 'wp-admin/includes/upgrade.php' : '';
+        if ( '' !== $upgrade_file && file_exists( $upgrade_file ) ) {
+            require_once $upgrade_file;
+            if ( function_exists( 'dbDelta' ) ) {
+                dbDelta( $sql );
+                return;
+            }
+        }
+
+        $wpdb->query( $sql );
     }
 
     /**

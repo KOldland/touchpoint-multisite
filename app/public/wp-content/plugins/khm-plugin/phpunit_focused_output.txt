@@ -1,0 +1,11 @@
+Test bootstrap loaded
+PHPUnit 9.6.34 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.5.4
+Configuration: /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/phpunit.xml
+
+...................                                               19 / 19 (100%)
+
+Time: 00:00.089, Memory: 16.00 MB
+
+OK (19 tests, 99 assertions)

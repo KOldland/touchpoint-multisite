@@ -7,7 +7,9 @@
 
 namespace KHM\Tests\Rest;
 
+use KHM\Connect\ConnectQuoteClubService;
 use KHM\Rest\QuoteClubController;
+use KHM\Sponsors\SponsorMigration;
 use PHPUnit\Framework\TestCase;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -25,6 +27,7 @@ class QuoteClubControllerTest extends TestCase {
         $GLOBALS['khm_test_options'] = [];
         $GLOBALS['khm_test_rest_routes'] = [];
         $GLOBALS['khm_test_actions_fired'] = [];
+        $GLOBALS['khm_test_filters'] = [];
     }
 
     protected function tearDown(): void {
@@ -32,6 +35,7 @@ class QuoteClubControllerTest extends TestCase {
         $GLOBALS['khm_test_current_user_caps'] = [];
         $GLOBALS['khm_test_transients'] = [];
         $GLOBALS['khm_test_actions_fired'] = [];
+        $GLOBALS['khm_test_filters'] = [];
         parent::tearDown();
     }
 
@@ -474,6 +478,152 @@ class QuoteClubControllerTest extends TestCase {
         $this->assertArrayHasKey( '/khm/v1/portal/quoteclub/commentary/(?P<id>\d+)', $GLOBALS['khm_test_rest_routes'] );
         $this->assertArrayHasKey( '/khm/v1/portal/quoteclub/commentary/(?P<id>\d+)/approve', $GLOBALS['khm_test_rest_routes'] );
         $this->assertArrayHasKey( '/khm/v1/portal/quoteclub/commentary/(?P<id>\d+)/reject', $GLOBALS['khm_test_rest_routes'] );
+        $this->assertArrayHasKey( '/khm/v1/portal/quoteclub/session/(?P<session_id>[a-zA-Z0-9\-_]+)/connect-providers', $GLOBALS['khm_test_rest_routes'] );
         $this->assertArrayHasKey( '/khm/v1/sponsor/(?P<sponsor_id>\d+)/invite/accept', $GLOBALS['khm_test_rest_routes'] );
+    }
+
+    public function test_get_session_connect_providers_returns_matches(): void {
+        $controller = new class extends QuoteClubController {
+            protected function get_session_context_for_connect(string $session_id): ?array {
+                TestCase::assertSame( 'ep-connect-1', $session_id );
+
+                return [
+                    'session_id' => $session_id,
+                    'title' => 'Warehouse automation trends',
+                    'topics' => [ 'Logistics', 'Manufacturing' ],
+                    'portfolio' => 'Industrial operations',
+                    'key_messages' => 'automation and reliability',
+                ];
+            }
+
+            protected function get_connect_quoteclub_service(): ConnectQuoteClubService {
+                return new class extends ConnectQuoteClubService {
+                    public function __construct() {}
+
+                    public function match_for_session( array $session_context, string $title_context = '', int $limit = 3 ): array {
+                        TestCase::assertSame( 'warehouse-ops', $title_context );
+                        TestCase::assertSame( 2, $limit );
+                        TestCase::assertSame( 'ep-connect-1', $session_context['session_id'] );
+
+                        return [
+                            [
+                                'id' => 14,
+                                'name' => 'Ops Partner',
+                                'slug' => 'ops-partner',
+                                'score' => 88.5,
+                                'match_reasons' => [ 'Topic overlap' ],
+                            ],
+                        ];
+                    }
+                };
+            }
+        };
+
+        $request = new WP_REST_Request( 'GET', '/khm/v1/portal/quoteclub/session/ep-connect-1/connect-providers' );
+        $request->set_param( 'session_id', 'ep-connect-1' );
+        $request->set_param( 'title_context', 'warehouse-ops' );
+        $request->set_param( 'limit', 2 );
+
+        $response = $controller->get_session_connect_providers( $request );
+
+        $this->assertInstanceOf( WP_REST_Response::class, $response );
+        $this->assertSame( 200, $response->get_status() );
+        $payload = $response->get_data();
+        $this->assertSame( true, $payload['success'] );
+        $this->assertSame( 1, (int) $payload['site_id'] );
+        $this->assertSame( 'ep-connect-1', $payload['session_id'] );
+        $this->assertCount( 1, $payload['providers'] );
+        $this->assertSame( 14, $payload['providers'][0]['id'] );
+    }
+
+    public function test_get_session_connect_providers_rejects_site_context_mismatch(): void {
+        $controller = new QuoteClubController();
+
+        $request = new WP_REST_Request( 'GET', '/khm/v1/portal/quoteclub/session/ep-connect-1/connect-providers' );
+        $request->set_param( 'session_id', 'ep-connect-1' );
+        $request->set_param( 'site_id', 99 );
+
+        $response = $controller->get_session_connect_providers( $request );
+
+        $this->assertInstanceOf( WP_REST_Response::class, $response );
+        $this->assertSame( 403, $response->get_status() );
+        $payload = $response->get_data();
+        $this->assertSame( false, $payload['success'] );
+        $this->assertSame( 'connect_site_context_mismatch', $payload['error'] );
+    }
+
+    public function test_submit_commentary_persists_connect_provider_fields(): void {
+        global $wpdb;
+
+        $wpdb->insert(
+            SponsorMigration::sponsors_table_name(),
+            [
+                'id' => 7,
+                'name' => 'Connect Sponsor',
+                'team_members' => wp_json_encode(
+                    [
+                        [
+                            'user_id' => 1001,
+                            'membership_level' => 'sponsor',
+                        ],
+                    ]
+                ),
+                'created_at' => current_time( 'mysql' ),
+            ]
+        );
+
+        $controller = new class extends QuoteClubController {
+            protected function consume_editorial_credits(int $user_id, int $credits_needed, string $session_id): bool {
+                return true;
+            }
+
+            protected function resolve_connect_provider_snapshot(int $provider_id, string $title_context = ''): ?array {
+                TestCase::assertSame( 22, $provider_id );
+                TestCase::assertSame( 'operations-lead', $title_context );
+
+                return [
+                    'id' => 22,
+                    'name' => 'Ops Match',
+                    'slug' => 'ops-match',
+                ];
+            }
+
+            protected function get_editorial_balance(int $user_id): int {
+                return 9;
+            }
+        };
+
+        $request = new WP_REST_Request( 'POST', '/khm/v1/portal/quoteclub/commentary' );
+        $request->set_param( 'session_id', 'ep-connect-2' );
+        $request->set_param( 'question_id', 'q-connect' );
+        $request->set_param( 'commentary_text', str_repeat( 'signal ', 140 ) );
+        $request->set_param( 'connect_provider_id', 22 );
+        $request->set_param( 'title_context', 'operations-lead' );
+
+        $response = $controller->submit_commentary( $request );
+
+        $this->assertInstanceOf( WP_REST_Response::class, $response );
+        $this->assertSame( 200, $response->get_status() );
+        $payload = $response->get_data();
+        $this->assertSame( true, $payload['success'] );
+
+        $table = $wpdb->prefix . 'khm_sponsor_commentary';
+        $row = $wpdb->get_row(
+            $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", (int) $payload['commentary_id'] ),
+            ARRAY_A
+        );
+        $this->assertIsArray( $row );
+        $this->assertSame( 22, (int) $row['connect_provider_id'] );
+        $snapshot = json_decode( (string) $row['connect_provider_snapshot'], true );
+        $this->assertSame( 'ops-match', $snapshot['slug'] ?? null );
+
+        $events = array_filter(
+            $GLOBALS['khm_test_actions_fired'],
+            static function ( $entry ) {
+                return is_array( $entry ) && ( $entry['hook'] ?? '' ) === 'khm_connect_dynamic_ad_targeting_context';
+            }
+        );
+
+        $this->assertCount( 1, $events );
     }
 }

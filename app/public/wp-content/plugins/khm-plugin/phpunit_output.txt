@@ -1,0 +1,339 @@
+Test bootstrap loaded
+PHPUnit 9.6.34 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.5.4
+Configuration: /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/phpunit.xml
+
+........PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Sponsors/SponsorSelectionTest.php on line 11
+.
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Sponsors/SponsorSelectionTest.php on line 11
+PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Sponsors/SponsorSelectionTest.php on line 28
+.
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Sponsors/SponsorSelectionTest.php on line 28
+PHP Deprecated:  KHM\Services\EnhancedEmailService::update_email_status(): Implicitly marking parameter $error as nullable is deprecated, the explicit nullable type must be used instead in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/src/Services/EnhancedEmailService.php on line 642
+PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Services/EnhancedEmailServiceDedupeTest.php on line 52
+.
+Deprecated: KHM\Services\EnhancedEmailService::update_email_status(): Implicitly marking parameter $error as nullable is deprecated, the explicit nullable type must be used instead in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/src/Services/EnhancedEmailService.php on line 642
+
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Services/EnhancedEmailServiceDedupeTest.php on line 52
+PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Services/EnhancedEmailServiceDedupeTest.php on line 76
+.
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Services/EnhancedEmailServiceDedupeTest.php on line 76
+....Stripe marketing audit log failed: Undefined constant "WP_CONTENT_DIR"
+.Stripe product.updated queued import failed (retry scheduled): boom
+.Stripe product.updated queued import failed: boom max
+..PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+PHP Deprecated:  Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 57
+PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+PHP Deprecated:  Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+.
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+
+Deprecated: Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 57
+
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+
+Deprecated: Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+PHP Deprecated:  Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 88
+PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+PHP Deprecated:  Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+.
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+
+Deprecated: Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 88
+
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+
+Deprecated: Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+PHP Deprecated:  Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 123
+PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+PHP Deprecated:  Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+.
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+
+Deprecated: Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 123
+
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+
+Deprecated: Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+PHP Deprecated:  Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 156
+PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+PHP Deprecated:  Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+.
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+
+Deprecated: Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 156
+
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+
+Deprecated: Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+PHP Deprecated:  Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+PHP Deprecated:  Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+.
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+
+Deprecated: Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+
+Deprecated: Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+PHP Deprecated:  Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+PHP Deprecated:  Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+.
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+
+Deprecated: Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+
+Deprecated: Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+PHP Deprecated:  Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+PHP Deprecated:  Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+.
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+
+Deprecated: Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 223
+
+Deprecated: Calling ReflectionProperty::setValue() with a single argument is deprecated in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/CheckoutStripePriceTest.php on line 224
+.........................PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/WebhooksCheckoutAssignTest.php on line 57
+.
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/WebhooksCheckoutAssignTest.php on line 57
+PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/WebhooksProductImportQueueTest.php on line 84
+.
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/WebhooksProductImportQueueTest.php on line 84
+PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/WebhooksProductImportQueueTest.php on line 107
+.
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/WebhooksProductImportQueueTest.php on line 107
+PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/WebhooksProductImportTest.php on line 43
+.
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Rest/WebhooksProductImportTest.php on line 43
+.......  63 / 185 ( 34%)
+PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Admin/StripePriceIdTest.php on line 226
+.
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Admin/StripePriceIdTest.php on line 226
+PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Admin/StripePriceIdTest.php on line 226
+.
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Admin/StripePriceIdTest.php on line 226
+PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Admin/StripePriceIdTest.php on line 226
+.
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Admin/StripePriceIdTest.php on line 226
+.............................PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/EmailDedupeTest.php on line 53
+.
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/EmailDedupeTest.php on line 53
+KHM landing landing.view {"schedule_id":"sch_123","sponsor_id":"sp_456","utm_source":"newsletter","source":"landing"}
+.KHM landing landing.success {"session_id":"cs_test_success_001","schedule_id":"sch_123","sponsor_id":"sp_456","consent":1,"membership_status":"active"}
+.KHM landing landing.success {"session_id":"cs_test_success_002","schedule_id":"sch_123","sponsor_id":"","consent":0,"membership_status":"active"}
+.PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/MembershipCheckoutHandlerTest.php on line 12
+.
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/MembershipCheckoutHandlerTest.php on line 12
+PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/MembershipCheckoutHandlerTest.php on line 30
+.
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/MembershipCheckoutHandlerTest.php on line 30
+KHM landing landing.submit {"session_id":"cs_test_df439ce7bb2256e6","schedule_id":"sch_optout_001","sponsor_id":"","consent":1,"source":"landing"}
+.PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/OptOutAndEmailPrecedenceTest.php on line 92
+.
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/OptOutAndEmailPrecedenceTest.php on line 92
+KHM webhook webhook.received {"event_id":"evt_optout_001","event_type":"checkout.session.completed","latency_ms":65}
+KHM webhook membership.attribution.confirmed {"user_id":123,"schedule_id":77,"reference":"cs_optout_001","consent":0}
+KHM webhook membership.signup {"user_id":123,"tier":29,"attribution_id":"","payment_type":"subscription"}
+KHM webhook landing.success {"user_id":123,"schedule_id":77,"sponsor_id":11,"utm_source":"newsletter","utm_campaign":"spring","reference":"cs_optout_001"}
+KHM webhook membership.email.skipped {"type":"welcome","user_id":123,"reason":"transactional_emails_disabled","reference":"cs_optout_001"}
+KHM webhook membership.email.skipped {"type":"payment","user_id":123,"reason":"transactional_emails_disabled","reference":"session:cs_optout_001"}
+KHM webhook webhook.processed {"event_id":"evt_optout_001","event_type":"checkout.session.completed","trace_id":"optout-integration","latency_ms":2}
+....PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/PromoValidationTest.php on line 229
+PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/PromoValidationTest.php on line 86
+.
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/PromoValidationTest.php on line 229
+
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/PromoValidationTest.php on line 86
+PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/PromoValidationTest.php on line 229
+.
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/PromoValidationTest.php on line 229
+PHP Deprecated:  Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/PromoValidationTest.php on line 229
+.
+Deprecated: Method ReflectionProperty::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/PromoValidationTest.php on line 229
+.KHM landing landing.submit {"session_id":"cs_test_dae2bc5a44178609","schedule_id":"sch_125","sponsor_id":"","consent":1,"source":"landing"}
+............KHM landing landing.submit {"session_id":"cs_test_89467c24312293ea","schedule_id":"sch_matrix_001","sponsor_id":"","consent":1,"source":"landing"}
+.KHM landing landing.submit {"session_id":"cs_test_9cf300d4ee22fd74","schedule_id":"sch_matrix_002","sponsor_id":"","consent":0,"source":"landing"}
+.KHM landing landing.submit {"session_id":"cs_test_bf8673124559d60e","schedule_id":"sch_matrix_003","sponsor_id":"","consent":1,"source":"landing"}
+. 126 / 185 ( 68%)
+KHM landing landing.submit {"session_id":"cs_test_3b32b2dc26c45b3a","schedule_id":"sch_123","sponsor_id":"","consent":1,"source":"landing"}
+.KHM landing landing.submit {"session_id":"cs_test_985e17f16425d258","schedule_id":"sch_123","sponsor_id":"","consent":1,"source":"landing"}
+..KHM landing landing.submit {"session_id":"cs_test_42ea8942b2a11de2","schedule_id":"sch_123","sponsor_id":"","consent":0,"source":"landing"}
+..KHM landing landing.submit {"session_id":"cs_test_fc314805c01e1ac6","schedule_id":"sch_123","sponsor_id":"","consent":1,"source":"landing"}
+.......KHM webhook webhook.received {"event_id":"evt_err_null_obj","event_type":"invoice.paid","latency_ms":0}
+KHM webhook processing failed | event_id=evt_err_null_obj | type=invoice.paid | trace_id=trace-null-obj | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_err_null_obj","event_type":"invoice.paid","trace_id":"trace-null-obj","error":"invoice.paid unable to resolve user"}
+.KHM webhook webhook.received {"event_id":"evt_err_ctx","event_type":"invoice.paid","latency_ms":0}
+KHM webhook processing failed | event_id=evt_err_ctx | type=invoice.paid | trace_id=trace-ctx-001 | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_err_ctx","event_type":"invoice.paid","trace_id":"trace-ctx-001","error":"invoice.paid unable to resolve user"}
+.KHM webhook webhook.received {"event_id":"evt_err_mark","event_type":"invoice.paid","latency_ms":0}
+KHM webhook processing failed | event_id=evt_err_mark | type=invoice.paid | trace_id=trace-mark | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_err_mark","event_type":"invoice.paid","trace_id":"trace-mark","error":"invoice.paid unable to resolve user"}
+.KHM webhook webhook.received {"event_id":"evt_err_dl","event_type":"invoice.paid","latency_ms":0}
+KHM webhook processing failed | event_id=evt_err_dl | type=invoice.paid | trace_id=trace-dl-001 | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_err_dl","event_type":"invoice.paid","trace_id":"trace-dl-001","error":"invoice.paid unable to resolve user"}
+.KHM webhook webhook.received {"event_id":"evt_err_both","event_type":"invoice.paid","latency_ms":0}
+KHM webhook processing failed | event_id=evt_err_both | type=invoice.paid | trace_id=trace-both-999 | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_err_both","event_type":"invoice.paid","trace_id":"trace-both-999","error":"invoice.paid unable to resolve user"}
+.KHM webhook webhook.invalid_signature {"code":"khm_invalid_signature","message":"No signatures found matching the expected signature for payload","ip":"unknown","count":1,"window":60,"blocked":false,"block_ttl":0}
+.KHM webhook webhook.received {"event_id":"evt_signed_exc_001","event_type":"invoice.paid","latency_ms":0}
+KHM webhook processing failed | event_id=evt_signed_exc_001 | type=invoice.paid | trace_id=trace-signed-exc-001 | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_signed_exc_001","event_type":"invoice.paid","trace_id":"trace-signed-exc-001","error":"invoice.paid unable to resolve user"}
+.KHM webhook webhook.received {"event_id":"evt_checkout_signed_001","event_type":"checkout.session.completed","latency_ms":0}
+KHM webhook membership.attribution.created {"user_id":101,"schedule_id":10,"sponsor_id":20,"reference":"cs_fixture_signed_001"}
+KHM webhook membership.attribution.confirmed {"user_id":101,"schedule_id":10,"reference":"cs_fixture_signed_001","consent":1}
+KHM webhook membership.signup {"user_id":101,"tier":87,"attribution_id":"","payment_type":"subscription"}
+KHM webhook landing.success {"user_id":101,"schedule_id":10,"sponsor_id":20,"utm_source":"newsletter","utm_campaign":"spring_launch","reference":"cs_fixture_signed_001"}
+KHM webhook membership.email.skipped {"type":"welcome","user_id":101,"reason":"transactional_emails_disabled","reference":"cs_fixture_signed_001"}
+KHM webhook membership.email.skipped {"type":"payment","user_id":101,"reason":"transactional_emails_disabled","reference":"session:cs_fixture_signed_001"}
+KHM webhook webhook.processed {"event_id":"evt_checkout_signed_001","event_type":"checkout.session.completed","trace_id":"integration-checkout-001","latency_ms":0}
+.KHM webhook webhook.received {"event_id":"evt_invoice_signed_001","event_type":"invoice.paid","latency_ms":0}
+KHM webhook membership.renewal {"user_id":202,"invoice_id":"in_fixture_001","subscription_id":"sub_fixture_001"}
+KHM webhook membership.email.skipped {"type":"payment","user_id":202,"reason":"transactional_emails_disabled","reference":"invoice:in_fixture_001"}
+KHM webhook webhook.processed {"event_id":"evt_invoice_signed_001","event_type":"invoice.paid","trace_id":"integration-invoice-001","latency_ms":0}
+.KHM webhook webhook.received {"event_id":"evt_checkout_temp_fallback_001","event_type":"checkout.session.completed","latency_ms":0}
+KHM webhook membership.attribution.created {"user_id":101,"schedule_id":777,"sponsor_id":0,"reference":"cs_temp_fallback_001"}
+KHM webhook membership.attribution.confirmed {"user_id":101,"schedule_id":777,"reference":"cs_temp_fallback_001","consent":1}
+KHM webhook membership.signup {"user_id":101,"tier":104,"attribution_id":"","payment_type":"subscription"}
+KHM webhook landing.success {"user_id":101,"schedule_id":777,"sponsor_id":0,"utm_source":"","utm_campaign":"spring_launch","reference":"cs_temp_fallback_001"}
+KHM webhook membership.email.skipped {"type":"welcome","user_id":101,"reason":"transactional_emails_disabled","reference":"cs_temp_fallback_001"}
+KHM webhook membership.email.skipped {"type":"payment","user_id":101,"reason":"transactional_emails_disabled","reference":"session:cs_temp_fallback_001"}
+KHM webhook webhook.processed {"event_id":"evt_checkout_temp_fallback_001","event_type":"checkout.session.completed","trace_id":"integration-temp-fallback","latency_ms":0}
+.KHM webhook webhook.invalid_event {"payload_hash":"daab6100e0e84fe7382b4a78535e504971260ce5e84422a52b85d68e70719aa9"}
+.KHM webhook webhook.received {"event_id":"evt_test_12345","event_type":"invoice.paid","latency_ms":0}
+KHM webhook membership.renewal {"user_id":999,"invoice_id":"in_test_12345","subscription_id":""}
+KHM webhook membership.email.skipped {"type":"payment","user_id":999,"reason":"transactional_emails_disabled","reference":"invoice:in_test_12345"}
+KHM webhook webhook.processed {"event_id":"evt_test_12345","event_type":"invoice.paid","trace_id":"test-trace","latency_ms":0}
+.KHM webhook webhook.received {"event_id":"evt_test_12345","event_type":"invoice.paid","latency_ms":0}
+KHM webhook membership.renewal {"user_id":999,"invoice_id":"in_test_12345","subscription_id":""}
+KHM webhook membership.email.skipped {"type":"payment","user_id":999,"reason":"transactional_emails_disabled","reference":"invoice:in_test_12345"}
+KHM webhook webhook.processed {"event_id":"evt_test_12345","event_type":"invoice.paid","trace_id":"test-trace","latency_ms":0}
+.KHM webhook webhook.received {"event_id":"evt_checkout_completed","event_type":"checkout.session.completed","latency_ms":0}
+KHM webhook membership.attribution.confirmed {"user_id":123,"schedule_id":0,"reference":"cs_test123","consent":0}
+KHM webhook membership.attribution.missing {"user_id":123,"reference":"cs_test123","reason":"missing_schedule_id"}
+KHM webhook membership.signup {"user_id":123,"tier":128,"attribution_id":"","payment_type":"subscription"}
+KHM webhook landing.success {"user_id":123,"schedule_id":0,"sponsor_id":0,"utm_source":"","utm_campaign":"","reference":"cs_test123"}
+KHM webhook membership.email.skipped {"type":"welcome","user_id":123,"reason":"transactional_emails_disabled","reference":"cs_test123"}
+KHM webhook membership.email.skipped {"type":"payment","user_id":123,"reason":"transactional_emails_disabled","reference":"session:cs_test123"}
+KHM webhook webhook.processed {"event_id":"evt_checkout_completed","event_type":"checkout.session.completed","trace_id":"test-trace","latency_ms":0}
+.KHM webhook webhook.received {"event_id":"evt_checkout_completed","event_type":"checkout.session.completed","latency_ms":0}
+KHM webhook membership.attribution.confirmed {"user_id":123,"schedule_id":0,"reference":"cs_test123","consent":0}
+KHM webhook membership.attribution.missing {"user_id":123,"reference":"cs_test123","reason":"missing_schedule_id"}
+KHM webhook membership.signup {"user_id":123,"tier":138,"attribution_id":"","payment_type":"subscription"}
+KHM webhook landing.success {"user_id":123,"schedule_id":0,"sponsor_id":0,"utm_source":"","utm_campaign":"","reference":"cs_test123"}
+KHM webhook membership.email.skipped {"type":"welcome","user_id":123,"reason":"transactional_emails_disabled","reference":"cs_test123"}
+KHM webhook membership.email.skipped {"type":"payment","user_id":123,"reason":"transactional_emails_disabled","reference":"session:cs_test123"}
+KHM webhook webhook.processed {"event_id":"evt_checkout_completed","event_type":"checkout.session.completed","trace_id":"test-trace","latency_ms":0}
+.PHP Deprecated:  Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/StripeWebhookHandlerTest.php on line 208
+.
+Deprecated: Method ReflectionMethod::setAccessible() is deprecated since 8.5, as it has no effect since PHP 8.1 in /Users/krisoldland/Local Sites/touchpoint2/app/public/wp-content/plugins/khm-plugin/tests/Membership/StripeWebhookHandlerTest.php on line 208
+KHM webhook webhook.received {"event_id":"evt_invoice_paid","event_type":"invoice.paid","latency_ms":0}
+KHM webhook membership.renewal {"user_id":123,"invoice_id":"in_paid_123","subscription_id":""}
+KHM webhook membership.email.skipped {"type":"payment","user_id":123,"reason":"transactional_emails_disabled","reference":"invoice:in_paid_123"}
+KHM webhook webhook.processed {"event_id":"evt_invoice_paid","event_type":"invoice.paid","trace_id":"test-trace","latency_ms":0}
+.KHM webhook webhook.received {"event_id":"evt_payment_failed","event_type":"invoice.payment_failed","latency_ms":0}
+KHM webhook membership.payment_failed {"user_id":456,"invoice_id":"in_failed_456","reason":""}
+KHM webhook webhook.processed {"event_id":"evt_payment_failed","event_type":"invoice.payment_failed","trace_id":"test-trace","latency_ms":0}
+.KHM webhook webhook.received {"event_id":"evt_sub_deleted","event_type":"customer.subscription.deleted","latency_ms":0}
+KHM webhook webhook.processed {"event_id":"evt_sub_deleted","event_type":"customer.subscription.deleted","trace_id":"test-trace","latency_ms":0}
+.KHM webhook webhook.received {"event_id":"evt_unknown","event_type":"customer.unknown_event","latency_ms":0}
+KHM webhook webhook.processed {"event_id":"evt_unknown","event_type":"customer.unknown_event","trace_id":"test-trace","latency_ms":0}
+.KHM webhook webhook.received {"event_id":"evt_rate_1","event_type":"invoice.paid","latency_ms":0}
+KHM webhook webhook.rate_limit.exceeded {"ip":"198.51.100.77","count":2,"window":60,"reason":"request_threshold_exceeded"}
+KHM webhook webhook.rate_limited {"ip":"198.51.100.77","count":2,"window":60,"reason":"request_threshold_exceeded"}
+.KHM webhook webhook.received {"event_id":"evt_checkout_missing_tier","event_type":"checkout.session.completed","latency_ms":0}
+KHM webhook processing failed | event_id=evt_checkout_missing_tier | type=checkout.session.completed | trace_id=test-trace | error=checkout.session.completed missing membership tier metadata
+KHM webhook webhook.failed {"event_id":"evt_checkout_missing_tier","event_type":"checkout.session.completed","trace_id":"test-trace","error":"checkout.session.completed missing membership tier metadata"}
+.KHM webhook webhook.received {"event_id":"evt_invoice_missing_user","event_type":"invoice.paid","latency_ms":0}
+KHM webhook processing failed | event_id=evt_invoice_missing_user | type=invoice.paid | trace_id=test-trace | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_invoice_missing_user","event_type":"invoice.paid","trace_id":"test-trace","error":"invoice.paid unable to resolve user"}
+.KHM webhook membership.renewal {"user_id":321,"invoice_id":"in_replay","subscription_id":"sub_replay"}
+KHM webhook membership.email.skipped {"type":"payment","user_id":321,"reason":"transactional_emails_disabled","reference":"invoice:in_replay"}
+KHM webhook webhook.processed {"event_id":"evt_replay_1","event_type":"invoice.paid","trace_id":"trace-1","latency_ms":0}
+KHM webhook webhook.processed {"event_id":"evt_replay_2","event_type":"invoice.paid","trace_id":"trace-2","latency_ms":0}
+.KHM webhook webhook.received {"event_id":"evt_checkout_mismatch","event_type":"checkout.session.completed","latency_ms":0}
+KHM membership security anomaly {"code":"checkout_tier_price_mismatch","message":"Checkout metadata tier\/price mismatch.","context":{"event_id":"evt_checkout_mismatch","session_id":"cs_mismatch","user_id":123,"tier_slug":"pro","stripe_price_id":"price_tampered"}}
+KHM webhook webhook.security_anomaly {"code":"checkout_tier_price_mismatch","message":"Checkout metadata tier\/price mismatch.","context":{"event_id":"evt_checkout_mismatch","session_id":"cs_mismatch","user_id":123,"tier_slug":"pro","stripe_price_id":"price_tampered"}}
+KHM webhook processing failed | event_id=evt_checkout_mismatch | type=checkout.session.completed | trace_id=trace-mismatch | error=checkout.session.completed tier/price mismatch
+KHM webhook webhook.failed {"event_id":"evt_checkout_mismatch","event_type":"checkout.session.completed","trace_id":"trace-mismatch","error":"checkout.session.completed tier\/price mismatch"}
+.KHM webhook membership.subscription_updated {"user_id":901,"subscription_id":"sub_matrix","status":"trial"}
+KHM webhook webhook.processed {"event_id":"evt_sub_matrix_0","event_type":"customer.subscription.updated","trace_id":"trace-sub-matrix-0","latency_ms":0}
+KHM webhook membership.subscription_updated {"user_id":901,"subscription_id":"sub_matrix","status":"active"}
+KHM webhook webhook.processed {"event_id":"evt_sub_matrix_1","event_type":"customer.subscription.updated","trace_id":"trace-sub-matrix-1","latency_ms":0}
+KHM webhook membership.subscription_updated {"user_id":901,"subscription_id":"sub_matrix","status":"pending_cancel"}
+KHM webhook webhook.processed {"event_id":"evt_sub_matrix_2","event_type":"customer.subscription.updated","trace_id":"trace-sub-matrix-2","latency_ms":0}
+KHM webhook membership.subscription_updated {"user_id":901,"subscription_id":"sub_matrix","status":"past_due"}
+KHM webhook webhook.processed {"event_id":"evt_sub_matrix_3","event_type":"customer.subscription.updated","trace_id":"trace-sub-matrix-3","latency_ms":0}
+KHM webhook membership.subscription_updated {"user_id":901,"subscription_id":"sub_matrix","status":"canceled"}
+KHM webhook webhook.processed {"event_id":"evt_sub_matrix_4","event_type":"customer.subscription.updated","trace_id":"trace-sub-matrix-4","latency_ms":0}
+.KHM webhook membership.subscription_updated {"user_id":902,"subscription_id":"sub_plan_change","status":"active"}
+KHM webhook webhook.processed {"event_id":"evt_sub_plan_change","event_type":"customer.subscription.updated","trace_id":"trace-plan-change","latency_ms":0}
+.KHM webhook webhook.received {"event_id":"evt_checkout_no_consent","event_type":"checkout.session.completed","latency_ms":0}
+KHM webhook membership.attribution.confirmed {"user_id":123,"schedule_id":77,"reference":"cs_no_consent","consent":0}
+KHM webhook membership.signup {"user_id":123,"tier":221,"attribution_id":"","payment_type":"subscription"}
+KHM webhook landing.success {"user_id":123,"schedule_id":77,"sponsor_id":11,"utm_source":"newsletter","utm_campaign":"spring","reference":"cs_no_consent"}
+KHM webhook membership.email.skipped {"type":"welcome","user_id":123,"reason":"transactional_emails_disabled","reference":"cs_no_consent"}
+KHM webhook membership.email.skipped {"type":"payment","user_id":123,"reason":"transactional_emails_disabled","reference":"session:cs_no_consent"}
+KHM webhook webhook.processed {"event_id":"evt_checkout_no_consent","event_type":"checkout.session.completed","trace_id":"trace-no-consent","latency_ms":0}
+.KHM webhook processing failed | event_id=evt_dead_letter_1 | type=invoice.paid | trace_id=trace-dead-letter | error=invoice.paid unable to resolve user
+KHM webhook webhook.failed {"event_id":"evt_dead_letter_1","event_type":"invoice.paid","trace_id":"trace-dead-letter","error":"invoice.paid unable to resolve user"}
+.KHM webhook webhook.invalid_signature {"code":"khm_invalid_signature","message":"No signatures found matching the expected signature for payload","ip":"unknown","count":1,"window":60,"blocked":false,"block_ttl":0}
+.KHM webhook webhook.received {"event_id":"evt_temp_fallback_001","event_type":"checkout.session.completed","latency_ms":0}
+KHM webhook membership.attribution.created {"user_id":123,"schedule_id":555,"sponsor_id":0,"reference":"cs_temp_fallback_unit"}
+KHM webhook membership.attribution.confirmed {"user_id":123,"schedule_id":555,"reference":"cs_temp_fallback_unit","consent":1}
+KHM webhook membership.signup {"user_id":123,"tier":235,"attribution_id":"","payment_type":"subscription"}
+KHM webhook landing.success {"user_id":123,"schedule_id":555,"sponsor_id":0,"utm_source":"","utm_campaign":"temp_campaign","reference":"cs_temp_fallback_unit"}
+KHM webhook membership.email.skipped {"type":"welcome","user_id":123,"reason":"transactional_emails_disabled","reference":"cs_temp_fallback_unit"}
+KHM webhook membership.email.skipped {"type":"payment","user_id":123,"reason":"transactional_emails_disabled","reference":"session:cs_temp_fallback_unit"}
+KHM webhook webhook.processed {"event_id":"evt_temp_fallback_001","event_type":"checkout.session.completed","trace_id":"trace-temp-fallback-unit","latency_ms":0}
+.KHM webhook webhook.received {"event_id":"evt_temp_fallback_001","event_type":"checkout.session.completed","latency_ms":0}
+KHM webhook membership.attribution.created {"user_id":123,"schedule_id":555,"sponsor_id":0,"reference":"cs_temp_fallback_unit"}
+KHM webhook membership.attribution.confirmed {"user_id":123,"schedule_id":555,"reference":"cs_temp_fallback_unit","consent":1}
+KHM webhook membership.signup {"user_id":123,"tier":245,"attribution_id":"","payment_type":"subscription"}
+KHM webhook landing.success {"user_id":123,"schedule_id":555,"sponsor_id":0,"utm_source":"","utm_campaign":"temp_campaign","reference":"cs_temp_fallback_unit"}
+KHM webhook membership.email.skipped {"type":"welcome","user_id":123,"reason":"transactional_emails_disabled","reference":"cs_temp_fallback_unit"}
+KHM webhook membership.email.skipped {"type":"payment","user_id":123,"reason":"transactional_emails_disabled","reference":"session:cs_temp_fallback_unit"}
+KHM webhook webhook.processed {"event_id":"evt_temp_fallback_001","event_type":"checkout.session.completed","trace_id":"trace-temp-fallback-unit","latency_ms":0}
+...KHM webhook webhook.received {"event_id":"evt_rate_limit_1","event_type":"noop.event","latency_ms":0}
+KHM webhook webhook.received {"event_id":"evt_rate_limit_2","event_type":"noop.event","latency_ms":0}
+KHM webhook webhook.rate_limit.exceeded {"ip":"203.0.113.55","count":3,"window":60,"reason":"request_threshold_exceeded"}
+KHM webhook webhook.rate_limited {"ip":"203.0.113.55","count":3,"window":60,"reason":"request_threshold_exceeded"}
+.KHM webhook membership.attribution.created {"user_id":456,"schedule_id":987,"sponsor_id":54,"reference":"cs_dlq_requeue_integration_001"}
+KHM webhook membership.attribution.confirmed {"user_id":456,"schedule_id":987,"reference":"cs_dlq_requeue_integration_001","consent":1}
+KHM webhook membership.signup {"user_id":456,"tier":257,"attribution_id":"","payment_type":"subscription"}
+KHM webhook landing.success {"user_id":456,"schedule_id":987,"sponsor_id":54,"utm_source":"","utm_campaign":"","reference":"cs_dlq_requeue_integration_001"}
+KHM webhook membership.email.skipped {"type":"welcome","user_id":456,"reason":"transactional_emails_disabled","reference":"cs_dlq_requeue_integration_001"}
+KHM webhook membership.email.skipped {"type":"payment","user_id":456,"reason":"transactional_emails_disabled","reference":"session:cs_dlq_requeue_integration_001"}
+KHM webhook webhook.processed {"event_id":"evt_dlq_requeue_integration_001","event_type":"checkout.session.completed","trace_id":"c0f940d6-005c-4410-9398-4b2c5038be0b","latency_ms":0}
+requeue: event=evt_dlq_requeue_integration_001 reconstructed=true attempts=1 reason=success
+.requeue: event=evt_requeue_001 reconstructed=true attempts=1 reason=success
+..requeue: event=evt_requeue_cli_001 reconstructed=true attempts=1 reason=success
+.........     185 / 185 (100%)
+
+Time: 00:00.494, Memory: 34.00 MB
+
+OK (185 tests, 706 assertions)
