@@ -1,0 +1,93 @@
+name: Connect B3 Smoke
+
+on:
+  pull_request:
+    paths:
+      - 'wp-content/plugins/khm-plugin/**'
+      - '.github/workflows/connect-b3-smoke.yml'
+  workflow_dispatch:
+
+jobs:
+  connect-b3-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: wordpress
+          MYSQL_USER: wp
+          MYSQL_PASSWORD: wp
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u wp -pwp"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+
+    defaults:
+      run:
+        working-directory: app/public
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: wp-cli
+          extensions: mysqli, mbstring, json, curl
+
+      - name: Prepare CI WordPress config
+        run: |
+          cp wp-config.php wp-config.local.bak
+          wp config create \
+            --dbname=wordpress \
+            --dbuser=wp \
+            --dbpass=wp \
+            --dbhost=127.0.0.1 \
+            --skip-check \
+            --force
+
+          wp config set WP_DEBUG false --raw
+          wp config set FS_METHOD direct
+
+      - name: Install WordPress
+        run: |
+          wp core install \
+            --url=http://127.0.0.1 \
+            --title='Connect Smoke CI' \
+            --admin_user=admin \
+            --admin_password=admin \
+            --admin_email=ci@example.test \
+            --skip-email
+
+      - name: Activate plugin
+        run: wp plugin activate khm-plugin
+
+      - name: Run Connect B3 smoke
+        timeout-minutes: 10
+        run: |
+          mkdir -p ci-logs
+          wp eval-file wp-content/plugins/khm-plugin/artifacts/smoke_connect_b3.php | tee ci-logs/connect-b3-smoke.log
+
+      - name: Upload smoke log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: connect-b3-smoke-log
+          path: app/public/ci-logs/connect-b3-smoke.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Restore local config (best effort)
+        if: always()
+        run: |
+          if [ -f wp-config.local.bak ]; then
+            mv -f wp-config.local.bak wp-config.php
+          fi
