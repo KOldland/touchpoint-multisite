@@ -127,6 +127,7 @@ class ConnectIntroThreadEndpoint {
 
 		$thread_id = $this->threads->create_thread(
 			array(
+				'opportunity_id' => isset( $params['opportunity_id'] ) ? (int) $params['opportunity_id'] : 0,
 				'provider_id'   => $provider_id,
 				'sponsor_id'    => (int) ( $provider['sponsor_id'] ?? 0 ),
 				'session_id'    => sanitize_text_field( (string) ( $params['session_id'] ?? '' ) ),
@@ -148,6 +149,7 @@ class ConnectIntroThreadEndpoint {
 		return rest_ensure_response(
 			array(
 				'success' => true,
+				'id'      => (int) ( $thread['id'] ?? 0 ),
 				'thread'  => $this->format_thread_summary( $thread, $provider ),
 				'buyer_token' => (string) ( $thread['buyer_token'] ?? '' ),
 			)
@@ -155,7 +157,7 @@ class ConnectIntroThreadEndpoint {
 	}
 
 	public function buyer_get_status( WP_REST_Request $request ) {
-		$buyer_token = sanitize_text_field( (string) ( $request->get_param( 'buyer_token' ) ?? '' ) );
+		$buyer_token = $this->resolve_buyer_token( $request );
 		$thread      = $this->threads->get_thread_by_token( (int) $request->get_param( 'id' ), $buyer_token );
 
 		if ( ! is_array( $thread ) ) {
@@ -163,6 +165,7 @@ class ConnectIntroThreadEndpoint {
 		}
 
 		$handover = $this->threads->get_handover_for_thread( (int) $thread['id'] );
+		$messages = $this->threads->list_messages( (int) $thread['id'] );
 
 		return rest_ensure_response(
 			array(
@@ -170,6 +173,8 @@ class ConnectIntroThreadEndpoint {
 				'status'          => $thread['status'],
 				'handover_status' => $thread['handover_status'],
 				'message_count'   => (int) $thread['message_count'],
+				'thread'          => $this->format_thread_summary( $thread ),
+				'messages'        => $messages,
 				'handover'        => is_array( $handover ) ? $handover : null,
 			)
 		);
@@ -177,7 +182,7 @@ class ConnectIntroThreadEndpoint {
 
 	public function buyer_request_handover( WP_REST_Request $request ) {
 		$params = $this->get_json_params( $request );
-		$thread = $this->threads->get_thread_by_token( (int) $request->get_param( 'id' ), sanitize_text_field( (string) ( $params['buyer_token'] ?? '' ) ) );
+		$thread = $this->threads->get_thread_by_token( (int) $request->get_param( 'id' ), $this->resolve_buyer_token( $request, $params ) );
 
 		if ( ! is_array( $thread ) ) {
 			return new WP_Error( 'connect_handover_forbidden', __( 'Handover request is not valid.', 'khm-membership' ), array( 'status' => 403 ) );
@@ -210,7 +215,14 @@ class ConnectIntroThreadEndpoint {
 		return rest_ensure_response(
 			array(
 				'success' => true,
-				'threads' => array_values( array_map( array( $this, 'format_thread_summary' ), $threads ) ),
+				'threads' => array_values(
+					array_map(
+						function ( array $thread ): array {
+							return $this->format_thread_summary( $thread, null, true );
+						},
+						$threads
+					)
+				),
 			)
 		);
 	}
@@ -227,7 +239,7 @@ class ConnectIntroThreadEndpoint {
 		return rest_ensure_response(
 			array(
 				'success'  => true,
-				'thread'   => $this->format_thread_summary( $thread ),
+				'thread'   => $this->format_thread_summary( $thread, null, true ),
 				'messages' => $messages,
 				'handover' => $handover,
 			)
@@ -287,7 +299,7 @@ class ConnectIntroThreadEndpoint {
 		return rest_ensure_response(
 			array(
 				'success'  => true,
-				'thread'   => $this->format_thread_summary( is_array( $updated_thread ) ? $updated_thread : $thread ),
+				'thread'   => $this->format_thread_summary( is_array( $updated_thread ) ? $updated_thread : $thread, null, true ),
 				'handover' => is_array( $updated_handover ) ? $updated_handover : $handover,
 			)
 		);
@@ -337,19 +349,30 @@ class ConnectIntroThreadEndpoint {
 		return is_array( $params ) ? $params : array();
 	}
 
-	private function format_thread_summary( array $thread, ?array $provider = null ): array {
+	private function resolve_buyer_token( WP_REST_Request $request, ?array $params = null ): string {
+		$params = is_array( $params ) ? $params : $this->get_json_params( $request );
+		$candidate = $params['buyer_token'] ?? $params['token'] ?? $request->get_param( 'buyer_token' ) ?? $request->get_param( 'token' ) ?? '';
+
+		return sanitize_text_field( (string) $candidate );
+	}
+
+	private function format_thread_summary( array $thread, ?array $provider = null, bool $for_sponsor = false ): array {
 		if ( ! is_array( $provider ) && ! empty( $thread['provider_id'] ) ) {
 			$provider = $this->providers->get_by_id( (int) $thread['provider_id'] );
 		}
+
+		$handover_status = (string) ( $thread['handover_status'] ?? 'not_started' );
+		$can_view_identity = ! $for_sponsor || 'confirmed' === $handover_status;
 
 		return array(
 			'id'                  => (int) ( $thread['id'] ?? 0 ),
 			'provider_id'         => (int) ( $thread['provider_id'] ?? 0 ),
 			'provider_name'       => (string) ( $thread['provider_name'] ?? ( $provider['name'] ?? '' ) ),
-			'buyer_name'          => (string) ( $thread['buyer_name'] ?? '' ),
-			'buyer_company'       => (string) ( $thread['buyer_company'] ?? '' ),
+			'buyer_name'          => $can_view_identity ? (string) ( $thread['buyer_name'] ?? '' ) : '',
+			'buyer_company'       => $can_view_identity ? (string) ( $thread['buyer_company'] ?? '' ) : '',
+			'identity_visible'    => $can_view_identity,
 			'status'              => (string) ( $thread['status'] ?? 'open' ),
-			'handover_status'     => (string) ( $thread['handover_status'] ?? 'not_started' ),
+			'handover_status'     => $handover_status,
 			'last_message_excerpt'=> (string) ( $thread['last_message_excerpt'] ?? '' ),
 			'latest_message_at'   => (string) ( $thread['latest_message_at'] ?? '' ),
 			'message_count'       => isset( $thread['message_count'] ) ? (int) $thread['message_count'] : 0,
@@ -370,10 +393,8 @@ class ConnectIntroThreadEndpoint {
 
 		$subject = sprintf( 'New Connect intro request for %s', (string) ( $provider['name'] ?? 'your offering' ) );
 		$body    = sprintf(
-			"A new Connect intro request has been created.\n\nProvider: %s\nBuyer: %s\nCompany: %s\nMessage:\n%s\n\nReview and reply in the Quote Club Connect inbox.",
+			"A new Connect intro opportunity has been created.\n\nProvider: %s\nMessage:\n%s\n\nBuyer identity remains hidden until handover is confirmed. Review and reply in the Quote Club Connect inbox.",
 			(string) ( $provider['name'] ?? '' ),
-			(string) ( $thread['buyer_name'] ?? '' ),
-			(string) ( $thread['buyer_company'] ?? '' ),
 			$message
 		);
 
