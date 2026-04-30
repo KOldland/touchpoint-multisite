@@ -5,6 +5,7 @@ namespace KHM\Connect;
 defined( 'ABSPATH' ) || exit;
 
 class ConnectAdminPage {
+	private const EDITORIAL_CAMPAIGN_OPTION = 'khm_connect_editorial_campaign';
 
 	private ConnectProviderRepository $providers;
 	private ConnectOpportunityRepository $opportunities;
@@ -22,6 +23,7 @@ class ConnectAdminPage {
 		add_action( 'admin_post_khm_connect_provider_save', array( $this, 'handle_save' ) );
 		add_action( 'admin_post_khm_connect_provider_delete', array( $this, 'handle_delete' ) );
 		add_action( 'admin_post_khm_connect_pricing_save', array( $this, 'handle_pricing_save' ) );
+		add_action( 'admin_post_khm_connect_editorial_campaign_save', array( $this, 'handle_editorial_campaign_save' ) );
 		add_action( 'admin_post_khm_connect_opportunity_accept', array( $this, 'handle_opportunity_accept' ) );
 		add_action( 'admin_post_khm_connect_opportunity_status', array( $this, 'handle_opportunity_status' ) );
 	}
@@ -50,6 +52,14 @@ class ConnectAdminPage {
 			'manage_options',
 			'khm-connect-opportunities',
 			array( $this, 'render_opportunities_page' )
+		);
+		add_submenu_page(
+			'khm-membership',
+			__( 'Connect Editorial Campaign', 'khm-membership' ),
+			__( 'Connect Editorial Campaign', 'khm-membership' ),
+			'manage_options',
+			'khm-connect-editorial-campaign',
+			array( $this, 'render_editorial_campaign_page' )
 		);
 	}
 
@@ -368,6 +378,117 @@ class ConnectAdminPage {
 		exit;
 	}
 
+	public function render_editorial_campaign_page(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to manage Connect editorial campaigns.', 'khm-membership' ) );
+		}
+
+		$notice         = isset( $_GET['connect_notice'] ) ? sanitize_key( (string) $_GET['connect_notice'] ) : '';
+		$campaign       = $this->get_editorial_campaign_config();
+		$active_providers = $this->providers->list_active();
+		$stage_options  = array_keys( ConnectTiering::STAGE_TIER_MAP );
+
+		?>
+		<div class="wrap">
+			<h1><?php esc_html_e( 'Connect Editorial Campaign Setup', 'khm-membership' ); ?></h1>
+			<?php if ( 'editorial_campaign_saved' === $notice ) : ?>
+				<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Editorial campaign settings saved.', 'khm-membership' ); ?></p></div>
+			<?php endif; ?>
+
+			<p class="description" style="margin-bottom:16px;">
+				<?php esc_html_e( 'Define campaign brief and stage targeting, then align sponsor/provider controls used by editorial and promotional Connect surfaces.', 'khm-membership' ); ?>
+			</p>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php wp_nonce_field( 'khm_connect_editorial_campaign_save', 'khm_connect_editorial_campaign_nonce' ); ?>
+				<input type="hidden" name="action" value="khm_connect_editorial_campaign_save" />
+
+				<h2><?php esc_html_e( 'Campaign Brief', 'khm-membership' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="khm_editorial_campaign_name"><?php esc_html_e( 'Campaign Name', 'khm-membership' ); ?></label></th>
+						<td><input class="regular-text" id="khm_editorial_campaign_name" type="text" name="campaign[name]" value="<?php echo esc_attr( (string) $campaign['name'] ); ?>" required /></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_editorial_campaign_slug"><?php esc_html_e( 'Campaign Slug', 'khm-membership' ); ?></label></th>
+						<td><input class="regular-text" id="khm_editorial_campaign_slug" type="text" name="campaign[slug]" value="<?php echo esc_attr( (string) $campaign['slug'] ); ?>" /><p class="description"><?php esc_html_e( 'Used as an internal routing key for reporting and attribution.', 'khm-membership' ); ?></p></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_editorial_campaign_summary"><?php esc_html_e( 'Campaign Summary', 'khm-membership' ); ?></label></th>
+						<td><textarea class="large-text" rows="4" id="khm_editorial_campaign_summary" name="campaign[summary]"><?php echo esc_textarea( (string) $campaign['summary'] ); ?></textarea></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_editorial_campaign_goals"><?php esc_html_e( 'Editorial Goals', 'khm-membership' ); ?></label></th>
+						<td><textarea class="large-text" rows="4" id="khm_editorial_campaign_goals" name="campaign[goals]"><?php echo esc_textarea( (string) $campaign['goals'] ); ?></textarea></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_editorial_campaign_audience"><?php esc_html_e( 'Target Audience', 'khm-membership' ); ?></label></th>
+						<td><textarea class="large-text" rows="3" id="khm_editorial_campaign_audience" name="campaign[audience]" placeholder="CMOs at B2B SaaS firms, 50-500 employees, evaluating attribution stack."><?php echo esc_textarea( (string) $campaign['audience'] ); ?></textarea></td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'Stage Targeting + Sponsor Alignment', 'khm-membership' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Stage Targets', 'khm-membership' ); ?></th>
+						<td>
+							<?php foreach ( $stage_options as $stage ) : ?>
+								<label style="display:inline-block;margin-right:12px;">
+									<input type="checkbox" name="campaign[stage_targets][]" value="<?php echo esc_attr( $stage ); ?>" <?php checked( in_array( $stage, $campaign['stage_targets'], true ) ); ?> />
+									<?php echo esc_html( ucfirst( $stage ) ); ?>
+									<small>(<?php echo esc_html( ConnectTiering::STAGE_TIER_MAP[ $stage ] ); ?>)</small>
+								</label>
+							<?php endforeach; ?>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_editorial_sponsor_id"><?php esc_html_e( 'Sponsor ID', 'khm-membership' ); ?></label></th>
+						<td><input class="small-text" id="khm_editorial_sponsor_id" type="number" min="0" name="campaign[sponsor_id]" value="<?php echo esc_attr( (string) (int) $campaign['sponsor_id'] ); ?>" /><p class="description"><?php esc_html_e( 'Optional sponsor owner for this campaign.', 'khm-membership' ); ?></p></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_editorial_default_provider"><?php esc_html_e( 'Default Connect Provider', 'khm-membership' ); ?></label></th>
+						<td>
+							<select id="khm_editorial_default_provider" name="campaign[default_provider_id]">
+								<option value="0"><?php esc_html_e( '— none —', 'khm-membership' ); ?></option>
+								<?php foreach ( $active_providers as $provider ) : ?>
+									<option value="<?php echo esc_attr( (string) (int) $provider['id'] ); ?>" <?php selected( (int) $campaign['default_provider_id'], (int) $provider['id'] ); ?>>
+										#<?php echo esc_html( (string) (int) $provider['id'] ); ?> — <?php echo esc_html( (string) $provider['name'] ); ?>
+									</option>
+								<?php endforeach; ?>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_editorial_promo_notes"><?php esc_html_e( 'Promotion Notes', 'khm-membership' ); ?></label></th>
+						<td><textarea class="large-text" rows="3" id="khm_editorial_promo_notes" name="campaign[promotion_notes]"><?php echo esc_textarea( (string) $campaign['promotion_notes'] ); ?></textarea></td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Campaign Active', 'khm-membership' ); ?></th>
+						<td>
+							<label><input type="checkbox" name="campaign[active]" value="1" <?php checked( ! empty( $campaign['active'] ) ); ?> /> <?php esc_html_e( 'Enable this campaign for editorial/promotional workflows', 'khm-membership' ); ?></label>
+						</td>
+					</tr>
+				</table>
+
+				<?php submit_button( __( 'Save Editorial Campaign', 'khm-membership' ) ); ?>
+			</form>
+		</div>
+		<?php
+	}
+
+	public function handle_editorial_campaign_save(): void {
+		$this->assert_manage_options();
+		check_admin_referer( 'khm_connect_editorial_campaign_save', 'khm_connect_editorial_campaign_nonce' );
+
+		$raw = isset( $_POST['campaign'] ) && is_array( $_POST['campaign'] ) ? wp_unslash( $_POST['campaign'] ) : array();
+		$clean = $this->sanitize_editorial_campaign_config( $raw );
+
+		update_option( self::EDITORIAL_CAMPAIGN_OPTION, $clean, false );
+
+		wp_safe_redirect( admin_url( 'admin.php?page=khm-connect-editorial-campaign&connect_notice=editorial_campaign_saved' ) );
+		exit;
+	}
+
 	public function render_opportunities_page(): void {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'You do not have permission to view Connect opportunities.', 'khm-membership' ) );
@@ -635,6 +756,55 @@ class ConnectAdminPage {
 		if ( 'deleted' === $notice ) {
 			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Connect provider deleted.', 'khm-membership' ) . '</p></div>';
 		}
+	}
+
+	private function get_editorial_campaign_config(): array {
+		$defaults = array(
+			'name'               => '',
+			'slug'               => '',
+			'summary'            => '',
+			'goals'              => '',
+			'audience'           => '',
+			'stage_targets'      => array_keys( ConnectTiering::STAGE_TIER_MAP ),
+			'sponsor_id'         => 0,
+			'default_provider_id'=> 0,
+			'promotion_notes'    => '',
+			'active'             => 0,
+		);
+
+		$stored = get_option( self::EDITORIAL_CAMPAIGN_OPTION, array() );
+		if ( ! is_array( $stored ) ) {
+			return $defaults;
+		}
+
+		return array_merge( $defaults, $this->sanitize_editorial_campaign_config( $stored ) );
+	}
+
+	private function sanitize_editorial_campaign_config( array $raw ): array {
+		$valid_stages = array_keys( ConnectTiering::STAGE_TIER_MAP );
+		$targets = isset( $raw['stage_targets'] ) && is_array( $raw['stage_targets'] ) ? array_map( 'sanitize_key', $raw['stage_targets'] ) : array();
+		$targets = array_values( array_intersect( $targets, $valid_stages ) );
+		if ( empty( $targets ) ) {
+			$targets = array( 'attention' );
+		}
+
+		$slug = sanitize_title( (string) ( $raw['slug'] ?? '' ) );
+		if ( '' === $slug ) {
+			$slug = sanitize_title( (string) ( $raw['name'] ?? '' ) );
+		}
+
+		return array(
+			'name'                => sanitize_text_field( (string) ( $raw['name'] ?? '' ) ),
+			'slug'                => $slug,
+			'summary'             => sanitize_textarea_field( (string) ( $raw['summary'] ?? '' ) ),
+			'goals'               => sanitize_textarea_field( (string) ( $raw['goals'] ?? '' ) ),
+			'audience'            => sanitize_textarea_field( (string) ( $raw['audience'] ?? '' ) ),
+			'stage_targets'       => $targets,
+			'sponsor_id'          => absint( $raw['sponsor_id'] ?? 0 ),
+			'default_provider_id' => absint( $raw['default_provider_id'] ?? 0 ),
+			'promotion_notes'     => sanitize_textarea_field( (string) ( $raw['promotion_notes'] ?? '' ) ),
+			'active'              => ! empty( $raw['active'] ) ? 1 : 0,
+		);
 	}
 
 	private function assert_manage_options(): void {
