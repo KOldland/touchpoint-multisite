@@ -2,6 +2,8 @@
 
 namespace KHM\Connect;
 
+use KHM\Migrations\ConnectWorkflowMigration;
+
 defined( 'ABSPATH' ) || exit;
 
 class ConnectAdminPage {
@@ -70,6 +72,14 @@ class ConnectAdminPage {
 			'manage_options',
 			'khm-connect-promotion-builder',
 			array( $this, 'render_promotion_builder_page' )
+		);
+		add_submenu_page(
+			'khm-membership',
+			__( 'Connect Performance', 'khm-membership' ),
+			__( 'Connect Performance', 'khm-membership' ),
+			'manage_options',
+			'khm-connect-performance',
+			array( $this, 'render_performance_page' )
 		);
 	}
 
@@ -610,6 +620,73 @@ class ConnectAdminPage {
 		exit;
 	}
 
+	public function render_performance_page(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to view Connect performance.', 'khm-membership' ) );
+		}
+
+		$from = isset( $_GET['from'] ) ? sanitize_text_field( (string) $_GET['from'] ) : gmdate( 'Y-m-01' );
+		$to   = isset( $_GET['to'] ) ? sanitize_text_field( (string) $_GET['to'] ) : gmdate( 'Y-m-d' );
+		$kpis = $this->build_performance_kpis( $from, $to );
+
+		?>
+		<div class="wrap">
+			<h1><?php esc_html_e( 'Connect Performance Dashboard', 'khm-membership' ); ?></h1>
+			<p class="description" style="margin-bottom:16px;">
+				<?php esc_html_e( 'Track top-funnel to handover outcomes, tier mix, and consent-safe attribution for Connect workflows.', 'khm-membership' ); ?>
+			</p>
+
+			<form method="get" style="margin-bottom:16px;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+				<input type="hidden" name="page" value="khm-connect-performance" />
+				<label>
+					<?php esc_html_e( 'From', 'khm-membership' ); ?><br />
+					<input type="date" name="from" value="<?php echo esc_attr( $from ); ?>" />
+				</label>
+				<label>
+					<?php esc_html_e( 'To', 'khm-membership' ); ?><br />
+					<input type="date" name="to" value="<?php echo esc_attr( $to ); ?>" />
+				</label>
+				<?php submit_button( __( 'Apply', 'khm-membership' ), 'secondary', '', false ); ?>
+			</form>
+
+			<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;">
+				<?php foreach ( $kpis['cards'] as $card ) : ?>
+					<div style="border:1px solid #dcdcde;border-radius:6px;padding:12px;background:#fff;">
+						<div style="font-size:12px;color:#50575e;"><?php echo esc_html( $card['label'] ); ?></div>
+						<div style="font-size:22px;font-weight:600;line-height:1.2;"><?php echo esc_html( $card['value'] ); ?></div>
+					</div>
+				<?php endforeach; ?>
+			</div>
+
+			<h2><?php esc_html_e( 'Tier Distribution', 'khm-membership' ); ?></h2>
+			<table class="widefat striped" style="max-width:780px;">
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Tier', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Opportunities', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Avg Unit Price', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Commission Eligible', 'khm-membership' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php if ( empty( $kpis['tiers'] ) ) : ?>
+						<tr><td colspan="4"><?php esc_html_e( 'No tier data for this date range.', 'khm-membership' ); ?></td></tr>
+					<?php else : ?>
+						<?php foreach ( $kpis['tiers'] as $row ) : ?>
+							<tr>
+								<td><?php echo esc_html( ucfirst( (string) $row['tier'] ) ); ?></td>
+								<td><?php echo esc_html( (string) (int) $row['count'] ); ?></td>
+								<td>$<?php echo esc_html( number_format( (float) $row['avg_unit_price_cents'] / 100, 2 ) ); ?></td>
+								<td><?php echo esc_html( (string) (int) $row['commission_eligible_count'] ); ?></td>
+							</tr>
+						<?php endforeach; ?>
+					<?php endif; ?>
+				</tbody>
+			</table>
+		</div>
+		<?php
+	}
+
 	public function render_opportunities_page(): void {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'You do not have permission to view Connect opportunities.', 'khm-membership' ) );
@@ -970,6 +1047,71 @@ class ConnectAdminPage {
 			'approval_status'     => in_array( $approval, $valid_approval, true ) ? $approval : 'draft',
 			'owner'               => sanitize_text_field( (string) ( $raw['owner'] ?? '' ) ),
 			'audit_notes'         => sanitize_textarea_field( (string) ( $raw['audit_notes'] ?? '' ) ),
+		);
+	}
+
+	private function build_performance_kpis( string $from, string $to ): array {
+		global $wpdb;
+
+		$from_date = preg_match( '/^\d{4}-\d{2}-\d{2}$/', $from ) ? $from : gmdate( 'Y-m-01' );
+		$to_date   = preg_match( '/^\d{4}-\d{2}-\d{2}$/', $to ) ? $to : gmdate( 'Y-m-d' );
+		$to_end    = $to_date . ' 23:59:59';
+
+		$opp_table      = ConnectWorkflowMigration::opportunities_table_name();
+		$thread_table   = ConnectWorkflowMigration::threads_table_name();
+		$handover_table = ConnectWorkflowMigration::handovers_table_name();
+		$events_table   = ConnectWorkflowMigration::consent_events_table_name();
+
+		$detected = (int) $wpdb->get_var(
+			$wpdb->prepare( "SELECT COUNT(1) FROM {$opp_table} WHERE created_at >= %s AND created_at <= %s", $from_date, $to_end )
+		);
+		$accepted = (int) $wpdb->get_var(
+			$wpdb->prepare( "SELECT COUNT(1) FROM {$opp_table} WHERE sponsor_accepted_at IS NOT NULL AND sponsor_accepted_at >= %s AND sponsor_accepted_at <= %s", $from_date, $to_end )
+		);
+		$intro_requested = (int) $wpdb->get_var(
+			$wpdb->prepare( "SELECT COUNT(1) FROM {$thread_table} WHERE created_at >= %s AND created_at <= %s", $from_date, $to_end )
+		);
+		$handover_requested = (int) $wpdb->get_var(
+			$wpdb->prepare( "SELECT COUNT(1) FROM {$handover_table} WHERE buyer_requested_at >= %s AND buyer_requested_at <= %s", $from_date, $to_end )
+		);
+		$handover_confirmed = (int) $wpdb->get_var(
+			$wpdb->prepare( "SELECT COUNT(1) FROM {$handover_table} WHERE sponsor_confirmed_at IS NOT NULL AND sponsor_confirmed_at >= %s AND sponsor_confirmed_at <= %s", $from_date, $to_end )
+		);
+		$consent_events = (int) $wpdb->get_var(
+			$wpdb->prepare( "SELECT COUNT(1) FROM {$events_table} WHERE created_at >= %s AND created_at <= %s", $from_date, $to_end )
+		);
+
+		$tiers = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT commercial_tier AS tier,
+				COUNT(1) AS count,
+				AVG(unit_price_cents) AS avg_unit_price_cents,
+				SUM(CASE WHEN commission_eligible = 1 THEN 1 ELSE 0 END) AS commission_eligible_count
+				FROM {$opp_table}
+				WHERE created_at >= %s AND created_at <= %s
+				GROUP BY commercial_tier
+				ORDER BY count DESC",
+				$from_date,
+				$to_end
+			),
+			ARRAY_A
+		);
+
+		$accept_rate = $detected > 0 ? round( ( $accepted / $detected ) * 100, 1 ) : 0.0;
+		$handover_rate = $intro_requested > 0 ? round( ( $handover_confirmed / $intro_requested ) * 100, 1 ) : 0.0;
+
+		return array(
+			'cards' => array(
+				array( 'label' => __( 'Detected Opportunities', 'khm-membership' ), 'value' => (string) $detected ),
+				array( 'label' => __( 'Sponsor Accepted', 'khm-membership' ), 'value' => (string) $accepted ),
+				array( 'label' => __( 'Acceptance Rate', 'khm-membership' ), 'value' => $accept_rate . '%' ),
+				array( 'label' => __( 'Intro Requests', 'khm-membership' ), 'value' => (string) $intro_requested ),
+				array( 'label' => __( 'Handovers Confirmed', 'khm-membership' ), 'value' => (string) $handover_confirmed ),
+				array( 'label' => __( 'Handover Rate', 'khm-membership' ), 'value' => $handover_rate . '%' ),
+				array( 'label' => __( 'Consent Events', 'khm-membership' ), 'value' => (string) $consent_events ),
+				array( 'label' => __( 'Handover Requested', 'khm-membership' ), 'value' => (string) $handover_requested ),
+			),
+			'tiers' => is_array( $tiers ) ? $tiers : array(),
 		);
 	}
 
