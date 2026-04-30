@@ -44,6 +44,8 @@ class QuoteClubPortalShortcode {
 
 	public function register(): void {
 		add_shortcode( 'khm_quote_club_portal', [ $this, 'render' ] );
+		// S17 — serve a sponsor advert in any page/template.
+		add_shortcode( 'khm_sponsor_advert', [ $this, 'render_sponsor_advert_shortcode' ] );
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_assets' ] );
 	}
 
@@ -167,6 +169,9 @@ class QuoteClubPortalShortcode {
 						case 'social':
 							$this->render_social_section( $user_id, $sponsor );
 							break;
+						case 'adverts':
+							$this->render_adverts_section( $user_id, $sponsor );
+							break;
 						default:
 							$this->render_overview_section( $user_id, $sponsor );
 					}
@@ -230,6 +235,7 @@ class QuoteClubPortalShortcode {
 			'press-releases' => [ 'label' => __( 'Press Releases', 'khm-membership' ),  'icon' => 'dashicons-media-document' ],
 			'tracking'       => [ 'label' => __( 'Tracking', 'khm-membership' ),        'icon' => 'dashicons-chart-line' ],
 			'social'         => [ 'label' => __( 'Social', 'khm-membership' ),          'icon' => 'dashicons-share' ],
+			'adverts'        => [ 'label' => __( 'Adverts', 'khm-membership' ),         'icon' => 'dashicons-megaphone' ],
 		];
 
 		$sections = apply_filters( 'khm_qc_portal_sections', $sections );
@@ -1196,6 +1202,281 @@ class QuoteClubPortalShortcode {
 		<?php
 	}
 
+	// -------------------------------------------------------------------------
+	// Adverts section — S16 (creative portal) + S17 (ad serving preview)
+	// -------------------------------------------------------------------------
+
+	private function render_adverts_section( int $user_id, ?array $sponsor ): void {
+		$sponsor_id = $sponsor['id'] ?? 0;
+		$nonce      = wp_create_nonce( 'wp_rest' );
+		$rest_root  = esc_url( rest_url( 'khm/v1' ) );
+		$upload_url = esc_url( admin_url( 'media-new.php' ) );
+		?>
+		<div class="khm-qc-section khm-qc-adverts">
+			<h2><?php esc_html_e( 'Advert Creatives', 'khm-membership' ); ?></h2>
+			<p class="khm-qc-lead">
+				<?php esc_html_e( 'Upload banner or image ad creatives for review. Once approved, they will appear alongside relevant content on the site.', 'khm-membership' ); ?>
+			</p>
+
+			<style>
+				.khm-qc-adverts-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin:20px 0}
+				.khm-qc-advert-card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px;position:relative}
+				.khm-qc-advert-card img{max-width:100%;height:120px;object-fit:cover;border-radius:4px;margin-bottom:10px}
+				.khm-qc-advert-card .khm-qc-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase}
+				.khm-qc-badge-draft{background:#f3f4f6;color:#374151}
+				.khm-qc-badge-pending{background:#fef3c7;color:#92400e}
+				.khm-qc-badge-approved{background:#d1fae5;color:#065f46}
+				.khm-qc-badge-rejected{background:#fee2e2;color:#991b1b}
+				.khm-qc-badge-paused{background:#e5e7eb;color:#6b7280}
+				.khm-qc-advert-card h4{margin:6px 0 4px;font-size:14px}
+				.khm-qc-advert-card .khm-qc-placement{font-size:12px;color:#6b7280;margin-bottom:8px}
+				.khm-qc-advert-card .khm-qc-stats{font-size:11px;color:#9ca3af;margin-bottom:10px}
+				.khm-qc-advert-card button{margin-right:6px;font-size:12px;padding:4px 10px}
+				#khm-qc-advert-form{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:24px;margin:24px 0;display:none}
+				#khm-qc-advert-form h3{margin-top:0}
+				#khm-qc-advert-form label{display:block;font-weight:600;margin:10px 0 4px;font-size:13px}
+				#khm-qc-advert-form input[type=text],#khm-qc-advert-form select,#khm-qc-advert-form input[type=url]{width:100%;padding:8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px}
+				#khm-qc-advert-form .khm-qc-media-preview{max-width:100%;height:120px;object-fit:cover;border-radius:4px;margin:8px 0;display:none}
+				#khm-qc-advert-form .khm-qc-form-actions{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
+				.khm-qc-advert-rejection{font-size:12px;color:#991b1b;background:#fee2e2;padding:6px 10px;border-radius:4px;margin:6px 0}
+				.khm-qc-advert-metrics{display:flex;gap:12px;font-size:12px;color:#374151;margin-top:6px}
+				.khm-qc-advert-metrics span{font-weight:600}
+			</style>
+
+			<!-- Create button -->
+			<button class="button button-primary" id="khm-qc-advert-new-btn">
+				+ <?php esc_html_e( 'New Creative', 'khm-membership' ); ?>
+			</button>
+			<p style="font-size:12px;color:#6b7280;margin-top:6px">
+				<?php
+				printf(
+					/* translators: %s: WP Media Library URL */
+					wp_kses( __( 'Need to upload an image first? <a href="%s" target="_blank">Open the Media Library</a>, then paste the attachment ID below.', 'khm-membership' ), [ 'a' => [ 'href' => [], 'target' => [] ] ] ),
+					esc_url( $upload_url )
+				);
+				?>
+			</p>
+
+			<!-- Create / Edit form -->
+			<div id="khm-qc-advert-form">
+				<h3 id="khm-qc-advert-form-title"><?php esc_html_e( 'New Ad Creative', 'khm-membership' ); ?></h3>
+				<input type="hidden" id="khm-qc-advert-edit-id" value="">
+
+				<label for="khm-qc-advert-title"><?php esc_html_e( 'Internal title', 'khm-membership' ); ?></label>
+				<input type="text" id="khm-qc-advert-title" placeholder="<?php esc_attr_e( 'e.g. Summer banner – commentary', 'khm-membership' ); ?>">
+
+				<label for="khm-qc-advert-placement"><?php esc_html_e( 'Placement', 'khm-membership' ); ?></label>
+				<select id="khm-qc-advert-placement">
+					<option value="commentary"><?php esc_html_e( 'Commentary', 'khm-membership' ); ?></option>
+					<option value="press-release"><?php esc_html_e( 'Press Releases', 'khm-membership' ); ?></option>
+					<option value="overview"><?php esc_html_e( 'Overview dashboard', 'khm-membership' ); ?></option>
+					<option value="sidebar"><?php esc_html_e( 'Sidebar', 'khm-membership' ); ?></option>
+				</select>
+
+				<label for="khm-qc-advert-media-id"><?php esc_html_e( 'Attachment ID (from Media Library)', 'khm-membership' ); ?></label>
+				<input type="text" id="khm-qc-advert-media-id" placeholder="e.g. 42" inputmode="numeric">
+				<img id="khm-qc-advert-media-preview" class="khm-qc-media-preview" src="" alt="">
+
+				<label for="khm-qc-advert-click-url"><?php esc_html_e( 'Click-through URL', 'khm-membership' ); ?></label>
+				<input type="url" id="khm-qc-advert-click-url" placeholder="https://example.com/landing-page">
+
+				<label for="khm-qc-advert-alt"><?php esc_html_e( 'Alt text', 'khm-membership' ); ?></label>
+				<input type="text" id="khm-qc-advert-alt" placeholder="<?php esc_attr_e( 'Short description of the image', 'khm-membership' ); ?>">
+
+				<div class="khm-qc-form-actions">
+					<button class="button button-primary" id="khm-qc-advert-save-btn"><?php esc_html_e( 'Save draft', 'khm-membership' ); ?></button>
+					<button class="button button-secondary" id="khm-qc-advert-submit-btn" style="display:none"><?php esc_html_e( 'Submit for review', 'khm-membership' ); ?></button>
+					<button class="button" id="khm-qc-advert-cancel-btn"><?php esc_html_e( 'Cancel', 'khm-membership' ); ?></button>
+				</div>
+				<p id="khm-qc-advert-form-msg" style="margin-top:10px;font-size:13px"></p>
+			</div>
+
+			<!-- Adverts list -->
+			<div class="khm-qc-adverts-grid" id="khm-qc-adverts-grid">
+				<p style="color:#6b7280;font-style:italic"><?php esc_html_e( 'Loading your creatives…', 'khm-membership' ); ?></p>
+			</div>
+		</div>
+
+		<script>
+		(function () {
+			'use strict';
+			var REST = '<?php echo esc_js( $rest_root ); ?>';
+			var NONCE = '<?php echo esc_js( $nonce ); ?>';
+
+			var grid     = document.getElementById('khm-qc-adverts-grid');
+			var form     = document.getElementById('khm-qc-advert-form');
+			var formTitle = document.getElementById('khm-qc-advert-form-title');
+			var editId   = document.getElementById('khm-qc-advert-edit-id');
+			var fTitle   = document.getElementById('khm-qc-advert-title');
+			var fPlace   = document.getElementById('khm-qc-advert-placement');
+			var fMedia   = document.getElementById('khm-qc-advert-media-id');
+			var fPreview = document.getElementById('khm-qc-advert-media-preview');
+			var fClick   = document.getElementById('khm-qc-advert-click-url');
+			var fAlt     = document.getElementById('khm-qc-advert-alt');
+			var fSave    = document.getElementById('khm-qc-advert-save-btn');
+			var fSubmit  = document.getElementById('khm-qc-advert-submit-btn');
+			var fCancel  = document.getElementById('khm-qc-advert-cancel-btn');
+			var fMsg     = document.getElementById('khm-qc-advert-form-msg');
+			var newBtn   = document.getElementById('khm-qc-advert-new-btn');
+
+			function api(path, method, body) {
+				var opts = { method: method || 'GET', headers: { 'X-WP-Nonce': NONCE } };
+				if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+				return fetch(REST + path, opts).then(function (r) { return r.json(); });
+			}
+
+			var PLACEMENT_LABELS = {
+				'commentary':    'Commentary',
+				'press-release': 'Press Releases',
+				'overview':      'Overview',
+				'sidebar':       'Sidebar'
+			};
+
+			var STATUS_LABELS = {
+				'draft':    'Draft',
+				'pending':  'Pending review',
+				'approved': 'Approved',
+				'rejected': 'Rejected',
+				'paused':   'Paused'
+			};
+
+			function renderCard(ad) {
+				var img   = ad.media_url ? '<img src="' + ad.media_url + '" alt="' + ad.alt_text + '">' : '<div style="height:120px;background:#f3f4f6;border-radius:4px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;color:#9ca3af;font-size:12px">No image</div>';
+				var badge = '<span class="khm-qc-badge khm-qc-badge-' + ad.status + '">' + (STATUS_LABELS[ad.status] || ad.status) + '</span>';
+				var rej   = ad.rejection_reason ? '<div class="khm-qc-advert-rejection">Rejected: ' + ad.rejection_reason + '</div>' : '';
+				var metrics = '<div class="khm-qc-advert-metrics"><span>' + ad.impressions + '</span> impressions &nbsp;·&nbsp; <span>' + ad.clicks + '</span> clicks</div>';
+				var editBtn   = (ad.status === 'draft' || ad.status === 'rejected') ? '<button class="button khm-qc-advert-edit" data-id="' + ad.id + '">Edit</button>' : '';
+				var submitBtn = (ad.status === 'draft' || ad.status === 'rejected') ? '<button class="button button-primary khm-qc-advert-submit" data-id="' + ad.id + '">Submit</button>' : '';
+
+				return '<div class="khm-qc-advert-card" id="khm-advert-' + ad.id + '">' +
+					img + badge + rej +
+					'<h4>' + ad.title + '</h4>' +
+					'<div class="khm-qc-placement">' + (PLACEMENT_LABELS[ad.placement] || ad.placement) + '</div>' +
+					metrics +
+					editBtn + submitBtn +
+					'</div>';
+			}
+
+			function loadAdverts() {
+				api('/adverts').then(function (data) {
+					if (!data.success || !data.adverts.length) {
+						grid.innerHTML = '<p style="color:#6b7280;font-style:italic">No ad creatives yet. Click "New Creative" to get started.</p>';
+						return;
+					}
+					grid.innerHTML = data.adverts.map(renderCard).join('');
+					// Bind card-level buttons
+					grid.querySelectorAll('.khm-qc-advert-edit').forEach(function (btn) {
+						btn.addEventListener('click', function () { openEdit(btn.dataset.id); });
+					});
+					grid.querySelectorAll('.khm-qc-advert-submit').forEach(function (btn) {
+						btn.addEventListener('click', function () { submitAdvert(btn.dataset.id); });
+					});
+				});
+			}
+
+			function openNew() {
+				editId.value = '';
+				fTitle.value = '';
+				fPlace.value = 'commentary';
+				fMedia.value = '';
+				fPreview.style.display = 'none';
+				fClick.value = '';
+				fAlt.value = '';
+				fMsg.textContent = '';
+				fSubmit.style.display = 'none';
+				formTitle.textContent = 'New Ad Creative';
+				form.style.display = 'block';
+			}
+
+			function openEdit(id) {
+				api('/adverts/' + id).then(function (data) {
+					if (!data.success) { return; }
+					var ad = data.advert;
+					editId.value = ad.id;
+					fTitle.value = ad.title;
+					fPlace.value = ad.placement;
+					fMedia.value = ad.media_id || '';
+					if (ad.media_url) { fPreview.src = ad.media_url; fPreview.style.display = 'block'; }
+					fClick.value = ad.click_url || '';
+					fAlt.value   = ad.alt_text || '';
+					fMsg.textContent = '';
+					fSubmit.style.display = 'inline-block';
+					formTitle.textContent = 'Edit: ' + ad.title;
+					form.style.display = 'block';
+				});
+			}
+
+			function saveAdvert() {
+				fMsg.textContent = 'Saving…';
+				var id      = editId.value;
+				var payload = {
+					title:     fTitle.value.trim(),
+					placement: fPlace.value,
+					media_id:  parseInt(fMedia.value, 10) || 0,
+					click_url: fClick.value.trim(),
+					alt_text:  fAlt.value.trim()
+				};
+				var req = id
+					? api('/adverts/' + id, 'POST', payload)
+					: api('/adverts', 'POST', payload);
+
+				req.then(function (data) {
+					if (data.success) {
+						fMsg.style.color = '#065f46';
+						fMsg.textContent = 'Saved. Submit when ready for review.';
+						if (!id) { editId.value = data.advert.id; fSubmit.style.display = 'inline-block'; }
+						loadAdverts();
+					} else {
+						fMsg.style.color = '#991b1b';
+						fMsg.textContent = data.message || 'Save failed.';
+					}
+				}).catch(function () {
+					fMsg.style.color = '#991b1b';
+					fMsg.textContent = 'Network error.';
+				});
+			}
+
+			function submitAdvert(id) {
+				var targetId = id || editId.value;
+				if (!targetId) { return; }
+				api('/adverts/' + targetId, 'POST', { action: 'submit' }).then(function (data) {
+					if (data.success) {
+						fMsg.style.color = '#065f46';
+						fMsg.textContent = 'Submitted for review.';
+						form.style.display = 'none';
+						loadAdverts();
+					} else {
+						fMsg.style.color = '#991b1b';
+						fMsg.textContent = data.message || 'Submission failed.';
+					}
+				});
+			}
+
+			// Media ID preview
+			fMedia.addEventListener('input', function () {
+				var mid = parseInt(fMedia.value, 10);
+				if (!mid) { fPreview.style.display = 'none'; return; }
+				// Resolve media URL via WP REST.
+				fetch('/wp-json/wp/v2/media/' + mid, { headers: { 'X-WP-Nonce': NONCE } })
+					.then(function (r) { return r.json(); })
+					.then(function (d) {
+						var url = (d.media_details && d.media_details.sizes && d.media_details.sizes.medium && d.media_details.sizes.medium.source_url) || d.source_url;
+						if (url) { fPreview.src = url; fPreview.style.display = 'block'; }
+						else     { fPreview.style.display = 'none'; }
+					}).catch(function () { fPreview.style.display = 'none'; });
+			});
+
+			newBtn.addEventListener('click', openNew);
+			fSave.addEventListener('click', saveAdvert);
+			fSubmit.addEventListener('click', function () { submitAdvert(editId.value); });
+			fCancel.addEventListener('click', function () { form.style.display = 'none'; });
+
+			loadAdverts();
+		}());
+		</script>
+		<?php
+	}
+
 	private function render_social_section( int $user_id, ?array $sponsor ): void {
 		?>
 		<div class="khm-qc-section khm-qc-social">
@@ -1253,6 +1534,75 @@ class QuoteClubPortalShortcode {
 		<div class="khm-qc-access-gate">
 			<h2><?php esc_html_e( 'Quote Club', 'khm-membership' ); ?></h2>
 			<p><?php esc_html_e( 'This portal is available to Quote Club sponsor accounts. If you believe you should have access, please contact support.', 'khm-membership' ); ?></p>
+		</div>
+		<?php
+		return ob_get_clean();
+	}
+
+	// -------------------------------------------------------------------------
+	// S17 — [khm_sponsor_advert placement="commentary"] shortcode
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Render a sponsor advert in any page context.
+	 *
+	 * Usage: [khm_sponsor_advert placement="commentary"]
+	 *
+	 * Pulls the highest-weight approved creative for the given placement,
+	 * increments its impression counter, and renders a linked image with a
+	 * JS click-tracker call so clicks are recorded without a page reload.
+	 *
+	 * @param array $atts Shortcode attributes.
+	 * @return string HTML output.
+	 */
+	public function render_sponsor_advert_shortcode( array $atts ): string {
+		$allowed_placements = [ 'commentary', 'press-release', 'overview', 'sidebar' ];
+		$atts               = shortcode_atts( [ 'placement' => 'commentary' ], $atts, 'khm_sponsor_advert' );
+		$placement          = in_array( $atts['placement'], $allowed_placements, true ) ? $atts['placement'] : 'commentary';
+
+		global $wpdb;
+		$table = $wpdb->prefix . 'khm_sponsor_adverts';
+
+		// Check the table exists before querying (graceful no-op if migration hasn't run).
+		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table}'" ) !== $table ) { // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			return '';
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM `{$table}` WHERE status = 'approved' AND placement = %s ORDER BY weight DESC, impressions ASC LIMIT 1",
+				$placement
+			)
+		);
+
+		if ( ! $row || empty( $row->media_url ) ) {
+			return '';
+		}
+
+		// Increment impressions server-side.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$wpdb->query( $wpdb->prepare( "UPDATE `{$table}` SET impressions = impressions + 1 WHERE id = %d", $row->id ) );
+
+		$rest_url  = esc_url( rest_url( 'khm/v1/adverts/' . (int) $row->id . '/click' ) );
+		$nonce     = wp_create_nonce( 'wp_rest' );
+		$click_url = esc_url( $row->click_url ?: '' );
+		$media_url = esc_url( $row->media_url );
+		$alt_text  = esc_attr( $row->alt_text ?: $row->title );
+		$ad_id     = (int) $row->id;
+
+		ob_start();
+		?>
+		<div class="khm-sponsor-advert khm-sponsor-advert-<?php echo esc_attr( $placement ); ?>" style="margin:16px 0;text-align:center">
+			<?php if ( $click_url ) : ?>
+			<a href="<?php echo $click_url; ?>" target="_blank" rel="noopener sponsored"
+			   onclick="(function(){fetch('<?php echo $rest_url; ?>',{method:'POST',headers:{'X-WP-Nonce':'<?php echo esc_js( $nonce ); ?>'}});})()">
+				<img src="<?php echo $media_url; ?>" alt="<?php echo $alt_text; ?>" style="max-width:100%;height:auto">
+			</a>
+			<?php else : ?>
+			<img src="<?php echo $media_url; ?>" alt="<?php echo $alt_text; ?>" style="max-width:100%;height:auto">
+			<?php endif; ?>
+			<p style="font-size:10px;color:#9ca3af;margin-top:4px"><?php esc_html_e( 'Sponsored', 'khm-membership' ); ?></p>
 		</div>
 		<?php
 		return ob_get_clean();

@@ -1604,6 +1604,15 @@ register_activation_hook(__FILE__, function () {
                 }
             }
 
+            // Create sponsor adverts table (S16 – advert creative portal).
+            if ( class_exists('KHM\\Migrations\\CreateSponsorAdvertsTable') ) {
+                try {
+                    KHM\Migrations\CreateSponsorAdvertsTable::create_tables();
+                } catch (\Exception $e) {
+                    error_log('CreateSponsorAdvertsTable failed: ' . $e->getMessage());
+                }
+            }
+
         }
     }
 
@@ -1687,6 +1696,11 @@ add_action('rest_api_init', function () {
     // Register Quote Club routes
     if ( class_exists('KHM\\Rest\\QuoteClubController') ) {
         ( new KHM\Rest\QuoteClubController() )->register();
+    }
+
+    // Register sponsor advert routes (S16/S17 – creative portal + ad serving).
+    if ( class_exists('KHM\\REST\\SponsorAdvertController') ) {
+        ( new KHM\REST\SponsorAdvertController() )->register();
     }
 
     // Fulfil Quote Club credit bundle purchases when Stripe checkout completes.
