@@ -166,6 +166,7 @@ class ConnectIntroThreadEndpoint {
 
 		$handover = $this->threads->get_handover_for_thread( (int) $thread['id'] );
 		$messages = $this->threads->list_messages( (int) $thread['id'] );
+		$milestones = $this->threads->list_milestones( (int) $thread['id'] );
 
 		return rest_ensure_response(
 			array(
@@ -175,6 +176,7 @@ class ConnectIntroThreadEndpoint {
 				'message_count'   => (int) $thread['message_count'],
 				'thread'          => $this->format_thread_summary( $thread ),
 				'messages'        => $messages,
+				'milestones'      => $milestones,
 				'handover'        => is_array( $handover ) ? $handover : null,
 			)
 		);
@@ -235,12 +237,14 @@ class ConnectIntroThreadEndpoint {
 
 		$messages = $this->threads->list_messages( (int) $thread['id'] );
 		$handover = $this->threads->get_handover_for_thread( (int) $thread['id'] );
+		$milestones = $this->threads->list_milestones( (int) $thread['id'] );
 
 		return rest_ensure_response(
 			array(
 				'success'  => true,
 				'thread'   => $this->format_thread_summary( $thread, null, true ),
 				'messages' => $messages,
+				'milestones' => $milestones,
 				'handover' => $handover,
 			)
 		);

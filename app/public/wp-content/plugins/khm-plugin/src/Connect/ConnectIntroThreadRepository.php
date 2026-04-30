@@ -159,6 +159,41 @@ class ConnectIntroThreadRepository {
 		);
 	}
 
+	public function list_milestones( int $thread_id ): array {
+		if ( $thread_id <= 0 ) {
+			return array();
+		}
+
+		global $wpdb;
+
+		$table = ConnectWorkflowMigration::milestones_table_name();
+		$rows  = $wpdb->get_results(
+			$wpdb->prepare( "SELECT * FROM {$table} WHERE thread_id = %d ORDER BY event_at ASC, id ASC", $thread_id ),
+			ARRAY_A
+		);
+
+		if ( ! is_array( $rows ) ) {
+			return array();
+		}
+
+		return array_map(
+			static function ( array $row ): array {
+				$payload = json_decode( (string) ( $row['payload'] ?? '' ), true );
+
+				return array(
+					'id'          => (int) ( $row['id'] ?? 0 ),
+					'thread_id'   => (int) ( $row['thread_id'] ?? 0 ),
+					'handover_id' => isset( $row['handover_id'] ) ? (int) $row['handover_id'] : 0,
+					'event_key'   => (string) ( $row['event_key'] ?? '' ),
+					'event_status'=> (string) ( $row['event_status'] ?? '' ),
+					'payload'     => is_array( $payload ) ? $payload : array(),
+					'event_at'    => (string) ( $row['event_at'] ?? '' ),
+				);
+			},
+			$rows
+		);
+	}
+
 	public function request_handover( int $thread_id ): ?array {
 		$thread = $this->get_thread( $thread_id );
 		if ( ! is_array( $thread ) ) {

@@ -354,6 +354,10 @@ class ConnectLegacyShortcodes {
 				return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
 			};
 
+			const humanizeEventKey = (value) => String(value || '')
+				.replaceAll('_', ' ')
+				.replace(/\b\w/g, (m) => m.toUpperCase());
+
 			function renderTokenPrompt() {
 				content.innerHTML = ''
 					+ '<p>Missing thread details. Enter your thread ID and token to continue.</p>'
@@ -427,6 +431,14 @@ class ConnectLegacyShortcodes {
 					const messages = Array.isArray(data.messages) ? data.messages : [];
 					const sponsorMessages = messages.filter(m => String(m && m.sender_role || '') === 'sponsor');
 					const latestSponsorReply = sponsorMessages.length ? sponsorMessages[sponsorMessages.length - 1] : null;
+					const milestones = Array.isArray(data.milestones) ? data.milestones : [];
+					const timelineHtml = milestones.length
+						? ('<ul>' + milestones.map((ev) => {
+							const label = humanizeEventKey(ev.event_key || 'event');
+							const at = milestoneDate(ev.event_at || '');
+							return '<li><strong>' + esc(label) + ':</strong> ' + esc(at) + '</li>';
+						}).join('') + '</ul>')
+						: '<p>No timeline events yet.</p>';
 					const handover = data.handover || null;
 					const handoverRequestedAt = handover && (handover.buyer_requested_at || handover.requested_at || '');
 					const handoverConfirmedAt = handover && (handover.sponsor_confirmed_at || handover.confirmed_at || '');
@@ -448,6 +460,8 @@ class ConnectLegacyShortcodes {
 						+ '<li><strong>Handover Confirmed:</strong> ' + milestoneDate(handoverConfirmedAt) + '</li>'
 						+ '</ol>'
 						+ (canRequest ? '<p><button type="button" data-khm="handover">Request direct handover</button></p>' : '')
+						+ '<h3>Event Timeline</h3>'
+						+ timelineHtml
 						+ '<h3>Messages</h3>'
 						+ (messages.length ? '<ul>' + messages.map(m => '<li><strong>' + esc(m.sender_role || 'message') + ':</strong> ' + esc(m.message || '') + '</li>').join('') + '</ul>' : '<p>No messages yet.</p>');
 
