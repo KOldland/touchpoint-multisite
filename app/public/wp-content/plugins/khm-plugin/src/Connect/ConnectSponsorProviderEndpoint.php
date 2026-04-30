@@ -5,6 +5,9 @@ namespace KHM\Connect;
 use KHM\Services\SponsorService;
 use WP_Error;
 use WP_REST_Request;
+use WP_REST_Response;
+
+// ConnectTiering is in the same namespace (KHM\Connect) — no additional import needed.
 
 defined( 'ABSPATH' ) || exit;
 
@@ -33,6 +36,23 @@ class ConnectSponsorProviderEndpoint {
 				array(
 					'methods'             => 'POST',
 					'callback'            => array( $this, 'create_mine' ),
+					'permission_callback' => array( $this, 'check_permission' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			'khm/v1',
+			'/connect/subscription',
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( $this, 'get_subscription' ),
+					'permission_callback' => array( $this, 'check_permission' ),
+				),
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( $this, 'request_subscription' ),
 					'permission_callback' => array( $this, 'check_permission' ),
 				),
 			)
@@ -196,6 +216,88 @@ class ConnectSponsorProviderEndpoint {
 		}
 
 		return $provider;
+	}
+
+	public function get_subscription( WP_REST_Request $request ): WP_REST_Response {
+		$sponsor_id = $this->resolve_sponsor_id();
+		if ( is_wp_error( $sponsor_id ) ) {
+			return rest_ensure_response( array( 'success' => false, 'subscription' => null ) );
+		}
+
+		$meta = get_user_meta( get_current_user_id(), 'khm_connect_subscription', true );
+		$sub  = is_array( $meta ) ? $meta : array();
+
+		return rest_ensure_response( array(
+			'success'      => true,
+			'subscription' => array(
+				'tier'         => (string) ( $sub['tier']         ?? '' ),
+				'scope'        => (string) ( $sub['scope']        ?? '' ),
+				'status'       => (string) ( $sub['status']       ?? 'inactive' ),
+				'requested_at' => (string) ( $sub['requested_at'] ?? '' ),
+				'activated_at' => (string) ( $sub['activated_at'] ?? '' ),
+			),
+			'pricing'      => ConnectTiering::get_config(),
+		) );
+	}
+
+	public function request_subscription( WP_REST_Request $request ): WP_REST_Response {
+		$sponsor_id = $this->resolve_sponsor_id();
+		if ( is_wp_error( $sponsor_id ) ) {
+			return rest_ensure_response( array( 'success' => false, 'message' => __( 'Sponsor account required.', 'khm-membership' ) ) );
+		}
+
+		$params = $request->get_json_params();
+		$params = is_array( $params ) ? $params : array();
+
+		$tier  = sanitize_key( (string) ( $params['tier']  ?? '' ) );
+		$scope = sanitize_key( (string) ( $params['scope'] ?? 'site' ) );
+
+		if ( ! in_array( $tier, ConnectTiering::TIERS, true ) ) {
+			return rest_ensure_response( array( 'success' => false, 'message' => __( 'Invalid tier.', 'khm-membership' ) ) );
+		}
+
+		if ( ! in_array( $scope, array( 'site', 'portfolio' ), true ) ) {
+			$scope = 'site';
+		}
+
+		$existing = get_user_meta( get_current_user_id(), 'khm_connect_subscription', true );
+		$existing = is_array( $existing ) ? $existing : array();
+
+		$now = current_time( 'mysql', true );
+		$sub = array_merge( $existing, array(
+			'tier'         => $tier,
+			'scope'        => $scope,
+			'status'       => 'pending',
+			'requested_at' => $now,
+		) );
+
+		update_user_meta( get_current_user_id(), 'khm_connect_subscription', $sub );
+
+		// Notify admin.
+		$sponsor = SponsorService::get_user_sponsor( get_current_user_id() );
+		$sponsor_name = is_array( $sponsor ) ? ( (string) ( $sponsor['name'] ?? '' ) ) : '';
+		wp_mail(
+			get_option( 'admin_email' ),
+			sprintf(
+				/* translators: %s sponsor name */
+				__( '[Connect] Subscription request: %s', 'khm-membership' ),
+				$sponsor_name
+			),
+			sprintf(
+				/* translators: 1: sponsor name, 2: tier, 3: scope */
+				__( 'Sponsor "%1$s" has requested a Connect subscription.\n\nTier: %2$s\nScope: %3$s\nRequested at: %4$s\n\nPlease activate in the admin panel.', 'khm-membership' ),
+				$sponsor_name,
+				$tier,
+				$scope,
+				$now
+			)
+		);
+
+		return rest_ensure_response( array(
+			'success'      => true,
+			'subscription' => $sub,
+			'message'      => __( 'Your Connect subscription request has been received. We will activate it within 1 business day.', 'khm-membership' ),
+		) );
 	}
 
 	private function get_request_params( WP_REST_Request $request ): array {

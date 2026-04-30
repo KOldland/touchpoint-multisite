@@ -328,6 +328,134 @@ class QuoteClubPortalShortcode {
 				</div>
 
 				<div class="khm-qc-connect-grid">
+					<section class="khm-qc-connect-panel khm-qc-connect-subscription-panel khm-qc-connect-span-full" id="khm-qc-sub-panel-<?php echo esc_attr( (int) ( $sponsor['id'] ?? 0 ) ); ?>">
+						<style>
+							.khm-qc-sub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:12px 0;}
+							.khm-qc-sub-card{border:2px solid #dcdcde;border-radius:8px;padding:16px;cursor:pointer;transition:border-color .2s,box-shadow .2s;background:#fff;}
+							.khm-qc-sub-card:hover{border-color:#1a73e8;box-shadow:0 2px 8px rgba(26,115,232,.15);}
+							.khm-qc-sub-card.selected{border-color:#1a73e8;background:#e8f0fe;}
+							.khm-qc-sub-card h4{margin:0 0 4px;font-size:15px;text-transform:capitalize;}
+							.khm-qc-sub-card .price{font-size:20px;font-weight:700;color:#1a73e8;margin:6px 0 2px;}
+							.khm-qc-sub-card .model{font-size:11px;color:#777;text-transform:uppercase;letter-spacing:.04em;}
+							.khm-qc-sub-card .commission{font-size:12px;color:#555;margin-top:4px;}
+							.khm-qc-sub-current{font-size:13px;padding:10px 14px;border-radius:6px;background:#e6f4ea;color:#1e8c45;display:none;margin-bottom:10px;}
+							.khm-qc-sub-pending{font-size:13px;padding:10px 14px;border-radius:6px;background:#fef9e7;color:#b5770d;display:none;margin-bottom:10px;}
+							.khm-qc-sub-scope{display:flex;gap:10px;margin:8px 0 12px;flex-wrap:wrap;}
+							.khm-qc-sub-scope label{font-size:13px;display:flex;align-items:center;gap:4px;}
+						</style>
+						<div class="khm-qc-connect-panel-head">
+							<div>
+								<h3><?php esc_html_e( 'Connect Subscription', 'khm-membership' ); ?></h3>
+								<p><?php esc_html_e( 'Activate a Connect subscription to appear in matching, receive anonymised leads, and unlock introduction workflows with qualified buyers.', 'khm-membership' ); ?></p>
+							</div>
+						</div>
+						<div class="khm-qc-sub-current" role="status"></div>
+						<div class="khm-qc-sub-pending" role="status"></div>
+						<div class="khm-qc-sub-grid" aria-label="<?php esc_attr_e( 'Select a tier', 'khm-membership' ); ?>"></div>
+						<div class="khm-qc-sub-scope">
+							<strong style="font-size:13px;align-self:center;"><?php esc_html_e( 'Scope:', 'khm-membership' ); ?></strong>
+							<label><input type="radio" name="khm-qc-sub-scope" value="site" checked /> <?php esc_html_e( 'This site only', 'khm-membership' ); ?></label>
+							<label><input type="radio" name="khm-qc-sub-scope" value="portfolio" /> <?php esc_html_e( 'Portfolio-wide (all sites)', 'khm-membership' ); ?></label>
+						</div>
+						<div class="khm-qc-sub-notice" style="display:none;font-size:12px;padding:8px 12px;border-radius:4px;margin-bottom:8px;"></div>
+						<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-sub-request-btn" disabled><?php esc_html_e( 'Request Subscription', 'khm-membership' ); ?></button>
+					</section>
+
+					<script>
+					(function(){
+						var sponsorId = <?php echo (int) ( $sponsor['id'] ?? 0 ); ?>;
+						var restBase  = <?php echo wp_json_encode( trailingslashit( rest_url( 'khm/v1/connect' ) ) ); ?>;
+						var nonce     = <?php echo wp_json_encode( wp_create_nonce( 'wp_rest' ) ); ?>;
+						var panel     = document.getElementById('khm-qc-sub-panel-' + sponsorId);
+						if (!panel || !sponsorId) return;
+
+						var grid      = panel.querySelector('.khm-qc-sub-grid');
+						var curBanner = panel.querySelector('.khm-qc-sub-current');
+						var penBanner = panel.querySelector('.khm-qc-sub-pending');
+						var notice    = panel.querySelector('.khm-qc-sub-notice');
+						var btn       = panel.querySelector('.khm-qc-sub-request-btn');
+						var selected  = null;
+
+						function fmt(cents){ return '$' + (cents/100).toFixed(2); }
+
+						function showNotice(msg, ok){
+							notice.textContent = msg;
+							notice.style.background = ok ? '#e6f4ea' : '#fce8e6';
+							notice.style.color = ok ? '#1e8c45' : '#c5221f';
+							notice.style.display = 'block';
+							setTimeout(function(){ notice.style.display='none'; }, 6000);
+						}
+
+						function renderTiers(pricing, sub){
+							grid.innerHTML = '';
+							['premium','standard','exploratory'].forEach(function(tier){
+								var p    = pricing[tier] || {};
+								var card = document.createElement('div');
+								card.className = 'khm-qc-sub-card' + (sub && sub.tier === tier && sub.status === 'active' ? ' selected' : '');
+								card.dataset.tier = tier;
+								card.innerHTML =
+									'<h4>' + tier + '</h4>' +
+									'<div class="price">' + fmt(p.unit_price_cents||0) + '</div>' +
+									'<div class="model">' + (p.pricing_model||'') + '</div>' +
+									'<div class="commission"><?php echo esc_js( __( 'Commission eligible:', 'khm-membership' ) ); ?> ' + (p.commission_eligible ? '<?php echo esc_js( __( 'Yes', 'khm-membership' ) ); ?>' : '<?php echo esc_js( __( 'No', 'khm-membership' ) ); ?>') + '</div>';
+								card.addEventListener('click', function(){
+									grid.querySelectorAll('.khm-qc-sub-card').forEach(function(c){ c.classList.remove('selected'); });
+									card.classList.add('selected');
+									selected = tier;
+									btn.disabled = false;
+								});
+								grid.appendChild(card);
+							});
+						}
+
+						function loadSubscription(){
+							fetch(restBase + 'subscription', { headers:{'X-WP-Nonce':nonce} })
+								.then(function(r){ return r.json(); })
+								.then(function(d){
+									var sub     = d.subscription || {};
+									var pricing = d.pricing     || {};
+									curBanner.style.display = 'none';
+									penBanner.style.display = 'none';
+									if (sub.status === 'active'){
+										curBanner.textContent = <?php echo wp_json_encode( __( 'Active subscription: ', 'khm-membership' ) ); ?> + sub.tier + ' (' + sub.scope + ')';
+										curBanner.style.display = 'block';
+									} else if (sub.status === 'pending'){
+										penBanner.textContent = <?php echo wp_json_encode( __( 'Subscription pending activation — ', 'khm-membership' ) ); ?> + sub.tier + ' (' + sub.scope + '). <?php echo esc_js( __( 'We will notify you when it goes live.', 'khm-membership' ) ); ?>';
+										penBanner.style.display = 'block';
+									}
+									renderTiers(pricing, sub);
+								}).catch(function(){
+									grid.innerHTML = '<p style="color:#c5221f;font-size:13px;"><?php echo esc_js( __( 'Unable to load subscription info.', 'khm-membership' ) ); ?></p>';
+								});
+						}
+
+						btn.addEventListener('click', function(){
+							if (!selected) return;
+							var scope = (panel.querySelector('input[name="khm-qc-sub-scope"]:checked') || {}).value || 'site';
+							btn.disabled = true;
+							fetch(restBase + 'subscription', {
+								method:'POST',
+								headers:{'Content-Type':'application/json','X-WP-Nonce':nonce},
+								body: JSON.stringify({tier:selected, scope:scope})
+							}).then(function(r){ return r.json(); })
+							.then(function(d){
+								if (d.success){
+									showNotice(d.message || <?php echo wp_json_encode( __( 'Request submitted.', 'khm-membership' ) ); ?>, true);
+									loadSubscription();
+								} else {
+									showNotice(d.message || <?php echo wp_json_encode( __( 'Request failed.', 'khm-membership' ) ); ?>, false);
+								}
+								btn.disabled = false;
+							}).catch(function(){
+								showNotice(<?php echo wp_json_encode( __( 'Network error — please try again.', 'khm-membership' ) ); ?>, false);
+								btn.disabled = false;
+							});
+						});
+
+						loadSubscription();
+					})();
+					</script>
+
 					<section class="khm-qc-connect-panel khm-qc-connect-list-panel">
 						<div class="khm-qc-connect-panel-head">
 							<div>
