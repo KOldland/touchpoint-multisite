@@ -255,6 +255,7 @@ class QuoteClubPortalShortcode {
 		$editorial_credits = $this->credits->getEditorialCredits( $user_id );
 		$pr_credits        = $this->credits->getPressReleaseCredits( $user_id );
 		$active_bundles    = $this->bundles->list_bundles( true );
+		$boost_credits     = (int) get_user_meta( $user_id, 'khm_boost_credits', true );
 		?>
 		<div class="khm-qc-section khm-qc-overview">
 			<h2><?php esc_html_e( 'Overview', 'khm-membership' ); ?></h2>
@@ -269,7 +270,78 @@ class QuoteClubPortalShortcode {
 					<span class="khm-qc-stat-number"><?php echo (int) $pr_credits; ?></span>
 					<span class="khm-qc-stat-label"><?php esc_html_e( 'Press Release Credits', 'khm-membership' ); ?></span>
 				</div>
+				<div class="khm-qc-stat-card">
+					<span class="khm-qc-stat-number" id="qc-boost-balance"><?php echo (int) $boost_credits; ?></span>
+					<span class="khm-qc-stat-label"><?php esc_html_e( 'Boost Credits', 'khm-membership' ); ?></span>
+					<p class="khm-qc-stat-hint"><?php esc_html_e( '1 credit = +0.1 score weight on one article card', 'khm-membership' ); ?></p>
+				</div>
 			</div>
+
+			<!-- S8: Boost purchase panel -->
+			<div class="khm-qc-boost-panel" id="khm-qc-boost-panel">
+				<h3><?php esc_html_e( 'Boost Credits', 'khm-membership' ); ?></h3>
+				<p><?php esc_html_e( 'Each Boost Credit applies a +0.1 scoring weight to one article answer-card session, improving its ranking in guided matching results.', 'khm-membership' ); ?></p>
+				<style>
+					.khm-qc-boost-qty{display:flex;align-items:center;gap:10px;margin:10px 0;}
+					.khm-qc-boost-qty input[type=number]{width:80px;padding:6px 8px;border:1px solid #ccd0d4;border-radius:4px;font-size:14px;}
+					.khm-qc-boost-price{font-size:13px;color:#555;}
+					.khm-qc-boost-notice{font-size:12px;padding:8px 12px;border-radius:4px;margin-top:8px;display:none;}
+				</style>
+				<div class="khm-qc-boost-qty">
+					<label for="khm-boost-qty"><?php esc_html_e( 'Quantity:', 'khm-membership' ); ?></label>
+					<input type="number" id="khm-boost-qty" min="1" max="100" value="5" />
+					<span class="khm-qc-boost-price"><?php
+						/* translators: price per boost credit */
+						printf( esc_html__( '$%s per credit', 'khm-membership' ), '5.00' );
+					?></span>
+				</div>
+				<button type="button" class="khm-qc-btn khm-qc-btn-primary" id="khm-boost-buy-btn"><?php esc_html_e( 'Request Boost Credits', 'khm-membership' ); ?></button>
+				<div class="khm-qc-boost-notice" role="status" aria-live="polite"></div>
+			</div>
+
+			<script>
+			(function(){
+				var restBase = <?php echo wp_json_encode( trailingslashit( rest_url( 'khm/v1/connect' ) ) ); ?>;
+				var nonce    = <?php echo wp_json_encode( wp_create_nonce( 'wp_rest' ) ); ?>;
+				var panel    = document.getElementById('khm-qc-boost-panel');
+				if (!panel) return;
+
+				var btn     = document.getElementById('khm-boost-buy-btn');
+				var qtyIn   = document.getElementById('khm-boost-qty');
+				var notice  = panel.querySelector('.khm-qc-boost-notice');
+				var balance = document.getElementById('qc-boost-balance');
+
+				function showNotice(msg, ok){
+					notice.textContent = msg;
+					notice.style.background = ok ? '#e6f4ea' : '#fce8e6';
+					notice.style.color       = ok ? '#1e8c45' : '#c5221f';
+					notice.style.display     = 'block';
+					setTimeout(function(){ notice.style.display='none'; }, 6000);
+				}
+
+				btn.addEventListener('click', function(){
+					var qty = Math.max(1, Math.min(100, parseInt(qtyIn.value, 10) || 1));
+					btn.disabled = true;
+					fetch(restBase + 'boost', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
+						body: JSON.stringify({ quantity: qty })
+					}).then(function(r){ return r.json(); })
+					.then(function(d){
+						if (d.success){
+							showNotice(d.message || <?php echo wp_json_encode( __( 'Request received.', 'khm-membership' ) ); ?>, true);
+							if (balance && d.balance !== undefined) balance.textContent = d.balance;
+						} else {
+							showNotice(d.message || <?php echo wp_json_encode( __( 'Request failed.', 'khm-membership' ) ); ?>, false);
+						}
+						btn.disabled = false;
+					}).catch(function(){
+						showNotice(<?php echo wp_json_encode( __( 'Network error — try again.', 'khm-membership' ) ); ?>, false);
+						btn.disabled = false;
+					});
+				});
+			})();
+			</script>
 
 			<?php if ( ! empty( $active_bundles ) ) : ?>
 			<div class="khm-qc-bundles" id="qc-bundles">

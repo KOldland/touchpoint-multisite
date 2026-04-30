@@ -43,6 +43,23 @@ class ConnectSponsorProviderEndpoint {
 
 		register_rest_route(
 			'khm/v1',
+			'/connect/boost',
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( $this, 'get_boost' ),
+					'permission_callback' => array( $this, 'check_permission' ),
+				),
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( $this, 'request_boost' ),
+					'permission_callback' => array( $this, 'check_permission' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			'khm/v1',
 			'/connect/subscription',
 			array(
 				array(
@@ -216,6 +233,51 @@ class ConnectSponsorProviderEndpoint {
 		}
 
 		return $provider;
+	}
+
+	public function get_boost( WP_REST_Request $request ): WP_REST_Response {
+		return rest_ensure_response( array(
+			'success' => true,
+			'balance' => (int) get_user_meta( get_current_user_id(), 'khm_boost_credits', true ),
+		) );
+	}
+
+	public function request_boost( WP_REST_Request $request ): WP_REST_Response {
+		$params   = $request->get_json_params();
+		$params   = is_array( $params ) ? $params : array();
+		$quantity = max( 1, min( 100, (int) ( $params['quantity'] ?? 1 ) ) );
+
+		// Notify admin — boost credits are fulfilled manually / via invoice until a payment gateway is wired.
+		$sponsor      = SponsorService::get_user_sponsor( get_current_user_id() );
+		$sponsor_name = is_array( $sponsor ) ? ( (string) ( $sponsor['name'] ?? '' ) ) : '';
+
+		wp_mail(
+			get_option( 'admin_email' ),
+			sprintf(
+				/* translators: %s sponsor name */
+				__( '[Boost] Credit request: %s', 'khm-membership' ),
+				$sponsor_name
+			),
+			sprintf(
+				/* translators: 1: sponsor name, 2: quantity */
+				__( 'Sponsor "%1$s" has requested %2$d Boost Credit(s).%3$sPlease invoice and then add the credits via WP admin: Users → Edit → khm_boost_credits meta field.', 'khm-membership' ),
+				$sponsor_name,
+				$quantity,
+				"\n\n"
+			)
+		);
+
+		$current_balance = (int) get_user_meta( get_current_user_id(), 'khm_boost_credits', true );
+
+		return rest_ensure_response( array(
+			'success' => true,
+			'balance' => $current_balance,
+			'message' => sprintf(
+				/* translators: %d number of boost credits requested */
+				__( 'Your request for %d Boost Credit(s) has been received. We will invoice you and apply the credits within 1 business day.', 'khm-membership' ),
+				$quantity
+			),
+		) );
 	}
 
 	public function get_subscription( WP_REST_Request $request ): WP_REST_Response {
