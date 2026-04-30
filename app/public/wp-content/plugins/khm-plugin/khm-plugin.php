@@ -1703,6 +1703,11 @@ add_action('rest_api_init', function () {
         ( new KHM\REST\SponsorAdvertController() )->register();
     }
 
+    // Register LinkedIn scheduling routes (S9).
+    if ( class_exists('KHM\\REST\\LinkedInController') ) {
+        ( new KHM\REST\LinkedInController() )->register();
+    }
+
     // Fulfil Quote Club credit bundle purchases when Stripe checkout completes.
     add_action( 'khm_webhook_stripe_checkout_session_completed', function( $event ) {
         if ( ! class_exists( 'KHM\\Services\\QuoteClubCreditBundleService' ) ) {

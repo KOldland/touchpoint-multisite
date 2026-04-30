@@ -1478,13 +1478,257 @@ class QuoteClubPortalShortcode {
 	}
 
 	private function render_social_section( int $user_id, ?array $sponsor ): void {
+		$nonce     = wp_create_nonce( 'wp_rest' );
+		$rest_root = esc_url( rest_url( 'khm/v1' ) );
 		?>
 		<div class="khm-qc-section khm-qc-social">
-			<h2><?php esc_html_e( 'Social Media', 'khm-membership' ); ?></h2>
-			<p class="khm-qc-coming-soon">
-				<?php esc_html_e( 'LinkedIn connection and scheduled post management will be available here.', 'khm-membership' ); ?>
+			<h2><?php esc_html_e( 'LinkedIn Scheduling', 'khm-membership' ); ?></h2>
+			<p class="khm-qc-lead">
+				<?php esc_html_e( 'Connect your LinkedIn account to schedule posts that go out alongside your press releases and commentary.', 'khm-membership' ); ?>
 			</p>
+
+			<style>
+				#khm-qc-li-connect-panel,#khm-qc-li-queue-panel{transition:all .2s}
+				#khm-qc-li-connected-banner{display:none;background:#d1fae5;border:1px solid #6ee7b7;border-radius:8px;padding:12px 16px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+				#khm-qc-li-disconnected-banner{background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:20px;text-align:center}
+				#khm-qc-li-schedule-form{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin-bottom:20px}
+				#khm-qc-li-schedule-form label{display:block;font-weight:600;font-size:13px;margin-bottom:4px;margin-top:12px}
+				#khm-qc-li-schedule-form label:first-child{margin-top:0}
+				#khm-qc-li-text{width:100%;min-height:100px;padding:8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;resize:vertical}
+				#khm-qc-li-url{width:100%;padding:8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px}
+				#khm-qc-li-when{padding:8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px}
+				#khm-qc-li-char-count{font-size:11px;color:#6b7280;margin-top:3px;text-align:right}
+				.khm-qc-li-post-row{background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+				.khm-qc-li-post-row .khm-qc-li-post-body{flex:1;min-width:0}
+				.khm-qc-li-post-row .khm-qc-li-post-text{font-size:13px;white-space:pre-wrap;word-break:break-word;margin:0 0 4px}
+				.khm-qc-li-post-row .khm-qc-li-post-meta{font-size:11px;color:#9ca3af}
+				.khm-qc-li-post-row .khm-qc-badge{margin-left:6px}
+				.khm-qc-li-post-row button{flex-shrink:0;font-size:12px;padding:3px 10px}
+				#khm-qc-li-queue-empty{font-size:13px;color:#6b7280;font-style:italic}
+			</style>
+
+			<!-- Connected banner (hidden until JS loads status) -->
+			<div id="khm-qc-li-connected-banner" style="display:none">
+				<span id="khm-qc-li-profile-label" style="font-size:13px;color:#065f46;font-weight:600">
+					<?php esc_html_e( 'LinkedIn connected', 'khm-membership' ); ?>
+				</span>
+				<button class="button" id="khm-qc-li-disconnect-btn" style="font-size:12px;padding:3px 10px">
+					<?php esc_html_e( 'Disconnect', 'khm-membership' ); ?>
+				</button>
+			</div>
+
+			<!-- Disconnected banner -->
+			<div id="khm-qc-li-disconnected-banner">
+				<p style="margin:0 0 10px;font-size:14px;font-weight:600"><?php esc_html_e( 'Not connected', 'khm-membership' ); ?></p>
+				<p style="margin:0 0 12px;font-size:13px;color:#6b7280">
+					<?php esc_html_e( 'Authorise QuoteClub to post on your behalf. You can disconnect at any time.', 'khm-membership' ); ?>
+				</p>
+				<button class="button button-primary" id="khm-qc-li-connect-btn">
+					<?php esc_html_e( 'Connect LinkedIn', 'khm-membership' ); ?>
+				</button>
+				<p id="khm-qc-li-not-configured" style="display:none;font-size:12px;color:#991b1b;margin-top:8px">
+					<?php esc_html_e( 'LinkedIn integration is not yet configured. Please contact support.', 'khm-membership' ); ?>
+				</p>
+			</div>
+
+			<!-- Schedule form (shown when connected) -->
+			<div id="khm-qc-li-schedule-form" style="display:none">
+				<h3 style="margin-top:0"><?php esc_html_e( 'Schedule a post', 'khm-membership' ); ?></h3>
+				<label for="khm-qc-li-text"><?php esc_html_e( 'Post text', 'khm-membership' ); ?></label>
+				<textarea id="khm-qc-li-text" maxlength="3000" placeholder="<?php esc_attr_e( 'Write your LinkedIn post here (max 3000 characters)…', 'khm-membership' ); ?>"></textarea>
+				<div id="khm-qc-li-char-count">0 / 3000</div>
+
+				<label for="khm-qc-li-url"><?php esc_html_e( 'Link URL (optional)', 'khm-membership' ); ?></label>
+				<input type="url" id="khm-qc-li-url" placeholder="https://example.com/article">
+
+				<label for="khm-qc-li-when"><?php esc_html_e( 'Schedule time', 'khm-membership' ); ?></label>
+				<input type="datetime-local" id="khm-qc-li-when">
+
+				<div style="margin-top:14px;display:flex;gap:8px;align-items:center">
+					<button class="button button-primary" id="khm-qc-li-schedule-btn"><?php esc_html_e( 'Schedule post', 'khm-membership' ); ?></button>
+					<span id="khm-qc-li-schedule-msg" style="font-size:13px"></span>
+				</div>
+			</div>
+
+			<!-- Queue -->
+			<div id="khm-qc-li-queue-panel" style="display:none">
+				<h3><?php esc_html_e( 'Scheduled posts', 'khm-membership' ); ?></h3>
+				<div id="khm-qc-li-queue-list">
+					<p id="khm-qc-li-queue-empty"><?php esc_html_e( 'No scheduled posts yet.', 'khm-membership' ); ?></p>
+				</div>
+			</div>
 		</div>
+
+		<script>
+		(function () {
+			'use strict';
+			var REST  = '<?php echo esc_js( $rest_root ); ?>';
+			var NONCE = '<?php echo esc_js( $nonce ); ?>';
+
+			var connBanner   = document.getElementById('khm-qc-li-connected-banner');
+			var discBanner   = document.getElementById('khm-qc-li-disconnected-banner');
+			var profileLabel = document.getElementById('khm-qc-li-profile-label');
+			var schedForm    = document.getElementById('khm-qc-li-schedule-form');
+			var queuePanel   = document.getElementById('khm-qc-li-queue-panel');
+			var queueList    = document.getElementById('khm-qc-li-queue-list');
+			var connectBtn   = document.getElementById('khm-qc-li-connect-btn');
+			var disconnBtn   = document.getElementById('khm-qc-li-disconnect-btn');
+			var schedBtn     = document.getElementById('khm-qc-li-schedule-btn');
+			var schedMsg     = document.getElementById('khm-qc-li-schedule-msg');
+			var textArea     = document.getElementById('khm-qc-li-text');
+			var charCount    = document.getElementById('khm-qc-li-char-count');
+			var notConf      = document.getElementById('khm-qc-li-not-configured');
+
+			var STATUS_LABELS = { queued: 'Scheduled', published: 'Published', failed: 'Failed', cancelled: 'Cancelled' };
+
+			function api(path, method, body) {
+				var opts = { method: method || 'GET', headers: { 'X-WP-Nonce': NONCE } };
+				if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+				return fetch(REST + path, opts).then(function (r) { return r.json(); });
+			}
+
+			function fmtDate(iso) {
+				var d = new Date(iso);
+				return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+			}
+
+			function renderPostRow(p) {
+				var status  = STATUS_LABELS[p.status] || p.status;
+				var cls     = 'khm-qc-badge khm-qc-badge-' + (p.status === 'published' ? 'approved' : p.status === 'failed' ? 'rejected' : p.status === 'cancelled' ? 'paused' : 'pending');
+				var cancel  = p.status === 'queued' ? '<button class="button khm-qc-li-cancel" data-id="' + p.id + '">Cancel</button>' : '';
+				var err     = p.error ? '<div style="font-size:11px;color:#991b1b;margin-top:4px">Error: ' + p.error + '</div>' : '';
+				var link    = p.url ? '<a href="' + p.url + '" target="_blank" rel="noopener" style="font-size:11px">' + p.url + '</a>' : '';
+				return '<div class="khm-qc-li-post-row" id="li-post-' + p.id + '">' +
+					'<div class="khm-qc-li-post-body">' +
+						'<p class="khm-qc-li-post-text">' + p.text + '</p>' +
+						(link ? link + '<br>' : '') +
+						'<span class="khm-qc-li-post-meta">Scheduled: ' + fmtDate(p.scheduled_at) + '</span>' +
+						'<span class="' + cls + '">' + status + '</span>' +
+						err +
+					'</div>' +
+					cancel +
+					'</div>';
+			}
+
+			function loadQueue() {
+				api('/social/linkedin/queue').then(function (data) {
+					if (!data.success || !data.posts.length) {
+						queueList.innerHTML = '<p id="khm-qc-li-queue-empty" style="font-size:13px;color:#6b7280;font-style:italic">No scheduled posts yet.</p>';
+						return;
+					}
+					queueList.innerHTML = data.posts.map(renderPostRow).join('');
+					queueList.querySelectorAll('.khm-qc-li-cancel').forEach(function (btn) {
+						btn.addEventListener('click', function () {
+							api('/social/linkedin/cancel', 'POST', { post_id: btn.dataset.id }).then(function (r) {
+								if (r.success) { loadQueue(); }
+							});
+						});
+					});
+				});
+			}
+
+			function showConnected(profileId) {
+				connBanner.style.display = 'flex';
+				discBanner.style.display = 'none';
+				schedForm.style.display  = 'block';
+				queuePanel.style.display = 'block';
+				if (profileId) {
+					profileLabel.textContent = 'LinkedIn connected (URN: ' + profileId + ')';
+				}
+				loadQueue();
+			}
+
+			function showDisconnected(configured) {
+				connBanner.style.display = 'none';
+				discBanner.style.display = 'block';
+				schedForm.style.display  = 'none';
+				queuePanel.style.display = 'none';
+				if (!configured) { notConf.style.display = 'block'; connectBtn.disabled = true; }
+			}
+
+			// Load status on init
+			api('/social/linkedin/status').then(function (data) {
+				if (!data.success) { return; }
+				if (data.connected) {
+					showConnected(data.profile_id);
+				} else {
+					showDisconnected(data.configured);
+				}
+				// Handle URL params after OAuth redirect
+				var params = new URLSearchParams(window.location.search);
+				if (params.get('li_connected') === '1' && data.connected) {
+					schedMsg.style.color = '#065f46';
+					schedMsg.textContent = 'LinkedIn connected successfully!';
+				}
+				if (params.get('li_error')) {
+					schedMsg.style.color = '#991b1b';
+					schedMsg.textContent = 'LinkedIn error: ' + decodeURIComponent(params.get('li_error'));
+				}
+			});
+
+			// Connect button → fetch auth URL → redirect
+			connectBtn.addEventListener('click', function () {
+				connectBtn.disabled = true;
+				connectBtn.textContent = 'Connecting…';
+				api('/social/linkedin/auth-url').then(function (data) {
+					if (data.success && data.auth_url) {
+						window.location.href = data.auth_url;
+					} else {
+						connectBtn.disabled = false;
+						connectBtn.textContent = 'Connect LinkedIn';
+						notConf.style.display = 'block';
+					}
+				}).catch(function () {
+					connectBtn.disabled = false;
+					connectBtn.textContent = 'Connect LinkedIn';
+				});
+			});
+
+			// Disconnect
+			disconnBtn.addEventListener('click', function () {
+				api('/social/linkedin/disconnect', 'POST').then(function (r) {
+					if (r.success) { showDisconnected(true); }
+				});
+			});
+
+			// Char counter
+			textArea.addEventListener('input', function () {
+				charCount.textContent = textArea.value.length + ' / 3000';
+			});
+
+			// Schedule post
+			schedBtn.addEventListener('click', function () {
+				var text = textArea.value.trim();
+				if (!text) { schedMsg.style.color = '#991b1b'; schedMsg.textContent = 'Post text is required.'; return; }
+				schedMsg.style.color = '#374151'; schedMsg.textContent = 'Scheduling…';
+				schedBtn.disabled = true;
+				var payload = {
+					text: text,
+					url:  document.getElementById('khm-qc-li-url').value.trim(),
+					scheduled_at: document.getElementById('khm-qc-li-when').value
+				};
+				api('/social/linkedin/schedule', 'POST', payload).then(function (data) {
+					schedBtn.disabled = false;
+					if (data.success) {
+						schedMsg.style.color = '#065f46';
+						schedMsg.textContent = 'Post scheduled for ' + fmtDate(data.post.scheduled_at);
+						textArea.value = '';
+						document.getElementById('khm-qc-li-url').value = '';
+						document.getElementById('khm-qc-li-when').value = '';
+						charCount.textContent = '0 / 3000';
+						loadQueue();
+					} else {
+						schedMsg.style.color = '#991b1b';
+						schedMsg.textContent = data.message || 'Schedule failed.';
+					}
+				}).catch(function () {
+					schedBtn.disabled = false;
+					schedMsg.style.color = '#991b1b';
+					schedMsg.textContent = 'Network error.';
+				});
+			});
+		}());
+		</script>
 		<?php
 	}
 
