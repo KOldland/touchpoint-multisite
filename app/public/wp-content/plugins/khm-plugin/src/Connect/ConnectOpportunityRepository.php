@@ -273,6 +273,30 @@ class ConnectOpportunityRepository {
 	}
 
 	/**
+	 * For admin use: lists all open (detected/offered) plus recently accepted opportunities,
+	 * regardless of sponsor assignment.
+	 */
+	public function list_all_inbox( int $limit = 200 ): array {
+		$limit = max( 1, min( 500, $limit ) );
+
+		global $wpdb;
+		$table = ConnectWorkflowMigration::opportunities_table_name();
+		$rows  = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT * FROM {$table} ORDER BY FIELD(opportunity_status,'detected','offered','sponsor_accepted','intro_requested','introduced','rejected','expired'), updated_at DESC, id DESC LIMIT %d",
+				$limit
+			),
+			ARRAY_A
+		);
+
+		if ( ! is_array( $rows ) ) {
+			return array();
+		}
+
+		return array_map( array( $this, 'hydrate_opportunity' ), $rows );
+	}
+
+	/**
 	 * @param array<string,mixed> $event
 	 */
 	public function log_consent_event( int $opportunity_id, array $event ): int {

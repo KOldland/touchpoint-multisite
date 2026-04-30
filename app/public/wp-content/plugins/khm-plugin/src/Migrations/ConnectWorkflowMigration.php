@@ -6,16 +6,31 @@ defined( 'ABSPATH' ) || exit;
 
 class ConnectWorkflowMigration {
 
-	const THREADS_TABLE = 'connect_intro_threads';
-	const MESSAGES_TABLE = 'connect_intro_messages';
-	const HANDOVERS_TABLE = 'connect_handovers';
-	const MILESTONES_TABLE = 'connect_milestone_events';
+	const THREADS_TABLE       = 'connect_intro_threads';
+	const MESSAGES_TABLE      = 'connect_intro_messages';
+	const HANDOVERS_TABLE     = 'connect_handovers';
+	const MILESTONES_TABLE    = 'connect_milestone_events';
+	const OPPORTUNITIES_TABLE = 'connect_opportunities';
+	const CONSENT_EVENTS_TABLE = 'connect_consent_events';
 
 	public static function run(): void {
 		self::create_threads_table();
 		self::create_messages_table();
 		self::create_handovers_table();
 		self::create_milestones_table();
+		self::create_consent_events_table();
+	}
+
+	public static function opportunities_table_name(): string {
+		global $wpdb;
+
+		return $wpdb->prefix . self::OPPORTUNITIES_TABLE;
+	}
+
+	public static function consent_events_table_name(): string {
+		global $wpdb;
+
+		return $wpdb->prefix . self::CONSENT_EVENTS_TABLE;
 	}
 
 	public static function threads_table_name(): string {
@@ -142,6 +157,32 @@ class ConnectWorkflowMigration {
   KEY thread_id (thread_id),
   KEY event_key (event_key),
   KEY event_at (event_at)
+) {$charset_collate};";
+
+		self::run_schema( $sql );
+	}
+
+	private static function create_consent_events_table(): void {
+		global $wpdb;
+
+		$table           = self::consent_events_table_name();
+		$charset_collate = $wpdb->get_charset_collate();
+		$sql             = "CREATE TABLE {$table} (
+  id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+  blog_id BIGINT(20) UNSIGNED NOT NULL DEFAULT 1,
+  opportunity_id BIGINT(20) UNSIGNED DEFAULT NULL,
+  thread_id BIGINT(20) UNSIGNED DEFAULT NULL,
+  handover_id BIGINT(20) UNSIGNED DEFAULT NULL,
+  event_key VARCHAR(50) NOT NULL,
+  event_source VARCHAR(50) NOT NULL DEFAULT 'system',
+  actor_role VARCHAR(30) NOT NULL DEFAULT 'system',
+  event_payload LONGTEXT DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY blog_id (blog_id),
+  KEY opportunity_id (opportunity_id),
+  KEY thread_id (thread_id),
+  KEY event_key (event_key)
 ) {$charset_collate};";
 
 		self::run_schema( $sql );

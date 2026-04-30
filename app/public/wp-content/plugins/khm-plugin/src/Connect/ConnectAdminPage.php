@@ -7,9 +7,14 @@ defined( 'ABSPATH' ) || exit;
 class ConnectAdminPage {
 
 	private ConnectProviderRepository $providers;
+	private ConnectOpportunityRepository $opportunities;
 
-	public function __construct( ?ConnectProviderRepository $providers = null ) {
-		$this->providers = $providers ?? new ConnectProviderRepository();
+	public function __construct(
+		?ConnectProviderRepository $providers = null,
+		?ConnectOpportunityRepository $opportunities = null
+	) {
+		$this->providers     = $providers ?? new ConnectProviderRepository();
+		$this->opportunities = $opportunities ?? new ConnectOpportunityRepository();
 	}
 
 	public function register(): void {
@@ -17,6 +22,8 @@ class ConnectAdminPage {
 		add_action( 'admin_post_khm_connect_provider_save', array( $this, 'handle_save' ) );
 		add_action( 'admin_post_khm_connect_provider_delete', array( $this, 'handle_delete' ) );
 		add_action( 'admin_post_khm_connect_pricing_save', array( $this, 'handle_pricing_save' ) );
+		add_action( 'admin_post_khm_connect_opportunity_accept', array( $this, 'handle_opportunity_accept' ) );
+		add_action( 'admin_post_khm_connect_opportunity_status', array( $this, 'handle_opportunity_status' ) );
 	}
 
 	public function add_menu(): void {
@@ -35,6 +42,14 @@ class ConnectAdminPage {
 			'manage_options',
 			'khm-connect-pricing',
 			array( $this, 'render_pricing_page' )
+		);
+		add_submenu_page(
+			'khm-membership',
+			__( 'Connect Opportunities', 'khm-membership' ),
+			__( 'Connect Opportunities', 'khm-membership' ),
+			'manage_options',
+			'khm-connect-opportunities',
+			array( $this, 'render_opportunities_page' )
 		);
 	}
 
@@ -350,6 +365,264 @@ class ConnectAdminPage {
 		ConnectTiering::save_config( $config );
 
 		wp_safe_redirect( admin_url( 'admin.php?page=khm-connect-pricing&connect_notice=pricing_saved' ) );
+		exit;
+	}
+
+	public function render_opportunities_page(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to view Connect opportunities.', 'khm-membership' ) );
+		}
+
+		// Allow scoping the inbox to a specific sponsor_id for testing. In a
+		// production sponsor portal this would be the logged-in user's sponsor ID.
+		$sponsor_id     = isset( $_GET['sponsor_id'] ) ? absint( $_GET['sponsor_id'] ) : 0;
+		$notice         = isset( $_GET['connect_notice'] ) ? sanitize_key( (string) $_GET['connect_notice'] ) : '';
+		$active_id      = isset( $_GET['opportunity_id'] ) ? absint( $_GET['opportunity_id'] ) : 0;
+
+		if ( $sponsor_id > 0 ) {
+			$rows = $this->opportunities->list_inbox_for_sponsor( $sponsor_id );
+		} else {
+			$rows = $this->opportunities->list_all_inbox();
+		}
+
+		$active_opportunity = $active_id > 0 ? $this->opportunities->get_by_id( $active_id ) : null;
+		$active_providers   = $this->providers->list_active();
+		?>
+		<div class="wrap">
+			<h1><?php esc_html_e( 'Connect Opportunity Inbox', 'khm-membership' ); ?></h1>
+
+			<?php if ( 'accepted' === $notice ) : ?>
+				<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Opportunity accepted and provider assigned.', 'khm-membership' ); ?></p></div>
+			<?php elseif ( 'status_updated' === $notice ) : ?>
+				<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Opportunity status updated.', 'khm-membership' ); ?></p></div>
+			<?php elseif ( 'error_accept' === $notice ) : ?>
+				<div class="notice notice-error is-dismissible"><p><?php esc_html_e( 'Acceptance failed. Ensure sponsor ID and provider are both valid.', 'khm-membership' ); ?></p></div>
+			<?php endif; ?>
+
+			<div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;">
+				<form method="get">
+					<input type="hidden" name="page" value="khm-connect-opportunities" />
+					<label><?php esc_html_e( 'Filter by Sponsor ID:', 'khm-membership' ); ?>
+						<input class="small-text" type="number" min="1" name="sponsor_id" value="<?php echo esc_attr( $sponsor_id > 0 ? (string) $sponsor_id : '' ); ?>" />
+					</label>
+					<?php submit_button( __( 'Apply', 'khm-membership' ), 'secondary', '', false ); ?>
+					<?php if ( $sponsor_id > 0 ) : ?>
+						<a href="<?php echo esc_url( admin_url( 'admin.php?page=khm-connect-opportunities' ) ); ?>"><?php esc_html_e( 'Clear', 'khm-membership' ); ?></a>
+					<?php endif; ?>
+				</form>
+			</div>
+
+			<div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(320px,1fr);gap:24px;align-items:start;">
+				<div>
+					<table class="widefat striped">
+						<thead>
+							<tr>
+								<th><?php esc_html_e( 'ID', 'khm-membership' ); ?></th>
+								<th><?php esc_html_e( 'Status', 'khm-membership' ); ?></th>
+								<th><?php esc_html_e( 'Tier', 'khm-membership' ); ?></th>
+								<th><?php esc_html_e( 'Score', 'khm-membership' ); ?></th>
+								<th><?php esc_html_e( 'Price', 'khm-membership' ); ?></th>
+								<th><?php esc_html_e( 'Domain', 'khm-membership' ); ?></th>
+								<th><?php esc_html_e( 'Sponsor / Provider', 'khm-membership' ); ?></th>
+								<th><?php esc_html_e( 'Created', 'khm-membership' ); ?></th>
+								<th><?php esc_html_e( 'Actions', 'khm-membership' ); ?></th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php if ( empty( $rows ) ) : ?>
+								<tr><td colspan="9"><?php esc_html_e( 'No opportunities found.', 'khm-membership' ); ?></td></tr>
+							<?php else : ?>
+								<?php foreach ( $rows as $opp ) :
+									$row_url = add_query_arg(
+										array(
+											'page'           => 'khm-connect-opportunities',
+											'opportunity_id' => $opp['id'],
+											'sponsor_id'     => $sponsor_id > 0 ? $sponsor_id : false,
+										),
+										admin_url( 'admin.php' )
+									);
+									$is_active = $active_id === (int) $opp['id'];
+								?>
+									<tr <?php echo $is_active ? 'style="background:#f0f6fb;"' : ''; ?>>
+										<td><?php echo esc_html( (string) $opp['id'] ); ?></td>
+										<td><span style="text-transform:capitalize;"><?php echo esc_html( str_replace( '_', ' ', $opp['opportunity_status'] ) ); ?></span></td>
+										<td><?php echo esc_html( ucfirst( $opp['commercial_tier'] ) ); ?></td>
+										<td><?php echo esc_html( number_format( (float) $opp['person_score'], 1 ) ); ?></td>
+										<td>
+											<?php echo esc_html( strtoupper( $opp['pricing_model'] ) ); ?>
+											$<?php echo esc_html( number_format( (int) $opp['unit_price_cents'] / 100, 2 ) ); ?>
+											<?php if ( $opp['commission_eligible'] ) : ?>
+												<span title="<?php esc_attr_e( 'Commission eligible', 'khm-membership' ); ?>">★</span>
+											<?php endif; ?>
+										</td>
+										<td><code><?php echo esc_html( $opp['actor_email_domain'] ); ?></code></td>
+										<td>
+											<?php if ( $opp['sponsor_id'] > 0 ) : ?>
+												<span title="<?php esc_attr_e( 'Sponsor', 'khm-membership' ); ?>">#<?php echo esc_html( (string) $opp['sponsor_id'] ); ?></span>
+												/ <span title="<?php esc_attr_e( 'Provider', 'khm-membership' ); ?>">#<?php echo esc_html( (string) $opp['provider_id'] ); ?></span>
+											<?php else : ?>
+												<em><?php esc_html_e( 'Unassigned', 'khm-membership' ); ?></em>
+											<?php endif; ?>
+										</td>
+										<td><?php echo esc_html( substr( $opp['created_at'], 0, 10 ) ); ?></td>
+										<td>
+											<a class="button button-secondary" href="<?php echo esc_url( $row_url ); ?>"><?php esc_html_e( 'Detail', 'khm-membership' ); ?></a>
+										</td>
+									</tr>
+								<?php endforeach; ?>
+							<?php endif; ?>
+						</tbody>
+					</table>
+					<?php if ( ! empty( $rows ) ) : ?>
+						<p class="description" style="margin-top:8px;"><?php echo esc_html( sprintf( _n( '%d opportunity', '%d opportunities', count( $rows ), 'khm-membership' ), count( $rows ) ) ); ?></p>
+					<?php endif; ?>
+				</div>
+
+				<div>
+					<?php if ( null !== $active_opportunity ) : ?>
+						<h2><?php
+							/* translators: %d = opportunity ID */
+							echo esc_html( sprintf( __( 'Opportunity #%d', 'khm-membership' ), $active_opportunity['id'] ) );
+						?></h2>
+						<table class="widefat" style="margin-bottom:16px;">
+							<tbody>
+								<tr><th><?php esc_html_e( 'Status', 'khm-membership' ); ?></th><td><?php echo esc_html( str_replace( '_', ' ', $active_opportunity['opportunity_status'] ) ); ?></td></tr>
+								<tr><th><?php esc_html_e( 'Tier', 'khm-membership' ); ?></th><td><?php echo esc_html( ucfirst( $active_opportunity['commercial_tier'] ) ); ?></td></tr>
+								<tr><th><?php esc_html_e( 'Stage', 'khm-membership' ); ?></th><td><?php echo esc_html( $active_opportunity['internal_stage'] ); ?></td></tr>
+								<tr><th><?php esc_html_e( 'Person Score', 'khm-membership' ); ?></th><td><?php echo esc_html( number_format( (float) $active_opportunity['person_score'], 2 ) ); ?></td></tr>
+								<tr><th><?php esc_html_e( 'Pricing Model', 'khm-membership' ); ?></th><td><?php echo esc_html( strtoupper( $active_opportunity['pricing_model'] ) ); ?></td></tr>
+								<tr><th><?php esc_html_e( 'Unit Price', 'khm-membership' ); ?></th><td>$<?php echo esc_html( number_format( (int) $active_opportunity['unit_price_cents'] / 100, 2 ) ); ?></td></tr>
+								<tr><th><?php esc_html_e( 'Commission', 'khm-membership' ); ?></th><td><?php echo $active_opportunity['commission_eligible'] ? esc_html__( 'Yes', 'khm-membership' ) : esc_html__( 'No', 'khm-membership' ); ?></td></tr>
+								<tr><th><?php esc_html_e( 'Domain', 'khm-membership' ); ?></th><td><code><?php echo esc_html( $active_opportunity['actor_email_domain'] ); ?></code></td></tr>
+								<tr><th><?php esc_html_e( 'Sponsor ID', 'khm-membership' ); ?></th><td><?php echo $active_opportunity['sponsor_id'] > 0 ? esc_html( (string) $active_opportunity['sponsor_id'] ) : '<em>' . esc_html__( 'None', 'khm-membership' ) . '</em>'; ?></td></tr>
+								<tr><th><?php esc_html_e( 'Provider ID', 'khm-membership' ); ?></th><td><?php echo $active_opportunity['provider_id'] > 0 ? esc_html( (string) $active_opportunity['provider_id'] ) : '<em>' . esc_html__( 'None', 'khm-membership' ) . '</em>'; ?></td></tr>
+								<tr><th><?php esc_html_e( 'Created', 'khm-membership' ); ?></th><td><?php echo esc_html( $active_opportunity['created_at'] ); ?></td></tr>
+							</tbody>
+						</table>
+
+						<?php if ( 'sponsor_accepted' !== $active_opportunity['opportunity_status'] ) : ?>
+							<h3><?php esc_html_e( 'Accept Opportunity', 'khm-membership' ); ?></h3>
+							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+								<?php wp_nonce_field( 'khm_connect_opportunity_accept_' . (int) $active_opportunity['id'], 'khm_connect_opp_accept_nonce' ); ?>
+								<input type="hidden" name="action" value="khm_connect_opportunity_accept" />
+								<input type="hidden" name="opportunity_id" value="<?php echo esc_attr( (string) (int) $active_opportunity['id'] ); ?>" />
+								<input type="hidden" name="redirect_sponsor_id" value="<?php echo esc_attr( (string) $sponsor_id ); ?>" />
+								<table class="form-table" role="presentation">
+									<tr>
+										<th scope="row"><label for="khm_opp_sponsor_id"><?php esc_html_e( 'Sponsor ID', 'khm-membership' ); ?></label></th>
+										<td>
+											<input class="small-text" type="number" min="1" id="khm_opp_sponsor_id" name="sponsor_id" required value="<?php echo esc_attr( $sponsor_id > 0 ? (string) $sponsor_id : '' ); ?>" />
+										</td>
+									</tr>
+									<tr>
+										<th scope="row"><label for="khm_opp_provider_id"><?php esc_html_e( 'Provider', 'khm-membership' ); ?></label></th>
+										<td>
+											<select id="khm_opp_provider_id" name="provider_id" required>
+												<option value=""><?php esc_html_e( '— select provider —', 'khm-membership' ); ?></option>
+												<?php foreach ( $active_providers as $prov ) : ?>
+													<option value="<?php echo esc_attr( (string) (int) $prov['id'] ); ?>">
+														<?php echo esc_html( $prov['name'] ); ?>
+													</option>
+												<?php endforeach; ?>
+											</select>
+										</td>
+									</tr>
+								</table>
+								<?php submit_button( __( 'Accept + Assign Provider', 'khm-membership' ), 'primary' ); ?>
+							</form>
+						<?php else : ?>
+							<p class="notice notice-info" style="padding:8px 12px;"><?php esc_html_e( 'This opportunity has already been accepted.', 'khm-membership' ); ?></p>
+						<?php endif; ?>
+
+						<h3 style="margin-top:24px;"><?php esc_html_e( 'Update Status', 'khm-membership' ); ?></h3>
+						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+							<?php wp_nonce_field( 'khm_connect_opportunity_status_' . (int) $active_opportunity['id'], 'khm_connect_opp_status_nonce' ); ?>
+							<input type="hidden" name="action" value="khm_connect_opportunity_status" />
+							<input type="hidden" name="opportunity_id" value="<?php echo esc_attr( (string) (int) $active_opportunity['id'] ); ?>" />
+							<input type="hidden" name="redirect_sponsor_id" value="<?php echo esc_attr( (string) $sponsor_id ); ?>" />
+							<select name="opportunity_status">
+								<?php foreach ( array( 'detected', 'offered', 'sponsor_accepted', 'intro_requested', 'introduced', 'rejected', 'expired' ) as $s ) : ?>
+									<option value="<?php echo esc_attr( $s ); ?>" <?php selected( $active_opportunity['opportunity_status'], $s ); ?>>
+										<?php echo esc_html( ucwords( str_replace( '_', ' ', $s ) ) ); ?>
+									</option>
+								<?php endforeach; ?>
+							</select>
+							<?php submit_button( __( 'Update Status', 'khm-membership' ), 'secondary', '', false ); ?>
+						</form>
+
+					<?php else : ?>
+						<div style="padding:16px;background:#f8f8f8;border:1px solid #ddd;border-radius:4px;">
+							<p><?php esc_html_e( 'Select an opportunity from the list to view its detail and take action.', 'khm-membership' ); ?></p>
+						</div>
+					<?php endif; ?>
+				</div>
+			</div>
+		</div>
+		<?php
+	}
+
+	public function handle_opportunity_accept(): void {
+		$this->assert_manage_options();
+
+		$opportunity_id    = isset( $_POST['opportunity_id'] ) ? absint( $_POST['opportunity_id'] ) : 0;
+		$redirect_sponsor  = isset( $_POST['redirect_sponsor_id'] ) ? absint( $_POST['redirect_sponsor_id'] ) : 0;
+
+		check_admin_referer( 'khm_connect_opportunity_accept_' . $opportunity_id, 'khm_connect_opp_accept_nonce' );
+
+		$sponsor_id  = isset( $_POST['sponsor_id'] ) ? absint( $_POST['sponsor_id'] ) : 0;
+		$provider_id = isset( $_POST['provider_id'] ) ? absint( $_POST['provider_id'] ) : 0;
+
+		$ok = ( $opportunity_id > 0 && $sponsor_id > 0 && $provider_id > 0 )
+			? $this->opportunities->mark_sponsor_acceptance( $opportunity_id, $sponsor_id, $provider_id )
+			: false;
+
+		$redirect = add_query_arg(
+			array_filter(
+				array(
+					'page'           => 'khm-connect-opportunities',
+					'opportunity_id' => $ok ? $opportunity_id : false,
+					'sponsor_id'     => $redirect_sponsor > 0 ? $redirect_sponsor : false,
+					'connect_notice' => $ok ? 'accepted' : 'error_accept',
+				)
+			),
+			admin_url( 'admin.php' )
+		);
+
+		wp_safe_redirect( $redirect );
+		exit;
+	}
+
+	public function handle_opportunity_status(): void {
+		$this->assert_manage_options();
+
+		$opportunity_id   = isset( $_POST['opportunity_id'] ) ? absint( $_POST['opportunity_id'] ) : 0;
+		$redirect_sponsor = isset( $_POST['redirect_sponsor_id'] ) ? absint( $_POST['redirect_sponsor_id'] ) : 0;
+
+		check_admin_referer( 'khm_connect_opportunity_status_' . $opportunity_id, 'khm_connect_opp_status_nonce' );
+
+		$allowed_statuses = array( 'detected', 'offered', 'sponsor_accepted', 'intro_requested', 'introduced', 'rejected', 'expired' );
+		$new_status       = isset( $_POST['opportunity_status'] ) ? sanitize_key( (string) $_POST['opportunity_status'] ) : '';
+
+		if ( $opportunity_id > 0 && in_array( $new_status, $allowed_statuses, true ) ) {
+			$this->opportunities->mark_status( $opportunity_id, $new_status );
+			$notice = 'status_updated';
+		} else {
+			$notice = 'error_accept';
+		}
+
+		$redirect = add_query_arg(
+			array_filter(
+				array(
+					'page'           => 'khm-connect-opportunities',
+					'opportunity_id' => $opportunity_id > 0 ? $opportunity_id : false,
+					'sponsor_id'     => $redirect_sponsor > 0 ? $redirect_sponsor : false,
+					'connect_notice' => $notice,
+				)
+			),
+			admin_url( 'admin.php' )
+		);
+
+		wp_safe_redirect( $redirect );
 		exit;
 	}
 
