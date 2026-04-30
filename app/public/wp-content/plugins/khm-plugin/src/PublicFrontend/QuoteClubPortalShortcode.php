@@ -457,6 +457,164 @@ class QuoteClubPortalShortcode {
 						</datalist>
 					</section>
 
+					<section class="khm-qc-connect-panel khm-qc-connect-leads-panel khm-qc-connect-span-full" id="khm-qc-leads-panel-<?php echo esc_attr( (string) (int) ( $sponsor['id'] ?? 0 ) ); ?>">
+						<style>
+							.khm-qc-leads-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
+							.khm-qc-leads-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;}
+							.khm-qc-lead-card{border:1px solid #dcdcde;border-radius:6px;padding:14px;background:#fff;display:flex;flex-direction:column;gap:8px;}
+							.khm-qc-lead-card[data-status="sponsor_accepted"]{border-color:#1a73e8;}
+							.khm-qc-lead-card[data-status="intro_requested"],.khm-qc-lead-card[data-status="introduced"]{border-color:#1e8c45;}
+							.khm-qc-lead-tier{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:3px;background:#f0f0f1;color:#3c434a;}
+							.khm-qc-lead-tier-premium{background:#e8f0fe;color:#1a73e8;}
+							.khm-qc-lead-tier-standard{background:#e6f4ea;color:#1e8c45;}
+							.khm-qc-lead-tier-exploratory{background:#fce8e6;color:#c5221f;}
+							.khm-qc-lead-score-bar{height:4px;border-radius:2px;background:#e9e9e9;overflow:hidden;}
+							.khm-qc-lead-score-fill{height:100%;border-radius:2px;background:#1a73e8;transition:width .3s;}
+							.khm-qc-lead-meta{font-size:12px;color:#555;display:flex;flex-wrap:wrap;gap:6px 14px;}
+							.khm-qc-lead-status{font-size:12px;font-weight:600;}
+							.khm-qc-lead-actions{margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;}
+							.khm-qc-lead-accept-form select{font-size:12px;padding:4px 6px;border:1px solid #ccd0d4;border-radius:4px;max-width:180px;}
+							.khm-qc-leads-empty{padding:16px;color:#777;font-size:13px;}
+							.khm-qc-leads-notice{font-size:12px;padding:8px 12px;border-radius:4px;margin-bottom:8px;display:none;}
+							.khm-qc-leads-notice-ok{background:#e6f4ea;color:#1e8c45;}
+							.khm-qc-leads-notice-err{background:#fce8e6;color:#c5221f;}
+						</style>
+						<div class="khm-qc-connect-panel-head">
+							<div>
+								<h3><?php esc_html_e( 'Matched Leads', 'khm-membership' ); ?></h3>
+								<p><?php esc_html_e( 'Anonymised intent signals matched to your offerings. Accept a lead to trigger a platform-mediated introduction — buyer identity is revealed only after they explicitly request handover.', 'khm-membership' ); ?></p>
+							</div>
+							<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-leads-refresh"><?php esc_html_e( 'Refresh', 'khm-membership' ); ?></button>
+						</div>
+						<div class="khm-qc-leads-notice" role="status" aria-live="polite"></div>
+						<div class="khm-qc-leads-grid"></div>
+					</section>
+
+					<script>
+					(function() {
+						var sponsorId   = <?php echo (int) ( $sponsor['id'] ?? 0 ); ?>;
+						var restBase    = <?php echo wp_json_encode( trailingslashit( rest_url( 'khm/v1/connect' ) ) ); ?>;
+						var nonce       = <?php echo wp_json_encode( wp_create_nonce( 'wp_rest' ) ); ?>;
+						var panel       = document.getElementById('khm-qc-leads-panel-' + sponsorId);
+						if (!panel || !sponsorId) return;
+
+						var grid   = panel.querySelector('.khm-qc-leads-grid');
+						var notice = panel.querySelector('.khm-qc-leads-notice');
+						var btn    = panel.querySelector('.khm-qc-leads-refresh');
+
+						function showNotice(msg, ok) {
+							notice.textContent = msg;
+							notice.className = 'khm-qc-leads-notice ' + (ok ? 'khm-qc-leads-notice-ok' : 'khm-qc-leads-notice-err');
+							notice.style.display = 'block';
+							setTimeout(function(){ notice.style.display = 'none'; }, 5000);
+						}
+
+						function tierClass(tier) {
+							if (tier === 'premium') return 'khm-qc-lead-tier-premium';
+							if (tier === 'standard') return 'khm-qc-lead-tier-standard';
+							if (tier === 'exploratory') return 'khm-qc-lead-tier-exploratory';
+							return '';
+						}
+
+						function statusLabel(s) {
+							var map = {
+								detected:'New', offered:'Offered', sponsor_accepted:'Accepted',
+								intro_requested:'Intro Requested', introduced:'Introduced',
+								rejected:'Declined', expired:'Expired'
+							};
+							return map[s] || s;
+						}
+
+						function formatPrice(cents) {
+							return '$' + (cents/100).toFixed(2);
+						}
+
+						function renderCards(opps, providers) {
+							if (!opps.length) {
+								grid.innerHTML = '<p class="khm-qc-leads-empty"><?php echo esc_js( __( 'No matched leads in your current inbox.', 'khm-membership' ) ); ?></p>';
+								return;
+							}
+							grid.innerHTML = '';
+							opps.forEach(function(o) {
+								var scorePct = Math.round((o.person_score || 0) * 100);
+								var canAccept = (o.opportunity_status === 'detected' || o.opportunity_status === 'offered');
+								var acceptedAlready = o.opportunity_status === 'sponsor_accepted' || o.opportunity_status === 'intro_requested' || o.opportunity_status === 'introduced';
+
+								var providerOpts = providers.map(function(p) {
+									return '<option value="' + parseInt(p.id,10) + '"' + (o.provider_id == p.id ? ' selected' : '') + '>' + p.name.replace(/</g,'&lt;') + '</option>';
+								}).join('');
+
+								var acceptHtml = '';
+								if (canAccept && providers.length) {
+									acceptHtml = '<div class="khm-qc-lead-accept-form">' +
+										'<select class="khm-qc-lead-provider-sel"><option value=""><?php echo esc_js( __( 'Select provider…', 'khm-membership' ) ); ?></option>' + providerOpts + '</select> ' +
+										'<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-lead-accept-btn" data-id="' + o.id + '" style="font-size:12px;padding:4px 10px;"><?php echo esc_js( __( 'Accept', 'khm-membership' ) ); ?></button>' +
+									'</div>';
+								} else if (acceptedAlready) {
+									acceptHtml = '<span class="khm-qc-lead-status" style="color:#1e8c45;">&#10003; ' + statusLabel(o.opportunity_status) + '</span>';
+								}
+
+								var card = document.createElement('div');
+								card.className = 'khm-qc-lead-card';
+								card.dataset.status = o.opportunity_status;
+								card.dataset.id = o.id;
+								card.innerHTML =
+									'<div><span class="khm-qc-lead-tier ' + tierClass(o.commercial_tier) + '">' + (o.commercial_tier || 'unknown') + '</span></div>' +
+									'<div class="khm-qc-lead-score-bar"><div class="khm-qc-lead-score-fill" style="width:' + scorePct + '%"></div></div>' +
+									'<div class="khm-qc-lead-meta">' +
+										'<span><?php echo esc_js( __( 'Score', 'khm-membership' ) ); ?>: <strong>' + scorePct + '%</strong></span>' +
+										'<span><?php echo esc_js( __( 'Stage', 'khm-membership' ) ); ?>: ' + (o.internal_stage || '—') + '</span>' +
+										'<span><?php echo esc_js( __( 'Price', 'khm-membership' ) ); ?>: ' + formatPrice(o.unit_price_cents) + ' ' + (o.pricing_model || '') + '</span>' +
+									'</div>' +
+									(acceptHtml ? '<div class="khm-qc-lead-actions">' + acceptHtml + '</div>' : '');
+								grid.appendChild(card);
+							});
+
+							// Bind accept buttons
+							grid.querySelectorAll('.khm-qc-lead-accept-btn').forEach(function(btn) {
+								btn.addEventListener('click', function() {
+									var oppId     = parseInt(btn.dataset.id, 10);
+									var sel       = btn.closest('.khm-qc-lead-accept-form').querySelector('.khm-qc-lead-provider-sel');
+									var providerId = sel ? parseInt(sel.value, 10) : 0;
+									if (!providerId) { showNotice(<?php echo wp_json_encode( __( 'Please select a provider first.', 'khm-membership' ) ); ?>, false); return; }
+									btn.disabled = true;
+									fetch(restBase + 'opportunities/mine/' + oppId + '/accept', {
+										method: 'POST',
+										headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
+										body: JSON.stringify({ provider_id: providerId })
+									}).then(function(r){ return r.json(); }).then(function(d) {
+										if (d.success) {
+											showNotice(<?php echo wp_json_encode( __( 'Lead accepted — intro thread will open shortly.', 'khm-membership' ) ); ?>, true);
+											loadLeads();
+										} else {
+											showNotice((d.message || <?php echo wp_json_encode( __( 'Accept failed.', 'khm-membership' ) ); ?>), false);
+											btn.disabled = false;
+										}
+									}).catch(function(){ showNotice(<?php echo wp_json_encode( __( 'Network error — please try again.', 'khm-membership' ) ); ?>, false); btn.disabled = false; });
+								});
+							});
+						}
+
+						function loadLeads() {
+							grid.innerHTML = '<p class="khm-qc-leads-empty"><?php echo esc_js( __( 'Loading…', 'khm-membership' ) ); ?></p>';
+							// Load opportunities + providers in parallel
+							Promise.all([
+								fetch(restBase + 'opportunities/mine', { headers: { 'X-WP-Nonce': nonce } }).then(function(r){ return r.json(); }),
+								fetch(<?php echo wp_json_encode( trailingslashit( rest_url( 'khm/v1/connect' ) ) . 'providers/mine' ); ?>, { headers: { 'X-WP-Nonce': nonce } }).then(function(r){ return r.json(); }).catch(function(){ return { providers: [] }; })
+							]).then(function(results) {
+								var opps      = (results[0].opportunities || []);
+								var providers = (results[1].providers     || []);
+								renderCards(opps, providers);
+							}).catch(function() {
+								grid.innerHTML = '<p class="khm-qc-leads-empty" style="color:#c5221f;"><?php echo esc_js( __( 'Failed to load leads.', 'khm-membership' ) ); ?></p>';
+							});
+						}
+
+						btn.addEventListener('click', loadLeads);
+						loadLeads();
+					})();
+					</script>
+
 					<section class="khm-qc-connect-panel khm-qc-connect-inbox-panel khm-qc-connect-span-full">
 						<div class="khm-qc-connect-panel-head">
 							<div>
