@@ -54,9 +54,13 @@ class ConnectLegacyShortcodes {
 					<input type="number" min="0" step="1" data-khm="budget" placeholder="e.g. 2500" />
 				</label>
 			</div>
-			<button type="button" data-khm="run">Build shortlist</button>
+			<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+				<button type="button" data-khm="run">Build shortlist</button>
+				<button type="button" data-khm="compare" disabled>Compare selected</button>
+			</div>
 			<div data-khm="status" aria-live="polite"></div>
 			<div data-khm="results"></div>
+			<div data-khm="comparison" style="margin-top:16px;"></div>
 		</div>
 		<script>
 		(function(){
@@ -68,11 +72,31 @@ class ConnectLegacyShortcodes {
 			const continueUrl = <?php echo wp_json_encode( $continue_url ); ?>;
 			const status = root.querySelector('[data-khm="status"]');
 			const results = root.querySelector('[data-khm="results"]');
+			const comparison = root.querySelector('[data-khm="comparison"]');
+			const compareBtn = root.querySelector('[data-khm="compare"]');
 			const toList = (value) => (value || '').split(',').map(v => v.trim()).filter(Boolean);
+			const selectedIds = new Set();
+
+			const esc = (value) => String(value || '')
+				.replaceAll('&', '&amp;')
+				.replaceAll('<', '&lt;')
+				.replaceAll('>', '&gt;')
+				.replaceAll('"', '&quot;')
+				.replaceAll("'", '&#39;');
+
+			const updateCompareState = () => {
+				compareBtn.disabled = selectedIds.size < 2 || selectedIds.size > 5;
+				if (selectedIds.size > 5) {
+					status.textContent = 'Select between 2 and 5 providers to compare.';
+				}
+			};
 
 			root.querySelector('[data-khm="run"]').addEventListener('click', async () => {
 				status.textContent = 'Loading shortlist...';
 				results.innerHTML = '';
+				comparison.innerHTML = '';
+				selectedIds.clear();
+				updateCompareState();
 				const payload = {
 					title_context: titleContext,
 					limit: limit,
@@ -100,21 +124,89 @@ class ConnectLegacyShortcodes {
 					status.textContent = providers.length ? ('Found ' + providers.length + ' provider match(es).') : 'No providers matched yet.';
 					results.innerHTML = providers.map((p) => {
 						const reasons = Array.isArray(p.match_reasons) && p.match_reasons.length
-							? '<ul>' + p.match_reasons.map(r => '<li>' + String(r) + '</li>').join('') + '</ul>'
+							? '<ul>' + p.match_reasons.map(r => '<li>' + esc(r) + '</li>').join('') + '</ul>'
 							: '<p>No match reasons available.</p>';
+						const providerId = Number(p.id || p.provider_id || 0);
 						const name = p.name || 'Provider';
 						const introHref = continueUrl
 							? (continueUrl + (continueUrl.includes('?') ? '&' : '?') + 'provider_id=' + encodeURIComponent(String(p.id || p.provider_id || '')) + '&provider_name=' + encodeURIComponent(name))
 							: '#';
+						const checkbox = providerId > 0
+							? '<label style="display:block;margin:6px 0;"><input type="checkbox" data-khm="select-provider" value="' + providerId + '" /> Compare</label>'
+							: '';
 						return '<article class="khm-connect-card">'
-							+ '<h3>' + name + '</h3>'
-							+ (p.description ? '<p>' + p.description + '</p>' : '')
+							+ '<h3>' + esc(name) + '</h3>'
+							+ checkbox
+							+ (p.description ? '<p>' + esc(p.description) + '</p>' : '')
 							+ reasons
 							+ '<p><a href="' + introHref + '">Continue to intro form</a></p>'
 							+ '</article>';
 					}).join('');
+
+					results.querySelectorAll('[data-khm="select-provider"]').forEach((el) => {
+						el.addEventListener('change', () => {
+							const id = Number(el.value || 0);
+							if (!id) return;
+							if (el.checked) {
+								selectedIds.add(id);
+							} else {
+								selectedIds.delete(id);
+							}
+							updateCompareState();
+						});
+					});
+					updateCompareState();
 				} catch (err) {
 					status.textContent = err && err.message ? err.message : 'Unable to load shortlist.';
+				}
+			});
+
+			compareBtn.addEventListener('click', async () => {
+				const providerIds = Array.from(selectedIds.values());
+				if (providerIds.length < 2 || providerIds.length > 5) {
+					status.textContent = 'Select between 2 and 5 providers to compare.';
+					return;
+				}
+
+				status.textContent = 'Building comparison...';
+				comparison.innerHTML = '';
+
+				try {
+					const res = await fetch(restBase + 'compare', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						credentials: 'same-origin',
+						body: JSON.stringify({
+							title_context: titleContext,
+							provider_ids: providerIds
+						})
+					});
+
+					const data = await res.json();
+					if (!res.ok) {
+						throw new Error(data && data.message ? data.message : 'Unable to build comparison.');
+					}
+
+					const providerList = Array.isArray(data.providers) ? data.providers : [];
+					const matrixRows = Array.isArray(data.matrix) ? data.matrix : [];
+
+					const headerCells = providerList.map((p) => '<th>' + esc(p.name || 'Provider') + '</th>').join('');
+					const rowHtml = matrixRows.map((row) => {
+						const label = esc(row.label || row.key || 'Field');
+						const values = Array.isArray(row.values) ? row.values : [];
+						const cells = values.map((v) => '<td>' + esc(v) + '</td>').join('');
+						return '<tr><th scope="row">' + label + '</th>' + cells + '</tr>';
+					}).join('');
+
+					comparison.innerHTML = '<h3>Provider Comparison</h3>'
+						+ '<table class="widefat striped">'
+						+ '<thead><tr><th>Field</th>' + headerCells + '</tr></thead>'
+						+ '<tbody>' + rowHtml + '</tbody>'
+						+ '</table>';
+
+					status.textContent = 'Comparison ready.';
+				} catch (err) {
+					status.textContent = err && err.message ? err.message : 'Unable to build comparison.';
 				}
 			});
 		})();
