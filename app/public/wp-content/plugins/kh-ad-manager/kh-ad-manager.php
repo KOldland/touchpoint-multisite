@@ -211,19 +211,6 @@ add_action('wp_footer', function() {
     include AM_PATH . 'partials/ad-popups.php';
 });
 
-// Ad options page menu
-    add_action('acf/init', function() {
-        if (function_exists('acf_add_options_page')) {
-            acf_add_options_page([
-                'page_title' => 'KH Ad Settings',
-                'menu_title' => 'Ad Settings',
-                'menu_slug'  => 'kh-ad-settings',
-                'capability' => 'edit_posts',
-                'redirect'   => false
-            ]);
-        }
-    });
-
 // Move Ad Slot Overrides field group to the editor sidebar
     add_filter('acf/render_field/key=field_68652678baa37', function($field) {
         if (!empty($field['value']) && is_numeric($field['value'])) {

@@ -1058,6 +1058,156 @@ add_action( 'save_post', function( $post_id ) {
 		}
 	}
 
+/* Native fallbacks for legacy ACF blocks when ACF Pro is unavailable */
+	add_action( 'init', 'touchpoint_register_legacy_acf_block_fallbacks', 20 );
+	function touchpoint_register_legacy_acf_block_fallbacks() {
+		if ( function_exists( 'acf_register_block_type' ) || ! function_exists( 'register_block_type' ) ) {
+			return;
+		}
+
+		register_block_type(
+			'acf/abstract',
+			array(
+				'api_version'     => 2,
+				'render_callback' => 'touchpoint_render_legacy_abstract_block',
+			)
+		);
+
+		register_block_type(
+			'acf/footnotes',
+			array(
+				'api_version'     => 2,
+				'render_callback' => 'touchpoint_render_legacy_footnotes_block',
+			)
+		);
+	}
+
+	function touchpoint_extract_repeater_rows_from_acf_data( $data, $base_key, $field_names ) {
+		if ( isset( $data[ $base_key ] ) && is_array( $data[ $base_key ] ) ) {
+			return $data[ $base_key ];
+		}
+
+		$rows  = array();
+		$count = isset( $data[ $base_key ] ) ? absint( $data[ $base_key ] ) : 0;
+
+		for ( $i = 0; $i < $count; $i++ ) {
+			$row = array();
+			foreach ( $field_names as $field_name ) {
+				$row_key = sprintf( '%s_%d_%s', $base_key, $i, $field_name );
+				$row[ $field_name ] = isset( $data[ $row_key ] ) ? $data[ $row_key ] : '';
+			}
+
+			if ( array_filter( $row, static function( $value ) { return '' !== (string) $value; } ) ) {
+				$rows[] = $row;
+			}
+		}
+
+		return $rows;
+	}
+
+	function touchpoint_extract_repeater_rows_from_meta( $post_id, $base_key, $field_names ) {
+		$rows    = array();
+		$indices = array();
+		$count   = absint( get_post_meta( $post_id, $base_key, true ) );
+
+		if ( $count > 0 ) {
+			$indices = range( 0, $count - 1 );
+		} else {
+			$all_meta = get_post_meta( $post_id );
+			$pattern  = '/^' . preg_quote( $base_key, '/' ) . '_(\\d+)_/';
+
+			if ( is_array( $all_meta ) ) {
+				foreach ( array_keys( $all_meta ) as $meta_key ) {
+					if ( preg_match( $pattern, $meta_key, $matches ) ) {
+						$index = (int) $matches[1];
+						$indices[ $index ] = $index;
+					}
+				}
+			}
+
+			if ( ! empty( $indices ) ) {
+				ksort( $indices );
+				$indices = array_values( $indices );
+			}
+		}
+
+		foreach ( $indices as $i ) {
+			$row = array();
+			foreach ( $field_names as $field_name ) {
+				$row_key = sprintf( '%s_%d_%s', $base_key, $i, $field_name );
+				$row[ $field_name ] = get_post_meta( $post_id, $row_key, true );
+			}
+
+			if ( array_filter( $row, static function( $value ) { return '' !== (string) $value; } ) ) {
+				$rows[] = $row;
+			}
+		}
+
+		return $rows;
+	}
+
+	function touchpoint_get_legacy_abstract_data( $attributes, $post_id ) {
+		$data = array(
+			'overview'    => '',
+			'context'     => '',
+			'application' => '',
+			'key_points'  => array(),
+		);
+
+		$acf_data = isset( $attributes['data'] ) && is_array( $attributes['data'] ) ? $attributes['data'] : array();
+
+		foreach ( array( 'overview', 'context', 'application' ) as $key ) {
+			if ( isset( $acf_data[ $key ] ) && '' !== (string) $acf_data[ $key ] ) {
+				$data[ $key ] = $acf_data[ $key ];
+			} elseif ( $post_id ) {
+				$data[ $key ] = get_post_meta( $post_id, $key, true );
+			}
+		}
+
+		$data['key_points'] = touchpoint_extract_repeater_rows_from_acf_data( $acf_data, 'key_points', array( 'bullet' ) );
+		if ( empty( $data['key_points'] ) && $post_id ) {
+			$data['key_points'] = touchpoint_extract_repeater_rows_from_meta( $post_id, 'key_points', array( 'bullet' ) );
+		}
+
+		return $data;
+	}
+
+	function touchpoint_get_legacy_footnotes_data( $attributes, $post_id ) {
+		$acf_data = isset( $attributes['data'] ) && is_array( $attributes['data'] ) ? $attributes['data'] : array();
+		$fields   = array( 'reference_text', 'reference_link', 'publication_date', 'lead_author', 'additional_authors' );
+
+		$rows = touchpoint_extract_repeater_rows_from_acf_data( $acf_data, 'footnotes', $fields );
+		if ( empty( $rows ) && $post_id ) {
+			$rows = touchpoint_extract_repeater_rows_from_meta( $post_id, 'footnotes', $fields );
+		}
+
+		return array( 'footnotes' => $rows );
+	}
+
+	function touchpoint_render_legacy_abstract_block( $attributes ) {
+		$post_id = get_the_ID();
+		$data    = touchpoint_get_legacy_abstract_data( is_array( $attributes ) ? $attributes : array(), $post_id ? (int) $post_id : 0 );
+
+		set_query_var( 'touchpoint_abstract_data', $data );
+		ob_start();
+		get_template_part( 'template-parts/blocks/abstract/abstract' );
+		set_query_var( 'touchpoint_abstract_data', null );
+
+		return ob_get_clean();
+	}
+
+	function touchpoint_render_legacy_footnotes_block( $attributes ) {
+		$post_id = get_the_ID();
+		$data    = touchpoint_get_legacy_footnotes_data( is_array( $attributes ) ? $attributes : array(), $post_id ? (int) $post_id : 0 );
+
+		set_query_var( 'touchpoint_footnotes_data', $data );
+		ob_start();
+		get_template_part( 'template-parts/blocks/footnotes/footnotes' );
+		set_query_var( 'touchpoint_footnotes_data', null );
+
+		return ob_get_clean();
+	}
+
 /* ACF fields for abstract block */
 	add_action( 'acf/init', 'register_abstract_block_fields' );
 	function register_abstract_block_fields() {

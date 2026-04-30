@@ -20,8 +20,10 @@ class Editor extends App {
 		'editor-documents-extended',
 	];
 	const EDITOR_V4_PACKAGES = [
+		'license-api',
 		'editor-controls-extended',
 		'editor-editing-panel-extended',
+		'editor-components-extended',
 	];
 
 	/**

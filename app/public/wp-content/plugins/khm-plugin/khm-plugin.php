@@ -467,6 +467,11 @@ if ( class_exists( 'KHM\\PublicFrontend\\QuoteClubPortalShortcode' ) ) {
     ( new KHM\PublicFrontend\QuoteClubPortalShortcode() )->register();
 }
 
+// Backward-compatible Connect shortcodes used by existing published pages.
+if ( class_exists( 'KHM\\PublicFrontend\\ConnectLegacyShortcodes' ) ) {
+	( new KHM\PublicFrontend\ConnectLegacyShortcodes() )->register();
+}
+
 // Initialize Attribution System
 add_action('plugins_loaded', 'khm_init_attribution_system');
 

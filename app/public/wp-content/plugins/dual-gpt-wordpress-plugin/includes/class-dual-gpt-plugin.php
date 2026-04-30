@@ -6608,9 +6608,97 @@ class Dual_GPT_Plugin {
         }
 
         $this->insert_blocks_into_post($post_id, $gutenberg_blocks);
+        $this->sync_legacy_acf_block_meta($post_id, $block_data['blocks']);
         $this->apply_author_post_categories($post_id, $article);
         $this->apply_author_post_tags($post_id, $article);
         return true;
+    }
+
+    private function sync_legacy_acf_block_meta($post_id, $blocks) {
+        if (!$post_id || !is_array($blocks)) {
+            return;
+        }
+
+        foreach ($blocks as $block) {
+            if (!is_array($block) || ($block['type'] ?? '') !== 'acf_block') {
+                continue;
+            }
+
+            $name = (string) ($block['name'] ?? '');
+            $data = is_array($block['data'] ?? null) ? $block['data'] : array();
+
+            if ($name === 'abstract') {
+                $this->sync_legacy_abstract_meta($post_id, $data);
+                continue;
+            }
+
+            if ($name === 'footnotes') {
+                $this->sync_legacy_footnotes_meta($post_id, $data);
+            }
+        }
+    }
+
+    private function clear_post_meta_by_pattern($post_id, $pattern) {
+        $all_meta = get_post_meta($post_id);
+        if (!is_array($all_meta)) {
+            return;
+        }
+
+        foreach (array_keys($all_meta) as $meta_key) {
+            if (preg_match($pattern, (string) $meta_key)) {
+                delete_post_meta($post_id, $meta_key);
+            }
+        }
+    }
+
+    private function sync_legacy_abstract_meta($post_id, $data) {
+        foreach (array('overview', 'context', 'application') as $key) {
+            if (array_key_exists($key, $data)) {
+                update_post_meta($post_id, $key, wp_kses_post((string) $data[$key]));
+            }
+        }
+
+        $this->clear_post_meta_by_pattern($post_id, '/^_?key_points(_\d+_bullet)?$/');
+
+        $count = max(0, intval($data['key_points'] ?? 0));
+        update_post_meta($post_id, 'key_points', $count);
+
+        for ($i = 0; $i < $count; $i++) {
+            $bullet_key = 'key_points_' . $i . '_bullet';
+            if (!array_key_exists($bullet_key, $data)) {
+                continue;
+            }
+            update_post_meta($post_id, $bullet_key, sanitize_text_field((string) $data[$bullet_key]));
+        }
+    }
+
+    private function sync_legacy_footnotes_meta($post_id, $data) {
+        $this->clear_post_meta_by_pattern($post_id, '/^_?footnotes(_\d+_(reference_text|reference_link|publication_date|lead_author|additional_authors))?$/');
+
+        $count = max(0, intval($data['footnotes'] ?? 0));
+        update_post_meta($post_id, 'footnotes', $count);
+
+        $footnote_fields = array(
+            'reference_text' => 'sanitize_text_field',
+            'reference_link' => 'esc_url_raw',
+            'publication_date' => 'sanitize_text_field',
+            'lead_author' => 'sanitize_text_field',
+            'additional_authors' => 'sanitize_text_field',
+        );
+
+        for ($i = 0; $i < $count; $i++) {
+            foreach ($footnote_fields as $field => $sanitizer) {
+                $meta_key = 'footnotes_' . $i . '_' . $field;
+                if (!array_key_exists($meta_key, $data)) {
+                    continue;
+                }
+
+                $value = is_callable($sanitizer)
+                    ? call_user_func($sanitizer, (string) $data[$meta_key])
+                    : sanitize_text_field((string) $data[$meta_key]);
+                update_post_meta($post_id, $meta_key, $value);
+            }
+        }
     }
 
     private function evaluate_author_heuristics($draft) {

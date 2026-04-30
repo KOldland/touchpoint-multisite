@@ -2,7 +2,29 @@
     <h3><u>Footnotes</u></h3>
     
     <?php
-      $footnotes = get_field('footnotes');
+      $block_data = get_query_var('touchpoint_footnotes_data');
+      $footnotes = is_array( $block_data ) && isset( $block_data['footnotes'] ) && is_array( $block_data['footnotes'] )
+        ? $block_data['footnotes']
+        : array();
+
+      if ( empty( $footnotes ) && function_exists( 'get_field' ) ) {
+        $acf_footnotes = get_field('footnotes');
+        if ( is_array( $acf_footnotes ) ) {
+          $footnotes = $acf_footnotes;
+        }
+      }
+
+      if ( empty( $footnotes ) || ! is_array( $footnotes ) ) {
+        $post_id = get_the_ID();
+        if ( $post_id && function_exists( 'touchpoint_extract_repeater_rows_from_meta' ) ) {
+          $footnotes = touchpoint_extract_repeater_rows_from_meta(
+            $post_id,
+            'footnotes',
+            array( 'reference_text', 'reference_link', 'publication_date', 'lead_author', 'additional_authors' )
+          );
+        }
+      }
+
       if ($footnotes) {
         echo '<ol>';
         foreach ($footnotes as $item) {
