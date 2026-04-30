@@ -1595,6 +1595,15 @@ register_activation_hook(__FILE__, function () {
                 }
             }
 
+            // Add distribution_site_ids to press releases table (S7 – portfolio distribution).
+            if ( class_exists('KHM\\Migrations\\AddPressReleaseDistribution') ) {
+                try {
+                    KHM\Migrations\AddPressReleaseDistribution::add_columns();
+                } catch (\Exception $e) {
+                    error_log('AddPressReleaseDistribution failed: ' . $e->getMessage());
+                }
+            }
+
         }
     }
 

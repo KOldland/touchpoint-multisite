@@ -816,6 +816,19 @@ class QuoteClubPortalShortcode {
 
 	private function render_press_releases_section( int $user_id, ?array $sponsor ): void {
 		$sponsor_id = isset( $sponsor['id'] ) ? (int) $sponsor['id'] : 0;
+
+		// S7: Build portfolio site list for distribution checkboxes.
+		$portfolio_sites = array();
+		if ( is_multisite() ) {
+			$blogs = get_sites( array( 'public' => 1, 'archived' => 0, 'deleted' => 0, 'number' => 50 ) );
+			foreach ( $blogs as $blog ) {
+				$bid  = (int) $blog->blog_id;
+				$name = get_blog_option( $bid, 'blogname' );
+				$portfolio_sites[] = array( 'id' => $bid, 'name' => $name );
+			}
+		}
+		$portfolio_sites_json = wp_json_encode( $portfolio_sites );
+		$current_blog_id      = is_multisite() ? (int) get_current_blog_id() : 0;
 		?>
 		<div class="khm-qc-section khm-qc-press-releases">
 			<h2><?php esc_html_e( 'Press Releases', 'khm-membership' ); ?></h2>
@@ -851,6 +864,26 @@ class QuoteClubPortalShortcode {
 										  class="khm-qc-textarea"></textarea>
 								<small><?php esc_html_e( 'Press releases can be any length.', 'khm-membership' ); ?></small>
 							</div>
+							<?php if ( ! empty( $portfolio_sites ) ) : ?>
+							<div class="khm-qc-form-group" id="pr-dist-group">
+								<label><?php esc_html_e( 'Also distribute to portfolio sites (S7):', 'khm-membership' ); ?></label>
+								<div id="pr-dist-sites" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">
+								<?php foreach ( $portfolio_sites as $site ) : ?>
+									<label style="font-size:13px;display:flex;align-items:center;gap:4px;">
+										<input type="checkbox" class="pr-dist-site-cb"
+											   value="<?php echo (int) $site['id']; ?>"
+											   <?php checked( (int) $site['id'], $current_blog_id ); ?>
+											   <?php disabled( (int) $site['id'], $current_blog_id ); ?> />
+										<?php echo esc_html( $site['name'] ); ?>
+										<?php if ( (int) $site['id'] === $current_blog_id ) : ?>
+											<em style="color:#777;font-size:11px;">(<?php esc_html_e( 'this site', 'khm-membership' ); ?>)</em>
+										<?php endif; ?>
+									</label>
+								<?php endforeach; ?>
+								</div>
+								<small><?php esc_html_e( 'The current site is always included. Extra sites require editorial approval on each.', 'khm-membership' ); ?></small>
+							</div>
+							<?php endif; ?>
 						</form>
 					</div>
 					<div class="khm-qc-modal-footer">
@@ -993,15 +1026,19 @@ class QuoteClubPortalShortcode {
 
 					$(this).prop('disabled', true).text('Saving…');
 
+					// S7: collect checked distribution site IDs.
+					var distIds = [];
+					$('.pr-dist-site-cb:checked').each(function(){ distIds.push(parseInt($(this).val(), 10)); });
+
 					var method, url, data;
 					if (currentPrId) {
 						method = 'PUT';
 						url = restUrl + '/' + currentPrId;
-						data = { title: title, content: content };
+						data = { title: title, content: content, distribution_site_ids: distIds };
 					} else {
 						method = 'POST';
 						url = restUrl;
-						data = { title: title, content: content };
+						data = { title: title, content: content, distribution_site_ids: distIds };
 					}
 
 					$.ajax({
