@@ -6,6 +6,7 @@ defined( 'ABSPATH' ) || exit;
 
 class ConnectAdminPage {
 	private const EDITORIAL_CAMPAIGN_OPTION = 'khm_connect_editorial_campaign';
+	private const PROMOTION_BUILDER_OPTION = 'khm_connect_promotion_builder';
 
 	private ConnectProviderRepository $providers;
 	private ConnectOpportunityRepository $opportunities;
@@ -24,6 +25,7 @@ class ConnectAdminPage {
 		add_action( 'admin_post_khm_connect_provider_delete', array( $this, 'handle_delete' ) );
 		add_action( 'admin_post_khm_connect_pricing_save', array( $this, 'handle_pricing_save' ) );
 		add_action( 'admin_post_khm_connect_editorial_campaign_save', array( $this, 'handle_editorial_campaign_save' ) );
+		add_action( 'admin_post_khm_connect_promotion_builder_save', array( $this, 'handle_promotion_builder_save' ) );
 		add_action( 'admin_post_khm_connect_opportunity_accept', array( $this, 'handle_opportunity_accept' ) );
 		add_action( 'admin_post_khm_connect_opportunity_status', array( $this, 'handle_opportunity_status' ) );
 	}
@@ -60,6 +62,14 @@ class ConnectAdminPage {
 			'manage_options',
 			'khm-connect-editorial-campaign',
 			array( $this, 'render_editorial_campaign_page' )
+		);
+		add_submenu_page(
+			'khm-membership',
+			__( 'Connect Promotion Builder', 'khm-membership' ),
+			__( 'Connect Promotion Builder', 'khm-membership' ),
+			'manage_options',
+			'khm-connect-promotion-builder',
+			array( $this, 'render_promotion_builder_page' )
 		);
 	}
 
@@ -489,6 +499,117 @@ class ConnectAdminPage {
 		exit;
 	}
 
+	public function render_promotion_builder_page(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to manage Connect promotions.', 'khm-membership' ) );
+		}
+
+		$notice = isset( $_GET['connect_notice'] ) ? sanitize_key( (string) $_GET['connect_notice'] ) : '';
+		$config = $this->get_promotion_builder_config();
+
+		?>
+		<div class="wrap">
+			<h1><?php esc_html_e( 'Connect Promotion Builder', 'khm-membership' ); ?></h1>
+			<?php if ( 'promotion_builder_saved' === $notice ) : ?>
+				<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Promotion builder settings saved.', 'khm-membership' ); ?></p></div>
+			<?php endif; ?>
+
+			<p class="description" style="margin-bottom:16px;">
+				<?php esc_html_e( 'Configure audience rules, budget pacing, and approval state for Connect promotional delivery.', 'khm-membership' ); ?>
+			</p>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php wp_nonce_field( 'khm_connect_promotion_builder_save', 'khm_connect_promotion_builder_nonce' ); ?>
+				<input type="hidden" name="action" value="khm_connect_promotion_builder_save" />
+
+				<h2><?php esc_html_e( 'Audience Rules', 'khm-membership' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="khm_promo_include_titles"><?php esc_html_e( 'Include Title Contexts', 'khm-membership' ); ?></label></th>
+						<td><input class="regular-text" id="khm_promo_include_titles" type="text" name="promotion[include_titles]" value="<?php echo esc_attr( (string) $config['include_titles'] ); ?>" /><p class="description"><?php esc_html_e( 'Comma-separated slugs, e.g. cmo, revops, demand-gen.', 'khm-membership' ); ?></p></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_promo_exclude_titles"><?php esc_html_e( 'Exclude Title Contexts', 'khm-membership' ); ?></label></th>
+						<td><input class="regular-text" id="khm_promo_exclude_titles" type="text" name="promotion[exclude_titles]" value="<?php echo esc_attr( (string) $config['exclude_titles'] ); ?>" /></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_promo_include_regions"><?php esc_html_e( 'Include Regions', 'khm-membership' ); ?></label></th>
+						<td><input class="regular-text" id="khm_promo_include_regions" type="text" name="promotion[include_regions]" value="<?php echo esc_attr( (string) $config['include_regions'] ); ?>" /></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_promo_exclude_regions"><?php esc_html_e( 'Exclude Regions', 'khm-membership' ); ?></label></th>
+						<td><input class="regular-text" id="khm_promo_exclude_regions" type="text" name="promotion[exclude_regions]" value="<?php echo esc_attr( (string) $config['exclude_regions'] ); ?>" /></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_promo_keywords"><?php esc_html_e( 'Audience Keywords', 'khm-membership' ); ?></label></th>
+						<td><input class="regular-text" id="khm_promo_keywords" type="text" name="promotion[keywords]" value="<?php echo esc_attr( (string) $config['keywords'] ); ?>" /><p class="description"><?php esc_html_e( 'Comma-separated intent terms used for lightweight matching.', 'khm-membership' ); ?></p></td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'Budget + Pacing', 'khm-membership' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="khm_promo_budget_daily"><?php esc_html_e( 'Daily Budget (cents)', 'khm-membership' ); ?></label></th>
+						<td><input class="small-text" id="khm_promo_budget_daily" type="number" min="0" step="1" name="promotion[budget_daily_cents]" value="<?php echo esc_attr( (string) (int) $config['budget_daily_cents'] ); ?>" /></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_promo_budget_total"><?php esc_html_e( 'Total Budget (cents)', 'khm-membership' ); ?></label></th>
+						<td><input class="small-text" id="khm_promo_budget_total" type="number" min="0" step="1" name="promotion[budget_total_cents]" value="<?php echo esc_attr( (string) (int) $config['budget_total_cents'] ); ?>" /></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_promo_pacing"><?php esc_html_e( 'Pacing Mode', 'khm-membership' ); ?></label></th>
+						<td>
+							<select id="khm_promo_pacing" name="promotion[pacing_mode]">
+								<option value="steady" <?php selected( (string) $config['pacing_mode'], 'steady' ); ?>><?php esc_html_e( 'Steady', 'khm-membership' ); ?></option>
+								<option value="front_loaded" <?php selected( (string) $config['pacing_mode'], 'front_loaded' ); ?>><?php esc_html_e( 'Front Loaded', 'khm-membership' ); ?></option>
+								<option value="back_loaded" <?php selected( (string) $config['pacing_mode'], 'back_loaded' ); ?>><?php esc_html_e( 'Back Loaded', 'khm-membership' ); ?></option>
+							</select>
+						</td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'Approval + Audit', 'khm-membership' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="khm_promo_approval_status"><?php esc_html_e( 'Approval Status', 'khm-membership' ); ?></label></th>
+						<td>
+							<select id="khm_promo_approval_status" name="promotion[approval_status]">
+								<option value="draft" <?php selected( (string) $config['approval_status'], 'draft' ); ?>><?php esc_html_e( 'Draft', 'khm-membership' ); ?></option>
+								<option value="pending_approval" <?php selected( (string) $config['approval_status'], 'pending_approval' ); ?>><?php esc_html_e( 'Pending Approval', 'khm-membership' ); ?></option>
+								<option value="approved" <?php selected( (string) $config['approval_status'], 'approved' ); ?>><?php esc_html_e( 'Approved', 'khm-membership' ); ?></option>
+								<option value="paused" <?php selected( (string) $config['approval_status'], 'paused' ); ?>><?php esc_html_e( 'Paused', 'khm-membership' ); ?></option>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_promo_owner"><?php esc_html_e( 'Owner', 'khm-membership' ); ?></label></th>
+						<td><input class="regular-text" id="khm_promo_owner" type="text" name="promotion[owner]" value="<?php echo esc_attr( (string) $config['owner'] ); ?>" placeholder="editorial-ops" /></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_promo_notes"><?php esc_html_e( 'Audit Notes', 'khm-membership' ); ?></label></th>
+						<td><textarea class="large-text" rows="4" id="khm_promo_notes" name="promotion[audit_notes]"><?php echo esc_textarea( (string) $config['audit_notes'] ); ?></textarea></td>
+					</tr>
+				</table>
+
+				<?php submit_button( __( 'Save Promotion Builder', 'khm-membership' ) ); ?>
+			</form>
+		</div>
+		<?php
+	}
+
+	public function handle_promotion_builder_save(): void {
+		$this->assert_manage_options();
+		check_admin_referer( 'khm_connect_promotion_builder_save', 'khm_connect_promotion_builder_nonce' );
+
+		$raw = isset( $_POST['promotion'] ) && is_array( $_POST['promotion'] ) ? wp_unslash( $_POST['promotion'] ) : array();
+		$clean = $this->sanitize_promotion_builder_config( $raw );
+
+		update_option( self::PROMOTION_BUILDER_OPTION, $clean, false );
+
+		wp_safe_redirect( admin_url( 'admin.php?page=khm-connect-promotion-builder&connect_notice=promotion_builder_saved' ) );
+		exit;
+	}
+
 	public function render_opportunities_page(): void {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'You do not have permission to view Connect opportunities.', 'khm-membership' ) );
@@ -804,6 +925,51 @@ class ConnectAdminPage {
 			'default_provider_id' => absint( $raw['default_provider_id'] ?? 0 ),
 			'promotion_notes'     => sanitize_textarea_field( (string) ( $raw['promotion_notes'] ?? '' ) ),
 			'active'              => ! empty( $raw['active'] ) ? 1 : 0,
+		);
+	}
+
+	private function get_promotion_builder_config(): array {
+		$defaults = array(
+			'include_titles'      => '',
+			'exclude_titles'      => '',
+			'include_regions'     => '',
+			'exclude_regions'     => '',
+			'keywords'            => '',
+			'budget_daily_cents'  => 0,
+			'budget_total_cents'  => 0,
+			'pacing_mode'         => 'steady',
+			'approval_status'     => 'draft',
+			'owner'               => '',
+			'audit_notes'         => '',
+		);
+
+		$stored = get_option( self::PROMOTION_BUILDER_OPTION, array() );
+		if ( ! is_array( $stored ) ) {
+			return $defaults;
+		}
+
+		return array_merge( $defaults, $this->sanitize_promotion_builder_config( $stored ) );
+	}
+
+	private function sanitize_promotion_builder_config( array $raw ): array {
+		$valid_pacing = array( 'steady', 'front_loaded', 'back_loaded' );
+		$valid_approval = array( 'draft', 'pending_approval', 'approved', 'paused' );
+
+		$pacing = sanitize_key( (string) ( $raw['pacing_mode'] ?? 'steady' ) );
+		$approval = sanitize_key( (string) ( $raw['approval_status'] ?? 'draft' ) );
+
+		return array(
+			'include_titles'      => sanitize_text_field( (string) ( $raw['include_titles'] ?? '' ) ),
+			'exclude_titles'      => sanitize_text_field( (string) ( $raw['exclude_titles'] ?? '' ) ),
+			'include_regions'     => sanitize_text_field( (string) ( $raw['include_regions'] ?? '' ) ),
+			'exclude_regions'     => sanitize_text_field( (string) ( $raw['exclude_regions'] ?? '' ) ),
+			'keywords'            => sanitize_text_field( (string) ( $raw['keywords'] ?? '' ) ),
+			'budget_daily_cents'  => max( 0, (int) ( $raw['budget_daily_cents'] ?? 0 ) ),
+			'budget_total_cents'  => max( 0, (int) ( $raw['budget_total_cents'] ?? 0 ) ),
+			'pacing_mode'         => in_array( $pacing, $valid_pacing, true ) ? $pacing : 'steady',
+			'approval_status'     => in_array( $approval, $valid_approval, true ) ? $approval : 'draft',
+			'owner'               => sanitize_text_field( (string) ( $raw['owner'] ?? '' ) ),
+			'audit_notes'         => sanitize_textarea_field( (string) ( $raw['audit_notes'] ?? '' ) ),
 		);
 	}
 
