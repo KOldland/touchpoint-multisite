@@ -290,6 +290,12 @@ class ConnectLegacyShortcodes {
 					if (!threadId || !token) {
 						throw new Error('Intro request created but status link is unavailable.');
 					}
+					try {
+						window.localStorage.setItem('khm_connect_last_thread_id', String(threadId));
+						window.localStorage.setItem('khm_connect_last_buyer_token', token);
+					} catch (_) {
+						// Ignore storage failures in private browsing contexts.
+					}
 					status.textContent = 'Intro request sent. Redirecting to status...';
 					const sep = statusUrl.includes('?') ? '&' : '?';
 					window.location.href = statusUrl + sep + 'thread_id=' + encodeURIComponent(String(threadId)) + '&token=' + encodeURIComponent(token);
@@ -321,14 +327,18 @@ class ConnectLegacyShortcodes {
 			const root = document.getElementById(<?php echo wp_json_encode( $container_id ); ?>);
 			if (!root) return;
 			const restBase = <?php echo wp_json_encode( $rest_base ); ?>;
-			const threadId = <?php echo wp_json_encode( $thread_id ); ?>;
-			const token = <?php echo wp_json_encode( $token ); ?>;
+			let threadId = Number(<?php echo wp_json_encode( $thread_id ); ?> || 0);
+			let token = String(<?php echo wp_json_encode( $token ); ?> || '');
 			const status = root.querySelector('[data-khm="status"]');
 			const content = root.querySelector('[data-khm="content"]');
 
 			if (!threadId || !token) {
-				status.textContent = 'Missing thread_id or token in URL.';
-				return;
+				try {
+					threadId = threadId || Number(window.localStorage.getItem('khm_connect_last_thread_id') || 0);
+					token = token || String(window.localStorage.getItem('khm_connect_last_buyer_token') || '');
+				} catch (_) {
+					// Ignore storage failures in private browsing contexts.
+				}
 			}
 
 			const esc = (value) => String(value || '')
@@ -343,6 +353,39 @@ class ConnectLegacyShortcodes {
 				const d = new Date(value);
 				return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
 			};
+
+			function renderTokenPrompt() {
+				content.innerHTML = ''
+					+ '<p>Missing thread details. Enter your thread ID and token to continue.</p>'
+					+ '<p><label>Thread ID <input type="number" min="1" data-khm="manual-thread-id" /></label></p>'
+					+ '<p><label>Token <input type="text" data-khm="manual-token" /></label></p>'
+					+ '<p><button type="button" data-khm="manual-load">Load Status</button></p>';
+
+				const loadButton = content.querySelector('[data-khm="manual-load"]');
+				if (!loadButton) {
+					return;
+				}
+
+				loadButton.addEventListener('click', () => {
+					const manualThread = Number((content.querySelector('[data-khm="manual-thread-id"]') || {}).value || 0);
+					const manualToken = String((content.querySelector('[data-khm="manual-token"]') || {}).value || '').trim();
+					if (!manualThread || !manualToken) {
+						status.textContent = 'Thread ID and token are required.';
+						return;
+					}
+
+					threadId = manualThread;
+					token = manualToken;
+					try {
+						window.localStorage.setItem('khm_connect_last_thread_id', String(threadId));
+						window.localStorage.setItem('khm_connect_last_buyer_token', token);
+					} catch (_) {
+						// Ignore storage failures.
+					}
+
+					loadStatus();
+				});
+			}
 
 			async function requestHandover() {
 				status.textContent = 'Requesting handover...';
@@ -364,6 +407,12 @@ class ConnectLegacyShortcodes {
 			}
 
 			async function loadStatus() {
+				if (!threadId || !token) {
+					status.textContent = 'Missing thread_id or token.';
+					renderTokenPrompt();
+					return;
+				}
+
 				status.textContent = 'Loading thread status...';
 				try {
 					const res = await fetch(restBase + 'intro-threads/' + encodeURIComponent(String(threadId)) + '/status?token=' + encodeURIComponent(token), {
@@ -376,17 +425,27 @@ class ConnectLegacyShortcodes {
 					const handoverStatus = (data.handover_status || 'not_started');
 					const canRequest = handoverStatus === 'not_started';
 					const messages = Array.isArray(data.messages) ? data.messages : [];
+					const sponsorMessages = messages.filter(m => String(m && m.sender_role || '') === 'sponsor');
+					const latestSponsorReply = sponsorMessages.length ? sponsorMessages[sponsorMessages.length - 1] : null;
 					const handover = data.handover || null;
+					const handoverRequestedAt = handover && (handover.buyer_requested_at || handover.requested_at || '');
+					const handoverConfirmedAt = handover && (handover.sponsor_confirmed_at || handover.confirmed_at || '');
 					status.textContent = 'Thread loaded.';
+					try {
+						window.localStorage.setItem('khm_connect_last_thread_id', String(threadId));
+						window.localStorage.setItem('khm_connect_last_buyer_token', token);
+					} catch (_) {
+						// Ignore storage failures.
+					}
 
 					content.innerHTML = ''
 						+ '<p><strong>Thread ID:</strong> ' + esc(data.thread_id || threadId) + '</p>'
 						+ '<p><strong>Handover status:</strong> ' + esc(handoverStatus) + '</p>'
 						+ '<ol>'
 						+ '<li><strong>Request Sent:</strong> ' + milestoneDate(data.thread && data.thread.created_at) + '</li>'
-						+ '<li><strong>Sponsor Replied:</strong> ' + (messages.length > 1 ? milestoneDate(messages[messages.length - 1].created_at) : '—') + '</li>'
-						+ '<li><strong>Handover Requested:</strong> ' + milestoneDate(handover && handover.requested_at) + '</li>'
-						+ '<li><strong>Handover Confirmed:</strong> ' + milestoneDate(handover && handover.confirmed_at) + '</li>'
+						+ '<li><strong>Sponsor Replied:</strong> ' + milestoneDate(latestSponsorReply && latestSponsorReply.created_at) + '</li>'
+						+ '<li><strong>Handover Requested:</strong> ' + milestoneDate(handoverRequestedAt) + '</li>'
+						+ '<li><strong>Handover Confirmed:</strong> ' + milestoneDate(handoverConfirmedAt) + '</li>'
 						+ '</ol>'
 						+ (canRequest ? '<p><button type="button" data-khm="handover">Request direct handover</button></p>' : '')
 						+ '<h3>Messages</h3>'
