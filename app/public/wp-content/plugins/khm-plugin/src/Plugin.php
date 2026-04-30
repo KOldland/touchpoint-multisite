@@ -6,6 +6,7 @@ use KHM\Connect\ConnectComparisonEndpoint;
 use KHM\Connect\ConnectAdminPage;
 use KHM\Connect\ConnectIntroThreadEndpoint;
 use KHM\Connect\ConnectSponsorProviderEndpoint;
+use KHM\Connect\ConnectTiering;
 use KHM\Atomic\AtomicArticleGenerator;
 use KHM\Atomic\AtomicArticlePostType;
 use KHM\Atomic\AtomicEmbeddingService;

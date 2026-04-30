@@ -16,6 +16,7 @@ class ConnectAdminPage {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
 		add_action( 'admin_post_khm_connect_provider_save', array( $this, 'handle_save' ) );
 		add_action( 'admin_post_khm_connect_provider_delete', array( $this, 'handle_delete' ) );
+		add_action( 'admin_post_khm_connect_pricing_save', array( $this, 'handle_pricing_save' ) );
 	}
 
 	public function add_menu(): void {
@@ -26,6 +27,14 @@ class ConnectAdminPage {
 			'manage_options',
 			'khm-connect-providers',
 			array( $this, 'render_page' )
+		);
+		add_submenu_page(
+			'khm-membership',
+			__( 'Connect Pricing', 'khm-membership' ),
+			__( 'Connect Pricing', 'khm-membership' ),
+			'manage_options',
+			'khm-connect-pricing',
+			array( $this, 'render_pricing_page' )
 		);
 	}
 
@@ -240,6 +249,107 @@ class ConnectAdminPage {
 		}
 
 		wp_safe_redirect( admin_url( 'admin.php?page=khm-connect-providers&connect_notice=deleted' ) );
+		exit;
+	}
+
+	public function render_pricing_page(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to manage Connect pricing.', 'khm-membership' ) );
+		}
+
+		$notice = isset( $_GET['connect_notice'] ) ? sanitize_key( (string) $_GET['connect_notice'] ) : '';
+		$config = ConnectTiering::get_config();
+		$tiers  = ConnectTiering::TIERS;
+
+		?>
+		<div class="wrap">
+			<h1><?php esc_html_e( 'Connect Pricing', 'khm-membership' ); ?></h1>
+			<?php if ( 'pricing_saved' === $notice ) : ?>
+				<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Connect pricing saved.', 'khm-membership' ); ?></p></div>
+			<?php endif; ?>
+			<p class="description" style="margin-bottom:16px;">
+				<?php esc_html_e( 'Configure the default pricing model, unit price, and engaged-tier commission settings for each Connect commercial tier. These values are snapshotted when an opportunity is first created.', 'khm-membership' ); ?>
+			</p>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php wp_nonce_field( 'khm_connect_pricing_save', 'khm_connect_pricing_nonce' ); ?>
+				<input type="hidden" name="action" value="khm_connect_pricing_save" />
+
+				<?php foreach ( $tiers as $tier ) :
+					$row   = $config[ $tier ];
+					$label = ucfirst( $tier );
+				?>
+				<h2 style="border-bottom:1px solid #ccd0d4;padding-bottom:8px;margin-top:32px;">
+					<?php echo esc_html( $label ); ?> <?php esc_html_e( 'Tier', 'khm-membership' ); ?>
+				</h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="khm_pricing_<?php echo esc_attr( $tier ); ?>_model"><?php esc_html_e( 'Pricing Model', 'khm-membership' ); ?></label></th>
+						<td>
+							<select id="khm_pricing_<?php echo esc_attr( $tier ); ?>_model" name="pricing[<?php echo esc_attr( $tier ); ?>][pricing_model]">
+								<option value="cpl" <?php selected( $row['pricing_model'], 'cpl' ); ?>><?php esc_html_e( 'CPL — Cost Per Lead', 'khm-membership' ); ?></option>
+								<option value="cpa" <?php selected( $row['pricing_model'], 'cpa' ); ?>><?php esc_html_e( 'CPA — Cost Per Acquisition', 'khm-membership' ); ?></option>
+								<option value="flat" <?php selected( $row['pricing_model'], 'flat' ); ?>><?php esc_html_e( 'Flat Fee', 'khm-membership' ); ?></option>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_pricing_<?php echo esc_attr( $tier ); ?>_unit"><?php esc_html_e( 'Unit Price (cents)', 'khm-membership' ); ?></label></th>
+						<td>
+							<input class="small-text" type="number" min="0" step="1" id="khm_pricing_<?php echo esc_attr( $tier ); ?>_unit" name="pricing[<?php echo esc_attr( $tier ); ?>][unit_price_cents]" value="<?php echo esc_attr( (string) (int) $row['unit_price_cents'] ); ?>" />
+							<p class="description"><?php echo esc_html( sprintf( __( 'e.g. 15000 = $150.00. Current: $%s', 'khm-membership' ), number_format( (int) $row['unit_price_cents'] / 100, 2 ) ) ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Commission Eligible', 'khm-membership' ); ?></th>
+						<td>
+							<label><input type="checkbox" name="pricing[<?php echo esc_attr( $tier ); ?>][commission_eligible]" value="1" <?php checked( ! empty( $row['commission_eligible'] ) ); ?> /> <?php esc_html_e( 'Opportunities in this tier are eligible for commission.', 'khm-membership' ); ?></label>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_pricing_<?php echo esc_attr( $tier ); ?>_acv"><?php esc_html_e( 'Engaged ACV (cents)', 'khm-membership' ); ?></label></th>
+						<td>
+							<input class="small-text" type="number" min="0" step="1" id="khm_pricing_<?php echo esc_attr( $tier ); ?>_acv" name="pricing[<?php echo esc_attr( $tier ); ?>][engaged_acv_cents]" value="<?php echo esc_attr( (string) (int) $row['engaged_acv_cents'] ); ?>" />
+							<p class="description"><?php echo esc_html( sprintf( __( 'Annual contract value baseline for engaged leads. Current: $%s', 'khm-membership' ), number_format( (int) $row['engaged_acv_cents'] / 100, 2 ) ) ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="khm_pricing_<?php echo esc_attr( $tier ); ?>_rate"><?php esc_html_e( 'Engaged Commission Rate', 'khm-membership' ); ?></label></th>
+						<td>
+							<input class="small-text" type="number" min="0" max="1" step="0.01" id="khm_pricing_<?php echo esc_attr( $tier ); ?>_rate" name="pricing[<?php echo esc_attr( $tier ); ?>][engaged_commission_rate]" value="<?php echo esc_attr( (string) (float) $row['engaged_commission_rate'] ); ?>" />
+							<p class="description"><?php esc_html_e( '0.0 to 1.0 (e.g. 0.10 = 10%).', 'khm-membership' ); ?></p>
+						</td>
+					</tr>
+				</table>
+				<?php endforeach; ?>
+
+				<?php submit_button( __( 'Save Pricing', 'khm-membership' ) ); ?>
+			</form>
+		</div>
+		<?php
+	}
+
+	public function handle_pricing_save(): void {
+		$this->assert_manage_options();
+		check_admin_referer( 'khm_connect_pricing_save', 'khm_connect_pricing_nonce' );
+
+		$raw = isset( $_POST['pricing'] ) && is_array( $_POST['pricing'] ) ? wp_unslash( $_POST['pricing'] ) : array();
+
+		$config = array();
+		foreach ( ConnectTiering::TIERS as $tier ) {
+			$row                         = is_array( $raw[ $tier ] ?? null ) ? $raw[ $tier ] : array();
+			$config[ $tier ]             = array(
+				'pricing_model'           => $row['pricing_model'] ?? 'cpl',
+				'unit_price_cents'        => $row['unit_price_cents'] ?? 0,
+				'commission_eligible'     => ! empty( $row['commission_eligible'] ) ? 1 : 0,
+				'engaged_acv_cents'       => $row['engaged_acv_cents'] ?? 0,
+				'engaged_commission_rate' => $row['engaged_commission_rate'] ?? 0.0,
+			);
+		}
+
+		ConnectTiering::save_config( $config );
+
+		wp_safe_redirect( admin_url( 'admin.php?page=khm-connect-pricing&connect_notice=pricing_saved' ) );
 		exit;
 	}
 
