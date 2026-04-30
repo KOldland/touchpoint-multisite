@@ -7,9 +7,174 @@ defined( 'ABSPATH' ) || exit;
 class ConnectLegacyShortcodes {
 
 	public function register(): void {
+		add_shortcode( 'khm_connect_entry', array( $this, 'render_entry_form' ) );
 		add_shortcode( 'khm_connect_shortlist', array( $this, 'render_shortlist' ) );
 		add_shortcode( 'khm_connect_intro_form', array( $this, 'render_intro_form' ) );
 		add_shortcode( 'khm_connect_thread_status', array( $this, 'render_thread_status' ) );
+	}
+
+	public function render_entry_form( array $atts = array() ): string {
+		$atts = shortcode_atts(
+			array(
+				'shortlist_url' => home_url( '/connect-shortlist/' ),
+				'show_name'     => 'yes',
+				'show_email'    => 'yes',
+			),
+			$atts,
+			'khm_connect_entry'
+		);
+
+		$container_id  = 'khm-connect-entry-' . wp_generate_uuid4();
+		$shortlist_url = esc_url_raw( (string) $atts['shortlist_url'] );
+		$show_name     = 'yes' === (string) $atts['show_name'];
+		$show_email    = 'yes' === (string) $atts['show_email'];
+
+		ob_start();
+		?>
+		<div id="<?php echo esc_attr( $container_id ); ?>" class="khm-connect-entry">
+			<style>
+				#<?php echo esc_attr( $container_id ); ?> { max-width: 540px; font-family: inherit; }
+				#<?php echo esc_attr( $container_id ); ?> .khm-entry-field { margin-bottom: 14px; }
+				#<?php echo esc_attr( $container_id ); ?> label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+				#<?php echo esc_attr( $container_id ); ?> input[type=text],
+				#<?php echo esc_attr( $container_id ); ?> input[type=email],
+				#<?php echo esc_attr( $container_id ); ?> select,
+				#<?php echo esc_attr( $container_id ); ?> textarea { width: 100%; padding: 8px 10px; border: 1px solid #ccd0d4; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
+				#<?php echo esc_attr( $container_id ); ?> .khm-entry-consent { font-size: 12px; color: #555; display: flex; gap: 8px; align-items: flex-start; margin-bottom: 14px; }
+				#<?php echo esc_attr( $container_id ); ?> .khm-entry-consent input { margin-top: 2px; flex-shrink: 0; }
+				#<?php echo esc_attr( $container_id ); ?> .khm-entry-submit { background: #1a73e8; color: #fff; border: none; border-radius: 4px; padding: 10px 20px; font-size: 15px; cursor: pointer; }
+				#<?php echo esc_attr( $container_id ); ?> .khm-entry-submit:disabled { opacity: .5; cursor: default; }
+				#<?php echo esc_attr( $container_id ); ?> .khm-entry-error { color: #c62828; font-size: 13px; margin-bottom: 10px; display: none; }
+			</style>
+
+			<form id="<?php echo esc_attr( $container_id ); ?>-form" novalidate>
+				<?php if ( $show_name ) : ?>
+				<div class="khm-entry-field">
+					<label for="<?php echo esc_attr( $container_id ); ?>-name"><?php esc_html_e( 'Your name', 'khm-membership' ); ?></label>
+					<input type="text" id="<?php echo esc_attr( $container_id ); ?>-name" name="name" placeholder="<?php esc_attr_e( 'e.g. Jordan Clarke', 'khm-membership' ); ?>" autocomplete="name" />
+				</div>
+				<?php endif; ?>
+				<?php if ( $show_email ) : ?>
+				<div class="khm-entry-field">
+					<label for="<?php echo esc_attr( $container_id ); ?>-email"><?php esc_html_e( 'Work email', 'khm-membership' ); ?></label>
+					<input type="email" id="<?php echo esc_attr( $container_id ); ?>-email" name="email" placeholder="<?php esc_attr_e( 'you@company.com', 'khm-membership' ); ?>" autocomplete="email" />
+				</div>
+				<?php endif; ?>
+				<div class="khm-entry-field">
+					<label for="<?php echo esc_attr( $container_id ); ?>-title"><?php esc_html_e( 'Your role', 'khm-membership' ); ?></label>
+					<select id="<?php echo esc_attr( $container_id ); ?>-title" name="title_context">
+						<option value=""><?php esc_html_e( '— Select your title —', 'khm-membership' ); ?></option>
+						<option value="cmo"><?php esc_html_e( 'CMO / VP Marketing', 'khm-membership' ); ?></option>
+						<option value="demand-gen"><?php esc_html_e( 'Demand Gen / Growth', 'khm-membership' ); ?></option>
+						<option value="revops"><?php esc_html_e( 'Revenue / Sales Ops', 'khm-membership' ); ?></option>
+						<option value="content"><?php esc_html_e( 'Content / Editorial', 'khm-membership' ); ?></option>
+						<option value="product"><?php esc_html_e( 'Product / Solutions', 'khm-membership' ); ?></option>
+						<option value="founder"><?php esc_html_e( 'Founder / CEO', 'khm-membership' ); ?></option>
+						<option value="other"><?php esc_html_e( 'Other', 'khm-membership' ); ?></option>
+					</select>
+				</div>
+				<div class="khm-entry-field">
+					<label for="<?php echo esc_attr( $container_id ); ?>-challenge"><?php esc_html_e( 'Primary challenge right now', 'khm-membership' ); ?></label>
+					<select id="<?php echo esc_attr( $container_id ); ?>-challenge" name="challenge">
+						<option value=""><?php esc_html_e( '— Select a challenge —', 'khm-membership' ); ?></option>
+						<option value="pipeline"><?php esc_html_e( 'Building pipeline / demand', 'khm-membership' ); ?></option>
+						<option value="attribution"><?php esc_html_e( 'Attribution and reporting', 'khm-membership' ); ?></option>
+						<option value="team"><?php esc_html_e( 'Growing or structuring team', 'khm-membership' ); ?></option>
+						<option value="tech-stack"><?php esc_html_e( 'Evaluating or replacing tech stack', 'khm-membership' ); ?></option>
+						<option value="content-ops"><?php esc_html_e( 'Content operations / editorial', 'khm-membership' ); ?></option>
+						<option value="strategy"><?php esc_html_e( 'GTM strategy and positioning', 'khm-membership' ); ?></option>
+					</select>
+				</div>
+				<div class="khm-entry-field">
+					<label for="<?php echo esc_attr( $container_id ); ?>-context"><?php esc_html_e( 'Any additional context? (optional)', 'khm-membership' ); ?></label>
+					<textarea id="<?php echo esc_attr( $container_id ); ?>-context" name="notes" rows="3" placeholder="<?php esc_attr_e( 'e.g. We are a 50-person SaaS company scaling into enterprise...', 'khm-membership' ); ?>"></textarea>
+				</div>
+				<div class="khm-entry-consent">
+					<input type="checkbox" id="<?php echo esc_attr( $container_id ); ?>-consent" name="consent" value="1" required />
+					<label for="<?php echo esc_attr( $container_id ); ?>-consent">
+						<?php
+						printf(
+							/* translators: 1: privacy policy link open tag 2: closing tag */
+							esc_html__( 'I agree that my information may be used to match me with relevant providers and I understand I can withdraw consent at any time. See our %1$sPrivacy Policy%2$s.', 'khm-membership' ),
+							'<a href="' . esc_url( home_url( '/privacy-policy/' ) ) . '" target="_blank" rel="noopener">',
+							'</a>'
+						);
+						?>
+					</label>
+				</div>
+				<p class="khm-entry-error" aria-live="polite"></p>
+				<button type="submit" class="khm-entry-submit"><?php esc_html_e( 'Find my matches', 'khm-membership' ); ?></button>
+			</form>
+
+			<script>
+			(function() {
+				var container   = document.getElementById(<?php echo wp_json_encode( $container_id ); ?>);
+				if (!container) return;
+
+				var form        = document.getElementById(<?php echo wp_json_encode( $container_id . '-form' ); ?>);
+				var errEl       = form.querySelector('.khm-entry-error');
+				var submitBtn   = form.querySelector('.khm-entry-submit');
+				var shortlistUrl = <?php echo wp_json_encode( $shortlist_url ); ?>;
+
+				// Persist UTM params from current URL into localStorage on load.
+				(function captureUtm() {
+					var params = new URLSearchParams(window.location.search);
+					var utmKeys = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','ref'];
+					var stored = {};
+					utmKeys.forEach(function(k) {
+						var v = params.get(k);
+						if (v) stored[k] = v;
+					});
+					if (Object.keys(stored).length) {
+						try { localStorage.setItem('khm_connect_utm', JSON.stringify(stored)); } catch(e) {}
+					}
+				})();
+
+				form.addEventListener('submit', function(e) {
+					e.preventDefault();
+					errEl.style.display = 'none';
+					errEl.textContent = '';
+
+					var titleCtx = form.querySelector('[name=title_context]') ? form.querySelector('[name=title_context]').value : '';
+					var challenge = form.querySelector('[name=challenge]') ? form.querySelector('[name=challenge]').value : '';
+					var consent   = form.querySelector('[name=consent]');
+
+					if (!consent || !consent.checked) {
+						errEl.textContent = <?php echo wp_json_encode( __( 'Please accept the consent statement to continue.', 'khm-membership' ) ); ?>;
+						errEl.style.display = 'block';
+						return;
+					}
+					if (!titleCtx) {
+						errEl.textContent = <?php echo wp_json_encode( __( 'Please select your role to find relevant matches.', 'khm-membership' ) ); ?>;
+						errEl.style.display = 'block';
+						return;
+					}
+
+					// Store entry context for B2/B3 flow.
+					var entry = {
+						name:          (form.querySelector('[name=name]') || {value:''}).value.trim(),
+						title_context: titleCtx,
+						challenge:     challenge,
+						notes:         (form.querySelector('[name=notes]') || {value:''}).value.trim(),
+						consented_at:  new Date().toISOString(),
+						captured_url:  window.location.href,
+					};
+					try { localStorage.setItem('khm_connect_entry', JSON.stringify(entry)); } catch(e) {}
+
+					// Forward email separately — never stored in plain localStorage as name-linked PII.
+					// (B2 shortlist endpoint does not require email — it uses title_context only.)
+
+					submitBtn.disabled = true;
+					var target = new URL(shortlistUrl, window.location.href);
+					target.searchParams.set('title_context', titleCtx);
+					if (challenge) target.searchParams.set('challenge', challenge);
+					window.location.href = target.toString();
+				});
+			})();
+			</script>
+		</div>
+		<?php
+		return ob_get_clean();
 	}
 
 	public function render_shortlist( array $atts = array() ): string {
