@@ -1245,12 +1245,35 @@ class QuoteClubPortalShortcode {
 				.khm-qc-advert-rejection{font-size:12px;color:#991b1b;background:#fee2e2;padding:6px 10px;border-radius:4px;margin:6px 0}
 				.khm-qc-advert-metrics{display:flex;gap:12px;font-size:12px;color:#374151;margin-top:6px}
 				.khm-qc-advert-metrics span{font-weight:600}
+				/* preview modal */
+				#khm-qc-advert-preview-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;align-items:center;justify-content:center}
+				#khm-qc-advert-preview-modal.active{display:flex}
+				#khm-qc-advert-preview-box{background:#fff;border-radius:12px;padding:28px;max-width:540px;width:92%;max-height:82vh;overflow-y:auto;position:relative}
+				#khm-qc-advert-preview-box h4{margin-top:0;font-size:16px}
+				#khm-qc-advert-preview-box img{max-width:100%;border-radius:6px;margin-bottom:12px;display:block}
+				#khm-qc-advert-preview-box .khm-preview-link{font-size:12px;color:#6b7280;word-break:break-all;margin-top:6px}
+				#khm-qc-advert-preview-close{position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:#6b7280;line-height:1;padding:0}
+				/* analytics panel */
+				#khm-qc-advert-analytics{display:none;margin:20px 0;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px}
+				#khm-qc-advert-analytics h3{margin-top:0;font-size:15px}
+				.khm-analytics-kpis{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+				.khm-analytics-kpi{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px 18px;min-width:100px}
+				.khm-analytics-kpi .khm-kpi-val{font-size:22px;font-weight:700;color:#111827}
+				.khm-analytics-kpi .khm-kpi-lbl{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px}
+				#khm-qc-advert-analytics table{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px}
+				#khm-qc-advert-analytics th{text-align:left;padding:6px 10px;border-bottom:2px solid #e5e7eb;font-weight:600;color:#374151}
+				#khm-qc-advert-analytics td{padding:6px 10px;border-bottom:1px solid #f3f4f6}
 			</style>
 
 			<!-- Create button -->
+			<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
 			<button class="button button-primary" id="khm-qc-advert-new-btn">
 				+ <?php esc_html_e( 'New Creative', 'khm-membership' ); ?>
 			</button>
+			<button class="button" id="khm-qc-advert-analytics-btn">
+				<?php esc_html_e( 'Analytics', 'khm-membership' ); ?>
+			</button>
+			</div>
 			<p style="font-size:12px;color:#6b7280;margin-top:6px">
 				<?php
 				printf(
@@ -1260,6 +1283,29 @@ class QuoteClubPortalShortcode {
 				);
 				?>
 			</p>
+
+			<!-- Analytics panel -->
+			<div id="khm-qc-advert-analytics">
+				<h3><?php esc_html_e( 'Your Advert Analytics', 'khm-membership' ); ?></h3>
+				<div class="khm-analytics-kpis">
+					<div class="khm-analytics-kpi"><div class="khm-kpi-val" id="khm-kpi-total">—</div><div class="khm-kpi-lbl"><?php esc_html_e( 'Creatives', 'khm-membership' ); ?></div></div>
+					<div class="khm-analytics-kpi"><div class="khm-kpi-val" id="khm-kpi-impressions">—</div><div class="khm-kpi-lbl"><?php esc_html_e( 'Total Impressions', 'khm-membership' ); ?></div></div>
+					<div class="khm-analytics-kpi"><div class="khm-kpi-val" id="khm-kpi-clicks">—</div><div class="khm-kpi-lbl"><?php esc_html_e( 'Total Clicks', 'khm-membership' ); ?></div></div>
+					<div class="khm-analytics-kpi"><div class="khm-kpi-val" id="khm-kpi-ctr">—</div><div class="khm-kpi-lbl"><?php esc_html_e( 'Overall CTR', 'khm-membership' ); ?></div></div>
+				</div>
+				<table>
+					<thead><tr>
+						<th><?php esc_html_e( 'Creative', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Placement', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Status', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Impr.', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Clicks', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'CTR', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Weight', 'khm-membership' ); ?></th>
+					</tr></thead>
+					<tbody id="khm-analytics-rows"></tbody>
+				</table>
+			</div>
 
 			<!-- Create / Edit form -->
 			<div id="khm-qc-advert-form">
@@ -1305,6 +1351,14 @@ class QuoteClubPortalShortcode {
 			<div class="khm-qc-adverts-grid" id="khm-qc-adverts-grid">
 				<p style="color:#6b7280;font-style:italic"><?php esc_html_e( 'Loading your creatives…', 'khm-membership' ); ?></p>
 			</div>
+
+			<!-- Preview modal -->
+			<div id="khm-qc-advert-preview-modal" role="dialog" aria-modal="true" aria-label="<?php esc_attr_e( 'Ad preview', 'khm-membership' ); ?>">
+				<div id="khm-qc-advert-preview-box">
+					<button id="khm-qc-advert-preview-close" aria-label="Close">&times;</button>
+					<div id="khm-qc-advert-preview-content"></div>
+				</div>
+			</div>
 		</div>
 
 		<script>
@@ -1329,7 +1383,13 @@ class QuoteClubPortalShortcode {
 			var fSubmit  = document.getElementById('khm-qc-advert-submit-btn');
 			var fCancel  = document.getElementById('khm-qc-advert-cancel-btn');
 			var fMsg     = document.getElementById('khm-qc-advert-form-msg');
-			var newBtn   = document.getElementById('khm-qc-advert-new-btn');
+			var newBtn        = document.getElementById('khm-qc-advert-new-btn');
+			var analyticsBtn  = document.getElementById('khm-qc-advert-analytics-btn');
+			var analyticsPanel = document.getElementById('khm-qc-advert-analytics');
+			var previewModal  = document.getElementById('khm-qc-advert-preview-modal');
+			var previewContent = document.getElementById('khm-qc-advert-preview-content');
+			var previewClose  = document.getElementById('khm-qc-advert-preview-close');
+			var analyticsRows = document.getElementById('khm-analytics-rows');
 
 			function api(path, method, body) {
 				var opts = { method: method || 'GET', headers: { 'X-WP-Nonce': NONCE } };
@@ -1359,13 +1419,15 @@ class QuoteClubPortalShortcode {
 				var metrics = '<div class="khm-qc-advert-metrics"><span>' + ad.impressions + '</span> impressions &nbsp;·&nbsp; <span>' + ad.clicks + '</span> clicks</div>';
 				var editBtn   = (ad.status === 'draft' || ad.status === 'rejected') ? '<button class="button khm-qc-advert-edit" data-id="' + ad.id + '">Edit</button>' : '';
 				var submitBtn = (ad.status === 'draft' || ad.status === 'rejected') ? '<button class="button button-primary khm-qc-advert-submit" data-id="' + ad.id + '">Submit</button>' : '';
+				var previewBtn = '<button class="button khm-qc-advert-preview" data-id="' + ad.id + '">Preview</button>';
+				var dupeBtn   = '<button class="button khm-qc-advert-dupe" data-id="' + ad.id + '" title="Duplicate as new draft">Duplicate</button>';
 
 				return '<div class="khm-qc-advert-card" id="khm-advert-' + ad.id + '">' +
 					img + badge + rej +
 					'<h4>' + ad.title + '</h4>' +
 					'<div class="khm-qc-placement">' + (PLACEMENT_LABELS[ad.placement] || ad.placement) + '</div>' +
 					metrics +
-					editBtn + submitBtn +
+					'<div style="margin-top:8px">' + editBtn + submitBtn + previewBtn + dupeBtn + '</div>' +
 					'</div>';
 			}
 
@@ -1383,6 +1445,33 @@ class QuoteClubPortalShortcode {
 					grid.querySelectorAll('.khm-qc-advert-submit').forEach(function (btn) {
 						btn.addEventListener('click', function () { submitAdvert(btn.dataset.id); });
 					});
+					grid.querySelectorAll('.khm-qc-advert-preview').forEach(function (btn) {
+						btn.addEventListener('click', function () { openPreview(btn.dataset.id); });
+					});
+					grid.querySelectorAll('.khm-qc-advert-dupe').forEach(function (btn) {
+						btn.addEventListener('click', function () { duplicateAdvert(btn.dataset.id); });
+					});
+					// Populate analytics panel
+					var ads = data.adverts;
+					var totImp = ads.reduce(function(s,a){return s+a.impressions;},0);
+					var totClk = ads.reduce(function(s,a){return s+a.clicks;},0);
+					var ctr = totImp ? (totClk/totImp*100).toFixed(2)+'%' : '—';
+					document.getElementById('khm-kpi-total').textContent = ads.length;
+					document.getElementById('khm-kpi-impressions').textContent = totImp.toLocaleString();
+					document.getElementById('khm-kpi-clicks').textContent = totClk.toLocaleString();
+					document.getElementById('khm-kpi-ctr').textContent = ctr;
+					analyticsRows.innerHTML = ads.map(function(a){
+						var aCtr = a.impressions ? (a.clicks/a.impressions*100).toFixed(2)+'%' : '—';
+						return '<tr>'+
+							'<td>'+a.title+'</td>'+
+							'<td>'+(PLACEMENT_LABELS[a.placement]||a.placement)+'</td>'+
+							'<td><span class="khm-qc-badge khm-qc-badge-'+a.status+'">'+(STATUS_LABELS[a.status]||a.status)+'</span></td>'+
+							'<td>'+a.impressions.toLocaleString()+'</td>'+
+							'<td>'+a.clicks.toLocaleString()+'</td>'+
+							'<td>'+aCtr+'</td>'+
+							'<td>'+(a.weight||'—')+'</td>'+
+						'</tr>';
+					}).join('');
 				});
 			}
 
@@ -1470,6 +1559,51 @@ class QuoteClubPortalShortcode {
 				});
 			}
 
+			function openPreview(id) {
+				api('/adverts/' + id).then(function (data) {
+					if (!data.success) { return; }
+					var ad = data.advert;
+					var imgHtml = ad.media_url
+						? '<img src="' + ad.media_url + '" alt="' + (ad.alt_text||'Ad image') + '" style="max-width:100%;border-radius:6px;margin-bottom:12px">'
+						: '<div style="height:140px;background:#f3f4f6;border-radius:6px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;color:#9ca3af;font-size:13px">No image</div>';
+					var linkHtml = ad.click_url
+						? '<p class="khm-preview-link">Click-through: <a href="' + ad.click_url + '" target="_blank" rel="noopener noreferrer">' + ad.click_url + '</a></p>'
+						: '';
+					var placement = PLACEMENT_LABELS[ad.placement] || ad.placement;
+					var schedule = '';
+					if (ad.start_date || ad.end_date) {
+						schedule = '<p style="font-size:12px;color:#6b7280;margin-top:6px">Schedule: '+(ad.start_date?ad.start_date.substring(0,10):'now')+' → '+(ad.end_date?ad.end_date.substring(0,10):'ongoing')+'</p>';
+					}
+					previewContent.innerHTML =
+						'<p style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Placement: ' + placement + '</p>' +
+						imgHtml +
+						'<h4>' + ad.title + '</h4>' +
+						linkHtml + schedule +
+						'<p style="font-size:12px;color:#6b7280;margin-top:10px">'+(ad.impressions||0)+' impressions · '+(ad.clicks||0)+' clicks</p>';
+					previewModal.classList.add('active');
+				});
+			}
+
+			function duplicateAdvert(id) {
+				if (!confirm('Duplicate this ad creative as a new draft?')) { return; }
+				api('/adverts/' + id).then(function (data) {
+					if (!data.success) { return; }
+					var ad = data.advert;
+					var payload = {
+						title:      'Copy of ' + ad.title,
+						placement:  ad.placement,
+						media_id:   ad.media_id || 0,
+						click_url:  ad.click_url || '',
+						alt_text:   ad.alt_text || '',
+						start_date: null,
+						end_date:   null
+					};
+					api('/adverts', 'POST', payload).then(function (res) {
+						if (res.success) { loadAdverts(); }
+					});
+				});
+			}
+
 			// Media ID preview
 			fMedia.addEventListener('input', function () {
 				var mid = parseInt(fMedia.value, 10);
@@ -1488,6 +1622,13 @@ class QuoteClubPortalShortcode {
 			fSave.addEventListener('click', saveAdvert);
 			fSubmit.addEventListener('click', function () { submitAdvert(editId.value); });
 			fCancel.addEventListener('click', function () { form.style.display = 'none'; });
+			analyticsBtn.addEventListener('click', function () {
+				var open = analyticsPanel.style.display === 'block';
+				analyticsPanel.style.display = open ? 'none' : 'block';
+				analyticsBtn.textContent = open ? 'Analytics' : 'Hide Analytics';
+			});
+			previewClose.addEventListener('click', function () { previewModal.classList.remove('active'); });
+			previewModal.addEventListener('click', function (e) { if (e.target === previewModal) { previewModal.classList.remove('active'); } });
 
 			loadAdverts();
 		}());

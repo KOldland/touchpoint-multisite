@@ -29,7 +29,7 @@ class LinkedInController {
 
 	private const OPTION_CLIENT_ID     = 'khm_linkedin_client_id';
 	private const OPTION_CLIENT_SECRET = 'khm_linkedin_client_secret';
-	private const SCOPE                = 'openid profile w_member_social';
+	private const SCOPE                = 'openid profile w_member_social offline_access';
 	private const AUTH_URL             = 'https://www.linkedin.com/oauth/v2/authorization';
 	private const TOKEN_URL            = 'https://www.linkedin.com/oauth/v2/accessToken';
 	private const PROFILE_URL          = 'https://api.linkedin.com/v2/userinfo';
@@ -119,13 +119,72 @@ class LinkedInController {
 	private function get_token( int $user_id ): string {
 		$expiry = (int) get_user_meta( $user_id, 'khm_linkedin_token_expiry', true );
 		if ( $expiry && $expiry < time() ) {
-			// Token expired — clear it.
+			// Access token expired — attempt silent refresh before giving up.
+			$refreshed = $this->do_token_refresh( $user_id );
+			if ( $refreshed ) {
+				return $refreshed;
+			}
+			// Refresh also failed — clear all credentials.
 			delete_user_meta( $user_id, 'khm_linkedin_access_token' );
 			delete_user_meta( $user_id, 'khm_linkedin_token_expiry' );
 			delete_user_meta( $user_id, 'khm_linkedin_profile_id' );
+			delete_user_meta( $user_id, 'khm_linkedin_refresh_token' );
+			delete_user_meta( $user_id, 'khm_linkedin_refresh_expiry' );
 			return '';
 		}
 		return (string) get_user_meta( $user_id, 'khm_linkedin_access_token', true );
+	}
+
+	/**
+	 * Attempt to refresh the access token using a stored refresh token.
+	 *
+	 * @param int $user_id WordPress user ID.
+	 * @return string New access token on success, empty string on failure.
+	 */
+	private function do_token_refresh( int $user_id ): string {
+		$refresh_token  = (string) get_user_meta( $user_id, 'khm_linkedin_refresh_token', true );
+		$refresh_expiry = (int) get_user_meta( $user_id, 'khm_linkedin_refresh_expiry', true );
+
+		if ( ! $refresh_token || ( $refresh_expiry && $refresh_expiry < time() ) ) {
+			return ''; // No valid refresh token available.
+		}
+
+		$response = wp_remote_post( self::TOKEN_URL, [
+			'timeout' => 15,
+			'body'    => [
+				'grant_type'    => 'refresh_token',
+				'refresh_token' => $refresh_token,
+				'client_id'     => $this->client_id(),
+				'client_secret' => $this->client_secret(),
+			],
+		] );
+
+		if ( is_wp_error( $response ) ) {
+			error_log( '[KHM LinkedIn] Token refresh failed: ' . $response->get_error_message() );
+			return '';
+		}
+
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( empty( $body['access_token'] ) ) {
+			error_log( '[KHM LinkedIn] Token refresh returned no access_token: ' . wp_remote_retrieve_body( $response ) );
+			return '';
+		}
+
+		$new_token  = sanitize_text_field( $body['access_token'] );
+		$expires_in = (int) ( $body['expires_in'] ?? 5184000 );
+		update_user_meta( $user_id, 'khm_linkedin_access_token', $new_token );
+		update_user_meta( $user_id, 'khm_linkedin_token_expiry', time() + $expires_in );
+
+		// LinkedIn may rotate the refresh token — update if a new one is returned.
+		if ( ! empty( $body['refresh_token'] ) ) {
+			$new_refresh         = sanitize_text_field( $body['refresh_token'] );
+			$refresh_expires_in  = (int) ( $body['refresh_token_expires_in'] ?? 31536000 );
+			update_user_meta( $user_id, 'khm_linkedin_refresh_token', $new_refresh );
+			update_user_meta( $user_id, 'khm_linkedin_refresh_expiry', time() + $refresh_expires_in );
+		}
+
+		error_log( '[KHM LinkedIn] Token refreshed successfully for user ' . $user_id );
+		return $new_token;
 	}
 
 	private function get_queue_items( int $user_id ): array {
@@ -221,6 +280,13 @@ class LinkedInController {
 		update_user_meta( $user_id, 'khm_linkedin_access_token', $access_token );
 		update_user_meta( $user_id, 'khm_linkedin_token_expiry', $expiry );
 
+		// Store refresh token if LinkedIn returned one (requires offline_access scope).
+		if ( ! empty( $body['refresh_token'] ) ) {
+			$refresh_expires_in = (int) ( $body['refresh_token_expires_in'] ?? 31536000 ); // default 1 year
+			update_user_meta( $user_id, 'khm_linkedin_refresh_token', sanitize_text_field( $body['refresh_token'] ) );
+			update_user_meta( $user_id, 'khm_linkedin_refresh_expiry', time() + $refresh_expires_in );
+		}
+
 		// Fetch profile ID (member URN) from OpenID Connect userinfo endpoint.
 		$profile = wp_remote_get( self::PROFILE_URL, [
 			'timeout' => 10,
@@ -247,6 +313,8 @@ class LinkedInController {
 		delete_user_meta( $user_id, 'khm_linkedin_access_token' );
 		delete_user_meta( $user_id, 'khm_linkedin_token_expiry' );
 		delete_user_meta( $user_id, 'khm_linkedin_profile_id' );
+		delete_user_meta( $user_id, 'khm_linkedin_refresh_token' );
+		delete_user_meta( $user_id, 'khm_linkedin_refresh_expiry' );
 		return new WP_REST_Response( [ 'success' => true ], 200 );
 	}
 
@@ -258,15 +326,19 @@ class LinkedInController {
 		$user_id    = get_current_user_id();
 		$token      = $this->get_token( $user_id );
 		$profile_id = (string) get_user_meta( $user_id, 'khm_linkedin_profile_id', true );
-		$expiry     = (int) get_user_meta( $user_id, 'khm_linkedin_token_expiry', true );
-		$configured = (bool) $this->client_id();
+		$expiry          = (int) get_user_meta( $user_id, 'khm_linkedin_token_expiry', true );
+		$refresh_expiry  = (int) get_user_meta( $user_id, 'khm_linkedin_refresh_expiry', true );
+		$has_refresh     = ! empty( get_user_meta( $user_id, 'khm_linkedin_refresh_token', true ) );
+		$configured      = (bool) $this->client_id();
 
 		return new WP_REST_Response( [
-			'success'     => true,
-			'configured'  => $configured,
-			'connected'   => ! empty( $token ),
-			'profile_id'  => $profile_id,
-			'expires_at'  => $expiry ? gmdate( 'c', $expiry ) : null,
+			'success'              => true,
+			'configured'           => $configured,
+			'connected'            => ! empty( $token ),
+			'profile_id'           => $profile_id,
+			'expires_at'           => $expiry ? gmdate( 'c', $expiry ) : null,
+			'has_refresh_token'    => $has_refresh,
+			'refresh_expires_at'   => $refresh_expiry ? gmdate( 'c', $refresh_expiry ) : null,
 		], 200 );
 	}
 
