@@ -2151,25 +2151,40 @@ class QuoteClubController {
             return new WP_REST_Response(['success' => false, 'error' => 'missing_required_fields'], 400);
         }
 
+        // S7: Portfolio distribution — validate and sanitise site IDs.
+        $raw_ids = $request->get_param('distribution_site_ids');
+        $dist_ids = is_array($raw_ids) ? array_values(array_map('absint', $raw_ids)) : [];
+        if (is_multisite() && !empty($dist_ids)) {
+            $valid_blogs = get_sites(['fields' => 'ids', 'public' => 1, 'archived' => 0, 'deleted' => 0, 'number' => 200]);
+            $dist_ids = array_values(array_intersect($dist_ids, array_map('intval', $valid_blogs)));
+        }
+        $dist_json = wp_json_encode($dist_ids);
+
         global $wpdb;
         $table = $wpdb->prefix . 'khm_press_releases';
 
         $excerpt = wp_trim_words(wp_strip_all_tags($content), 30, '...');
 
-        $inserted = $wpdb->insert(
-            $table,
-            [
-                'sponsor_id'  => $sponsor_id,
-                'user_id'     => $user_id,
-                'title'       => $title,
-                'content'     => $content,
-                'excerpt'     => $excerpt,
-                'status'      => 'draft',
-                'created_at'  => current_time('mysql'),
-                'updated_at'  => current_time('mysql'),
-            ],
-            ['%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s']
-        );
+        $row_data    = [
+            'sponsor_id'            => $sponsor_id,
+            'user_id'               => $user_id,
+            'title'                 => $title,
+            'content'               => $content,
+            'excerpt'               => $excerpt,
+            'status'                => 'draft',
+            'created_at'            => current_time('mysql'),
+            'updated_at'            => current_time('mysql'),
+        ];
+        $row_formats = ['%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s'];
+
+        // Only include distribution_site_ids if the column exists.
+        $has_dist_col = $wpdb->get_var("SHOW COLUMNS FROM `{$table}` LIKE 'distribution_site_ids'"); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+        if ($has_dist_col) {
+            $row_data['distribution_site_ids'] = $dist_json;
+            $row_formats[]                     = '%s';
+        }
+
+        $inserted = $wpdb->insert($table, $row_data, $row_formats);
 
         if ($inserted === false) {
             return new WP_REST_Response(['success' => false, 'error' => 'db_insert_failed'], 500);
@@ -2178,10 +2193,11 @@ class QuoteClubController {
         $draft_id = (int) $wpdb->insert_id;
 
         return new WP_REST_Response([
-            'success' => true,
-            'draft_id' => $draft_id,
-            'title' => $title,
-            'excerpt' => $excerpt,
+            'success'               => true,
+            'draft_id'              => $draft_id,
+            'title'                 => $title,
+            'excerpt'               => $excerpt,
+            'distribution_site_ids' => $dist_ids,
         ], 201);
     }
 
@@ -2246,18 +2262,41 @@ class QuoteClubController {
             return new WP_REST_Response(['success' => false, 'error' => 'missing_required_fields'], 400);
         }
 
+        // S7: Portfolio distribution.
+        $raw_ids = $request->get_param('distribution_site_ids');
+        if (is_array($raw_ids)) {
+            $dist_ids = array_values(array_map('absint', $raw_ids));
+            if (is_multisite() && !empty($dist_ids)) {
+                $valid_blogs = get_sites(['fields' => 'ids', 'public' => 1, 'archived' => 0, 'deleted' => 0, 'number' => 200]);
+                $dist_ids = array_values(array_intersect($dist_ids, array_map('intval', $valid_blogs)));
+            }
+        } else {
+            $existing_json = isset($row['distribution_site_ids']) ? (string) $row['distribution_site_ids'] : '[]';
+            $dist_ids = (array) json_decode($existing_json, true);
+        }
+        $dist_json = wp_json_encode(array_values(array_map('intval', $dist_ids)));
+
         $excerpt = wp_trim_words(wp_strip_all_tags($content), 30, '...');
+
+        $update_data    = [
+            'title'      => $title,
+            'content'    => $content,
+            'excerpt'    => $excerpt,
+            'updated_at' => current_time('mysql'),
+        ];
+        $update_formats = ['%s', '%s', '%s', '%s'];
+
+        $has_dist_col = $wpdb->get_var("SHOW COLUMNS FROM `{$table}` LIKE 'distribution_site_ids'"); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+        if ($has_dist_col) {
+            $update_data['distribution_site_ids'] = $dist_json;
+            $update_formats[]                     = '%s';
+        }
 
         $updated = $wpdb->update(
             $table,
-            [
-                'title'      => $title,
-                'content'    => $content,
-                'excerpt'    => $excerpt,
-                'updated_at' => current_time('mysql'),
-            ],
+            $update_data,
             ['id' => $id],
-            ['%s', '%s', '%s', '%s'],
+            $update_formats,
             ['%d']
         );
 
@@ -2266,10 +2305,11 @@ class QuoteClubController {
         }
 
         return new WP_REST_Response([
-            'success' => true,
-            'id' => $id,
-            'title' => $title,
-            'excerpt' => $excerpt,
+            'success'               => true,
+            'id'                    => $id,
+            'title'                 => $title,
+            'excerpt'               => $excerpt,
+            'distribution_site_ids' => $dist_ids,
         ], 200);
     }
 
@@ -2339,6 +2379,8 @@ class QuoteClubController {
             return new WP_REST_Response(['success' => false, 'error' => 'insufficient_press_release_credits'], 402);
         }
 
+        $has_dist_col = (bool) $wpdb->get_var("SHOW COLUMNS FROM `{$table}` LIKE 'distribution_site_ids'"); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+
         $updated = $wpdb->update(
             $table,
             [
@@ -2358,6 +2400,15 @@ class QuoteClubController {
         }
 
         do_action('khm_press_release_submitted', $id, $sponsor_id, $user_id);
+
+        // S7: Fire distribution hook if extra blog IDs were requested.
+        if ($has_dist_col ?? false) {
+            $dist_raw = $wpdb->get_var($wpdb->prepare("SELECT distribution_site_ids FROM `{$table}` WHERE id = %d", $id)); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+            $dist_ids = is_string($dist_raw) ? (array) json_decode($dist_raw, true) : [];
+            if (!empty($dist_ids)) {
+                do_action('khm_press_release_distribution_requested', $id, $sponsor_id, array_map('intval', $dist_ids));
+            }
+        }
 
         return new WP_REST_Response([
             'success' => true,

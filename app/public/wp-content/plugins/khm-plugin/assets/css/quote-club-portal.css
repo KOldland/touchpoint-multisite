@@ -176,9 +176,21 @@
 /* Content area                                                         */
 /* ------------------------------------------------------------------ */
 .khm-qc-portal-content {
-  padding: 1.5rem;
+  padding: 1.5rem 100px;
   background: var(--qc-bg);
   overflow-x: hidden;
+}
+
+@media (max-width: 1200px) {
+  .khm-qc-portal-content {
+    padding: 1.5rem 60px;
+  }
+}
+
+@media (max-width: 768px) {
+  .khm-qc-portal-content {
+    padding: 1.5rem;
+  }
 }
 
 .khm-qc-section h2 {

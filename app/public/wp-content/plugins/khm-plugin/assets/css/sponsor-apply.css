@@ -1,0 +1,234 @@
+/* Sponsor Application Form Styles */
+
+.khm-sponsor-apply-container {
+    max-width: 600px;
+    margin: 40px auto;
+    padding: 20px;
+}
+
+.khm-sponsor-apply-form {
+    background: #fff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.khm-sponsor-apply-form h2 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #333;
+    font-size: 28px;
+    font-weight: 600;
+}
+
+.khm-sponsor-apply-form > p {
+    color: #666;
+    margin-bottom: 30px;
+    line-height: 1.6;
+}
+
+.khm-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group label {
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: #333;
+    font-size: 14px;
+}
+
+.form-group label .required {
+    color: #e74c3c;
+    margin-left: 3px;
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #0073aa;
+    box-shadow: 0 0 0 3px rgba(0, 115, 170, 0.1);
+}
+
+.form-group textarea {
+    resize: vertical;
+    line-height: 1.5;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.form-col-6 {
+    grid-column: span 1;
+}
+
+.form-group.checkbox {
+    flex-direction: row;
+    align-items: flex-start;
+    margin-top: 10px;
+}
+
+.form-group.checkbox label {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    font-weight: normal;
+}
+
+.form-group.checkbox input[type="checkbox"] {
+    margin-right: 8px;
+    margin-top: 2px;
+    cursor: pointer;
+    width: auto;
+    padding: 0;
+}
+
+.form-group.checkbox label a {
+    color: #0073aa;
+    text-decoration: none;
+}
+
+.form-group.checkbox label a:hover {
+    text-decoration: underline;
+}
+
+.btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+}
+
+.btn-primary {
+    background-color: #0073aa;
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background-color: #005a87;
+}
+
+.btn-primary:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+#khm-sponsor-apply-submit {
+    width: 100%;
+}
+
+.khm-message {
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    font-size: 14px;
+}
+
+.khm-message.success {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+.khm-message.error {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+.khm-sponsor-apply-success {
+    background: #f0f8f0;
+    border-left: 4px solid #28a745;
+    padding: 30px;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.khm-sponsor-apply-success .success-card {
+    background: #fff;
+    padding: 30px;
+    border-radius: 4px;
+}
+
+.khm-sponsor-apply-success h3 {
+    color: #28a745;
+    margin-top: 0;
+    font-size: 24px;
+}
+
+.khm-sponsor-apply-success p {
+    color: #555;
+    line-height: 1.6;
+    margin: 15px 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .khm-sponsor-apply-form {
+        padding: 20px;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .form-col-6 {
+        grid-column: span 1;
+    }
+
+    .khm-sponsor-apply-form h2 {
+        font-size: 22px;
+    }
+}
+
+/* Loading state */
+.khm-form.loading #khm-sponsor-apply-submit {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.khm-form.loading #khm-sponsor-apply-submit::after {
+    content: "";
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    margin-left: 8px;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

@@ -165,6 +165,8 @@ require_once __DIR__ . '/src/Sponsors/SponsorIngest.php';
 require_once __DIR__ . '/src/Sponsors/SponsorController.php';
 require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
 require_once __DIR__ . '/src/Sponsors/SponsorDashboard.php';
+require_once __DIR__ . '/src/Sponsors/SponsorApplicationShortcode.php';
+require_once __DIR__ . '/src/Sponsors/SponsorApplicationAdminUI.php';
 require_once __DIR__ . '/src/Admin/PriceValidationAjax.php';
 require_once __DIR__ . '/src/Membership/MembershipMigration.php';
 require_once __DIR__ . '/src/Membership/AttributionEndpoint.php';
@@ -181,6 +183,7 @@ require_once __DIR__ . '/src/Membership/LandingPageShortcode.php';
 require_once __DIR__ . '/src/Membership/DashboardShortcode.php';
 require_once __DIR__ . '/src/Membership/Admin/ReportsPage.php';
 require_once __DIR__ . '/src/Services/LevelPriceResolver.php';
+require_once __DIR__ . '/src/Migrations/CreateSponsorApplicationsTable.php';
 
 // Register GEO Suggestion Endpoint at rest_api_init
 add_action( 'rest_api_init', function() {
@@ -454,6 +457,10 @@ if (is_admin()) {
         $sponsor_admin = new KHM\Sponsors\SponsorAdminUI();
         $sponsor_admin->register();
     }
+    if ( class_exists( 'KHM\\Sponsors\\SponsorApplicationAdminUI' ) ) {
+        $sponsor_app_admin = new KHM\Sponsors\SponsorApplicationAdminUI();
+        $sponsor_app_admin->register();
+    }
     if ( class_exists( 'KHM\\Admin\\PriceValidationAjax' ) ) {
         ( new KHM\Admin\PriceValidationAjax() )->register();
     }
@@ -462,6 +469,11 @@ if (is_admin()) {
     if ( class_exists( 'KHM\\Sponsors\\SponsorDashboard' ) ) {
         $sponsor_dashboard = new KHM\Sponsors\SponsorDashboard();
         $sponsor_dashboard->register();
+    }
+    // Frontend: Register sponsor application form shortcode
+    if ( class_exists( 'KHM\\Sponsors\\SponsorApplicationShortcode' ) ) {
+        $sponsor_apply = new KHM\Sponsors\SponsorApplicationShortcode();
+        $sponsor_apply->register();
     }
 }
 
@@ -1499,6 +1511,17 @@ register_activation_hook(__FILE__, function () {
         } catch (\Exception $e) {
             error_log('Failed to create sponsor tables: ' . $e->getMessage());
             $activation_errors[] = 'Sponsor tables failed: ' . $e->getMessage();
+        }
+    }
+
+    // Initialize sponsor applications table
+    if ( class_exists('KHM\\Migrations\\CreateSponsorApplicationsTable') ) {
+        try {
+            KHM\Migrations\CreateSponsorApplicationsTable::create_tables();
+            error_log('KHM Sponsor applications table created successfully');
+        } catch (\Exception $e) {
+            error_log('Failed to create sponsor applications table: ' . $e->getMessage());
+            $activation_errors[] = 'Sponsor applications table failed: ' . $e->getMessage();
         }
     }
 

@@ -1914,7 +1914,7 @@ class QuoteClubPortalShortcode {
 		?>
 		<div class="khm-qc-access-gate">
 			<h2><?php esc_html_e( 'Quote Club', 'khm-membership' ); ?></h2>
-			<p><?php esc_html_e( 'Please log in to access the Quote Club sponsor portal.', 'khm-membership' ); ?></p>
+			<p><?php esc_html_e( 'Please log in to access the Quote Club partner portal.', 'khm-membership' ); ?></p>
 			<a href="<?php echo esc_url( $login_url ); ?>" class="khm-qc-btn khm-qc-btn-primary"><?php esc_html_e( 'Log In', 'khm-membership' ); ?></a>
 		</div>
 		<?php
@@ -1949,7 +1949,7 @@ class QuoteClubPortalShortcode {
 		?>
 		<div class="khm-qc-access-gate">
 			<h2><?php esc_html_e( 'Quote Club', 'khm-membership' ); ?></h2>
-			<p><?php esc_html_e( 'This portal is available to Quote Club sponsor accounts. If you believe you should have access, please contact support.', 'khm-membership' ); ?></p>
+			<p><?php esc_html_e( 'This portal is available to Quote Club partner accounts. If you believe you should have access, please contact support.', 'khm-membership' ); ?></p>
 		</div>
 		<?php
 		return ob_get_clean();
