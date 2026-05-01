@@ -81,6 +81,46 @@ class AdvertScheduler {
 		// are stored as approved but will only serve once start_date <= NOW inside serve_advert.
 		// Nothing to do here beyond the serve-time gate — handled by SponsorAdvertController::serve_advert().
 
-		error_log( sprintf( '[KHM Adverts] Schedule check complete. Expired: %d.', count( $expired ) ) );
+		// A/B weight auto-adjustment: for each placement, compute the average CTR of approved adverts
+		// that have ≥100 impressions and nudge weight up (max 10) or down (min 1) by 1 step.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$placements = $wpdb->get_col( "SELECT DISTINCT placement FROM `{$table}` WHERE status = 'approved'" );
+		$adjusted   = 0;
+		foreach ( $placements as $placement ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$adverts = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT id, impressions, clicks, weight FROM `{$table}` WHERE status = 'approved' AND placement = %s AND impressions >= 100",
+					$placement
+				),
+				ARRAY_A
+			);
+			if ( empty( $adverts ) ) {
+				continue;
+			}
+			// Compute placement average CTR.
+			$total_imp = array_sum( array_column( $adverts, 'impressions' ) );
+			$total_clk = array_sum( array_column( $adverts, 'clicks' ) );
+			$avg_ctr   = $total_imp > 0 ? $total_clk / $total_imp : 0.0;
+
+			foreach ( $adverts as $ad ) {
+				$ad_ctr    = $ad['impressions'] > 0 ? $ad['clicks'] / $ad['impressions'] : 0.0;
+				$new_weight = (int) $ad['weight'];
+				if ( $ad_ctr > $avg_ctr * 1.1 ) {
+					// Performing ≥10% above average — increase weight.
+					$new_weight = min( 10, $new_weight + 1 );
+				} elseif ( $ad_ctr < $avg_ctr * 0.9 && $avg_ctr > 0 ) {
+					// Performing ≥10% below average — decrease weight.
+					$new_weight = max( 1, $new_weight - 1 );
+				}
+				if ( $new_weight !== (int) $ad['weight'] ) {
+					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+					$wpdb->update( $table, [ 'weight' => $new_weight ], [ 'id' => $ad['id'] ], [ '%d' ], [ '%d' ] );
+					$adjusted++;
+				}
+			}
+		}
+
+		error_log( sprintf( '[KHM Adverts] Schedule check complete. Expired: %d. Weight adjustments: %d.', count( $expired ), $adjusted ) );
 	}
 }
