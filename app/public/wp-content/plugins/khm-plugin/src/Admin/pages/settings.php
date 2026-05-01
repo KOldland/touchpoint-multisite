@@ -61,6 +61,14 @@ if (isset($_POST['khm_settings_submit'])) {
     $warning_days = max(0, intval($_POST['khm_expiry_warning_days'] ?? 7));
     update_option('khm_expiry_warning_days', $warning_days);
     
+    // LinkedIn API credentials
+    $li_client_id = sanitize_text_field( $_POST['khm_linkedin_client_id'] ?? '' );
+    update_option( 'khm_linkedin_client_id', $li_client_id );
+    // Only overwrite secret if a non-empty value was submitted.
+    if ( ! empty( $_POST['khm_linkedin_client_secret'] ) ) {
+        update_option( 'khm_linkedin_client_secret', sanitize_text_field( $_POST['khm_linkedin_client_secret'] ) );
+    }
+
     add_settings_error('khm_messages', 'khm_message', __('Settings saved.', 'khm-membership'), 'updated');
 
     // Re-evaluate scheduling after settings change
@@ -429,6 +437,33 @@ if (class_exists('KHM\\Scheduled\\Scheduler')) {
     <p><strong><?php esc_html_e('Next scheduled run:', 'khm-membership'); ?></strong> <?php echo $next_run_human; ?></p>
 
     <?php submit_button(__('Run Now', 'khm-membership'), 'secondary', 'khm_run_daily_now', false); ?>
+
+    <hr>
+    <h2><?php esc_html_e( 'LinkedIn API Credentials', 'khm-membership' ); ?></h2>
+    <p style="color:#6b7280;font-size:13px"><?php esc_html_e( 'Required for sponsor LinkedIn post scheduling (S9). Create an application at developer.linkedin.com and add the redirect URI shown below.', 'khm-membership' ); ?></p>
+    <?php
+    $li_redirect = home_url( '/wp-json/khm/v1/social/linkedin/callback' );
+    ?>
+    <p style="font-size:12px"><strong><?php esc_html_e( 'Redirect URI to register in LinkedIn app:', 'khm-membership' ); ?></strong><br>
+        <code><?php echo esc_html( $li_redirect ); ?></code>
+    </p>
+    <table class="form-table">
+        <tr>
+            <th><label for="khm_linkedin_client_id"><?php esc_html_e( 'Client ID', 'khm-membership' ); ?></label></th>
+            <td><input type="text" id="khm_linkedin_client_id" name="khm_linkedin_client_id"
+                       value="<?php echo esc_attr( get_option( 'khm_linkedin_client_id', '' ) ); ?>"
+                       class="regular-text" autocomplete="off">
+            </td>
+        </tr>
+        <tr>
+            <th><label for="khm_linkedin_client_secret"><?php esc_html_e( 'Client Secret', 'khm-membership' ); ?></label></th>
+            <td><input type="password" id="khm_linkedin_client_secret" name="khm_linkedin_client_secret"
+                       value="" placeholder="<?php esc_attr_e( 'Leave blank to keep existing', 'khm-membership' ); ?>"
+                       class="regular-text" autocomplete="new-password">
+                <p class="description"><?php esc_html_e( 'The current secret is stored in the database. Enter a new value only to change it.', 'khm-membership' ); ?></p>
+            </td>
+        </tr>
+    </table>
 
         <?php submit_button(__('Save Settings', 'khm-membership'), 'primary', 'khm_settings_submit'); ?>
     </form>

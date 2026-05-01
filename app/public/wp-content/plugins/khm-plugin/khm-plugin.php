@@ -446,6 +446,10 @@ if (is_admin()) {
         ( new KHM\Admin\QuoteClubPressReleaseAdminPage() )->register();
     }
 
+    if ( class_exists( 'KHM\\Admin\\QuoteClubAdvertAdminPage' ) ) {
+        ( new KHM\Admin\QuoteClubAdvertAdminPage() )->register();
+    }
+
     if ( class_exists( 'KHM\\Sponsors\\SponsorAdminUI' ) ) {
         $sponsor_admin = new KHM\Sponsors\SponsorAdminUI();
         $sponsor_admin->register();
