@@ -1239,7 +1239,7 @@ class QuoteClubPortalShortcode {
 				#khm-qc-advert-form{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:24px;margin:24px 0;display:none}
 				#khm-qc-advert-form h3{margin-top:0}
 				#khm-qc-advert-form label{display:block;font-weight:600;margin:10px 0 4px;font-size:13px}
-				#khm-qc-advert-form input[type=text],#khm-qc-advert-form select,#khm-qc-advert-form input[type=url]{width:100%;padding:8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px}
+				#khm-qc-advert-form input[type=text],#khm-qc-advert-form select,#khm-qc-advert-form input[type=url],#khm-qc-advert-form input[type=date]{width:100%;padding:8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px}
 				#khm-qc-advert-form .khm-qc-media-preview{max-width:100%;height:120px;object-fit:cover;border-radius:4px;margin:8px 0;display:none}
 				#khm-qc-advert-form .khm-qc-form-actions{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
 				.khm-qc-advert-rejection{font-size:12px;color:#991b1b;background:#fee2e2;padding:6px 10px;border-radius:4px;margin:6px 0}
@@ -1287,6 +1287,12 @@ class QuoteClubPortalShortcode {
 				<label for="khm-qc-advert-alt"><?php esc_html_e( 'Alt text', 'khm-membership' ); ?></label>
 				<input type="text" id="khm-qc-advert-alt" placeholder="<?php esc_attr_e( 'Short description of the image', 'khm-membership' ); ?>">
 
+				<label for="khm-qc-advert-start"><?php esc_html_e( 'Start date (optional)', 'khm-membership' ); ?></label>
+				<input type="date" id="khm-qc-advert-start" title="<?php esc_attr_e( 'Leave blank to serve immediately when approved', 'khm-membership' ); ?>">
+
+				<label for="khm-qc-advert-end"><?php esc_html_e( 'End date (optional)', 'khm-membership' ); ?></label>
+				<input type="date" id="khm-qc-advert-end" title="<?php esc_attr_e( 'Leave blank to run indefinitely', 'khm-membership' ); ?>">
+
 				<div class="khm-qc-form-actions">
 					<button class="button button-primary" id="khm-qc-advert-save-btn"><?php esc_html_e( 'Save draft', 'khm-membership' ); ?></button>
 					<button class="button button-secondary" id="khm-qc-advert-submit-btn" style="display:none"><?php esc_html_e( 'Submit for review', 'khm-membership' ); ?></button>
@@ -1317,6 +1323,8 @@ class QuoteClubPortalShortcode {
 			var fPreview = document.getElementById('khm-qc-advert-media-preview');
 			var fClick   = document.getElementById('khm-qc-advert-click-url');
 			var fAlt     = document.getElementById('khm-qc-advert-alt');
+			var fStart   = document.getElementById('khm-qc-advert-start');
+			var fEnd     = document.getElementById('khm-qc-advert-end');
 			var fSave    = document.getElementById('khm-qc-advert-save-btn');
 			var fSubmit  = document.getElementById('khm-qc-advert-submit-btn');
 			var fCancel  = document.getElementById('khm-qc-advert-cancel-btn');
@@ -1386,6 +1394,8 @@ class QuoteClubPortalShortcode {
 				fPreview.style.display = 'none';
 				fClick.value = '';
 				fAlt.value = '';
+				fStart.value = '';
+				fEnd.value = '';
 				fMsg.textContent = '';
 				fSubmit.style.display = 'none';
 				formTitle.textContent = 'New Ad Creative';
@@ -1403,6 +1413,8 @@ class QuoteClubPortalShortcode {
 					if (ad.media_url) { fPreview.src = ad.media_url; fPreview.style.display = 'block'; }
 					fClick.value = ad.click_url || '';
 					fAlt.value   = ad.alt_text || '';
+					fStart.value = ad.start_date ? ad.start_date.substring(0, 10) : '';
+					fEnd.value   = ad.end_date ? ad.end_date.substring(0, 10) : '';
 					fMsg.textContent = '';
 					fSubmit.style.display = 'inline-block';
 					formTitle.textContent = 'Edit: ' + ad.title;
@@ -1414,11 +1426,13 @@ class QuoteClubPortalShortcode {
 				fMsg.textContent = 'Saving…';
 				var id      = editId.value;
 				var payload = {
-					title:     fTitle.value.trim(),
-					placement: fPlace.value,
-					media_id:  parseInt(fMedia.value, 10) || 0,
-					click_url: fClick.value.trim(),
-					alt_text:  fAlt.value.trim()
+					title:      fTitle.value.trim(),
+					placement:  fPlace.value,
+					media_id:   parseInt(fMedia.value, 10) || 0,
+					click_url:  fClick.value.trim(),
+					alt_text:   fAlt.value.trim(),
+					start_date: fStart.value || null,
+					end_date:   fEnd.value || null
 				};
 				var req = id
 					? api('/adverts/' + id, 'POST', payload)

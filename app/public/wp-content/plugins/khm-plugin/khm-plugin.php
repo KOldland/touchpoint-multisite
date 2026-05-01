@@ -1617,6 +1617,15 @@ register_activation_hook(__FILE__, function () {
                 }
             }
 
+            // Add start_date / end_date scheduling columns (S20 – advert expiry).
+            if ( class_exists('KHM\\Migrations\\AddAdvertScheduleColumns') ) {
+                try {
+                    KHM\Migrations\AddAdvertScheduleColumns::run();
+                } catch (\Exception $e) {
+                    error_log('AddAdvertScheduleColumns failed: ' . $e->getMessage());
+                }
+            }
+
         }
     }
 
@@ -1634,6 +1643,9 @@ register_deactivation_hook(__FILE__, function () {
     // Deactivation tasks
     if ( class_exists('KHM\\Scheduled\\Scheduler') ) {
         KHM\Scheduled\Scheduler::deactivate();
+    }
+    if ( class_exists('KHM\\Sponsors\\AdvertScheduler') ) {
+        KHM\Sponsors\AdvertScheduler::deactivate();
     }
     $timestamp = wp_next_scheduled('khm_4a_hourly_recompute');
     if ( $timestamp ) {
@@ -2048,6 +2060,9 @@ add_action('init', function () {
 add_action('init', function () {
     if ( class_exists('KHM\\Scheduled\\Scheduler') ) {
         ( new KHM\Scheduled\Scheduler() )->register();
+    }
+    if ( class_exists('KHM\\Sponsors\\AdvertScheduler') ) {
+        ( new KHM\Sponsors\AdvertScheduler() )->register();
     }
 
     if ( class_exists('KHM\\Scheduled\\Scheduler') && class_exists('KHM\\Scheduled\\Tasks') ) {

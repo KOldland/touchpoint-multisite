@@ -237,6 +237,12 @@ class QuoteClubAdvertAdminPage {
 								<?php echo esc_html( $placement_labels[ $row['placement'] ] ?? $row['placement'] ); ?><br>
 								<strong><?php esc_html_e( 'Click URL:', 'khm-membership' ); ?></strong> <?php echo $click_link; ?><br>
 								<strong><?php esc_html_e( 'Alt:', 'khm-membership' ); ?></strong> <?php echo esc_html( $row['alt_text'] ?: '—' ); ?><br>
+								<?php if ( ! empty( $row['start_date'] ) ) : ?>
+								<strong><?php esc_html_e( 'Start:', 'khm-membership' ); ?></strong> <?php echo esc_html( substr( $row['start_date'], 0, 10 ) ); ?><br>
+								<?php endif; ?>
+								<?php if ( ! empty( $row['end_date'] ) ) : ?>
+								<strong><?php esc_html_e( 'End:', 'khm-membership' ); ?></strong> <?php echo esc_html( substr( $row['end_date'], 0, 10 ) ); ?><br>
+								<?php endif; ?>
 								<strong><?php esc_html_e( 'Submitted:', 'khm-membership' ); ?></strong> <?php echo esc_html( $row['created_at'] ); ?>
 							</div>
 						</td>
