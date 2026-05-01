@@ -118,6 +118,7 @@ class QuoteClubPortalShortcode {
 			'inviteEmail'   => sanitize_email( (string) ( $_GET['khm_sponsor_invite_email'] ?? '' ) ),
 			'wordsPerCredit'=> 120,
 			'availableCategories' => $this->get_top_line_categories(),
+			'shareLinkedInBase' => esc_url_raw( add_query_arg( [ 'qc_section' => 'social', 'li_suggest_title' => '' ], get_permalink( get_queried_object_id() ) ?: home_url( '/quote-club/' ) ) ),
 		] );
 
 	}
@@ -1043,6 +1044,9 @@ class QuoteClubPortalShortcode {
 								(pr.status === 'rejected' ? '<small style="color:#991b1b">Rejected</small>' : '') +
 								'</div>' +
 								(actions ? '<div class="khm-qc-pr-item-actions">' + actions + '</div>' : '') +
+								(pr.status === 'published'
+									? '<div class="khm-qc-pr-item-actions"><a href="' + khmQuoteClub.shareLinkedInBase + encodeURIComponent(pr.title || '') + '" class="khm-qc-btn khm-qc-btn-sm" style="background:#0a66c2;color:#fff;border-color:#0a66c2">&#128279; Share on LinkedIn</a></div>'
+									: '') +
 								'</div>';
 						});
 						html += '</div>';
@@ -1663,6 +1667,19 @@ class QuoteClubPortalShortcode {
 				if (params.get('li_error')) {
 					schedMsg.style.color = '#991b1b';
 					schedMsg.textContent = 'LinkedIn error: ' + decodeURIComponent(params.get('li_error'));
+				}
+				// PR → LI auto-suggest: pre-fill schedule form with PR title
+				var suggestTitle = params.get('li_suggest_title');
+				if (suggestTitle && data.connected) {
+					var suggestText = decodeURIComponent(suggestTitle);
+					textArea.value = suggestText;
+					charCount.textContent = suggestText.length + ' / 3000';
+					schedMsg.style.color = '#0a66c2';
+					schedMsg.textContent = 'Pre-filled from your press release. Add a link and schedule time below.';
+					schedForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+				} else if (suggestTitle && !data.connected) {
+					schedMsg.style.color = '#92400e';
+					schedMsg.textContent = 'Connect your LinkedIn account first, then share this press release.';
 				}
 			});
 
