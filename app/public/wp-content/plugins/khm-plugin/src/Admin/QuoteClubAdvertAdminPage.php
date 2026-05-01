@@ -116,7 +116,7 @@ class QuoteClubAdvertAdminPage {
 	// -------------------------------------------------------------------------
 
 	public function render(): void {
-		$allowed_statuses = [ 'pending', 'approved', 'rejected', 'paused', 'all' ];
+		$allowed_statuses = [ 'pending', 'approved', 'rejected', 'paused', 'all', 'analytics' ];
 		$status_filter    = isset( $_GET['qc_status'] ) ? sanitize_text_field( $_GET['qc_status'] ) : 'pending';
 		if ( ! in_array( $status_filter, $allowed_statuses, true ) ) {
 			$status_filter = 'pending';
@@ -152,11 +152,12 @@ class QuoteClubAdvertAdminPage {
 		$admin_url = esc_url( admin_url( 'admin.php?page=khm-qc-adverts' ) );
 
 		$tabs = [
-			'pending'  => 'Pending Review',
-			'approved' => 'Approved',
-			'paused'   => 'Paused',
-			'rejected' => 'Rejected',
-			'all'      => 'All',
+			'pending'   => 'Pending Review',
+			'approved'  => 'Approved',
+			'paused'    => 'Paused',
+			'rejected'  => 'Rejected',
+			'all'       => 'All',
+			'analytics' => 'Analytics',
 		];
 
 		$placement_labels = [
@@ -181,7 +182,9 @@ class QuoteClubAdvertAdminPage {
 				<?php endforeach; ?>
 			</nav>
 
-			<?php if ( empty( $rows ) ) : ?>
+			<?php if ( $status_filter === 'analytics' ) : ?>
+				<?php $this->render_analytics( $table, $placement_labels ); ?>
+			<?php elseif ( empty( $rows ) ) : ?>
 				<p><?php esc_html_e( 'No adverts found for this status.', 'khm-membership' ); ?></p>
 			<?php else : ?>
 
@@ -389,6 +392,176 @@ class QuoteClubAdvertAdminPage {
 			});
 		}());
 		</script>
+		<?php
+	}
+
+	// -------------------------------------------------------------------------
+	// Analytics view
+	// -------------------------------------------------------------------------
+
+	private function render_analytics( string $table, array $placement_labels ): void {
+		global $wpdb;
+
+		// Overall totals.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery
+		$totals = $wpdb->get_row(
+			"SELECT COUNT(*) AS total_creatives,
+			        SUM(CASE WHEN status='approved' THEN 1 ELSE 0 END) AS live,
+			        SUM(impressions) AS impressions,
+			        SUM(clicks)      AS clicks
+			 FROM `{$table}`",
+			ARRAY_A
+		);
+
+		$total_imp    = (int) ( $totals['impressions'] ?? 0 );
+		$total_clicks = (int) ( $totals['clicks'] ?? 0 );
+		$overall_ctr  = $total_imp > 0 ? round( $total_clicks / $total_imp * 100, 2 ) : 0;
+
+		// Per-placement rollup.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery
+		$by_placement = $wpdb->get_results(
+			"SELECT placement,
+			        COUNT(*) AS creatives,
+			        SUM(CASE WHEN status='approved' THEN 1 ELSE 0 END) AS live,
+			        SUM(impressions) AS impressions,
+			        SUM(clicks)      AS clicks
+			 FROM `{$table}`
+			 GROUP BY placement
+			 ORDER BY impressions DESC",
+			ARRAY_A
+		);
+
+		// Per-sponsor rollup.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery
+		$by_sponsor = $wpdb->get_results(
+			"SELECT s.name AS sponsor_name, u.display_name,
+			        COUNT(a.id) AS creatives,
+			        SUM(a.impressions) AS impressions,
+			        SUM(a.clicks)      AS clicks
+			 FROM `{$table}` a
+			 LEFT JOIN {$wpdb->users} u ON u.ID = a.user_id
+			 LEFT JOIN {$wpdb->prefix}khm_sponsors s ON s.id = a.sponsor_id
+			 GROUP BY a.sponsor_id
+			 ORDER BY impressions DESC
+			 LIMIT 50",
+			ARRAY_A
+		);
+		?>
+		<style>
+			.khm-advert-kpis { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+			.khm-advert-kpi  { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px 20px; min-width: 140px; }
+			.khm-advert-kpi .kpi-val { font-size: 28px; font-weight: 700; color: #111827; }
+			.khm-advert-kpi .kpi-lbl { font-size: 12px; color: #6b7280; margin-top: 2px; }
+			.khm-advert-analytics h3 { font-size: 14px; font-weight: 600; margin: 24px 0 8px; }
+			.khm-advert-analytics table { width: 100%; border-collapse: collapse; font-size: 13px; }
+			.khm-advert-analytics th, .khm-advert-analytics td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+			.khm-advert-analytics th { background: #f9fafb; font-weight: 600; }
+			.khm-advert-analytics .ctr-good { color: #065f46; font-weight: 600; }
+			.khm-advert-analytics .ctr-avg  { color: #92400e; }
+			.khm-advert-analytics .ctr-low  { color: #9ca3af; }
+		</style>
+
+		<div class="khm-advert-analytics">
+			<h2><?php esc_html_e( 'Advert Analytics', 'khm-membership' ); ?></h2>
+			<p style="color:#6b7280;font-size:13px;margin-bottom:16px">
+				<?php esc_html_e( 'All-time impression and click totals across all creatives and placements.', 'khm-membership' ); ?>
+			</p>
+
+			<!-- KPI tiles -->
+			<div class="khm-advert-kpis">
+				<div class="khm-advert-kpi">
+					<div class="kpi-val"><?php echo number_format( (int) ( $totals['total_creatives'] ?? 0 ) ); ?></div>
+					<div class="kpi-lbl"><?php esc_html_e( 'Total creatives', 'khm-membership' ); ?></div>
+				</div>
+				<div class="khm-advert-kpi">
+					<div class="kpi-val"><?php echo number_format( (int) ( $totals['live'] ?? 0 ) ); ?></div>
+					<div class="kpi-lbl"><?php esc_html_e( 'Live (approved)', 'khm-membership' ); ?></div>
+				</div>
+				<div class="khm-advert-kpi">
+					<div class="kpi-val"><?php echo number_format( $total_imp ); ?></div>
+					<div class="kpi-lbl"><?php esc_html_e( 'Impressions', 'khm-membership' ); ?></div>
+				</div>
+				<div class="khm-advert-kpi">
+					<div class="kpi-val"><?php echo number_format( $total_clicks ); ?></div>
+					<div class="kpi-lbl"><?php esc_html_e( 'Clicks', 'khm-membership' ); ?></div>
+				</div>
+				<div class="khm-advert-kpi">
+					<div class="kpi-val"><?php echo $overall_ctr; ?>%</div>
+					<div class="kpi-lbl"><?php esc_html_e( 'Overall CTR', 'khm-membership' ); ?></div>
+				</div>
+			</div>
+
+			<!-- By placement -->
+			<h3><?php esc_html_e( 'By Placement', 'khm-membership' ); ?></h3>
+			<?php if ( empty( $by_placement ) ) : ?>
+				<p style="color:#9ca3af;font-size:13px"><?php esc_html_e( 'No data yet.', 'khm-membership' ); ?></p>
+			<?php else : ?>
+			<table>
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Placement', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Creatives', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Live', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Impressions', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Clicks', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'CTR', 'khm-membership' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+				<?php foreach ( $by_placement as $row ) :
+					$imp = (int) $row['impressions'];
+					$clk = (int) $row['clicks'];
+					$ctr = $imp > 0 ? round( $clk / $imp * 100, 2 ) : 0;
+					$ctr_class = $ctr >= 2 ? 'ctr-good' : ( $ctr >= 0.5 ? 'ctr-avg' : 'ctr-low' );
+				?>
+					<tr>
+						<td><?php echo esc_html( $placement_labels[ $row['placement'] ] ?? ucfirst( $row['placement'] ) ); ?></td>
+						<td><?php echo (int) $row['creatives']; ?></td>
+						<td><?php echo (int) $row['live']; ?></td>
+						<td><?php echo number_format( $imp ); ?></td>
+						<td><?php echo number_format( $clk ); ?></td>
+						<td class="<?php echo esc_attr( $ctr_class ); ?>"><?php echo $ctr; ?>%</td>
+					</tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+			<?php endif; ?>
+
+			<!-- By sponsor -->
+			<h3><?php esc_html_e( 'By Sponsor', 'khm-membership' ); ?></h3>
+			<?php if ( empty( $by_sponsor ) ) : ?>
+				<p style="color:#9ca3af;font-size:13px"><?php esc_html_e( 'No data yet.', 'khm-membership' ); ?></p>
+			<?php else : ?>
+			<table>
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Sponsor', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Creatives', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Impressions', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Clicks', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'CTR', 'khm-membership' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+				<?php foreach ( $by_sponsor as $row ) :
+					$imp = (int) $row['impressions'];
+					$clk = (int) $row['clicks'];
+					$ctr = $imp > 0 ? round( $clk / $imp * 100, 2 ) : 0;
+					$ctr_class = $ctr >= 2 ? 'ctr-good' : ( $ctr >= 0.5 ? 'ctr-avg' : 'ctr-low' );
+					$label = $row['sponsor_name'] ?: $row['display_name'] ?: '—';
+				?>
+					<tr>
+						<td><?php echo esc_html( $label ); ?></td>
+						<td><?php echo (int) $row['creatives']; ?></td>
+						<td><?php echo number_format( $imp ); ?></td>
+						<td><?php echo number_format( $clk ); ?></td>
+						<td class="<?php echo esc_attr( $ctr_class ); ?>"><?php echo $ctr; ?>%</td>
+					</tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+			<?php endif; ?>
+		</div>
 		<?php
 	}
 }
