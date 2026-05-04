@@ -265,6 +265,12 @@ class Dual_GPT_Plugin {
             ),
         ));
 
+        register_rest_route('dual-gpt/v1', '/planner/top-line-categories/import', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'import_planner_top_line_categories'),
+            'permission_callback' => array($this, 'check_permissions'),
+        ));
+
         register_rest_route('dual-gpt/v1', '/planner/export', array(
             'methods' => 'POST',
             'callback' => array($this, 'export_planner_validation'),
@@ -1033,6 +1039,36 @@ class Dual_GPT_Plugin {
         $category = $this->find_top_line_category_by_topic($topic);
         if (is_array($category)) {
             $meta['lead_category'] = $category['name'];
+            $meta['category_profile'] = array(
+                'slug' => $category['slug'] ?? '',
+                'name' => $category['name'] ?? '',
+                'category_type' => $category['category_type'] ?? '',
+                'pref_domain' => $category['pref_domain'] ?? '',
+                'core_content_channel' => $category['core_content_channel'] ?? '',
+                'target_personas' => $category['target_personas'] ?? array(),
+                'target_sponsors' => $category['target_sponsors'] ?? array(),
+                'key_competitors' => $category['key_competitors'] ?? array(),
+                'trade_associations' => $category['trade_associations'] ?? array(),
+                'academic_journals' => $category['academic_journals'] ?? array(),
+                'acronyms' => $category['acronyms'] ?? array(),
+                'cultural_lexicon' => $category['cultural_lexicon'] ?? array(),
+                'key_speakers' => $category['key_speakers'] ?? array(),
+                'subgroups' => $category['subgroups'] ?? array(),
+            );
+
+            $requested_subgroup = sanitize_text_field((string) ($meta['subgroup'] ?? ''));
+            if ($requested_subgroup !== '' && !empty($category['subgroups']) && is_array($category['subgroups'])) {
+                foreach ($category['subgroups'] as $subgroup_name) {
+                    if (strcasecmp((string) $subgroup_name, $requested_subgroup) === 0) {
+                        $meta['subgroup_profile'] = array(
+                            'name' => (string) $subgroup_name,
+                            'parent_category' => $category['name'] ?? '',
+                        );
+                        break;
+                    }
+                }
+            }
+
             $category_policy = is_array($category['research_policy'] ?? null) ? $category['research_policy'] : array();
             $policy_override = is_array($meta_input['research_policy'] ?? null) ? $meta_input['research_policy'] : array();
             $meta['research_policy'] = $this->merge_research_policy($category_policy, $policy_override);
@@ -1040,6 +1076,30 @@ class Dual_GPT_Plugin {
 
         $meta = $this->ensure_research_policy_in_meta($meta);
         $meta = $this->ensure_author_policy_in_meta($meta);
+
+        // Content channel + exclusion context
+        $allowed_channels = array('house', 'quote_club', 'circle');
+        $channel = sanitize_text_field((string) ($meta_input['content_channel'] ?? 'house'));
+        $meta['content_channel'] = in_array($channel, $allowed_channels, true) ? $channel : 'house';
+
+        if ($meta['content_channel'] === 'quote_club') {
+            $mode = sanitize_text_field((string) ($meta_input['quote_club_mode'] ?? 'summary'));
+            $meta['quote_club_mode'] = in_array($mode, array('summary', 'framework'), true) ? $mode : 'summary';
+            if ($meta['quote_club_mode'] === 'framework') {
+                $sv = is_array($meta_input['submitting_vendor'] ?? null) ? $meta_input['submitting_vendor'] : array();
+                $meta['submitting_vendor'] = array(
+                    'name' => sanitize_text_field((string) ($sv['name'] ?? '')),
+                    'type' => strtolower(sanitize_text_field((string) ($sv['type'] ?? ''))),
+                );
+            }
+        } elseif ($meta['content_channel'] === 'circle') {
+            $cc = is_array($meta_input['circle_client'] ?? null) ? $meta_input['circle_client'] : array();
+            $meta['circle_client'] = array(
+                'name' => sanitize_text_field((string) ($cc['name'] ?? '')),
+                'type' => strtolower(sanitize_text_field((string) ($cc['type'] ?? ''))),
+            );
+        }
+
         $idempotency_key = !empty($params['idempotency_key']) ? sanitize_text_field($params['idempotency_key']) : null;
         if ($idempotency_key && strlen($idempotency_key) > 64) {
             $idempotency_key = substr($idempotency_key, 0, 64);
@@ -1676,9 +1736,9 @@ class Dual_GPT_Plugin {
         $includes = $this->normalize_terms($meta['includes'] ?? array());
         $excludes = $this->normalize_terms($meta['excludes'] ?? array());
         $phase1_summary = $meta['phases']['phase1']['summary'] ?? '';
-        $phase2_context = $meta['phases']['phase2']['payload'] ?? array();
 
         $orchestrator = new Dual_GPT_Planner_Orchestrator($this);
+        $phase2_context = $orchestrator->build_phase2_context($meta);
         $prompt = $orchestrator->build_phase2_prompt(
             $topic,
             $includes,
@@ -1745,11 +1805,13 @@ class Dual_GPT_Plugin {
         $phase3_summary = $meta['phases']['phase3']['summary'] ?? '';
 
         $orchestrator = new Dual_GPT_Planner_Orchestrator($this);
+        $phase3_context = $orchestrator->build_phase3_context($meta);
         $prompt = $orchestrator->build_phase3_prompt(
             $topic,
             $includes,
             $excludes,
             $phase3_summary,
+            $phase3_context,
             $meta['focus_level'] ?? 50
         );
         $job_id = $orchestrator->run_job($session_id, 'planner-phase4-' . $session_id . '-' . time(), $prompt, 'verify');
@@ -2143,6 +2205,61 @@ class Dual_GPT_Plugin {
         return new WP_REST_Response(array(
             'top_line_category' => $sanitized,
             'updated' => true,
+        ), 200);
+    }
+
+    public function import_planner_top_line_categories($request) {
+        $rows = $request->get_param('rows');
+        $csv = $request->get_param('csv');
+
+        if (!is_array($rows) && !is_string($csv)) {
+            return new WP_Error('missing_payload', 'Provide rows[] or csv string for import.', array('status' => 400));
+        }
+
+        if (!is_array($rows)) {
+            $rows = $this->parse_top_line_categories_csv($csv);
+            if (is_wp_error($rows)) {
+                return $rows;
+            }
+        }
+
+        $existing = $this->get_top_line_categories();
+        $created_or_updated = 0;
+        $skipped = 0;
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                $skipped++;
+                continue;
+            }
+
+            $mapped = $this->map_top_line_category_import_row($row);
+            $sanitized = $this->sanitize_top_line_category($mapped);
+            if ($sanitized['name'] === '') {
+                $skipped++;
+                continue;
+            }
+
+            $slug = $this->normalize_top_line_category_slug($sanitized['slug'] ?? $sanitized['name']);
+            if ($slug === '') {
+                $skipped++;
+                continue;
+            }
+
+            $sanitized['slug'] = $slug;
+            $existing[$slug] = $sanitized;
+            $created_or_updated++;
+        }
+
+        if (!$this->save_top_line_categories($existing)) {
+            return new WP_Error('save_failed', 'Unable to save imported top-line categories', array('status' => 500));
+        }
+
+        return new WP_REST_Response(array(
+            'updated' => true,
+            'created_or_updated' => $created_or_updated,
+            'skipped' => $skipped,
+            'total' => $created_or_updated + $skipped,
         ), 200);
     }
 
@@ -5058,6 +5175,7 @@ class Dual_GPT_Plugin {
             }
 
             $meta = $this->refresh_research_validation_index($meta);
+            $meta = $this->upsert_planner_dossier_artifact($session, $meta, $storage_key);
 
             $updated = $db->update_session_meta($session['id'], $meta);
             if (!$updated) {
@@ -5081,6 +5199,7 @@ class Dual_GPT_Plugin {
                         'summary' => $phase1_5['summary'] ?? '',
                     );
                     $meta = $this->refresh_research_validation_index($meta);
+                    $meta = $this->upsert_planner_dossier_artifact($session, $meta, 'phase2');
                     $db->update_session_meta($session['id'], $meta);
 
                     $prompt = $orchestrator->build_phase2_prompt(
@@ -5210,6 +5329,144 @@ class Dual_GPT_Plugin {
         }
 
         update_post_meta($post_id, 'topics', wp_json_encode($topics));
+    }
+
+    private function upsert_planner_dossier_artifact($session, $meta, $phase_key = '') {
+        if (!is_array($meta)) {
+            return $meta;
+        }
+
+        $phases = is_array($meta['phases'] ?? null) ? $meta['phases'] : array();
+        if (empty($phases)) {
+            return $meta;
+        }
+
+        $dossier = is_array($meta['planner_dossier'] ?? null) ? $meta['planner_dossier'] : array();
+        $post_id = intval($dossier['post_id'] ?? 0);
+        $session_id = sanitize_text_field((string) ($session['id'] ?? ''));
+
+        if ($post_id <= 0 || get_post_status($post_id) === false) {
+            $target_post_type = post_type_exists('atomic_article') ? 'atomic_article' : 'post';
+            $inserted = wp_insert_post(array(
+                'post_type' => $target_post_type,
+                'post_status' => 'private',
+                'post_title' => 'Planner Dossier ' . ($session_id !== '' ? substr($session_id, 0, 12) : wp_generate_uuid4()),
+                'post_name' => 'planner-dossier-' . sanitize_title($session_id !== '' ? $session_id : wp_generate_uuid4()),
+                'post_content' => '',
+                'post_author' => intval($session['created_by'] ?? get_current_user_id()),
+            ), true);
+
+            if (is_wp_error($inserted) || intval($inserted) <= 0) {
+                return $meta;
+            }
+            $post_id = intval($inserted);
+        }
+
+        $phase_snapshot = $this->build_planner_dossier_phase_snapshot($meta);
+
+        $content_lines = array();
+        $content_lines[] = '# Planner Dossier';
+        $content_lines[] = '';
+        $content_lines[] = '- Session ID: ' . $session_id;
+        $content_lines[] = '- Last updated: ' . current_time('mysql');
+        $content_lines[] = '- Latest phase write: ' . sanitize_text_field((string) $phase_key);
+        $content_lines[] = '';
+
+        foreach (array('phase1', 'phase2', 'phase3', 'phase4') as $key) {
+            if (empty($phase_snapshot[$key])) {
+                continue;
+            }
+            $content_lines[] = '## ' . strtoupper($key);
+            $content_lines[] = '';
+            $content_lines[] = '```json';
+            $content_lines[] = wp_json_encode($phase_snapshot[$key], JSON_PRETTY_PRINT);
+            $content_lines[] = '```';
+            $content_lines[] = '';
+        }
+
+        wp_update_post(array(
+            'ID' => $post_id,
+            'post_content' => implode("\n", $content_lines),
+        ));
+
+        $artifact_ref = 'atomic/planner/' . ($session_id !== '' ? $session_id : strval($post_id));
+        $meta['planner_dossier'] = array(
+            'post_id' => $post_id,
+            'artifact_ref' => $artifact_ref,
+            'url' => (string) get_permalink($post_id),
+            'edit_url' => (string) get_edit_post_link($post_id, 'raw'),
+            'updated_at' => current_time('mysql'),
+            'phase_snapshot' => $phase_snapshot,
+        );
+
+        return $meta;
+    }
+
+    private function build_planner_dossier_phase_snapshot($meta) {
+        $meta = is_array($meta) ? $meta : array();
+        $phases = is_array($meta['phases'] ?? null) ? $meta['phases'] : array();
+        $snapshot = array();
+
+        if (!empty($phases['phase1'])) {
+            $p1 = is_array($phases['phase1']['payload'] ?? null) ? $phases['phase1']['payload'] : array();
+            $snapshot['phase1'] = array(
+                'summary' => sanitize_text_field((string) ($phases['phase1']['summary'] ?? $p1['executive_summary'] ?? '')),
+                'candidate_keywords' => array_slice(array_values((array) ($p1['candidate_keywords'] ?? $meta['phase1']['candidate_keywords'] ?? array())), 0, 12),
+                'trend_titles' => array_values(array_slice(array_filter(array_map(function ($row) {
+                    return is_array($row) ? sanitize_text_field((string) ($row['title'] ?? '')) : '';
+                }, (array) ($p1['trends'] ?? array()))), 0, 8)),
+            );
+            if (!empty($meta['phase1']['internal_content_coverage'])) {
+                $snapshot['phase1']['internal_content_coverage'] = array(
+                    'summary' => $meta['phase1']['internal_content_coverage']['summary'] ?? array(),
+                    'priority_gaps' => array_slice((array) ($meta['phase1']['internal_content_coverage']['priority_gaps'] ?? array()), 0, 8),
+                );
+            }
+        }
+
+        if (!empty($phases['phase2'])) {
+            $p2 = is_array($phases['phase2']['payload'] ?? null) ? $phases['phase2']['payload'] : array();
+            $snapshot['phase2'] = array(
+                'summary' => sanitize_text_field((string) ($phases['phase2']['summary'] ?? $p2['summary'] ?? '')),
+                'ranked_keywords' => array_values(array_slice(array_map(function ($row) {
+                    if (!is_array($row)) {
+                        return array();
+                    }
+                    return array(
+                        'keyword' => sanitize_text_field((string) ($row['keyword'] ?? '')),
+                        'priority_score' => isset($row['priority_score']) ? floatval($row['priority_score']) : null,
+                    );
+                }, (array) ($p2['ranked_keywords'] ?? array())), 0, 12)),
+            );
+        }
+
+        if (!empty($phases['phase3'])) {
+            $p3 = is_array($phases['phase3']['payload'] ?? null) ? $phases['phase3']['payload'] : array();
+            $snapshot['phase3'] = array(
+                'summary' => sanitize_text_field((string) ($phases['phase3']['summary'] ?? $p3['article_summary'] ?? '')),
+                'prioritized_topics' => array_values(array_slice(array_map(function ($row) {
+                    if (!is_array($row)) {
+                        return '';
+                    }
+                    return sanitize_text_field((string) ($row['topic'] ?? ''));
+                }, (array) ($p3['prioritized_topics'] ?? array())), 0, 10)),
+            );
+        }
+
+        if (!empty($phases['phase4'])) {
+            $p4 = is_array($phases['phase4']['payload'] ?? null) ? $phases['phase4']['payload'] : array();
+            $snapshot['phase4'] = array(
+                'summary' => sanitize_text_field((string) ($phases['phase4']['summary'] ?? $p4['validation_summary'] ?? '')),
+                'validated_topics' => array_values(array_slice(array_map(function ($row) {
+                    if (!is_array($row)) {
+                        return '';
+                    }
+                    return sanitize_text_field((string) ($row['topic'] ?? ''));
+                }, (array) ($p4['validated_topics'] ?? array())), 0, 10)),
+            );
+        }
+
+        return $snapshot;
     }
 
     private function maybe_update_planner_meta_failure($job, $session, $error_message) {
@@ -7174,13 +7431,152 @@ class Dual_GPT_Plugin {
         return sanitize_title((string) $value);
     }
 
+    /**
+     * Parse typed entity list from mixed input.
+     * Accepts: [{name, type}] objects, "Name|type" pipe-delimited strings, or plain strings.
+     * Returns: [{name, type}] array, always with both keys present.
+     */
+    private function normalize_typed_entity_list($input) {
+        if (!is_array($input)) {
+            $input = array();
+        }
+        $result = array();
+        $seen = array();
+        foreach ($input as $item) {
+            $name = '';
+            $type = '';
+            if (is_array($item)) {
+                $name = sanitize_text_field((string) ($item['name'] ?? ''));
+                $type = strtolower(sanitize_text_field((string) ($item['type'] ?? '')));
+            } elseif (is_string($item) && trim($item) !== '') {
+                $parts = explode('|', $item, 2);
+                $name = sanitize_text_field(trim($parts[0]));
+                $type = isset($parts[1]) ? strtolower(sanitize_text_field(trim($parts[1]))) : '';
+            }
+            if ($name === '') {
+                continue;
+            }
+            $key = strtolower($name);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $result[] = array('name' => $name, 'type' => $type);
+        }
+        return $result;
+    }
+
     private function sanitize_top_line_category($category_input) {
         $category_input = is_array($category_input) ? $category_input : array();
+
+        $subgroups_in = $category_input['subgroups'] ?? array();
+        if (is_string($subgroups_in)) {
+            $subgroups_in = $this->normalize_research_title_list($subgroups_in);
+        }
+        if (!is_array($subgroups_in)) {
+            $subgroups_in = array();
+        }
+        $subgroups = array_values(array_unique(array_filter(array_map(function ($value) {
+            return sanitize_text_field((string) $value);
+        }, $subgroups_in))));
 
         return array(
             'slug' => $this->normalize_top_line_category_slug($category_input['slug'] ?? $category_input['name'] ?? ''),
             'name' => sanitize_text_field((string) ($category_input['name'] ?? '')),
+            'category_type' => sanitize_text_field((string) ($category_input['category_type'] ?? '')),
+            'pref_domain' => sanitize_text_field((string) ($category_input['pref_domain'] ?? '')),
+            'core_content_channel' => sanitize_text_field((string) ($category_input['core_content_channel'] ?? '')),
+            'target_personas' => $this->normalize_research_title_list($category_input['target_personas'] ?? array()),
+            'target_sponsors' => $this->normalize_typed_entity_list($category_input['target_sponsors'] ?? array()),
+            'key_competitors' => $this->normalize_typed_entity_list($category_input['key_competitors'] ?? array()),
+            'trade_associations' => $this->normalize_typed_entity_list($category_input['trade_associations'] ?? array()),
+            'academic_journals' => $this->normalize_research_title_list($category_input['academic_journals'] ?? array()),
+            'acronyms' => $this->normalize_research_title_list($category_input['acronyms'] ?? array()),
+            'cultural_lexicon' => $this->normalize_research_title_list($category_input['cultural_lexicon'] ?? array()),
+            'key_speakers' => $this->normalize_research_title_list($category_input['key_speakers'] ?? array()),
+            'subgroups' => $subgroups,
             'research_policy' => $this->sanitize_research_policy($category_input['research_policy'] ?? array()),
+        );
+    }
+
+    private function parse_top_line_categories_csv($csv) {
+        if (!is_string($csv) || trim($csv) === '') {
+            return new WP_Error('invalid_csv', 'CSV payload is empty.', array('status' => 400));
+        }
+
+        $lines = preg_split('/\r\n|\r|\n/', trim($csv));
+        if (!is_array($lines) || count($lines) < 2) {
+            return new WP_Error('invalid_csv', 'CSV must include a header row and at least one data row.', array('status' => 400));
+        }
+
+        $header = str_getcsv(array_shift($lines));
+        $headers = array_map(function ($value) {
+            return strtolower(trim((string) $value));
+        }, (array) $header);
+
+        $rows = array();
+        foreach ($lines as $line) {
+            if (trim((string) $line) === '') {
+                continue;
+            }
+            $cells = str_getcsv($line);
+            $row = array();
+            foreach ($headers as $index => $key) {
+                $row[$key] = isset($cells[$index]) ? trim((string) $cells[$index]) : '';
+            }
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
+    private function map_top_line_category_import_row($row) {
+        $row = is_array($row) ? $row : array();
+        $normalized_row = array();
+        foreach ($row as $key => $value) {
+            $normalized_row[strtolower(trim((string) $key))] = $value;
+        }
+
+        $get = function ($keys) use ($normalized_row) {
+            foreach ((array) $keys as $key) {
+                $lookup = strtolower(trim((string) $key));
+                if (array_key_exists($lookup, $normalized_row) && trim((string) $normalized_row[$lookup]) !== '') {
+                    return trim((string) $normalized_row[$lookup]);
+                }
+            }
+            return '';
+        };
+
+        $split = function ($value) {
+            if (!is_string($value) || trim($value) === '') {
+                return array();
+            }
+            $parts = preg_split('/[;,\n]/', $value);
+            $parts = array_filter(array_map('trim', (array) $parts));
+            return array_values($parts);
+        };
+
+        $brand_title = $get(array('brand title', 'name', 'category name'));
+        $pref_domain = $get(array('pref. domain', 'pref domain', 'preferred domain', 'domain'));
+
+        return array(
+            'slug' => $pref_domain !== '' ? $pref_domain : $brand_title,
+            'name' => $brand_title,
+            'category_type' => $get(array('category', 'type')),
+            'pref_domain' => $pref_domain,
+            'core_content_channel' => $get(array('core content channel', 'core channel', 'channel')),
+            'target_personas' => $split($get(array('target personas', 'personas'))),
+            'target_sponsors' => $split($get(array('target sponsors', 'sponsors', 'key solution providers'))),
+            'key_competitors' => $split($get(array('key competitors', 'competitors'))),
+            'trade_associations' => $split($get(array('trade & professional associations', 'trade and professional associations', 'associations'))),
+            'academic_journals' => $split($get(array('academic journals', 'journals'))),
+            'acronyms' => $split($get(array('acronyms'))),
+            'cultural_lexicon' => $split($get(array('cultural lexicon', 'lexicon'))),
+            'key_speakers' => $split($get(array('key speakers', 'speakers'))),
+            'subgroups' => $split($get(array('subgroups', 'subgroup', 'sub categories', 'sub-categories'))),
+            'research_policy' => array(
+                'preferred_sources' => $split($get(array('academic journals', 'journals'))),
+            ),
         );
     }
 

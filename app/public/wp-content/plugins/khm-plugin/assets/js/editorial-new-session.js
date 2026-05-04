@@ -42,7 +42,11 @@ const hasRole = (preset, roles = []) => {
 };
 
 const EditorialNewSessionApp = () => {
+    const [topicOptions, setTopicOptions] = useState(TOPIC_OPTIONS);
+    const [topLineCategories, setTopLineCategories] = useState([]);
     const [selectedTopic, setSelectedTopic] = useState(TOPIC_OPTIONS[0].value);
+    const [subgroupOptions, setSubgroupOptions] = useState([]);
+    const [selectedSubgroup, setSelectedSubgroup] = useState('');
     const [includes, setIncludes] = useState([]);
     const [excludes, setExcludes] = useState([]);
     const [starting, setStarting] = useState(false);
@@ -57,6 +61,14 @@ const EditorialNewSessionApp = () => {
     const [sponsors, setSponsors] = useState([]);
     const [sponsorWeighting, setSponsorWeighting] = useState(2);
     const [loadingSponsors, setLoadingSponsors] = useState(false);
+
+    // Content channel + exclusion fields
+    const [contentChannel, setContentChannel] = useState('house');
+    const [quoteClubMode, setQuoteClubMode] = useState('summary');
+    const [submittingVendorName, setSubmittingVendorName] = useState('');
+    const [submittingVendorType, setSubmittingVendorType] = useState('');
+    const [circleClientName, setCircleClientName] = useState('');
+    const [circleClientType, setCircleClientType] = useState('');
     
     // Presets for dropdowns
     const [researchPresets, setResearchPresets] = useState([]);
@@ -65,7 +77,48 @@ const EditorialNewSessionApp = () => {
     // Load presets on mount
     useEffect(() => {
         loadPresets();
+        loadTopLineCategories();
     }, []);
+
+    useEffect(() => {
+        const selected = topLineCategories.find((category) => String(category?.name || '') === String(selectedTopic));
+        const subgroupRows = Array.isArray(selected?.subgroups) ? selected.subgroups : [];
+        const options = subgroupRows
+            .map((name) => String(name || '').trim())
+            .filter(Boolean)
+            .map((name) => ({ label: name, value: name }));
+        setSubgroupOptions(options);
+        if (!options.some((option) => option.value === selectedSubgroup)) {
+            setSelectedSubgroup('');
+        }
+    }, [selectedTopic, topLineCategories, selectedSubgroup]);
+
+    const loadTopLineCategories = async () => {
+        try {
+            const response = await apiFetch({
+                path: 'dual-gpt/v1/planner/top-line-categories',
+                method: 'GET',
+            });
+
+            const rows = Array.isArray(response?.top_line_categories) ? response.top_line_categories : [];
+            if (!rows.length) {
+                return;
+            }
+
+            const options = rows
+                .map((row) => ({ label: row.name, value: row.name }))
+                .filter((row) => row.value)
+                .sort((a, b) => String(a.label).localeCompare(String(b.label)));
+
+            setTopLineCategories(rows);
+            setTopicOptions(options);
+            if (!options.some((option) => option.value === selectedTopic)) {
+                setSelectedTopic(options[0]?.value || TOPIC_OPTIONS[0].value);
+            }
+        } catch (err) {
+            console.error('Failed to load top-line categories:', err);
+        }
+    };
 
     const loadPresets = async () => {
         try {
@@ -145,6 +198,7 @@ const EditorialNewSessionApp = () => {
                 title: selectedTopic,
                 meta: {
                     topic: selectedTopic,
+                    ...(selectedSubgroup ? { subgroup: selectedSubgroup } : {}),
                     includes,
                     excludes,
                     ...(showFocusControls ? { focus_level: focusLevel } : {}),
@@ -159,7 +213,18 @@ const EditorialNewSessionApp = () => {
                             prioritize_sponsor_queries: !selectedSponsor, // Only when no sponsor library selected
                             weighting_level: sponsorWeighting
                         }
-                    } : {})
+                    } : {}),
+                    // Content channel + exclusion context
+                    content_channel: contentChannel,
+                    ...(contentChannel === 'quote_club' ? {
+                        quote_club_mode: quoteClubMode,
+                        ...(quoteClubMode === 'framework' && submittingVendorName ? {
+                            submitting_vendor: { name: submittingVendorName, type: submittingVendorType.toLowerCase() },
+                        } : {}),
+                    } : {}),
+                    ...(contentChannel === 'circle' && circleClientName ? {
+                        circle_client: { name: circleClientName, type: circleClientType.toLowerCase() },
+                    } : {}),
                 },
                 idempotency_key: `planner-${Date.now()}`,
             };
@@ -192,12 +257,19 @@ const EditorialNewSessionApp = () => {
             // Reset form
             setIncludes([]);
             setExcludes([]);
-            setSelectedTopic(TOPIC_OPTIONS[0].value);
+            setSelectedTopic(topicOptions[0]?.value || TOPIC_OPTIONS[0].value);
+            setSelectedSubgroup('');
             setFocusLevel(50);
             setResearchProfile('');
             setIsSponsored(false);
             setSelectedSponsor('');
             setSponsorWeighting(2);
+            setContentChannel('house');
+            setQuoteClubMode('summary');
+            setSubmittingVendorName('');
+            setSubmittingVendorType('');
+            setCircleClientName('');
+            setCircleClientType('');
 
             // Navigate directly to the created planner session.
             window.location.href = `${admin_url}admin.php?page=editorial_planner&session_id=${encodeURIComponent(sessionResponse.session_id)}`;
@@ -225,11 +297,98 @@ const EditorialNewSessionApp = () => {
                 wp.element.createElement(SelectControl, {
                     label: 'Top-line Topic',
                     value: selectedTopic,
-                    options: TOPIC_OPTIONS,
+                    options: topicOptions,
                     onChange: setSelectedTopic,
                     help: 'Select the primary topic or industry for this planning session',
                 }),
-                wp.element.createElement('div', { style: { marginTop: '20px' } },
+                subgroupOptions.length > 0 && wp.element.createElement('div', { style: { marginTop: '12px' } },
+                    wp.element.createElement(SelectControl, {
+                        label: 'Subgroup',
+                        value: selectedSubgroup,
+                        options: [
+                            { label: '-- Optional subgroup --', value: '' },
+                            ...subgroupOptions,
+                        ],
+                        onChange: setSelectedSubgroup,
+                        help: 'Optional: focus this session on a specific subgroup within the top-line category.',
+                    })
+                ),
+                wp.element.createElement('hr', { style: { margin: '20px 0', borderColor: '#ddd' } }),
+                wp.element.createElement(SelectControl, {
+                    label: 'Content Channel',
+                    value: contentChannel,
+                    options: [
+                        { label: 'House Content', value: 'house' },
+                        { label: 'Quote Club', value: 'quote_club' },
+                        { label: 'Circle (Ghost-written)', value: 'circle' },
+                    ],
+                    onChange: setContentChannel,
+                    help: 'Determines citation and vendor exclusion rules for this session.',
+                }),
+                contentChannel === 'quote_club' && wp.element.createElement(
+                    'div',
+                    { style: { marginTop: '12px', padding: '12px', backgroundColor: '#f0f6fc', border: '1px solid #c8d8e8', borderRadius: '4px' } },
+                    wp.element.createElement(SelectControl, {
+                        label: 'Quote Club Mode',
+                        value: quoteClubMode,
+                        options: [
+                            { label: 'Summary (vendor-agnostic)', value: 'summary' },
+                            { label: 'Framework (submitting vendor stays)', value: 'framework' },
+                        ],
+                        onChange: setQuoteClubMode,
+                        help: 'Summary: all sponsors excluded. Framework: submitting vendor kept, same-type competitors excluded.',
+                    }),
+                    quoteClubMode === 'framework' && wp.element.createElement(
+                        'div',
+                        { style: { marginTop: '10px' } },
+                        wp.element.createElement('p', { style: { fontWeight: '500', marginBottom: '6px', fontSize: '13px' } }, 'Submitting Vendor'),
+                        wp.element.createElement('div', { style: { display: 'flex', gap: '10px' } },
+                            wp.element.createElement('input', {
+                                type: 'text',
+                                placeholder: 'Vendor name (e.g. SAP)',
+                                value: submittingVendorName,
+                                onChange: (e) => setSubmittingVendorName(e.target.value),
+                                style: { flex: 2, padding: '6px 8px', border: '1px solid #ccc', borderRadius: '3px' },
+                            }),
+                            wp.element.createElement('input', {
+                                type: 'text',
+                                placeholder: 'Type (e.g. software)',
+                                value: submittingVendorType,
+                                onChange: (e) => setSubmittingVendorType(e.target.value),
+                                style: { flex: 1, padding: '6px 8px', border: '1px solid #ccc', borderRadius: '3px' },
+                            })
+                        ),
+                        wp.element.createElement('p', { style: { fontSize: '12px', color: '#666', marginTop: '4px' } },
+                            'Type matches your category entity types (software, consultant, manufacturer, etc.)'
+                        )
+                    )
+                ),
+                contentChannel === 'circle' && wp.element.createElement(
+                    'div',
+                    { style: { marginTop: '12px', padding: '12px', backgroundColor: '#f5f0fc', border: '1px solid #d0c0e0', borderRadius: '4px' } },
+                    wp.element.createElement('p', { style: { fontWeight: '500', marginBottom: '6px', fontSize: '13px' } }, 'Client (Ghost-written for)'),
+                    wp.element.createElement('p', { style: { fontSize: '12px', color: '#666', marginTop: '0', marginBottom: '8px' } },
+                        'Same-type competitors will be excluded from research. The client itself stays in.'
+                    ),
+                    wp.element.createElement('div', { style: { display: 'flex', gap: '10px' } },
+                        wp.element.createElement('input', {
+                            type: 'text',
+                            placeholder: 'Client name (e.g. Deloitte)',
+                            value: circleClientName,
+                            onChange: (e) => setCircleClientName(e.target.value),
+                            style: { flex: 2, padding: '6px 8px', border: '1px solid #ccc', borderRadius: '3px' },
+                        }),
+                        wp.element.createElement('input', {
+                            type: 'text',
+                            placeholder: 'Type (e.g. consultant)',
+                            value: circleClientType,
+                            onChange: (e) => setCircleClientType(e.target.value),
+                            style: { flex: 1, padding: '6px 8px', border: '1px solid #ccc', borderRadius: '3px' },
+                        })
+                    )
+                ),
+                wp.element.createElement('hr', { style: { margin: '20px 0', borderColor: '#ddd' } }),
+                wp.element.createElement('div', { style: { marginTop: '0' } },
                     loadingPresets ? 
                         wp.element.createElement(Spinner, null) :
                         wp.element.createElement(SelectControl, {

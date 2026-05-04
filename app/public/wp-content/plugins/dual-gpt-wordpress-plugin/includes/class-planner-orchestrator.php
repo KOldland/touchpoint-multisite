@@ -38,7 +38,20 @@ class Dual_GPT_Planner_Orchestrator {
         $phases = isset($meta['phases']) && is_array($meta['phases']) ? $meta['phases'] : array();
 
         $focus_level = isset($meta['focus_level']) ? intval($meta['focus_level']) : 50;
-        $phase1_data = $this->build_phase1_data($topic, $includes, $excludes);
+        $research_policy = is_array($meta['research_policy'] ?? null) ? $meta['research_policy'] : array();
+        $subgroup = sanitize_text_field((string) ($meta['subgroup'] ?? ($meta['subgroup_profile']['name'] ?? '')));
+        $sponsor_context = array(
+            'is_sponsored' => !empty($meta['is_sponsored']),
+            'sponsor_name' => sanitize_text_field((string) ($meta['sponsor_name'] ?? '')),
+            'sponsor_weighting' => max(0, min(5, intval($meta['sponsor_weighting'] ?? 2))),
+            'target_sponsors' => is_array($meta['category_profile']['target_sponsors'] ?? null)
+                ? $meta['category_profile']['target_sponsors']
+                : array(),
+        );
+
+        $exclusions = $this->resolve_session_exclusions($meta);
+
+        $phase1_data = $this->build_phase1_data($topic, $includes, $excludes, $research_policy, $subgroup, $sponsor_context, $exclusions);
         if (is_wp_error($phase1_data)) {
             return $phase1_data;
         }
@@ -74,6 +87,19 @@ class Dual_GPT_Planner_Orchestrator {
             if (isset($phase1_data['candidate_keywords']) && is_array($phase1_data['candidate_keywords'])) {
                 $phase1_data['candidate_keywords'] = array_slice($phase1_data['candidate_keywords'], 0, 40);
             }
+
+            // Keep internal coverage compact if present
+            if (isset($phase1_data['internal_content_coverage']) && is_array($phase1_data['internal_content_coverage'])) {
+                if (isset($phase1_data['internal_content_coverage']['terms']) && is_array($phase1_data['internal_content_coverage']['terms'])) {
+                    $phase1_data['internal_content_coverage']['terms'] = array_slice($phase1_data['internal_content_coverage']['terms'], 0, 12);
+                }
+                if (isset($phase1_data['internal_content_coverage']['top_covered_terms']) && is_array($phase1_data['internal_content_coverage']['top_covered_terms'])) {
+                    $phase1_data['internal_content_coverage']['top_covered_terms'] = array_slice($phase1_data['internal_content_coverage']['top_covered_terms'], 0, 6);
+                }
+                if (isset($phase1_data['internal_content_coverage']['priority_gaps']) && is_array($phase1_data['internal_content_coverage']['priority_gaps'])) {
+                    $phase1_data['internal_content_coverage']['priority_gaps'] = array_slice($phase1_data['internal_content_coverage']['priority_gaps'], 0, 6);
+                }
+            }
             
             $context_json = wp_json_encode($phase1_data);
             $new_length = strlen($context_json);
@@ -104,6 +130,9 @@ class Dual_GPT_Planner_Orchestrator {
         $meta['excludes'] = $excludes;
         $meta['focus_level'] = $focus_level;
         $meta['phases'] = $phases;
+        if ($subgroup !== '') {
+            $meta['subgroup'] = $subgroup;
+        }
 
         $db->update_session_meta($session_id, $meta);
 
@@ -189,7 +218,7 @@ class Dual_GPT_Planner_Orchestrator {
             $prompt = $this->build_phase2_prompt($topic, $includes, $excludes, $context_summary, array(), $focus_level);
             $task = 'author';
         } else {
-            $prompt = $this->build_phase3_prompt($topic, $includes, $excludes, $context_summary, $focus_level);
+            $prompt = $this->build_phase3_prompt($topic, $includes, $excludes, $context_summary, array(), $focus_level);
             $task = 'verify';
         }
 
@@ -291,9 +320,34 @@ class Dual_GPT_Planner_Orchestrator {
         if (!empty($context_summary)) {
             $lines[] = 'Research Inputs (JSON):';
             $lines[] = $context_summary;
+            $lines[] = 'Use the workflow_directives object in the research inputs to enforce preferred journals/publications, provider priorities, subgroup focus, and sponsor weighting behavior.';
+            $lines[] = 'Use internal_content_coverage to assess where existing site coverage is strong, weak, or stale (frequency + recency), and prioritize opportunities with external demand but weak/stale internal coverage.';
+            // Inject channel-specific exclusion instructions from workflow_directives
+            $directives = array();
+            if (is_string($context_summary)) {
+                $decoded = json_decode($context_summary, true);
+                $directives = is_array($decoded['workflow_directives'] ?? null) ? $decoded['workflow_directives'] : array();
+            }
+            $channel = $directives['content_channel'] ?? 'house';
+            $ex_names = array_filter((array) ($directives['excluded_entity_names'] ?? array()));
+            $ex_types = array_filter((array) ($directives['excluded_entity_types'] ?? array()));
+            $keep = trim((string) ($directives['keep_entity_name'] ?? ''));
+            if ($channel === 'quote_club') {
+                if (!empty($ex_names)) {
+                    $lines[] = 'CITATION RULE (Quote Club – Summary): Do NOT cite or mention the following vendors as sources: ' . implode(', ', $ex_names) . '. Treat all content as vendor-agnostic.';
+                } elseif (!empty($ex_types)) {
+                    $kn = $keep !== '' ? ' Exception: ' . $keep . ' (submitting vendor) may be cited.' : '';
+                    $lines[] = 'CITATION RULE (Quote Club – Framework): Exclude all ' . implode(', ', $ex_types) . ' vendors from citations except the submitting vendor.' . $kn;
+                }
+            } elseif ($channel === 'circle') {
+                if (!empty($ex_types)) {
+                    $kn = $keep !== '' ? ' Exception: ' . $keep . ' (the client) remains includable.' : '';
+                    $lines[] = 'CITATION RULE (Circle – Ghost-written): Exclude all ' . implode(', ', $ex_types) . ' solution providers from research sources and citations.' . $kn;
+                }
+            }
         }
         $lines[] = 'Focus level: ' . intval($focus_level) . ' (0 = general, 100 = focused).';
-        $lines[] = 'Analyze the supplied research inputs (SERP snapshots, keyword suggestions, and trend notes) to extract ' . $focus_profile['trend_range'] . ' distinct trends shaping this topic.';
+        $lines[] = 'Analyze the supplied research inputs (SERP snapshots, keyword suggestions, trend notes, and internal coverage telemetry) to extract ' . $focus_profile['trend_range'] . ' distinct trends shaping this topic.';
         $lines[] = 'Enforce 36-month recency window: extract publication dates from citation metadata and reject any sources older than 36 months. Do not accept article titles as publication dates; verify against schema metadata (datePublished, article:published_time, etc.).';
         $lines[] = 'For each trend, include: 2–4 insight_points; a clear why_it_matters; 2–3 editorial_angles; and 2–4 citations sourced only from the supplied inputs.';
         $lines[] = 'Apply only to: Field Service, Spare Parts, B2B E-Commerce, B2B Pricing, Servitization, or Aftermarket Strategy. For e-commerce and pricing, restrict to B2B manufacturing.';
@@ -361,9 +415,42 @@ class Dual_GPT_Planner_Orchestrator {
             );
         }
 
+        $dossier_context = $this->build_required_dossier_context($meta, 'phase3');
+
         return array(
             'phase1_summary' => $phase1_summary,
             'ranked_keywords' => $keywords,
+            'dossier' => $dossier_context,
+        );
+    }
+
+    public function build_phase3_context($meta, $max_topics = 8, $max_keywords = 12) {
+        $meta = is_array($meta) ? $meta : array();
+        $phase3_payload = $meta['phases']['phase3']['payload'] ?? array();
+
+        $topics = array();
+        foreach (array_slice((array) ($phase3_payload['prioritized_topics'] ?? array()), 0, $max_topics) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $topic_name = sanitize_text_field((string) ($row['topic'] ?? ''));
+            if ($topic_name === '') {
+                continue;
+            }
+            $topics[] = array(
+                'topic' => $topic_name,
+                'keywords' => array_values(array_slice((array) ($row['keywords'] ?? array()), 0, 6)),
+                'why_now' => $this->truncate_text((string) ($row['why_now'] ?? ''), 180),
+            );
+        }
+
+        $phase1_keywords = array_slice((array) ($meta['phase1']['candidate_keywords'] ?? array()), 0, $max_keywords);
+
+        return array(
+            'phase3_summary' => $this->truncate_text((string) ($meta['phases']['phase3']['summary'] ?? ''), 500),
+            'prioritized_topics' => $topics,
+            'phase1_candidate_keywords' => $phase1_keywords,
+            'dossier' => $this->build_required_dossier_context($meta, 'phase4'),
         );
     }
 
@@ -385,6 +472,13 @@ class Dual_GPT_Planner_Orchestrator {
         if (!empty($phase2_context)) {
             $lines[] = 'Phase 2 Qualification Signals (JSON):';
             $lines[] = wp_json_encode($phase2_context);
+            if (!empty($phase2_context['dossier'])) {
+                $lines[] = 'Use the dossier.phase_snapshot object as the compact cross-phase memory; treat dossier.artifact_ref as the canonical persisted artifact location for this planner session.';
+                $missing = (array) ($phase2_context['dossier']['completeness']['missing_fields'] ?? array());
+                if (!empty($missing)) {
+                    $lines[] = 'Dossier completeness warning: the following expected fields are missing: ' . implode(', ', $missing) . '. Treat those fields as unknown and do not infer absent data.';
+                }
+            }
         }
         $lines[] = '';
         $lines[] = 'Objective:';
@@ -424,7 +518,7 @@ class Dual_GPT_Planner_Orchestrator {
         return implode("\n", $lines);
     }
 
-    public function build_phase3_prompt($topic, $includes, $excludes, $phase2_summary, $focus_level = 50) {
+    public function build_phase3_prompt($topic, $includes, $excludes, $phase2_summary, $phase3_context = array(), $focus_level = 50) {
         $focus_profile = $this->focus_profile($focus_level);
         $lines = array(
             'Act as a Research & Insights Lead conducting Phase 4 (Validation) of a content-aligned B2B research workflow.',
@@ -439,6 +533,17 @@ class Dual_GPT_Planner_Orchestrator {
         if (!empty($phase2_summary)) {
             $lines[] = 'Context from Phase 3 Deep Dive:';
             $lines[] = $phase2_summary;
+        }
+        if (!empty($phase3_context)) {
+            $lines[] = 'Phase 3 Validation Inputs (JSON):';
+            $lines[] = wp_json_encode($phase3_context);
+            if (!empty($phase3_context['dossier'])) {
+                $lines[] = 'Use dossier.phase_snapshot as canonical memory of prior phases and preserve alignment with phase1/phase2 strategic signals.';
+                $missing = (array) ($phase3_context['dossier']['completeness']['missing_fields'] ?? array());
+                if (!empty($missing)) {
+                    $lines[] = 'Dossier completeness warning: ' . implode(', ', $missing) . '. Do not fabricate missing evidence.';
+                }
+            }
         }
         $lines[] = 'Focus level: ' . intval($focus_level) . ' (0 = general, 100 = focused). Validate ' . $focus_profile['topic_range'] . ' topics and discard weak signals.';
         $lines[] = 'Your job is to validate, refine, or eliminate topics based on accuracy, authority, and editorial confidence.';
@@ -1391,15 +1496,51 @@ class Dual_GPT_Planner_Orchestrator {
         return $prompt;
     }
 
-    public function build_phase1_data($topic, $includes, $excludes) {
+    public function build_phase1_data($topic, $includes, $excludes, $research_policy = array(), $subgroup = '', $sponsor_context = array(), $exclusions = array()) {
         $research_tools = new Dual_GPT_Research_Tools();
         $keyword_provider = new Dual_GPT_Keyword_Providers();
+
+        $exclusions = is_array($exclusions) ? $exclusions : array();
+        $excluded_names = array_map('strtolower', array_values(array_filter((array) ($exclusions['excluded_names'] ?? array()))));
+        $excluded_types = array_values(array_filter((array) ($exclusions['excluded_types'] ?? array())));
+        $keep_name = strtolower(sanitize_text_field((string) ($exclusions['keep_name'] ?? '')));
+
+        $research_policy = is_array($research_policy) ? $research_policy : array();
+        $priority_domains = array_values(array_filter(array_map('sanitize_text_field', (array) ($research_policy['priority_domains'] ?? array()))));
+        $preferred_sources = array_values(array_filter(array_map('sanitize_text_field', (array) ($research_policy['preferred_sources'] ?? array()))));
+        $blocked_keywords = array_values(array_filter(array_map('strtolower', array_map('sanitize_text_field', (array) ($research_policy['blocked_keywords'] ?? array())))));
+        $subgroup = sanitize_text_field((string) $subgroup);
+        $sponsor_context = is_array($sponsor_context) ? $sponsor_context : array();
+        $is_sponsored = !empty($sponsor_context['is_sponsored']);
+        $sponsor_name = sanitize_text_field((string) ($sponsor_context['sponsor_name'] ?? ''));
+        $sponsor_weighting = max(0, min(5, intval($sponsor_context['sponsor_weighting'] ?? 2)));
 
         $queries = array(
             $topic . ' trends',
             $topic . ' industry report',
             $topic . ' market outlook',
         );
+        if ($subgroup !== '') {
+            $queries[] = $topic . ' ' . $subgroup . ' trends';
+            $queries[] = $subgroup . ' market outlook';
+        }
+
+        foreach (array_slice($preferred_sources, 0, 3) as $source) {
+            $queries[] = $topic . ' ' . $source;
+        }
+
+        foreach (array_slice($priority_domains, 0, 3) as $domain) {
+            $queries[] = $topic . ' site:' . $domain;
+        }
+
+        if ($is_sponsored && $sponsor_name !== '' && $sponsor_weighting >= 3) {
+            $queries[] = $sponsor_name . ' ' . $topic;
+            if ($subgroup !== '') {
+                $queries[] = $sponsor_name . ' ' . $subgroup;
+            }
+        }
+
+        $queries = array_values(array_unique(array_filter(array_map('trim', $queries))));
         // Limit additional queries from includes to prevent prompt bloat
         $limited_includes = array_slice($includes, 0, 2);
         foreach ($limited_includes as $include) {
@@ -1434,7 +1575,18 @@ class Dual_GPT_Planner_Orchestrator {
             }
             foreach ($suggestions as $item) {
                 if (!empty($item['keyword'])) {
-                    $keyword_candidates[$item['keyword']] = true;
+                    $candidate = sanitize_text_field((string) $item['keyword']);
+                    $candidate_l = strtolower($candidate);
+                    $blocked = false;
+                    foreach ($blocked_keywords as $blocked_term) {
+                        if ($blocked_term !== '' && strpos($candidate_l, $blocked_term) !== false) {
+                            $blocked = true;
+                            break;
+                        }
+                    }
+                    if (!$blocked && $candidate !== '') {
+                        $keyword_candidates[$candidate] = true;
+                    }
                 }
             }
         }
@@ -1451,11 +1603,448 @@ class Dual_GPT_Planner_Orchestrator {
             }
         }
 
+        $internal_coverage = $this->build_internal_content_coverage($topic, $limited_includes, $subgroup, $candidate_keywords);
+
         return array(
             'serp_snapshot' => $serp_snapshot,
             'candidate_keywords' => $candidate_keywords,
             'trend_summary' => $trend_summary,
+            'internal_content_coverage' => $internal_coverage,
+            'workflow_directives' => array(
+                'subgroup' => $subgroup,
+                'preferred_sources' => array_values(array_slice($preferred_sources, 0, 12)),
+                'priority_domains' => array_values(array_slice($priority_domains, 0, 12)),
+                'blocked_keywords' => array_values(array_slice($blocked_keywords, 0, 20)),
+                'sponsor_mode' => array(
+                    'enabled' => $is_sponsored,
+                    'sponsor_name' => $sponsor_name,
+                    'weighting' => $sponsor_weighting,
+                ),
+                'content_channel' => sanitize_text_field((string) ($exclusions['channel'] ?? 'house')),
+                'excluded_entity_names' => array_values($excluded_names),
+                'excluded_entity_types' => array_values($excluded_types),
+                'keep_entity_name' => $keep_name,
+            ),
         );
+    }
+
+    /**
+     * Resolve which entities/types should be excluded from research queries and prompts
+     * based on the session's content_channel, quote_club_mode, submitting_vendor, circle_client.
+     *
+     * Returns: [channel, excluded_names[], excluded_types[], keep_name]
+     * - excluded_names: individual entity names excluded outright (lowercased)
+     * - excluded_types: entity type strings excluded (e.g. 'software', 'consultant')
+     * - keep_name: one entity that is exempt from type-based exclusion (the submitter/client)
+     */
+    public function resolve_session_exclusions($meta) {
+        $meta = is_array($meta) ? $meta : array();
+        $channel = sanitize_text_field((string) ($meta['content_channel'] ?? 'house'));
+
+        $sponsors = array_values(array_filter(
+            is_array($meta['category_profile']['target_sponsors'] ?? null)
+                ? $meta['category_profile']['target_sponsors']
+                : array(),
+            function ($e) { return is_array($e) && !empty($e['name']); }
+        ));
+
+        $excluded_names = array();
+        $excluded_types = array();
+        $keep_name = '';
+
+        if ($channel === 'quote_club') {
+            $mode = sanitize_text_field((string) ($meta['quote_club_mode'] ?? 'summary'));
+            if ($mode === 'summary') {
+                // Vendor-agnostic summaries: exclude ALL sponsors by name
+                foreach ($sponsors as $entity) {
+                    $excluded_names[] = strtolower((string) $entity['name']);
+                }
+            } elseif ($mode === 'framework') {
+                // Submitting vendor stays; exclude all others of the same type
+                $sv = is_array($meta['submitting_vendor'] ?? null) ? $meta['submitting_vendor'] : array();
+                $sv_name = sanitize_text_field((string) ($sv['name'] ?? ''));
+                $sv_type = strtolower(sanitize_text_field((string) ($sv['type'] ?? '')));
+                $keep_name = strtolower($sv_name);
+                if ($sv_type !== '') {
+                    $excluded_types[] = $sv_type;
+                }
+            }
+        } elseif ($channel === 'circle') {
+            // Ghost-written: exclude same-type competitors/sponsors, keep client
+            $cc = is_array($meta['circle_client'] ?? null) ? $meta['circle_client'] : array();
+            $cc_name = sanitize_text_field((string) ($cc['name'] ?? ''));
+            $cc_type = strtolower(sanitize_text_field((string) ($cc['type'] ?? '')));
+            $keep_name = strtolower($cc_name);
+            if ($cc_type !== '') {
+                $excluded_types[] = $cc_type;
+            }
+        }
+
+        return array(
+            'channel' => $channel,
+            'excluded_names' => array_values(array_unique($excluded_names)),
+            'excluded_types' => array_values(array_unique($excluded_types)),
+            'keep_name' => $keep_name,
+        );
+    }
+
+    /**
+     * Filter a typed entity list [{name, type}] through session exclusions.
+     * Removes entities whose name is in excluded_names OR whose type is in excluded_types,
+     * unless their name matches keep_name.
+     */
+    private function apply_entity_exclusions($entities, $exclusions) {
+        $excluded_names = array_map('strtolower', (array) ($exclusions['excluded_names'] ?? array()));
+        $excluded_types = array_map('strtolower', (array) ($exclusions['excluded_types'] ?? array()));
+        $keep_name = strtolower((string) ($exclusions['keep_name'] ?? ''));
+
+        $result = array();
+        foreach ((array) $entities as $entity) {
+            if (!is_array($entity) || empty($entity['name'])) {
+                continue;
+            }
+            $name_l = strtolower($entity['name']);
+            $type_l = strtolower((string) ($entity['type'] ?? ''));
+            if ($keep_name !== '' && $name_l === $keep_name) {
+                $result[] = $entity;
+                continue;
+            }
+            if (in_array($name_l, $excluded_names, true)) {
+                continue;
+            }
+            if ($type_l !== '' && in_array($type_l, $excluded_types, true)) {
+                continue;
+            }
+            $result[] = $entity;
+        }
+        return $result;
+    }
+
+    private function build_internal_content_coverage($topic, $includes = array(), $subgroup = '', $candidate_keywords = array()) {
+        $terms = $this->build_internal_coverage_terms($topic, $includes, $subgroup, $candidate_keywords);
+        if (empty($terms)) {
+            return array(
+                'summary' => array(
+                    'posts_analyzed' => 0,
+                    'matching_posts' => 0,
+                    'coverage_terms_considered' => 0,
+                    'analysis_window_months' => 60,
+                ),
+                'terms' => array(),
+                'top_covered_terms' => array(),
+                'priority_gaps' => array(),
+            );
+        }
+
+        $posts = get_posts(array(
+            'post_type' => array('post', 'atomic_article'),
+            'post_status' => 'publish',
+            'posts_per_page' => 350,
+            'orderby' => 'date',
+            'order' => 'DESC',
+            'date_query' => array(
+                array(
+                    'after' => gmdate('Y-m-d', strtotime('-60 months')),
+                ),
+            ),
+            'suppress_filters' => false,
+        ));
+
+        $stats = array();
+        foreach ($terms as $term) {
+            $stats[$term] = array(
+                'term' => $term,
+                'hits' => 0,
+                'latest_ts' => 0,
+                'coverage_score' => 0,
+                'coverage_level' => 'low',
+                'days_since_last_mention' => null,
+                'latest_post_date' => '',
+            );
+        }
+
+        $matching_post_ids = array();
+        foreach ((array) $posts as $post) {
+            if (!($post instanceof WP_Post)) {
+                continue;
+            }
+
+            $body = strtolower(
+                wp_strip_all_tags(
+                    (string) $post->post_title . ' ' .
+                    (string) $post->post_excerpt . ' ' .
+                    (string) $post->post_content
+                )
+            );
+
+            $post_ts = strtotime((string) $post->post_date_gmt ?: (string) $post->post_date);
+            foreach ($stats as $term => $term_stats) {
+                if (strpos($body, strtolower($term)) === false) {
+                    continue;
+                }
+
+                $stats[$term]['hits']++;
+                $matching_post_ids[$post->ID] = true;
+                if ($post_ts > $stats[$term]['latest_ts']) {
+                    $stats[$term]['latest_ts'] = $post_ts;
+                }
+            }
+        }
+
+        $now_ts = current_time('timestamp', true);
+        foreach ($stats as $term => $term_stats) {
+            $hits = intval($term_stats['hits']);
+            $latest_ts = intval($term_stats['latest_ts']);
+
+            $days_since_last = null;
+            if ($latest_ts > 0) {
+                $days_since_last = max(0, intval(floor(($now_ts - $latest_ts) / DAY_IN_SECONDS)));
+            }
+
+            $volume_score = min(60, $hits * 15);
+            $recency_score = 0;
+            if ($days_since_last !== null) {
+                if ($days_since_last <= 30) {
+                    $recency_score = 40;
+                } elseif ($days_since_last <= 90) {
+                    $recency_score = 30;
+                } elseif ($days_since_last <= 180) {
+                    $recency_score = 20;
+                } elseif ($days_since_last <= 365) {
+                    $recency_score = 10;
+                }
+            }
+
+            $coverage_score = max(0, min(100, $volume_score + $recency_score));
+            $coverage_level = 'low';
+            if ($coverage_score >= 70) {
+                $coverage_level = 'high';
+            } elseif ($coverage_score >= 35) {
+                $coverage_level = 'medium';
+            }
+
+            $stats[$term]['coverage_score'] = $coverage_score;
+            $stats[$term]['coverage_level'] = $coverage_level;
+            $stats[$term]['days_since_last_mention'] = $days_since_last;
+            $stats[$term]['latest_post_date'] = $latest_ts > 0 ? gmdate('Y-m-d', $latest_ts) : '';
+            unset($stats[$term]['latest_ts']);
+        }
+
+        $term_rows = array_values($stats);
+        usort($term_rows, function ($a, $b) {
+            $score_cmp = intval($b['coverage_score']) <=> intval($a['coverage_score']);
+            if ($score_cmp !== 0) {
+                return $score_cmp;
+            }
+            return intval($b['hits']) <=> intval($a['hits']);
+        });
+
+        $top_covered = array_map(function ($row) {
+            return array(
+                'term' => (string) ($row['term'] ?? ''),
+                'hits' => intval($row['hits'] ?? 0),
+                'days_since_last_mention' => $row['days_since_last_mention'],
+                'coverage_level' => (string) ($row['coverage_level'] ?? 'low'),
+            );
+        }, array_slice($term_rows, 0, 8));
+
+        $gap_candidates = $term_rows;
+        usort($gap_candidates, function ($a, $b) {
+            $a_days = is_numeric($a['days_since_last_mention']) ? intval($a['days_since_last_mention']) : 99999;
+            $b_days = is_numeric($b['days_since_last_mention']) ? intval($b['days_since_last_mention']) : 99999;
+
+            $a_gap_score = intval($a['coverage_score']) - min(240, $a_days);
+            $b_gap_score = intval($b['coverage_score']) - min(240, $b_days);
+            return $a_gap_score <=> $b_gap_score;
+        });
+
+        $priority_gaps = array_values(array_filter(array_map(function ($row) {
+            if (intval($row['hits'] ?? 0) === 0) {
+                return (string) ($row['term'] ?? '');
+            }
+            $days = $row['days_since_last_mention'];
+            if (is_numeric($days) && intval($days) > 180) {
+                return (string) ($row['term'] ?? '');
+            }
+            if ((string) ($row['coverage_level'] ?? '') === 'low') {
+                return (string) ($row['term'] ?? '');
+            }
+            return '';
+        }, array_slice($gap_candidates, 0, 12))));
+        $priority_gaps = array_values(array_slice(array_unique($priority_gaps), 0, 8));
+
+        return array(
+            'summary' => array(
+                'posts_analyzed' => count((array) $posts),
+                'matching_posts' => count($matching_post_ids),
+                'coverage_terms_considered' => count($term_rows),
+                'analysis_window_months' => 60,
+            ),
+            'terms' => array_values(array_slice($term_rows, 0, 24)),
+            'top_covered_terms' => $top_covered,
+            'priority_gaps' => $priority_gaps,
+        );
+    }
+
+    private function build_internal_coverage_terms($topic, $includes = array(), $subgroup = '', $candidate_keywords = array()) {
+        $raw_terms = array_merge(
+            array((string) $topic),
+            (array) $includes,
+            $subgroup !== '' ? array($subgroup) : array(),
+            array_slice((array) $candidate_keywords, 0, 20)
+        );
+
+        $terms = array();
+        foreach ($raw_terms as $term) {
+            $term = trim(sanitize_text_field((string) $term));
+            if ($term === '' || strlen($term) < 3) {
+                continue;
+            }
+            $terms[$term] = true;
+        }
+
+        return array_slice(array_keys($terms), 0, 30);
+    }
+
+    private function build_required_dossier_context($meta, $requested_phase = 'phase3') {
+        $meta = is_array($meta) ? $meta : array();
+        $dossier = is_array($meta['planner_dossier'] ?? null) ? $meta['planner_dossier'] : array();
+
+        $phase_snapshot = $this->load_dossier_snapshot_from_artifact($dossier);
+        if (empty($phase_snapshot)) {
+            $phase_snapshot = is_array($dossier['phase_snapshot'] ?? null) ? $dossier['phase_snapshot'] : array();
+        }
+
+        $phase_snapshot = $this->hydrate_dossier_snapshot_from_meta($phase_snapshot, $meta);
+
+        $required = $requested_phase === 'phase4'
+            ? array(
+                'phase1.summary',
+                'phase2.ranked_keywords',
+                'phase3.summary',
+                'phase3.prioritized_topics',
+            )
+            : array(
+                'phase1.summary',
+                'phase1.candidate_keywords',
+                'phase2.summary',
+                'phase2.ranked_keywords',
+            );
+
+        $missing = array();
+        foreach ($required as $path) {
+            if (!$this->dossier_path_has_value($phase_snapshot, $path)) {
+                $missing[] = $path;
+            }
+        }
+
+        return array(
+            'artifact_ref' => sanitize_text_field((string) ($dossier['artifact_ref'] ?? '')),
+            'url' => esc_url_raw((string) ($dossier['url'] ?? '')),
+            'updated_at' => sanitize_text_field((string) ($dossier['updated_at'] ?? '')),
+            'requested_phase' => sanitize_key((string) $requested_phase),
+            'phase_snapshot' => $phase_snapshot,
+            'completeness' => array(
+                'required_fields' => $required,
+                'missing_fields' => $missing,
+                'is_complete' => empty($missing),
+            ),
+        );
+    }
+
+    private function load_dossier_snapshot_from_artifact($dossier) {
+        $post_id = intval($dossier['post_id'] ?? 0);
+        if ($post_id <= 0) {
+            return array();
+        }
+
+        $post = get_post($post_id);
+        if (!($post instanceof WP_Post)) {
+            return array();
+        }
+
+        $content = (string) $post->post_content;
+        if ($content === '') {
+            return array();
+        }
+
+        $matches = array();
+        preg_match_all('/##\s+PHASE([1-4])\s+```json\s*(\{(?:.|\n|\r)*?\})\s*```/i', $content, $matches, PREG_SET_ORDER);
+        if (empty($matches)) {
+            return array();
+        }
+
+        $snapshot = array();
+        foreach ($matches as $match) {
+            $phase_num = intval($match[1] ?? 0);
+            $json_blob = (string) ($match[2] ?? '');
+            if ($phase_num < 1 || $phase_num > 4 || $json_blob === '') {
+                continue;
+            }
+
+            $decoded = json_decode($json_blob, true);
+            if (is_array($decoded)) {
+                $snapshot['phase' . $phase_num] = $decoded;
+            }
+        }
+
+        return $snapshot;
+    }
+
+    private function hydrate_dossier_snapshot_from_meta($snapshot, $meta) {
+        $snapshot = is_array($snapshot) ? $snapshot : array();
+        $meta = is_array($meta) ? $meta : array();
+        $phases = is_array($meta['phases'] ?? null) ? $meta['phases'] : array();
+
+        if (empty($snapshot['phase1'])) {
+            $p1 = is_array($phases['phase1']['payload'] ?? null) ? $phases['phase1']['payload'] : array();
+            $snapshot['phase1'] = array(
+                'summary' => sanitize_text_field((string) ($phases['phase1']['summary'] ?? $p1['executive_summary'] ?? '')),
+                'candidate_keywords' => array_slice((array) ($p1['candidate_keywords'] ?? $meta['phase1']['candidate_keywords'] ?? array()), 0, 16),
+            );
+        }
+
+        if (empty($snapshot['phase2'])) {
+            $p2 = is_array($phases['phase2']['payload'] ?? null) ? $phases['phase2']['payload'] : array();
+            $snapshot['phase2'] = array(
+                'summary' => sanitize_text_field((string) ($phases['phase2']['summary'] ?? $p2['summary'] ?? '')),
+                'ranked_keywords' => array_slice((array) ($p2['ranked_keywords'] ?? array()), 0, 16),
+            );
+        }
+
+        if (empty($snapshot['phase3']) && !empty($phases['phase3'])) {
+            $p3 = is_array($phases['phase3']['payload'] ?? null) ? $phases['phase3']['payload'] : array();
+            $snapshot['phase3'] = array(
+                'summary' => sanitize_text_field((string) ($phases['phase3']['summary'] ?? $p3['article_summary'] ?? '')),
+                'prioritized_topics' => array_slice((array) ($p3['prioritized_topics'] ?? array()), 0, 12),
+            );
+        }
+
+        if (empty($snapshot['phase4']) && !empty($phases['phase4'])) {
+            $p4 = is_array($phases['phase4']['payload'] ?? null) ? $phases['phase4']['payload'] : array();
+            $snapshot['phase4'] = array(
+                'summary' => sanitize_text_field((string) ($phases['phase4']['summary'] ?? $p4['validation_summary'] ?? '')),
+                'validated_topics' => array_slice((array) ($p4['validated_topics'] ?? array()), 0, 12),
+            );
+        }
+
+        return $snapshot;
+    }
+
+    private function dossier_path_has_value($snapshot, $path) {
+        $cursor = $snapshot;
+        foreach (explode('.', (string) $path) as $segment) {
+            if (!is_array($cursor) || !array_key_exists($segment, $cursor)) {
+                return false;
+            }
+            $cursor = $cursor[$segment];
+        }
+
+        if (is_array($cursor)) {
+            return !empty($cursor);
+        }
+
+        return trim((string) $cursor) !== '';
     }
 
     private function create_framework_session($planner_session_id, $article_title, $article_tags) {
