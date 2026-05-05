@@ -7,7 +7,7 @@
  * SponsorService for access gating and has its own navigation and layout.
  *
  * Navigation sections:
- *   overview       — credit balances, quick stats, purchase bundles
+ *   overview       — sponsor content dashboard (articles, prospects, requests, analytics)
  *   commentary     — rolling-calendar search & commentary submission
  *   press-releases — press release composer (Phase 5)
  *   tracking       — article & PR performance dashboard (Phase 6)
@@ -18,6 +18,7 @@
 
 namespace KHM\PublicFrontend;
 
+use KHM\Connect\ConnectEngagedSettingsPage;
 use KHM\Services\CreditService;
 use KHM\Services\MembershipRepository;
 use KHM\Services\LevelRepository;
@@ -30,12 +31,14 @@ class QuoteClubPortalShortcode {
 
 	private CreditService $credits;
 	private QuoteClubCreditBundleService $bundles;
+	private MembershipRepository $memberships;
+	private LevelRepository $levels;
 
 	public function __construct() {
-		$memberships    = new MembershipRepository();
-		$levels         = new LevelRepository();
-		$this->credits  = new CreditService( $memberships, $levels );
-		$this->bundles  = new QuoteClubCreditBundleService( $this->credits );
+		$this->memberships = new MembershipRepository();
+		$this->levels      = new LevelRepository();
+		$this->credits     = new CreditService( $this->memberships, $this->levels );
+		$this->bundles     = new QuoteClubCreditBundleService( $this->credits );
 	}
 
 	// -------------------------------------------------------------------------
@@ -47,6 +50,40 @@ class QuoteClubPortalShortcode {
 		// S17 — serve a sponsor advert in any page/template.
 		add_shortcode( 'khm_sponsor_advert', [ $this, 'render_sponsor_advert_shortcode' ] );
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_assets' ] );
+		// Swap to dedicated full-width portal template so the page bypasses all theme chrome.
+		add_filter( 'template_include', [ $this, 'portal_template_include' ] );
+		// Keep body class for backward-compatible CSS targeting.
+		add_filter( 'body_class', function( $classes ) {
+			global $post;
+			if ( $post && has_shortcode( $post->post_content, 'khm_quote_club_portal' ) ) {
+				$classes[] = 'khm-partner-portal-page';
+			}
+			return $classes;
+		} );
+	}
+
+	/**
+	 * Swap in the plugin's standalone portal template whenever the current page
+	 * contains [khm_quote_club_portal], replacing all theme chrome with a
+	 * minimal full-width wrapper.
+	 *
+	 * @param string $template Current resolved template path.
+	 * @return string
+	 */
+	public function portal_template_include( string $template ): string {
+		global $post;
+
+		if ( ! $post || ! has_shortcode( $post->post_content, 'khm_quote_club_portal' ) ) {
+			return $template;
+		}
+
+		$portal_template = dirname( __DIR__, 2 ) . '/templates/portal-full-width.php';
+
+		if ( file_exists( $portal_template ) ) {
+			return $portal_template;
+		}
+
+		return $template;
 	}
 
 	public function enqueue_assets(): void {
@@ -121,6 +158,10 @@ class QuoteClubPortalShortcode {
 			'shareLinkedInBase' => esc_url_raw( add_query_arg( [ 'qc_section' => 'social', 'li_suggest_title' => '' ], get_permalink( get_queried_object_id() ) ?: home_url( '/quote-club/' ) ) ),
 		] );
 
+		// Inject engaged pricing config from DB — consumed by the Connect portal JS
+		// as window.khmConnectConfig (feature flag + editable pricing labels).
+		wp_localize_script( 'khm-quote-club-connect', 'khmConnectConfig', ConnectEngagedSettingsPage::get_js_config() );
+
 	}
 
 	// -------------------------------------------------------------------------
@@ -191,10 +232,23 @@ class QuoteClubPortalShortcode {
 	// -------------------------------------------------------------------------
 
 	private function render_header( int $user_id, ?array $sponsor ): void {
-		$user              = get_userdata( $user_id );
-		$editorial_credits = $this->credits->getEditorialCredits( $user_id );
-		$pr_credits        = $this->credits->getPressReleaseCredits( $user_id );
-		$sponsor_name      = isset( $sponsor['name'] ) ? sanitize_text_field( $sponsor['name'] ) : '';
+		$user         = get_userdata( $user_id );
+		$sponsor_name = isset( $sponsor['name'] ) ? sanitize_text_field( $sponsor['name'] ) : '';
+		$credit_breakdown = $this->get_credit_breakdown( $user_id );
+		$connected_sites  = $this->get_connected_sites_count( (int) ( $sponsor['id'] ?? 0 ) );
+
+		$_use_demo_header = defined( 'KHM_PORTAL_DEMO' ) && KHM_PORTAL_DEMO;
+		if ( $_use_demo_header || 0 === array_sum( $credit_breakdown ) ) {
+			$credit_breakdown = [
+				'editorial_monthly_remaining'   => 0,
+				'editorial_purchased_remaining' => 3,
+				'press_monthly_remaining'       => 2,
+				'press_purchased_remaining'     => 1,
+			];
+		}
+		if ( $_use_demo_header || $connected_sites < 5 ) {
+			$connected_sites = 5;
+		}
 		?>
 		<header class="khm-qc-header">
 			<div class="khm-qc-header-identity">
@@ -208,17 +262,28 @@ class QuoteClubPortalShortcode {
 					<?php echo esc_html( $user ? $user->display_name : '' ); ?>
 				</div>
 			</div>
-			<div class="khm-qc-header-credits">
-				<div class="khm-qc-credit-pill">
-					<span class="khm-qc-credit-value" id="qc-editorial-balance"><?php echo (int) $editorial_credits; ?></span>
-					<span class="khm-qc-credit-label"><?php esc_html_e( 'Editorial Credits', 'khm-membership' ); ?></span>
+
+			<div class="khm-qc-header-metrics" aria-label="<?php esc_attr_e( 'Portal summary metrics', 'khm-membership' ); ?>">
+				<div class="khm-qc-header-metric">
+					<span class="khm-qc-header-metric-value"><?php echo esc_html( number_format_i18n( (int) $credit_breakdown['editorial_monthly_remaining'] ) ); ?></span>
+					<span class="khm-qc-header-metric-label"><?php esc_html_e( 'Monthly Editorial', 'khm-membership' ); ?></span>
 				</div>
-				<div class="khm-qc-credit-pill">
-					<span class="khm-qc-credit-value" id="qc-pr-balance"><?php echo (int) $pr_credits; ?></span>
-					<span class="khm-qc-credit-label"><?php esc_html_e( 'Press Release Credits', 'khm-membership' ); ?></span>
+				<div class="khm-qc-header-metric">
+					<span class="khm-qc-header-metric-value"><?php echo esc_html( number_format_i18n( (int) $credit_breakdown['editorial_purchased_remaining'] ) ); ?></span>
+					<span class="khm-qc-header-metric-label"><?php esc_html_e( 'Purchased Editorial', 'khm-membership' ); ?></span>
 				</div>
-				<a href="<?php echo esc_url( add_query_arg( 'qc_section', 'overview' ) ); ?>#qc-bundles"
-				   class="khm-qc-btn khm-qc-btn-sm"><?php esc_html_e( 'Buy Credits', 'khm-membership' ); ?></a>
+				<div class="khm-qc-header-metric">
+					<span class="khm-qc-header-metric-value"><?php echo esc_html( number_format_i18n( (int) $credit_breakdown['press_monthly_remaining'] ) ); ?></span>
+					<span class="khm-qc-header-metric-label"><?php esc_html_e( 'Monthly Press Releases', 'khm-membership' ); ?></span>
+				</div>
+				<div class="khm-qc-header-metric">
+					<span class="khm-qc-header-metric-value"><?php echo esc_html( number_format_i18n( (int) $credit_breakdown['press_purchased_remaining'] ) ); ?></span>
+					<span class="khm-qc-header-metric-label"><?php esc_html_e( 'Purchased Press Releases', 'khm-membership' ); ?></span>
+				</div>
+				<div class="khm-qc-header-metric">
+					<span class="khm-qc-header-metric-value"><?php echo esc_html( number_format_i18n( $connected_sites ) ); ?></span>
+					<span class="khm-qc-header-metric-label"><?php esc_html_e( 'Connected Sites', 'khm-membership' ); ?></span>
+				</div>
 			</div>
 		</header>
 		<?php
@@ -259,138 +324,977 @@ class QuoteClubPortalShortcode {
 	// -------------------------------------------------------------------------
 
 	private function render_overview_section( int $user_id, ?array $sponsor ): void {
-		$editorial_credits = $this->credits->getEditorialCredits( $user_id );
-		$pr_credits        = $this->credits->getPressReleaseCredits( $user_id );
-		$active_bundles    = $this->bundles->list_bundles( true );
-		$boost_credits     = (int) get_user_meta( $user_id, 'khm_boost_credits', true );
+		$sponsor_id        = (int) ( $sponsor['id'] ?? 0 );
+		$team_user_ids     = $this->get_sponsor_team_user_ids( $user_id, $sponsor );
+		$published_articles = $this->get_recent_published_articles( $team_user_ids, 5 );
+		$scheduled_articles = $this->get_scheduled_articles( $team_user_ids, 5 );
+		$suggested_summaries = $this->get_suggested_summaries( $sponsor_id, 5 );
+		$potential_prospects = $this->get_potential_prospects( $sponsor_id, 5 );
+		$meeting_requests    = $this->get_prospect_meeting_requests( $sponsor_id, 5 );
+		$page_views_30       = $this->get_page_views_last_30_days( $team_user_ids );
+		$smart_clicks_30     = $this->get_smart_link_clicks_last_30_days( $team_user_ids );
+		$performance_series  = $this->get_performance_series_last_30_days( $team_user_ids );
+		$smart_clicks_by_site = $this->get_smart_clicks_by_site_last_30_days( $team_user_ids, 5 );
+		$views_by_maturity    = $this->get_estimated_views_by_user_maturity_last_30_days( $sponsor_id, $page_views_30 );
+		$has_performance_signal = false;
+		foreach ( (array) ( $performance_series['rows'] ?? [] ) as $point ) {
+			if ( (int) ( $point['views'] ?? 0 ) > 0 || (int) ( $point['clicks'] ?? 0 ) > 0 ) {
+				$has_performance_signal = true;
+				break;
+			}
+		}
+
+		// ── Demo mock data (remove once live data is flowing) ──────────────────
+		$use_demo = defined( 'KHM_PORTAL_DEMO' ) && KHM_PORTAL_DEMO;
+		if ( $use_demo || ! $has_performance_signal ) {
+			$base = $use_demo ? 0 : 0; // always fill when no real data
+			$mock_views  = [ 312, 278, 401, 360, 290, 415, 380, 452, 310, 375,
+			                 420, 395, 480, 355, 302, 440, 390, 410, 365, 335,
+			                 455, 428, 392, 378, 415, 460, 402, 385, 420, 445 ];
+			$mock_clicks = [  28,  22,  35,  30,  19,  38,  31,  42,  25,  33,
+			                   37,  29,  45,  27,  21,  40,  34,  36,  28,  24,
+			                   41,  38,  32,  30,  35,  44,  36,  29,  38,  43 ];
+			$max_v = max( $mock_views );
+			$max_c = max( $mock_clicks );
+			$start_ts = strtotime( '-29 days' );
+			$rows = [];
+			for ( $i = 0; $i < 30; $i++ ) {
+				$ts = $start_ts + $i * DAY_IN_SECONDS;
+				$rows[] = [
+					'label'      => gmdate( 'M j', $ts ),
+					'views'      => $mock_views[ $i ],
+					'clicks'     => $mock_clicks[ $i ],
+					'views_pct'  => (int) round( ( $mock_views[ $i ] / $max_v ) * 100 ),
+					'clicks_pct' => (int) round( ( $mock_clicks[ $i ] / $max_c ) * 100 ),
+				];
+			}
+			$performance_series = [
+				'rows'        => $rows,
+				'start_label' => $rows[0]['label'],
+				'end_label'   => $rows[29]['label'],
+			];
+			if ( $use_demo || 0 === $page_views_30 ) {
+				$page_views_30  = array_sum( $mock_views );
+				$smart_clicks_30 = array_sum( $mock_clicks );
+			}
+		}
+
+		if ( $use_demo || empty( $smart_clicks_by_site ) ) {
+			$mock_sites = [
+				[ 'label' => 'Flagship',      'value' => 214 ],
+				[ 'label' => 'Aerospace',     'value' => 187 ],
+				[ 'label' => 'Energy',        'value' => 143 ],
+				[ 'label' => 'Industrial',    'value' =>  98 ],
+				[ 'label' => 'Field Service', 'value' =>  62 ],
+			];
+			$max = $mock_sites[0]['value'];
+			foreach ( $mock_sites as &$s ) {
+				$s['pct'] = (int) round( ( $s['value'] / $max ) * 100 );
+			}
+			unset( $s );
+			$smart_clicks_by_site = $mock_sites;
+		}
+
+		if ( $use_demo || empty( $views_by_maturity ) ) {
+			$views_by_maturity = [
+				[ 'label' => __( 'Accelerating', 'khm-membership' ), 'value' => 5820, 'pct' => 100 ],
+				[ 'label' => __( 'Assessing', 'khm-membership' ),    'value' => 3410, 'pct' =>  59 ],
+				[ 'label' => __( 'Exploring', 'khm-membership' ),    'value' => 1980, 'pct' =>  34 ],
+			];
+		}
+
+		if ( $use_demo || count( $published_articles ) < 3 ) {
+			$published_articles = [
+				[ 'title' => 'AI-Driven Predictive Maintenance in Aerospace MRO', 'url' => '#', 'date' => 'Apr 28, 2026' ],
+				[ 'title' => 'The Future of Smart Grid Management',               'url' => '#', 'date' => 'Apr 24, 2026' ],
+				[ 'title' => 'Industrial IoT: Connecting the Factory Floor',      'url' => '#', 'date' => 'Apr 20, 2026' ],
+				[ 'title' => 'Field Service Excellence with Mobile-First Tools',  'url' => '#', 'date' => 'Apr 15, 2026' ],
+				[ 'title' => 'Spare Parts Optimisation in Aftermarket Services',  'url' => '#', 'date' => 'Apr 10, 2026' ],
+			];
+		}
+
+		if ( $use_demo || empty( $scheduled_articles ) ) {
+			$scheduled_articles = [
+				[ 'title' => 'Unlocking Revenue with Dynamic Pricing Models',   'url' => '#', 'date' => 'May 5, 2026' ],
+				[ 'title' => 'Digital Twins in Built Environment Projects',      'url' => '#', 'date' => 'May 12, 2026' ],
+				[ 'title' => 'eCommerce Integration for B2B Manufacturers',      'url' => '#', 'date' => 'May 19, 2026' ],
+			];
+		}
+
+		if ( $use_demo || count( $suggested_summaries ) < 2 ) {
+			$suggested_summaries = [
+				[ 'title' => 'Benchmark: After-Sales Revenue in Capital Equipment', 'url' => '#', 'summary' => 'Industry leaders generate 40–60% of revenue post-sale. See where you sit.', 'date' => 'Apr 30, 2026' ],
+				[ 'title' => 'State of Field Service 2026',                         'url' => '#', 'summary' => 'New data on first-time fix rates, mobile adoption, and customer satisfaction benchmarks.', 'date' => 'Apr 22, 2026' ],
+				[ 'title' => 'Pricing Transformation in Industrial Markets',         'url' => '#', 'summary' => 'How top performers are moving from cost-plus to value-based pricing.', 'date' => 'Apr 17, 2026' ],
+			];
+		}
+
+		if ( $use_demo || empty( $potential_prospects ) ) {
+			$potential_prospects = [
+				[ 'domain' => 'Siemens Energy',        'meta' => 'Energy · 10,000+ employees' ],
+				[ 'domain' => 'BAE Systems',           'meta' => 'Aerospace & Defence · 90,000+ employees' ],
+				[ 'domain' => 'Schneider Electric',    'meta' => 'Industrial Automation · 150,000+ employees' ],
+				[ 'domain' => 'Rentokil Initial',      'meta' => 'Field Services · 57,000+ employees' ],
+				[ 'domain' => 'SKF Group',             'meta' => 'Aftermarket · 40,000+ employees' ],
+			];
+		}
+
+		if ( $use_demo || empty( $meeting_requests ) ) {
+			$meeting_requests = [
+				[ 'provider' => 'Emerson Electric',            'meta' => 'Requested via Connect · Apr 29, 2026' ],
+				[ 'provider' => 'Mitsubishi Heavy Industries', 'meta' => 'Requested via Connect · Apr 27, 2026' ],
+			];
+		}
+		// KPI totals — independent fallback so they never show 0 on demo
+		if ( $use_demo || 0 === $page_views_30 ) {
+			$page_views_30   = 11210;
+		}
+		if ( $use_demo || 0 === $smart_clicks_30 ) {
+			$smart_clicks_30 = 984;
+		}
+		// ── End demo mock data ─────────────────────────────────────────────────
 		?>
 		<div class="khm-qc-section khm-qc-overview">
 			<h2><?php esc_html_e( 'Overview', 'khm-membership' ); ?></h2>
 
-			<div class="khm-qc-stats-grid">
-				<div class="khm-qc-stat-card">
-					<span class="khm-qc-stat-number"><?php echo (int) $editorial_credits; ?></span>
-					<span class="khm-qc-stat-label"><?php esc_html_e( 'Editorial Credits Available', 'khm-membership' ); ?></span>
-					<p class="khm-qc-stat-hint"><?php esc_html_e( '1 credit = 120 words of commentary', 'khm-membership' ); ?></p>
+			<div class="khm-qc-dashboard-kpis">
+				<div class="khm-qc-dashboard-kpi">
+					<span class="khm-qc-dashboard-kpi-value"><?php echo esc_html( number_format_i18n( $page_views_30 ) ); ?></span>
+					<span class="khm-qc-dashboard-kpi-label"><?php esc_html_e( 'Page views (last 30 days)', 'khm-membership' ); ?></span>
 				</div>
-				<div class="khm-qc-stat-card">
-					<span class="khm-qc-stat-number"><?php echo (int) $pr_credits; ?></span>
-					<span class="khm-qc-stat-label"><?php esc_html_e( 'Press Release Credits', 'khm-membership' ); ?></span>
-				</div>
-				<div class="khm-qc-stat-card">
-					<span class="khm-qc-stat-number" id="qc-boost-balance"><?php echo (int) $boost_credits; ?></span>
-					<span class="khm-qc-stat-label"><?php esc_html_e( 'Boost Credits', 'khm-membership' ); ?></span>
-					<p class="khm-qc-stat-hint"><?php esc_html_e( '1 credit = +0.1 score weight on one article card', 'khm-membership' ); ?></p>
+				<div class="khm-qc-dashboard-kpi">
+					<span class="khm-qc-dashboard-kpi-value"><?php echo esc_html( number_format_i18n( $smart_clicks_30 ) ); ?></span>
+					<span class="khm-qc-dashboard-kpi-label"><?php esc_html_e( 'Smart Link clicks (last 30 days)', 'khm-membership' ); ?></span>
 				</div>
 			</div>
 
-			<!-- S8: Boost purchase panel -->
-			<div class="khm-qc-boost-panel" id="khm-qc-boost-panel">
-				<h3><?php esc_html_e( 'Boost Credits', 'khm-membership' ); ?></h3>
-				<p><?php esc_html_e( 'Each Boost Credit applies a +0.1 scoring weight to one article answer-card session, improving its ranking in guided matching results.', 'khm-membership' ); ?></p>
-				<style>
-					.khm-qc-boost-qty{display:flex;align-items:center;gap:10px;margin:10px 0;}
-					.khm-qc-boost-qty input[type=number]{width:80px;padding:6px 8px;border:1px solid #ccd0d4;border-radius:4px;font-size:14px;}
-					.khm-qc-boost-price{font-size:13px;color:#555;}
-					.khm-qc-boost-notice{font-size:12px;padding:8px 12px;border-radius:4px;margin-top:8px;display:none;}
-				</style>
-				<div class="khm-qc-boost-qty">
-					<label for="khm-boost-qty"><?php esc_html_e( 'Quantity:', 'khm-membership' ); ?></label>
-					<input type="number" id="khm-boost-qty" min="1" max="100" value="5" />
-					<span class="khm-qc-boost-price"><?php
-						/* translators: price per boost credit */
-						printf( esc_html__( '$%s per credit', 'khm-membership' ), '5.00' );
-					?></span>
+			<section class="khm-qc-dashboard-card khm-qc-dashboard-chart-card">
+				<h3><?php esc_html_e( 'Performance (Last 30 Days)', 'khm-membership' ); ?></h3>
+				<div class="khm-qc-dashboard-chart-legend">
+					<span><i class="khm-qc-chart-dot khm-qc-chart-dot-views"></i><?php esc_html_e( 'Page Views', 'khm-membership' ); ?></span>
+					<span><i class="khm-qc-chart-dot khm-qc-chart-dot-clicks"></i><?php esc_html_e( 'Smart Link Clicks', 'khm-membership' ); ?></span>
 				</div>
-				<button type="button" class="khm-qc-btn khm-qc-btn-primary" id="khm-boost-buy-btn"><?php esc_html_e( 'Request Boost Credits', 'khm-membership' ); ?></button>
-				<div class="khm-qc-boost-notice" role="status" aria-live="polite"></div>
-			</div>
-
-			<script>
-			(function(){
-				var restBase = <?php echo wp_json_encode( trailingslashit( rest_url( 'khm/v1/connect' ) ) ); ?>;
-				var nonce    = <?php echo wp_json_encode( wp_create_nonce( 'wp_rest' ) ); ?>;
-				var panel    = document.getElementById('khm-qc-boost-panel');
-				if (!panel) return;
-
-				var btn     = document.getElementById('khm-boost-buy-btn');
-				var qtyIn   = document.getElementById('khm-boost-qty');
-				var notice  = panel.querySelector('.khm-qc-boost-notice');
-				var balance = document.getElementById('qc-boost-balance');
-
-				function showNotice(msg, ok){
-					notice.textContent = msg;
-					notice.style.background = ok ? '#e6f4ea' : '#fce8e6';
-					notice.style.color       = ok ? '#1e8c45' : '#c5221f';
-					notice.style.display     = 'block';
-					setTimeout(function(){ notice.style.display='none'; }, 6000);
-				}
-
-				btn.addEventListener('click', function(){
-					var qty = Math.max(1, Math.min(100, parseInt(qtyIn.value, 10) || 1));
-					btn.disabled = true;
-					fetch(restBase + 'boost', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
-						body: JSON.stringify({ quantity: qty })
-					}).then(function(r){ return r.json(); })
-					.then(function(d){
-						if (d.success){
-							showNotice(d.message || <?php echo wp_json_encode( __( 'Request received.', 'khm-membership' ) ); ?>, true);
-							if (balance && d.balance !== undefined) balance.textContent = d.balance;
-						} else {
-							showNotice(d.message || <?php echo wp_json_encode( __( 'Request failed.', 'khm-membership' ) ); ?>, false);
-						}
-						btn.disabled = false;
-					}).catch(function(){
-						showNotice(<?php echo wp_json_encode( __( 'Network error — try again.', 'khm-membership' ) ); ?>, false);
-						btn.disabled = false;
-					});
-				});
-			})();
-			</script>
-
-			<?php if ( ! empty( $active_bundles ) ) : ?>
-			<div class="khm-qc-bundles" id="qc-bundles">
-				<h3><?php esc_html_e( 'Purchase Credits', 'khm-membership' ); ?></h3>
-				<div class="khm-qc-bundle-grid">
-					<?php foreach ( $active_bundles as $bundle ) : ?>
-					<div class="khm-qc-bundle-card">
-						<h4><?php echo esc_html( $bundle->name ); ?></h4>
-						<?php if ( $bundle->description ) : ?>
-							<p><?php echo esc_html( $bundle->description ); ?></p>
-						<?php endif; ?>
-						<ul class="khm-qc-bundle-details">
-							<?php if ( (int) $bundle->editorial_credits > 0 ) : ?>
-								<li><?php echo (int) $bundle->editorial_credits; ?> <?php esc_html_e( 'Editorial Credits', 'khm-membership' ); ?></li>
-							<?php endif; ?>
-							<?php if ( (int) $bundle->press_release_credits > 0 ) : ?>
-								<li><?php echo (int) $bundle->press_release_credits; ?> <?php esc_html_e( 'Press Release Credits', 'khm-membership' ); ?></li>
-							<?php endif; ?>
-						</ul>
-						<div class="khm-qc-bundle-price">$<?php echo number_format( (int) $bundle->price_cents / 100, 2 ); ?></div>
-						<button type="button"
-						        class="khm-qc-btn khm-qc-btn-primary khm-qc-purchase-bundle"
-						        data-bundle-id="<?php echo (int) $bundle->id; ?>"
-						        data-bundle-name="<?php echo esc_attr( $bundle->name ); ?>">
-							<?php esc_html_e( 'Buy Now', 'khm-membership' ); ?>
-						</button>
+				<?php if ( empty( $performance_series['rows'] ) ) : ?>
+					<p class="khm-qc-dashboard-empty"><?php esc_html_e( 'No performance data yet for the last 30 days.', 'khm-membership' ); ?></p>
+				<?php else : ?>
+				<div class="khm-qc-dashboard-chart-bars">
+					<?php foreach ( $performance_series['rows'] as $point ) : ?>
+					<div class="khm-qc-dashboard-chart-day" title="<?php echo esc_attr( sprintf( '%1$s: %2$s views / %3$s clicks', $point['label'], number_format_i18n( $point['views'] ), number_format_i18n( $point['clicks'] ) ) ); ?>">
+						<div class="khm-qc-dashboard-chart-col">
+							<span class="khm-qc-chart-bar khm-qc-chart-bar-views" style="height:<?php echo esc_attr( (int) round( $point['views_pct'] * 1.2 ) ); ?>px"></span>
+							<span class="khm-qc-chart-bar khm-qc-chart-bar-clicks" style="height:<?php echo esc_attr( (int) round( $point['clicks_pct'] * 1.2 ) ); ?>px"></span>
+						</div>
 					</div>
 					<?php endforeach; ?>
 				</div>
-			</div>
-			<?php endif; ?>
+				<div class="khm-qc-dashboard-chart-axis">
+					<span><?php echo esc_html( $performance_series['start_label'] ); ?></span>
+					<span><?php echo esc_html( $performance_series['end_label'] ); ?></span>
+				</div>
+				<?php endif; ?>
+			</section>
 
-			<div class="khm-qc-quick-links">
-				<a href="<?php echo esc_url( add_query_arg( 'qc_section', 'connect' ) ); ?>" class="khm-qc-btn khm-qc-btn-secondary">
-					<?php esc_html_e( 'Manage Connect Offerings →', 'khm-membership' ); ?>
-				</a>
-				<a href="<?php echo esc_url( add_query_arg( 'qc_section', 'commentary' ) ); ?>" class="khm-qc-btn khm-qc-btn-secondary">
-					<?php esc_html_e( 'Search Articles & Submit Commentary →', 'khm-membership' ); ?>
-				</a>
+			<div class="khm-qc-dashboard-grid">
+				<section class="khm-qc-dashboard-card">
+					<h3><?php esc_html_e( 'Smart Clicks by Site (30d)', 'khm-membership' ); ?></h3>
+					<?php if ( empty( $smart_clicks_by_site ) ) : ?>
+						<p class="khm-qc-dashboard-empty"><?php esc_html_e( 'No smart-click site data yet.', 'khm-membership' ); ?></p>
+					<?php else : ?>
+					<ul class="khm-qc-breakdown-list">
+						<?php foreach ( $smart_clicks_by_site as $row ) : ?>
+						<li>
+							<div class="khm-qc-breakdown-row">
+								<span class="khm-qc-breakdown-label"><?php echo esc_html( $row['label'] ); ?></span>
+								<span class="khm-qc-breakdown-value"><?php echo esc_html( number_format_i18n( $row['value'] ) ); ?></span>
+							</div>
+							<div class="khm-qc-breakdown-bar"><span style="width:<?php echo esc_attr( $row['pct'] ); ?>%"></span></div>
+						</li>
+						<?php endforeach; ?>
+					</ul>
+					<?php endif; ?>
+				</section>
+
+				<section class="khm-qc-dashboard-card">
+					<h3><?php esc_html_e( 'Views by User Maturity (30d)', 'khm-membership' ); ?></h3>
+					<?php if ( empty( $views_by_maturity ) ) : ?>
+						<p class="khm-qc-dashboard-empty"><?php esc_html_e( 'No maturity segmentation data yet.', 'khm-membership' ); ?></p>
+					<?php else :
+						$_pie_colors = [ '#1a56db', '#16a34a', '#d97706' ];
+						$_pie_total  = array_sum( array_column( $views_by_maturity, 'value' ) );
+						$_pie_stops  = [];
+						$_cumul      = 0;
+						foreach ( $views_by_maturity as $_i => $_row ) {
+							$_share         = $_pie_total > 0 ? (int) round( ( (int) $_row['value'] / $_pie_total ) * 100 ) : 0;
+							$_color         = $_pie_colors[ $_i % count( $_pie_colors ) ];
+							$_pie_stops[]   = [ 'label' => $_row['label'], 'color' => $_color, 'from' => $_cumul, 'to' => $_cumul + $_share, 'share' => $_share ];
+							$_cumul        += $_share;
+						}
+						$_gradient_parts = [];
+						foreach ( $_pie_stops as $_stop ) {
+							$_gradient_parts[] = $_stop['color'] . ' ' . $_stop['from'] . '% ' . $_stop['to'] . '%';
+						}
+						$_gradient = 'conic-gradient(' . implode( ', ', $_gradient_parts ) . ')';
+					?>
+					<div class="khm-qc-pie-wrap">
+						<div class="khm-qc-pie" style="background:<?php echo esc_attr( $_gradient ); ?>"></div>
+						<ul class="khm-qc-pie-legend">
+							<?php foreach ( $_pie_stops as $_stop ) : ?>
+							<li>
+								<span class="khm-qc-pie-swatch" style="background:<?php echo esc_attr( $_stop['color'] ); ?>"></span>
+								<span class="khm-qc-pie-legend-label"><?php echo esc_html( $_stop['label'] ); ?></span>
+								<span class="khm-qc-pie-legend-pct"><?php echo esc_html( $_stop['share'] ); ?>%</span>
+							</li>
+							<?php endforeach; ?>
+						</ul>
+					</div>
+					<p class="khm-qc-dashboard-footnote"><?php esc_html_e( 'Estimated from 30-day maturity signal mix.', 'khm-membership' ); ?></p>
+					<?php endif; ?>
+				</section>
+				<section class="khm-qc-dashboard-card">
+					<h3><?php esc_html_e( 'Last Five Published Articles', 'khm-membership' ); ?></h3>
+					<?php if ( empty( $published_articles ) ) : ?>
+						<p class="khm-qc-dashboard-empty"><?php esc_html_e( 'No published articles yet.', 'khm-membership' ); ?></p>
+					<?php else : ?>
+					<ul class="khm-qc-dashboard-list">
+						<?php foreach ( $published_articles as $article ) : ?>
+						<li>
+							<a href="<?php echo esc_url( $article['url'] ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html( $article['title'] ); ?></a>
+							<span><?php echo esc_html( $article['date'] ); ?></span>
+						</li>
+						<?php endforeach; ?>
+					</ul>
+					<?php endif; ?>
+				</section>
+
+				<section class="khm-qc-dashboard-card">
+					<h3><?php esc_html_e( 'Your Scheduled Articles', 'khm-membership' ); ?></h3>
+					<?php if ( empty( $scheduled_articles ) ) : ?>
+						<p class="khm-qc-dashboard-empty"><?php esc_html_e( 'No scheduled articles right now.', 'khm-membership' ); ?></p>
+					<?php else : ?>
+					<ul class="khm-qc-dashboard-list">
+						<?php foreach ( $scheduled_articles as $article ) : ?>
+						<li>
+							<a href="<?php echo esc_url( $article['url'] ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html( $article['title'] ); ?></a>
+							<span><?php echo esc_html( $article['date'] ); ?></span>
+						</li>
+						<?php endforeach; ?>
+					</ul>
+					<?php endif; ?>
+				</section>
+
+				<section class="khm-qc-dashboard-card khm-qc-dashboard-card-span-2">
+					<h3><?php esc_html_e( 'Suggested Upcoming Summaries', 'khm-membership' ); ?></h3>
+					<?php if ( empty( $suggested_summaries ) ) : ?>
+						<p class="khm-qc-dashboard-empty"><?php esc_html_e( 'No summary recommendations found yet.', 'khm-membership' ); ?></p>
+					<?php else : ?>
+					<ul class="khm-qc-dashboard-list khm-qc-dashboard-summary-list">
+						<?php foreach ( $suggested_summaries as $summary ) : ?>
+						<li>
+							<div>
+								<a href="<?php echo esc_url( $summary['url'] ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html( $summary['title'] ); ?></a>
+								<p><?php echo esc_html( $summary['summary'] ); ?></p>
+							</div>
+							<span><?php echo esc_html( $summary['date'] ); ?></span>
+						</li>
+						<?php endforeach; ?>
+					</ul>
+					<?php endif; ?>
+				</section>
+
+				<section class="khm-qc-dashboard-card">
+					<h3><?php esc_html_e( 'Potential Prospects Available', 'khm-membership' ); ?></h3>
+					<?php if ( empty( $potential_prospects ) ) : ?>
+						<p class="khm-qc-dashboard-empty"><?php esc_html_e( 'No prospects currently available.', 'khm-membership' ); ?></p>
+					<?php else : ?>
+					<ul class="khm-qc-dashboard-list">
+						<?php foreach ( $potential_prospects as $prospect ) : ?>
+						<li>
+							<strong><?php echo esc_html( $prospect['domain'] ); ?></strong>
+							<span><?php echo esc_html( $prospect['meta'] ); ?></span>
+						</li>
+						<?php endforeach; ?>
+					</ul>
+					<?php endif; ?>
+				</section>
+
+				<section class="khm-qc-dashboard-card">
+					<h3><?php esc_html_e( 'Prospect Meeting Requests', 'khm-membership' ); ?></h3>
+					<?php if ( empty( $meeting_requests ) ) : ?>
+						<p class="khm-qc-dashboard-empty"><?php esc_html_e( 'No meeting requests pending.', 'khm-membership' ); ?></p>
+					<?php else : ?>
+					<ul class="khm-qc-dashboard-list">
+						<?php foreach ( $meeting_requests as $request ) : ?>
+						<li>
+							<strong><?php echo esc_html( $request['provider'] ); ?></strong>
+							<span><?php echo esc_html( $request['meta'] ); ?></span>
+						</li>
+						<?php endforeach; ?>
+					</ul>
+					<?php endif; ?>
+				</section>
 			</div>
 		</div>
 		<?php
+	}
+
+	private function get_sponsor_team_user_ids( int $user_id, ?array $sponsor ): array {
+		$user_ids = [ $user_id ];
+
+		if ( is_array( $sponsor ) ) {
+			$team_members = json_decode( (string) ( $sponsor['team_members'] ?? '' ), true );
+			if ( is_array( $team_members ) ) {
+				foreach ( $team_members as $member ) {
+					$member_user_id = (int) ( $member['user_id'] ?? 0 );
+					if ( $member_user_id > 0 ) {
+						$user_ids[] = $member_user_id;
+					}
+				}
+			}
+		}
+
+		return array_values( array_unique( array_map( 'intval', $user_ids ) ) );
+	}
+
+	private function get_credit_breakdown( int $user_id ): array {
+		global $wpdb;
+
+		$current_month = date( 'Y-m' );
+		$table = $wpdb->prefix . 'khm_user_credits';
+		$defaults = [
+			'editorial_monthly_remaining'   => 0,
+			'editorial_purchased_remaining' => 0,
+			'press_monthly_remaining'       => 0,
+			'press_purchased_remaining'     => 0,
+		];
+
+		if ( ! $this->table_exists( $table ) ) {
+			return $defaults;
+		}
+
+		$this->credits->allocateMonthlyEditorialCredits( $user_id );
+
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT editorial_allocated_credits, editorial_bonus_credits, press_release_credits, press_release_credits_used
+				 FROM {$table}
+				 WHERE user_id = %d AND allocation_month = %s LIMIT 1",
+				$user_id,
+				$current_month
+			),
+			ARRAY_A
+		);
+
+		if ( ! is_array( $row ) ) {
+			return $defaults;
+		}
+
+		$editorial_monthly_remaining   = max( 0, (int) ( $row['editorial_allocated_credits'] ?? 0 ) );
+		$editorial_purchased_remaining = max( 0, (int) ( $row['editorial_bonus_credits'] ?? 0 ) );
+
+		$press_total_remaining = max(
+			0,
+			(int) ( $row['press_release_credits'] ?? 0 ) - (int) ( $row['press_release_credits_used'] ?? 0 )
+		);
+
+		$monthly_press_quota = $this->get_press_release_monthly_quota( $user_id );
+		$monthly_press_pool  = min( (int) ( $row['press_release_credits'] ?? 0 ), $monthly_press_quota );
+		$monthly_press_used  = min( (int) ( $row['press_release_credits_used'] ?? 0 ), $monthly_press_pool );
+		$press_monthly_remaining = max( 0, $monthly_press_pool - $monthly_press_used );
+		$press_purchased_remaining = max( 0, $press_total_remaining - $press_monthly_remaining );
+
+		return [
+			'editorial_monthly_remaining'   => $editorial_monthly_remaining,
+			'editorial_purchased_remaining' => $editorial_purchased_remaining,
+			'press_monthly_remaining'       => $press_monthly_remaining,
+			'press_purchased_remaining'     => $press_purchased_remaining,
+		];
+	}
+
+	private function get_press_release_monthly_quota( int $user_id ): int {
+		$memberships = $this->memberships->findActive( $user_id );
+		if ( empty( $memberships ) ) {
+			return 0;
+		}
+
+		$level_id = (int) $memberships[0]->membership_id;
+		$quota = (int) $this->levels->getMeta( $level_id, 'qc_press_release_credits_monthly', 1 );
+
+		return max( 0, (int) apply_filters( 'khm_press_release_credits_monthly_quota', $quota, $user_id ) );
+	}
+
+	private function get_connected_sites_count( int $sponsor_id ): int {
+		if ( $sponsor_id <= 0 ) {
+			return 0;
+		}
+
+		global $wpdb;
+		$table = $wpdb->prefix . 'connect_providers';
+		if ( ! $this->table_exists( $table ) ) {
+			return 0;
+		}
+
+		$with_urls = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(DISTINCT website_url)
+				 FROM {$table}
+				 WHERE sponsor_id = %d
+				   AND status = %s
+				   AND website_url IS NOT NULL
+				   AND website_url <> ''",
+				$sponsor_id,
+				'active'
+			)
+		);
+
+		if ( $with_urls > 0 ) {
+			return $with_urls;
+		}
+
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$table} WHERE sponsor_id = %d AND status = %s",
+				$sponsor_id,
+				'active'
+			)
+		);
+	}
+
+	private function get_performance_series_last_30_days( array $author_ids ): array {
+		$rows = [];
+		$today = current_time( 'timestamp' );
+
+		for ( $i = 29; $i >= 0; $i-- ) {
+			$ts = strtotime( '-' . $i . ' days', $today );
+			$key = gmdate( 'Y-m-d', $ts );
+			$rows[ $key ] = [
+				'label'      => wp_date( 'M j', $ts ),
+				'views'      => 0,
+				'clicks'     => 0,
+				'views_pct'  => 0,
+				'clicks_pct' => 0,
+			];
+		}
+
+		$views_by_day  = $this->get_page_views_daily_last_30_days( $author_ids );
+		$clicks_by_day = $this->get_smart_link_clicks_daily_last_30_days( $author_ids );
+
+		$max = 0;
+		foreach ( $rows as $day => &$point ) {
+			$point['views']  = (int) ( $views_by_day[ $day ] ?? 0 );
+			$point['clicks'] = (int) ( $clicks_by_day[ $day ] ?? 0 );
+			$max = max( $max, $point['views'], $point['clicks'] );
+		}
+		unset( $point );
+
+		$max = max( 1, $max );
+		foreach ( $rows as &$point ) {
+			$point['views_pct']  = (int) round( ( $point['views'] / $max ) * 100 );
+			$point['clicks_pct'] = (int) round( ( $point['clicks'] / $max ) * 100 );
+		}
+		unset( $point );
+
+		$indexed = array_values( $rows );
+
+		return [
+			'rows'        => $indexed,
+			'start_label' => $indexed[0]['label'] ?? '',
+			'end_label'   => $indexed[ count( $indexed ) - 1 ]['label'] ?? '',
+		];
+	}
+
+	private function get_page_views_daily_last_30_days( array $author_ids ): array {
+		global $wpdb;
+		$table = $wpdb->prefix . 'khm_seo_metrics';
+
+		if ( empty( $author_ids ) || ! $this->table_exists( $table ) ) {
+			return [];
+		}
+
+		$author_placeholders = implode( ',', array_fill( 0, count( $author_ids ), '%d' ) );
+		$since = gmdate( 'Y-m-d H:i:s', strtotime( '-30 days' ) );
+
+		$sql =
+			"SELECT DATE(measurement_date) AS metric_day, COALESCE(SUM(CAST(metric_value AS UNSIGNED)), 0) AS total
+			 FROM {$table}
+			 WHERE metric_name IN ('page_views', 'screenPageViews')
+			   AND measurement_date >= %s
+			   AND post_id IN (
+				   SELECT ID FROM {$wpdb->posts}
+				   WHERE post_author IN ({$author_placeholders})
+				     AND post_status = 'publish'
+				     AND post_type IN ('post', 'atomic_article')
+			   )
+			 GROUP BY DATE(measurement_date)";
+
+		$params = array_merge( [ $since ], $author_ids );
+		$rows   = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
+
+		if ( ! is_array( $rows ) ) {
+			return [];
+		}
+
+		$out = [];
+		foreach ( $rows as $row ) {
+			$day = (string) ( $row['metric_day'] ?? '' );
+			if ( '' !== $day ) {
+				$out[ $day ] = (int) ( $row['total'] ?? 0 );
+			}
+		}
+
+		return $out;
+	}
+
+	private function get_smart_link_clicks_daily_last_30_days( array $author_ids ): array {
+		global $wpdb;
+		$redirects_table = $wpdb->prefix . 'geo_redirects';
+		$clicks_table    = $wpdb->prefix . 'geo_redirect_clicks';
+
+		if ( empty( $author_ids ) || ! $this->table_exists( $redirects_table ) || ! $this->table_exists( $clicks_table ) ) {
+			return [];
+		}
+
+		$author_placeholders = implode( ',', array_fill( 0, count( $author_ids ), '%d' ) );
+		$since = gmdate( 'Y-m-d H:i:s', strtotime( '-30 days' ) );
+
+		$sql =
+			"SELECT DATE(c.clicked_at) AS metric_day, COUNT(1) AS total
+			 FROM {$clicks_table} c
+			 INNER JOIN {$redirects_table} r ON r.id = c.redirect_id
+			 WHERE r.created_by IN ({$author_placeholders})
+			   AND c.clicked_at >= %s
+			 GROUP BY DATE(c.clicked_at)";
+
+		$params = array_merge( $author_ids, [ $since ] );
+		$rows   = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
+
+		if ( ! is_array( $rows ) ) {
+			return [];
+		}
+
+		$out = [];
+		foreach ( $rows as $row ) {
+			$day = (string) ( $row['metric_day'] ?? '' );
+			if ( '' !== $day ) {
+				$out[ $day ] = (int) ( $row['total'] ?? 0 );
+			}
+		}
+
+		return $out;
+	}
+
+	private function get_smart_clicks_by_site_last_30_days( array $author_ids, int $limit = 5 ): array {
+		global $wpdb;
+		$redirects_table = $wpdb->prefix . 'geo_redirects';
+		$clicks_table    = $wpdb->prefix . 'geo_redirect_clicks';
+
+		if ( empty( $author_ids ) || ! $this->table_exists( $redirects_table ) || ! $this->table_exists( $clicks_table ) ) {
+			return [];
+		}
+
+		$author_placeholders = implode( ',', array_fill( 0, count( $author_ids ), '%d' ) );
+		$since = gmdate( 'Y-m-d H:i:s', strtotime( '-30 days' ) );
+
+		$sql =
+			"SELECT r.target_url, COUNT(1) AS total
+			 FROM {$clicks_table} c
+			 INNER JOIN {$redirects_table} r ON r.id = c.redirect_id
+			 WHERE r.created_by IN ({$author_placeholders})
+			   AND c.clicked_at >= %s
+			 GROUP BY r.target_url
+			 ORDER BY total DESC
+			 LIMIT 250";
+
+		$params = array_merge( $author_ids, [ $since ] );
+		$rows   = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
+		if ( ! is_array( $rows ) || empty( $rows ) ) {
+			return [];
+		}
+
+		$by_host = [];
+		foreach ( $rows as $row ) {
+			$url = (string) ( $row['target_url'] ?? '' );
+			$host = wp_parse_url( $url, PHP_URL_HOST );
+			$label = is_string( $host ) && '' !== $host ? preg_replace( '/^www\./i', '', $host ) : __( 'Unknown site', 'khm-membership' );
+			if ( ! isset( $by_host[ $label ] ) ) {
+				$by_host[ $label ] = 0;
+			}
+			$by_host[ $label ] += (int) ( $row['total'] ?? 0 );
+		}
+
+		arsort( $by_host );
+		$top = array_slice( $by_host, 0, max( 1, $limit ), true );
+		$max = max( 1, (int) ( reset( $top ) ?: 1 ) );
+
+		$out = [];
+		foreach ( $top as $label => $value ) {
+			$out[] = [
+				'label' => (string) $label,
+				'value' => (int) $value,
+				'pct'   => (int) round( ( (int) $value / $max ) * 100 ),
+			];
+		}
+
+		return $out;
+	}
+
+	private function get_estimated_views_by_user_maturity_last_30_days( int $sponsor_id, int $total_views ): array {
+		if ( $sponsor_id <= 0 ) {
+			return [];
+		}
+
+		global $wpdb;
+		$table = \KHM\Migrations\ConnectWorkflowMigration::opportunities_table_name();
+		if ( ! $this->table_exists( $table ) ) {
+			return [];
+		}
+
+		$since = gmdate( 'Y-m-d H:i:s', strtotime( '-30 days' ) );
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT commercial_tier, COUNT(1) AS total
+				 FROM {$table}
+				 WHERE (sponsor_id = %d OR sponsor_id IS NULL)
+				   AND created_at >= %s
+				 GROUP BY commercial_tier",
+				$sponsor_id,
+				$since
+			),
+			ARRAY_A
+		);
+
+		if ( ! is_array( $rows ) || empty( $rows ) ) {
+			return [];
+		}
+
+		$tier_counts = [
+			'premium'     => 0,
+			'standard'    => 0,
+			'exploratory' => 0,
+		];
+		foreach ( $rows as $row ) {
+			$tier = sanitize_key( (string) ( $row['commercial_tier'] ?? '' ) );
+			if ( isset( $tier_counts[ $tier ] ) ) {
+				$tier_counts[ $tier ] += (int) ( $row['total'] ?? 0 );
+			}
+		}
+
+		$total_signals = array_sum( $tier_counts );
+		if ( $total_signals <= 0 ) {
+			return [];
+		}
+
+		$max = 1;
+		$out = [];
+		$labels = [
+			'premium'     => __( 'Accelerating', 'khm-membership' ),
+			'standard'    => __( 'Assessing', 'khm-membership' ),
+			'exploratory' => __( 'Exploring', 'khm-membership' ),
+		];
+
+		foreach ( [ 'premium', 'standard', 'exploratory' ] as $tier ) {
+			$estimated = (int) round( ( $tier_counts[ $tier ] / $total_signals ) * max( 0, $total_views ) );
+			$max = max( $max, $estimated );
+			$out[] = [
+				'label' => $labels[ $tier ],
+				'value' => $estimated,
+				'pct'   => 0,
+			];
+		}
+
+		foreach ( $out as &$row ) {
+			$row['pct'] = (int) round( ( (int) $row['value'] / $max ) * 100 );
+		}
+		unset( $row );
+
+		return $out;
+	}
+
+	private function get_recent_published_articles( array $author_ids, int $limit = 5 ): array {
+		$query = new \WP_Query([
+			'post_type'           => [ 'post', 'atomic_article' ],
+			'post_status'         => 'publish',
+			'posts_per_page'      => max( 1, $limit ),
+			'author__in'          => $author_ids,
+			'orderby'             => 'date',
+			'order'               => 'DESC',
+			'ignore_sticky_posts' => true,
+			'no_found_rows'       => true,
+		]);
+
+		if ( ! $query->have_posts() ) {
+			return [];
+		}
+
+		$articles = [];
+		foreach ( $query->posts as $post ) {
+			$articles[] = [
+				'title' => get_the_title( $post ) ?: __( '(Untitled)', 'khm-membership' ),
+				'url'   => get_permalink( $post ) ?: '#',
+				'date'  => wp_date( get_option( 'date_format' ), strtotime( (string) $post->post_date ) ),
+			];
+		}
+
+		return $articles;
+	}
+
+	private function get_scheduled_articles( array $author_ids, int $limit = 5 ): array {
+		$query = new \WP_Query([
+			'post_type'      => [ 'post', 'atomic_article' ],
+			'post_status'    => 'future',
+			'posts_per_page' => max( 1, $limit ),
+			'author__in'     => $author_ids,
+			'orderby'        => 'date',
+			'order'          => 'ASC',
+			'no_found_rows'  => true,
+		]);
+
+		if ( ! $query->have_posts() ) {
+			return [];
+		}
+
+		$articles = [];
+		foreach ( $query->posts as $post ) {
+			$articles[] = [
+				'title' => get_the_title( $post ) ?: __( '(Untitled)', 'khm-membership' ),
+				'url'   => get_preview_post_link( $post ) ?: '#',
+				'date'  => wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), strtotime( (string) $post->post_date ) ),
+			];
+		}
+
+		return $articles;
+	}
+
+	private function get_suggested_summaries( int $sponsor_id, int $limit = 5 ): array {
+		global $wpdb;
+
+		$category_slugs = [];
+		$providers_table = $wpdb->prefix . 'connect_providers';
+		if ( $sponsor_id > 0 && $this->table_exists( $providers_table ) ) {
+			$titles_rows = $wpdb->get_col(
+				$wpdb->prepare(
+					"SELECT titles FROM {$providers_table} WHERE sponsor_id = %d AND status = %s",
+					$sponsor_id,
+					'active'
+				)
+			);
+			if ( is_array( $titles_rows ) ) {
+				foreach ( $titles_rows as $row ) {
+					$titles = json_decode( (string) $row, true );
+					if ( is_array( $titles ) ) {
+						foreach ( $titles as $title_slug ) {
+							$normalized = sanitize_title( (string) $title_slug );
+							if ( '' !== $normalized ) {
+								$category_slugs[] = $normalized;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		$category_slugs = array_values( array_unique( $category_slugs ) );
+
+		$args = [
+			'post_type'      => [ 'post', 'atomic_article' ],
+			'post_status'    => 'publish',
+			'posts_per_page' => max( 1, $limit ),
+			'orderby'        => 'date',
+			'order'          => 'DESC',
+			'no_found_rows'  => true,
+		];
+
+		if ( ! empty( $category_slugs ) ) {
+			$args['tax_query'] = [
+				[
+					'taxonomy' => 'category',
+					'field'    => 'slug',
+					'terms'    => $category_slugs,
+				],
+			];
+		}
+
+		$query = new \WP_Query( $args );
+		if ( ! $query->have_posts() ) {
+			return [];
+		}
+
+		$summaries = [];
+		foreach ( $query->posts as $post ) {
+			$summary_text = get_the_excerpt( $post );
+			if ( '' === trim( (string) $summary_text ) ) {
+				$summary_text = wp_trim_words( wp_strip_all_tags( (string) $post->post_content ), 24, '…' );
+			}
+
+			$summaries[] = [
+				'title'   => get_the_title( $post ) ?: __( '(Untitled)', 'khm-membership' ),
+				'url'     => get_permalink( $post ) ?: '#',
+				'date'    => wp_date( get_option( 'date_format' ), strtotime( (string) $post->post_date ) ),
+				'summary' => wp_trim_words( wp_strip_all_tags( (string) $summary_text ), 28, '…' ),
+			];
+		}
+
+		return $summaries;
+	}
+
+	private function get_potential_prospects( int $sponsor_id, int $limit = 5 ): array {
+		if ( $sponsor_id <= 0 ) {
+			return [];
+		}
+
+		global $wpdb;
+		$table = \KHM\Migrations\ConnectWorkflowMigration::opportunities_table_name();
+		if ( ! $this->table_exists( $table ) ) {
+			return [];
+		}
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT actor_email_domain, commercial_tier, internal_stage, person_score
+				 FROM {$table}
+				 WHERE ( sponsor_id = %d OR sponsor_id IS NULL )
+				   AND opportunity_status IN ('detected', 'offered')
+				 ORDER BY person_score DESC, updated_at DESC, id DESC
+				 LIMIT %d",
+				$sponsor_id,
+				max( 1, $limit )
+			),
+			ARRAY_A
+		);
+
+		if ( ! is_array( $rows ) || empty( $rows ) ) {
+			return [];
+		}
+
+		$items = [];
+		foreach ( $rows as $row ) {
+			$items[] = [
+				'domain' => (string) ( $row['actor_email_domain'] ?: __( 'Anonymous domain', 'khm-membership' ) ),
+				'meta'   => sprintf(
+					/* translators: 1: stage, 2: tier, 3: score percentage */
+					__( 'Stage: %1$s • Tier: %2$s • Score: %3$s%%', 'khm-membership' ),
+					(string) ( $row['internal_stage'] ?: '—' ),
+					(string) ( $row['commercial_tier'] ?: '—' ),
+					number_format_i18n( (float) ( $row['person_score'] ?? 0 ), 0 )
+				),
+			];
+		}
+
+		return $items;
+	}
+
+	private function get_prospect_meeting_requests( int $sponsor_id, int $limit = 5 ): array {
+		if ( $sponsor_id <= 0 ) {
+			return [];
+		}
+
+		global $wpdb;
+		$handovers_table = \KHM\Migrations\ConnectWorkflowMigration::handovers_table_name();
+		$threads_table   = \KHM\Migrations\ConnectWorkflowMigration::threads_table_name();
+		$providers_table = $wpdb->prefix . 'connect_providers';
+
+		if ( ! $this->table_exists( $handovers_table ) || ! $this->table_exists( $threads_table ) ) {
+			return [];
+		}
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT h.buyer_requested_at, t.buyer_company, t.latest_message_at, p.name AS provider_name
+				 FROM {$handovers_table} h
+				 LEFT JOIN {$threads_table} t ON t.id = h.thread_id
+				 LEFT JOIN {$providers_table} p ON p.id = t.provider_id
+				 WHERE h.sponsor_id = %d AND h.status = %s
+				 ORDER BY h.buyer_requested_at DESC, h.id DESC
+				 LIMIT %d",
+				$sponsor_id,
+				'buyer_requested',
+				max( 1, $limit )
+			),
+			ARRAY_A
+		);
+
+		if ( ! is_array( $rows ) || empty( $rows ) ) {
+			return [];
+		}
+
+		$items = [];
+		foreach ( $rows as $row ) {
+			$company = (string) ( $row['buyer_company'] ?: __( 'Anonymous company', 'khm-membership' ) );
+			$requested_at = strtotime( (string) ( $row['buyer_requested_at'] ?: '' ) );
+
+			$items[] = [
+				'provider' => (string) ( $row['provider_name'] ?: __( 'Unknown offering', 'khm-membership' ) ),
+				'meta'     => sprintf(
+					/* translators: 1: buyer company, 2: requested date */
+					__( '%1$s • Requested %2$s', 'khm-membership' ),
+					$company,
+					$requested_at ? wp_date( get_option( 'date_format' ), $requested_at ) : __( 'recently', 'khm-membership' )
+				),
+			];
+		}
+
+		return $items;
+	}
+
+	private function get_page_views_last_30_days( array $author_ids ): int {
+		global $wpdb;
+		$table = $wpdb->prefix . 'khm_seo_metrics';
+
+		if ( empty( $author_ids ) || ! $this->table_exists( $table ) ) {
+			return 0;
+		}
+
+		$author_placeholders = implode( ',', array_fill( 0, count( $author_ids ), '%d' ) );
+		$since = gmdate( 'Y-m-d H:i:s', strtotime( '-30 days' ) );
+
+		$sql =
+			"SELECT COALESCE(SUM(CAST(metric_value AS UNSIGNED)), 0)
+			 FROM {$table}
+			 WHERE metric_name IN ('page_views', 'screenPageViews')
+			   AND measurement_date >= %s
+			   AND post_id IN (
+				   SELECT ID FROM {$wpdb->posts}
+				   WHERE post_author IN ({$author_placeholders})
+				     AND post_status = 'publish'
+				     AND post_type IN ('post', 'atomic_article')
+			   )";
+
+		$params = array_merge( [ $since ], $author_ids );
+		$value  = $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
+
+		return (int) $value;
+	}
+
+	private function get_smart_link_clicks_last_30_days( array $author_ids ): int {
+		global $wpdb;
+		$redirects_table = $wpdb->prefix . 'geo_redirects';
+		$clicks_table    = $wpdb->prefix . 'geo_redirect_clicks';
+
+		if ( empty( $author_ids ) || ! $this->table_exists( $redirects_table ) || ! $this->table_exists( $clicks_table ) ) {
+			return 0;
+		}
+
+		$author_placeholders = implode( ',', array_fill( 0, count( $author_ids ), '%d' ) );
+		$since = gmdate( 'Y-m-d H:i:s', strtotime( '-30 days' ) );
+
+		$sql =
+			"SELECT COUNT(1)
+			 FROM {$clicks_table} c
+			 INNER JOIN {$redirects_table} r ON r.id = c.redirect_id
+			 WHERE r.created_by IN ({$author_placeholders})
+			   AND c.clicked_at >= %s";
+
+		$params = array_merge( $author_ids, [ $since ] );
+		$value  = $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
+
+		return (int) $value;
+	}
+
+	private function table_exists( string $table ): bool {
+		global $wpdb;
+
+		$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+
+		return is_string( $found ) && $found === $table;
 	}
 
 	private function render_connect_section( int $user_id, ?array $sponsor ): void {
@@ -409,129 +1313,108 @@ class QuoteClubPortalShortcode {
 				<div class="khm-qc-connect-grid">
 					<section class="khm-qc-connect-panel khm-qc-connect-subscription-panel khm-qc-connect-span-full" id="khm-qc-sub-panel-<?php echo esc_attr( (int) ( $sponsor['id'] ?? 0 ) ); ?>">
 						<style>
-							.khm-qc-sub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:12px 0;}
-							.khm-qc-sub-card{border:2px solid #dcdcde;border-radius:8px;padding:16px;cursor:pointer;transition:border-color .2s,box-shadow .2s;background:#fff;}
-							.khm-qc-sub-card:hover{border-color:#1a73e8;box-shadow:0 2px 8px rgba(26,115,232,.15);}
-							.khm-qc-sub-card.selected{border-color:#1a73e8;background:#e8f0fe;}
-							.khm-qc-sub-card h4{margin:0 0 4px;font-size:15px;text-transform:capitalize;}
-							.khm-qc-sub-card .price{font-size:20px;font-weight:700;color:#1a73e8;margin:6px 0 2px;}
-							.khm-qc-sub-card .model{font-size:11px;color:#777;text-transform:uppercase;letter-spacing:.04em;}
-							.khm-qc-sub-card .commission{font-size:12px;color:#555;margin-top:4px;}
-							.khm-qc-sub-current{font-size:13px;padding:10px 14px;border-radius:6px;background:#e6f4ea;color:#1e8c45;display:none;margin-bottom:10px;}
-							.khm-qc-sub-pending{font-size:13px;padding:10px 14px;border-radius:6px;background:#fef9e7;color:#b5770d;display:none;margin-bottom:10px;}
-							.khm-qc-sub-scope{display:flex;gap:10px;margin:8px 0 12px;flex-wrap:wrap;}
-							.khm-qc-sub-scope label{font-size:13px;display:flex;align-items:center;gap:4px;}
+							.khm-qc-sub-sites{margin:12px 0;display:grid;gap:8px;}
+							.khm-qc-sub-site{border:1px solid #dcdcde;border-radius:8px;padding:10px 12px;background:#fff;font-size:14px;}
+							.khm-qc-sub-empty{font-size:13px;color:#646970;padding:10px 12px;border:1px dashed #ccd0d4;border-radius:8px;background:#fbfcfd;}
+							.khm-qc-sub-notice{display:none;font-size:12px;padding:8px 12px;border-radius:4px;margin-bottom:8px;}
+							.khm-qc-sub-actions{display:flex;gap:8px;flex-wrap:wrap;}
 						</style>
 						<div class="khm-qc-connect-panel-head">
 							<div>
 								<h3><?php esc_html_e( 'Connect Subscription', 'khm-membership' ); ?></h3>
-								<p><?php esc_html_e( 'Activate a Connect subscription to appear in matching, receive anonymised leads, and unlock introduction workflows with qualified buyers.', 'khm-membership' ); ?></p>
+								<p><?php esc_html_e( 'Connected sites currently covered by your Connect setup.', 'khm-membership' ); ?></p>
 							</div>
 						</div>
-						<div class="khm-qc-sub-current" role="status"></div>
-						<div class="khm-qc-sub-pending" role="status"></div>
-						<div class="khm-qc-sub-grid" aria-label="<?php esc_attr_e( 'Select a tier', 'khm-membership' ); ?>"></div>
-						<div class="khm-qc-sub-scope">
-							<strong style="font-size:13px;align-self:center;"><?php esc_html_e( 'Scope:', 'khm-membership' ); ?></strong>
-							<label><input type="radio" name="khm-qc-sub-scope" value="site" checked /> <?php esc_html_e( 'This site only', 'khm-membership' ); ?></label>
-							<label><input type="radio" name="khm-qc-sub-scope" value="portfolio" /> <?php esc_html_e( 'Portfolio-wide (all sites)', 'khm-membership' ); ?></label>
+						<div class="khm-qc-sub-notice" role="status" aria-live="polite"></div>
+						<div class="khm-qc-sub-sites"></div>
+						<div class="khm-qc-sub-actions">
+							<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-sub-connect-more"><?php esc_html_e( 'Connect More Sites', 'khm-membership' ); ?></button>
 						</div>
-						<div class="khm-qc-sub-notice" style="display:none;font-size:12px;padding:8px 12px;border-radius:4px;margin-bottom:8px;"></div>
-						<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-sub-request-btn" disabled><?php esc_html_e( 'Request Subscription', 'khm-membership' ); ?></button>
 					</section>
 
 					<script>
 					(function(){
 						var sponsorId = <?php echo (int) ( $sponsor['id'] ?? 0 ); ?>;
-						var restBase  = <?php echo wp_json_encode( trailingslashit( rest_url( 'khm/v1/connect' ) ) ); ?>;
+						var providersEndpoint = <?php echo wp_json_encode( trailingslashit( rest_url( 'khm/v1/connect' ) ) . 'providers/mine' ); ?>;
 						var nonce     = <?php echo wp_json_encode( wp_create_nonce( 'wp_rest' ) ); ?>;
+						var allowDemoFallback = /(localhost|\.local)$/i.test(window.location.hostname || '');
 						var panel     = document.getElementById('khm-qc-sub-panel-' + sponsorId);
 						if (!panel || !sponsorId) return;
 
-						var grid      = panel.querySelector('.khm-qc-sub-grid');
-						var curBanner = panel.querySelector('.khm-qc-sub-current');
-						var penBanner = panel.querySelector('.khm-qc-sub-pending');
+						var sitesWrap = panel.querySelector('.khm-qc-sub-sites');
 						var notice    = panel.querySelector('.khm-qc-sub-notice');
-						var btn       = panel.querySelector('.khm-qc-sub-request-btn');
-						var selected  = null;
-
-						function fmt(cents){ return '$' + (cents/100).toFixed(2); }
+						var connectBtn = panel.querySelector('.khm-qc-sub-connect-more');
 
 						function showNotice(msg, ok){
 							notice.textContent = msg;
 							notice.style.background = ok ? '#e6f4ea' : '#fce8e6';
 							notice.style.color = ok ? '#1e8c45' : '#c5221f';
 							notice.style.display = 'block';
-							setTimeout(function(){ notice.style.display='none'; }, 6000);
+							setTimeout(function(){ notice.style.display = 'none'; }, 5000);
 						}
 
-						function renderTiers(pricing, sub){
-							grid.innerHTML = '';
-							['premium','standard','exploratory'].forEach(function(tier){
-								var p    = pricing[tier] || {};
-								var card = document.createElement('div');
-								card.className = 'khm-qc-sub-card' + (sub && sub.tier === tier && sub.status === 'active' ? ' selected' : '');
-								card.dataset.tier = tier;
-								card.innerHTML =
-									'<h4>' + tier + '</h4>' +
-									'<div class="price">' + fmt(p.unit_price_cents||0) + '</div>' +
-									'<div class="model">' + (p.pricing_model||'') + '</div>' +
-									'<div class="commission"><?php echo esc_js( __( 'Commission eligible:', 'khm-membership' ) ); ?> ' + (p.commission_eligible ? '<?php echo esc_js( __( 'Yes', 'khm-membership' ) ); ?>' : '<?php echo esc_js( __( 'No', 'khm-membership' ) ); ?>') + '</div>';
-								card.addEventListener('click', function(){
-									grid.querySelectorAll('.khm-qc-sub-card').forEach(function(c){ c.classList.remove('selected'); });
-									card.classList.add('selected');
-									selected = tier;
-									btn.disabled = false;
-								});
-								grid.appendChild(card);
-							});
-						}
-
-						function loadSubscription(){
-							fetch(restBase + 'subscription', { headers:{'X-WP-Nonce':nonce} })
-								.then(function(r){ return r.json(); })
-								.then(function(d){
-									var sub     = d.subscription || {};
-									var pricing = d.pricing     || {};
-									curBanner.style.display = 'none';
-									penBanner.style.display = 'none';
-									if (sub.status === 'active'){
-										curBanner.textContent = <?php echo wp_json_encode( __( 'Active subscription: ', 'khm-membership' ) ); ?> + sub.tier + ' (' + sub.scope + ')';
-										curBanner.style.display = 'block';
-									} else if (sub.status === 'pending'){
-										penBanner.textContent = <?php echo wp_json_encode( __( 'Subscription pending activation — ', 'khm-membership' ) ); ?> + sub.tier + ' (' + sub.scope + '). <?php echo esc_js( __( 'We will notify you when it goes live.', 'khm-membership' ) ); ?>';
-										penBanner.style.display = 'block';
-									}
-									renderTiers(pricing, sub);
-								}).catch(function(){
-									grid.innerHTML = '<p style="color:#c5221f;font-size:13px;"><?php echo esc_js( __( 'Unable to load subscription info.', 'khm-membership' ) ); ?></p>';
-								});
-						}
-
-						btn.addEventListener('click', function(){
-							if (!selected) return;
-							var scope = (panel.querySelector('input[name="khm-qc-sub-scope"]:checked') || {}).value || 'site';
-							btn.disabled = true;
-							fetch(restBase + 'subscription', {
-								method:'POST',
-								headers:{'Content-Type':'application/json','X-WP-Nonce':nonce},
-								body: JSON.stringify({tier:selected, scope:scope})
-							}).then(function(r){ return r.json(); })
-							.then(function(d){
-								if (d.success){
-									showNotice(d.message || <?php echo wp_json_encode( __( 'Request submitted.', 'khm-membership' ) ); ?>, true);
-									loadSubscription();
-								} else {
-									showNotice(d.message || <?php echo wp_json_encode( __( 'Request failed.', 'khm-membership' ) ); ?>, false);
+						function normalizeSiteLabel(provider){
+							var url = provider && provider.website_url ? String(provider.website_url) : '';
+							if (url) {
+								try {
+									return new URL(url).hostname.replace(/^www\./,'');
+								} catch (e) {
+									return url.replace(/^https?:\/\//,'').replace(/^www\./,'').split('/')[0] || url;
 								}
-								btn.disabled = false;
-							}).catch(function(){
-								showNotice(<?php echo wp_json_encode( __( 'Network error — please try again.', 'khm-membership' ) ); ?>, false);
-								btn.disabled = false;
+							}
+							return (provider && provider.name) ? String(provider.name) : <?php echo wp_json_encode( __( 'Unnamed site', 'khm-membership' ) ); ?>;
+						}
+
+						function renderSites(providers){
+							var names = [];
+							(providers || []).forEach(function(provider){
+								names.push(normalizeSiteLabel(provider));
 							});
+
+							var seen = {};
+							var uniqueNames = names.filter(function(name){
+								var key = name.toLowerCase();
+								if (seen[key]) return false;
+								seen[key] = true;
+								return true;
+							}).sort();
+
+							if (!uniqueNames.length && allowDemoFallback) {
+								uniqueNames = [
+									'demo-finance-insights.local',
+									'demo-cyber-briefing.local',
+									'demo-growth-playbooks.local'
+								];
+
+
+							sitesWrap.innerHTML = uniqueNames.map(function(name){
+								return '<div class="khm-qc-sub-site">' + name.replace(/</g,'&lt;') + '</div>';
+							}).join('');
+						}
+
+						function loadSites(){
+							sitesWrap.innerHTML = '<div class="khm-qc-sub-empty"><?php echo esc_js( __( 'Loading connected sites…', 'khm-membership' ) ); ?></div>';
+							fetch(providersEndpoint, { headers:{ 'X-WP-Nonce':nonce } })
+								.then(function(r){ return r.json(); })
+								.then(function(d){ renderSites(d.providers || []); })
+								.catch(function(){
+									renderSites([]);
+									if (!allowDemoFallback) {
+										sitesWrap.innerHTML = '<div class="khm-qc-sub-empty" style="color:#c5221f;"><?php echo esc_js( __( 'Unable to load connected sites right now.', 'khm-membership' ) ); ?></div>';
+									}
+								});
+						}
+
+						connectBtn.addEventListener('click', function(){
+							var newBtn = document.querySelector('.khm-qc-connect-new');
+							if (newBtn) {
+								newBtn.click();
+								newBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+								showNotice(<?php echo wp_json_encode( __( 'Use the form below to connect another site.', 'khm-membership' ) ); ?>, true);
+							}
 						});
 
-						loadSubscription();
+						loadSites();
 					})();
 					</script>
 
@@ -589,6 +1472,86 @@ class QuoteClubPortalShortcode {
 									<span><?php esc_html_e( 'Sweet Spot Summary', 'khm-membership' ); ?></span>
 									<textarea name="sweet_spot_summary" rows="3" placeholder="Who you are best for, typical use cases, and what makes the fit strong."></textarea>
 								</label>
+								
+								<fieldset style="grid-column: 1 / -1; border: 1px solid #dcdcde; border-radius: 6px; padding: 14px; background: #fafbfc; margin: 8px 0;">
+									<legend style="padding: 0 8px; font-weight: 600; font-size: 13px; color: #3c434a; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'Ideal Customer Profile (ICP)', 'khm-membership' ); ?></legend>
+									<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 8px;">
+										<label>
+											<span><?php esc_html_e( 'Company Size - Min (employees)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" name="company_size_min" placeholder="e.g., 10" />
+											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum company headcount in your ideal segment', 'khm-membership' ); ?></p>
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Company Size - Max (employees)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" name="company_size_max" placeholder="e.g., 500" />
+											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Maximum company headcount in your ideal segment', 'khm-membership' ); ?></p>
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Budget - Min (annual, in £)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" name="budget_min" placeholder="e.g., 50000" />
+											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum annual budget for typical deal', 'khm-membership' ); ?></p>
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Budget - Max (annual, in £)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" name="budget_max" placeholder="e.g., 500000" />
+											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Maximum annual budget for typical deal', 'khm-membership' ); ?></p>
+										</label>
+										<label style="grid-column: 1 / -1;">
+											<span><?php esc_html_e( 'Typical Onboarding Timeline (days)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" name="onboarding_days" placeholder="e.g., 30" />
+											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Average time to activate a new customer', 'khm-membership' ); ?></p>
+										</label>
+									</div>
+								</fieldset>
+
+								<fieldset style="grid-column: 1 / -1; border: 1px solid #dcdcde; border-radius: 6px; padding: 14px; background: #fafbfc; margin: 8px 0;">
+									<legend style="padding: 0 8px; font-weight: 600; font-size: 13px; color: #3c434a; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'RFP Response Defaults', 'khm-membership' ); ?></legend>
+									<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 8px;">
+										<label>
+											<span><?php esc_html_e( 'Default Scope', 'khm-membership' ); ?></span>
+											<select name="rfp_default_scope">
+												<option value="pilot_scheme"><?php esc_html_e( 'Structured pilot scheme (time-boxed, defined success criteria)', 'khm-membership' ); ?></option>
+												<option value="fsm_evaluation_poc"><?php esc_html_e( 'Complete FSM platform evaluation and POC', 'khm-membership' ); ?></option>
+												<option value="mobile_iot_optimisation"><?php esc_html_e( 'Mobile-first FSM with IoT optimisation', 'khm-membership' ); ?></option>
+												<option value="workforce_scheduling_upgrade"><?php esc_html_e( 'Workforce scheduling and dispatch modernisation', 'khm-membership' ); ?></option>
+											</select>
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Default Seat Band', 'khm-membership' ); ?></span>
+											<select name="rfp_default_seats">
+												<option value="20_30"><?php esc_html_e( '20-30 seats', 'khm-membership' ); ?></option>
+												<option value="50_100"><?php esc_html_e( '50-100 seats', 'khm-membership' ); ?></option>
+												<option value="100_250"><?php esc_html_e( '100-250 seats', 'khm-membership' ); ?></option>
+												<option value="500_plus"><?php esc_html_e( '500+ seats', 'khm-membership' ); ?></option>
+											</select>
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Default Timeframe', 'khm-membership' ); ?></span>
+											<select name="rfp_default_timeframe">
+												<option value="3_months"><?php esc_html_e( '3 months', 'khm-membership' ); ?></option>
+												<option value="6_months"><?php esc_html_e( '6 months', 'khm-membership' ); ?></option>
+												<option value="12_months"><?php esc_html_e( '12 months', 'khm-membership' ); ?></option>
+											</select>
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Default Cost Per Licence / Month (£)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" step="0.01" name="rfp_default_cpl_gbp" placeholder="e.g., 325" />
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Default Buyer Estimate (£)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" step="500" name="rfp_default_estimate_gbp" placeholder="e.g., 120000" />
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Max Discount You Will Offer (%)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" max="30" step="1" name="rfp_max_discount_pct" placeholder="e.g., 10" />
+										</label>
+										<label style="grid-column: 1 / -1;">
+											<span><?php esc_html_e( 'Supported Features (comma-separated keys)', 'khm-membership' ); ?></span>
+											<input type="text" name="rfp_supported_features" placeholder="mobile_app,offline_capabilities,real_time_reporting,erp_integration" />
+										</label>
+									</div>
+								</fieldset>
+								
 								<label>
 									<span><?php esc_html_e( 'Title Contexts', 'khm-membership' ); ?></span>
 									<input type="text" name="titles" placeholder="finance, saas, cybersecurity" list="khm-qc-connect-title-contexts" />
@@ -604,26 +1567,6 @@ class QuoteClubPortalShortcode {
 								<label>
 									<span><?php esc_html_e( 'Support Tiers', 'khm-membership' ); ?></span>
 									<input type="text" name="support_tiers" placeholder="email, dedicated-csm" />
-								</label>
-								<label>
-									<span><?php esc_html_e( 'Company Size Min', 'khm-membership' ); ?></span>
-									<input type="number" min="0" name="company_size_min" />
-								</label>
-								<label>
-									<span><?php esc_html_e( 'Company Size Max', 'khm-membership' ); ?></span>
-									<input type="number" min="0" name="company_size_max" />
-								</label>
-								<label>
-									<span><?php esc_html_e( 'Budget Min', 'khm-membership' ); ?></span>
-									<input type="number" min="0" name="budget_min" />
-								</label>
-								<label>
-									<span><?php esc_html_e( 'Budget Max', 'khm-membership' ); ?></span>
-									<input type="number" min="0" name="budget_max" />
-								</label>
-								<label>
-									<span><?php esc_html_e( 'Typical Onboarding Days', 'khm-membership' ); ?></span>
-									<input type="number" min="0" name="onboarding_days" />
 								</label>
 								<label>
 									<span><?php esc_html_e( 'Status', 'khm-membership' ); ?></span>
@@ -667,7 +1610,7 @@ class QuoteClubPortalShortcode {
 					<section class="khm-qc-connect-panel khm-qc-connect-leads-panel khm-qc-connect-span-full" id="khm-qc-leads-panel-<?php echo esc_attr( (string) (int) ( $sponsor['id'] ?? 0 ) ); ?>">
 						<style>
 							.khm-qc-leads-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
-							.khm-qc-leads-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;}
+							.khm-qc-leads-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;}
 							.khm-qc-lead-card{border:1px solid #dcdcde;border-radius:6px;padding:14px;background:#fff;display:flex;flex-direction:column;gap:8px;}
 							.khm-qc-lead-card[data-status="sponsor_accepted"]{border-color:#1a73e8;}
 							.khm-qc-lead-card[data-status="intro_requested"],.khm-qc-lead-card[data-status="introduced"]{border-color:#1e8c45;}
@@ -675,33 +1618,118 @@ class QuoteClubPortalShortcode {
 							.khm-qc-lead-tier-premium{background:#e8f0fe;color:#1a73e8;}
 							.khm-qc-lead-tier-standard{background:#e6f4ea;color:#1e8c45;}
 							.khm-qc-lead-tier-exploratory{background:#fce8e6;color:#c5221f;}
+							.khm-qc-lead-tier-engaged{background:#fff4e5;color:#9a3412;}
 							.khm-qc-lead-score-bar{height:4px;border-radius:2px;background:#e9e9e9;overflow:hidden;}
 							.khm-qc-lead-score-fill{height:100%;border-radius:2px;background:#1a73e8;transition:width .3s;}
 							.khm-qc-lead-meta{font-size:12px;color:#555;display:flex;flex-wrap:wrap;gap:6px 14px;}
+							.khm-qc-lead-anon{display:grid;gap:4px;font-size:12px;color:#3c434a;background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:8px 10px;min-height:112px;align-content:start;}
+							.khm-qc-lead-anon span strong{font-weight:600;}
 							.khm-qc-lead-status{font-size:12px;font-weight:600;}
 							.khm-qc-lead-actions{margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;}
-							.khm-qc-lead-accept-form select{font-size:12px;padding:4px 6px;border:1px solid #ccd0d4;border-radius:4px;max-width:180px;}
+							.khm-qc-lead-demo-pill{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:3px;background:#fff3cd;color:#8a6116;}
+							.khm-qc-lead-accept-form{display:flex;flex-direction:column;gap:8px;}
+							.khm-qc-lead-accept-form select{font-size:12px;padding:4px 6px;border:1px solid #ccd0d4;border-radius:4px;width:100%;}
 							.khm-qc-leads-empty{padding:16px;color:#777;font-size:13px;}
 							.khm-qc-leads-notice{font-size:12px;padding:8px 12px;border-radius:4px;margin-bottom:8px;display:none;}
 							.khm-qc-leads-notice-ok{background:#e6f4ea;color:#1e8c45;}
 							.khm-qc-leads-notice-err{background:#fce8e6;color:#c5221f;}
+								.khm-qc-leads-nav{display:flex;align-items:center;gap:10px;margin-top:12px;margin-bottom:32px;}
+								.khm-qc-leads-page-label{flex:1;text-align:center;font-size:12px;color:#555;}
+							.khm-qc-lead-price-base{color:#888;font-size:11px;font-weight:400;}
+							.khm-qc-lead-price{font-size:12px;color:#555;}
+							.khm-qc-lead-engaged-options{font-size:11px;color:#3c434a;background:#fff8f1;border:1px solid #f2d3b0;border-radius:6px;padding:7px 9px;display:grid;gap:3px;min-height:58px;}
+							.khm-qc-lead-engaged-options-placeholder{background:transparent;border-color:transparent;visibility:hidden;}
+							.khm-qc-lead-engaged-ctas{display:flex;flex-wrap:wrap;gap:8px;}
+							.khm-qc-lead-engaged-ctas .khm-qc-btn{font-size:12px;padding:4px 10px;}
+							/* RFP Cards */
+							.khm-qc-rfp-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:16px;margin-bottom:16px;align-items:start;}
+							.khm-qc-rfp-card{background:#fafafa;border:1px solid #ddd;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;}
+							.khm-qc-rfp-card[data-status="detected"]{background:#fef9f3;}
+							.khm-qc-rfp-card > div:first-child{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+							.khm-qc-rfp-metadata{font-size:11px;color:#3c434a;background:#f5f5f5;border:1px solid #e8e8e8;border-radius:6px;padding:8px;display:grid;gap:4px;align-content:start;height:200px;overflow-y:auto;}
+							.khm-qc-rfp-metadata span{display:block;}
+							.khm-qc-rfp-metadata strong{color:#1e8c45;font-weight:600;}
+							.khm-qc-rfp-notice{font-size:12px;padding:8px 12px;border-radius:4px;margin-bottom:8px;display:none;}
+							.khm-qc-rfp-notice-ok{background:#e6f4ea;color:#1e8c45;}
+							.khm-qc-rfp-notice-err{background:#fce8e6;color:#c5221f;}
+							.khm-qc-rfp-nav{display:flex;align-items:center;gap:10px;margin-top:12px;margin-bottom:32px;}
+							.khm-qc-rfp-page-label{flex:1;text-align:center;font-size:12px;color:#555;}
+							.khm-qc-rfp-accept-form{display:flex;flex-direction:column;gap:8px;}
+							.khm-qc-rfp-response-workflow[hidden]{display:none;}
+							.khm-qc-rfp-response-grid{display:grid;gap:12px;}
+							.khm-qc-rfp-response-field{display:grid;gap:4px;}
+							.khm-qc-rfp-response-field label{font-size:11px;font-weight:600;color:#3c434a;}
+							.khm-qc-rfp-response-field input[type="text"],.khm-qc-rfp-response-field input[type="number"],.khm-qc-rfp-response-field textarea,.khm-qc-rfp-response-field select{width:100%;padding:8px 10px;font-size:12px;border:1px solid #ccd0d4;border-radius:6px;background:#fff;}
+							.khm-qc-rfp-response-field textarea{min-height:72px;resize:vertical;}
+							.khm-qc-rfp-response-notes{margin-bottom:8px;}
+							.khm-qc-rfp-response-hint{font-size:11px;color:#555;background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:7px 9px;margin-bottom:10px;}
+							.khm-qc-rfp-summary{background:#fff;border:1px solid #e1e4e8;border-radius:8px;padding:12px;}
+							.khm-qc-rfp-summary input[type="hidden"]{display:none !important;}
+							.khm-qc-rfp-summary h4{margin:0 0 8px;font-size:15px;line-height:1.3;color:#1f2937;}
+							.khm-qc-rfp-summary-list{margin:0;padding-left:18px;display:grid;gap:8px;font-size:12px;color:#3c434a;}
+							.khm-qc-rfp-summary-list > li{margin:0;}
+							.khm-qc-rfp-summary-list strong{color:#111827;}
+							.khm-qc-rfp-summary-sublist{margin:6px 0 0 0;padding-left:18px;display:grid;gap:4px;}
+							.khm-qc-rfp-feature-grid{display:block;}
+							.khm-qc-rfp-calc-card{background:#f8fafc;border:1px solid #dbe4ea;border-radius:8px;padding:10px 12px;display:grid;gap:8px;}
+							.khm-qc-rfp-estimate-value{font-size:16px;font-weight:700;color:#111827;}
+							.khm-qc-rfp-estimate-caption{font-size:11px;color:#6b7280;}
+							.khm-qc-rfp-toggle{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:#1f2937;cursor:pointer;}
+							.khm-qc-rfp-toggle input{width:auto;margin:0;}
+							.khm-qc-rfp-discount-controls[hidden],.khm-qc-rfp-commission-breakdown[hidden]{display:none;}
+							.khm-qc-rfp-discount-readout{font-size:11px;color:#3c434a;display:grid;grid-template-columns:minmax(96px,auto) 1fr;gap:10px 14px;align-items:start;}
+							.khm-qc-rfp-breakdown-row{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#3c434a;align-items:flex-start;}
+							.khm-qc-rfp-breakdown-row strong{color:#111827;}
+							.khm-qc-rfp-tooltip{position:relative;display:inline-flex;align-items:center;gap:6px;}
+							.khm-qc-rfp-tooltip-btn{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border:1px solid #93a1b0;border-radius:999px;background:#fff;color:#3c434a;font-size:10px;line-height:1;cursor:help;padding:0;}
+							.khm-qc-rfp-tooltip-bubble{display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:6;min-width:260px;max-width:320px;background:#111827;color:#f9fafb;border-radius:6px;padding:8px 10px;font-size:11px;line-height:1.35;box-shadow:0 8px 20px rgba(15,23,42,.25);}
+							.khm-qc-rfp-tooltip.is-open .khm-qc-rfp-tooltip-bubble{display:block;}
+							.khm-qc-rfp-tooltip:hover .khm-qc-rfp-tooltip-bubble,.khm-qc-rfp-tooltip:focus-within .khm-qc-rfp-tooltip-bubble{display:block;}
+							.khm-qc-rfp-review-modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:99999;padding:16px;}
+							.khm-qc-rfp-review-modal.is-open{display:flex;}
+							.khm-qc-rfp-review-dialog{background:#fff;border-radius:12px;box-shadow:0 20px 50px rgba(15,23,42,.18);width:min(680px,100%);max-height:90vh;overflow:auto;padding:20px;display:grid;gap:14px;}
+							.khm-qc-rfp-review-head{display:flex;justify-content:space-between;align-items:center;gap:12px;}
+							.khm-qc-rfp-review-head h3{margin:0;font-size:18px;color:#111827;}
+							.khm-qc-rfp-review-close{border:0;background:none;font-size:24px;line-height:1;color:#6b7280;cursor:pointer;padding:0;}
+							.khm-qc-rfp-review-preview{background:#f8fafc;border:1px solid #dbe4ea;border-radius:8px;padding:12px;display:grid;gap:10px;}
+							.khm-qc-rfp-review-preview h4{margin:0;font-size:14px;color:#111827;}
+							.khm-qc-rfp-review-terms{font-size:12px;color:#3c434a;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;display:grid;gap:8px;}
+							.khm-qc-rfp-review-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
+							.khm-qc-rfp-response-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+							/* Affinity block */
+							.khm-qc-lead-affinity{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:11px;padding:6px 10px;border-radius:5px;border:1px solid transparent;}
+							.khm-qc-lead-affinity-signals{width:100%;color:#555;font-size:11px;margin-top:2px;}
+							.khm-qc-affinity-label{font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:10px;}
+							.khm-qc-affinity-uplift{font-size:10px;font-weight:600;padding:1px 6px;border-radius:3px;}
+							/* Affinity tier colours */
+							.khm-qc-affinity-base_affinity{background:#f0f0f0;border-color:#ddd;color:#555;}
+							.khm-qc-affinity-base_affinity .khm-qc-affinity-label{color:#555;}
+							.khm-qc-affinity-brand_recognition{background:#e8f5e9;border-color:#c8e6c9;color:#2e7d32;}
+							.khm-qc-affinity-brand_recognition .khm-qc-affinity-label{color:#2e7d32;}
+							.khm-qc-affinity-brand_recognition .khm-qc-affinity-uplift{background:#c8e6c9;color:#1b5e20;}
+							.khm-qc-affinity-brand_engagement{background:#e3f2fd;border-color:#bbdefb;color:#1565c0;}
+							.khm-qc-affinity-brand_engagement .khm-qc-affinity-label{color:#1565c0;}
+							.khm-qc-affinity-brand_engagement .khm-qc-affinity-uplift{background:#bbdefb;color:#0d47a1;}
+							.khm-qc-affinity-brand_interest{background:#fce4ec;border-color:#f8bbd0;color:#ad1457;}
+							.khm-qc-affinity-brand_interest .khm-qc-affinity-label{color:#ad1457;}
+							.khm-qc-affinity-brand_interest .khm-qc-affinity-uplift{background:#f8bbd0;color:#880e4f;}
 						</style>
 						<div class="khm-qc-connect-panel-head">
 							<div>
-								<h3><?php esc_html_e( 'Matched Leads', 'khm-membership' ); ?></h3>
-								<p><?php esc_html_e( 'Anonymised intent signals matched to your offerings. Accept a lead to trigger a platform-mediated introduction — buyer identity is revealed only after they explicitly request handover.', 'khm-membership' ); ?></p>
+								<h3><?php esc_html_e( 'Active Matches', 'khm-membership' ); ?></h3>
+								<p><?php esc_html_e( 'The buyers below have engaged with your content. Their identity stays anonymised until they explicitly request an introduction, you are buying qualified intent, not cold contact details.', 'khm-membership' ); ?></p>
 							</div>
 							<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-leads-refresh"><?php esc_html_e( 'Refresh', 'khm-membership' ); ?></button>
 						</div>
 						<div class="khm-qc-leads-notice" role="status" aria-live="polite"></div>
 						<div class="khm-qc-leads-grid"></div>
-					</section>
-
+							<div class="khm-qc-leads-nav"></div>
 					<script>
 					(function() {
 						var sponsorId   = <?php echo (int) ( $sponsor['id'] ?? 0 ); ?>;
 						var restBase    = <?php echo wp_json_encode( trailingslashit( rest_url( 'khm/v1/connect' ) ) ); ?>;
 						var nonce       = <?php echo wp_json_encode( wp_create_nonce( 'wp_rest' ) ); ?>;
+						var allowDemoFallback = /(localhost|\.local)$/i.test(window.location.hostname || '');
 						var panel       = document.getElementById('khm-qc-leads-panel-' + sponsorId);
 						if (!panel || !sponsorId) return;
 
@@ -720,7 +1748,45 @@ class QuoteClubPortalShortcode {
 							if (tier === 'premium') return 'khm-qc-lead-tier-premium';
 							if (tier === 'standard') return 'khm-qc-lead-tier-standard';
 							if (tier === 'exploratory') return 'khm-qc-lead-tier-exploratory';
+							if (tier === 'engaged') return 'khm-qc-lead-tier-engaged';
 							return '';
+						}
+
+						function tierLabel(tier) {
+							var map = {
+								'premium': 'Accelerating',
+								'standard': 'Assessing',
+								'exploratory': 'Exploring',
+								'engaged': 'Engaged'
+							};
+							return map[tier] || tier;
+						}
+
+						function rfpStatusLabel(status) {
+							if (status === 'sponsor_accepted') return 'Response Submitted';
+							if (status === 'intro_requested') return 'Intro Requested';
+							if (status === 'introduced') return 'Introduced';
+							if (status === 'closed') return 'Closed';
+							return 'In Progress';
+						}
+
+						function toPercent(value) {
+							var n = parseFloat(value);
+							if (!isFinite(n) || n <= 0) return 0;
+							if (n <= 1) return Math.round(n * 100);
+							return Math.round(Math.min(100, n));
+						}
+
+						function normalizeCommercialTier(tier, scorePct) {
+							var raw = String(tier || '').toLowerCase();
+							if (raw === 'engaged') return 'engaged';
+							if (raw === 'premium' || raw === 'accelerating' || raw === 'high') return 'premium';
+							if (raw === 'standard' || raw === 'assessing' || raw === 'mid' || raw === 'medium') return 'standard';
+							if (raw === 'exploratory' || raw === 'exploring' || raw === 'low' || raw === 'base') return 'exploratory';
+
+							if (scorePct >= 75) return 'premium';
+							if (scorePct >= 45) return 'standard';
+							return 'exploratory';
 						}
 
 						function statusLabel(s) {
@@ -736,65 +1802,353 @@ class QuoteClubPortalShortcode {
 							return '$' + (cents/100).toFixed(2);
 						}
 
-						function renderCards(opps, providers) {
-							if (!opps.length) {
-								grid.innerHTML = '<p class="khm-qc-leads-empty"><?php echo esc_js( __( 'No matched leads in your current inbox.', 'khm-membership' ) ); ?></p>';
-								return;
-							}
+						function safe(value) {
+							return String(value || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+						}
+
+						function demoProviders() {
+							return [
+								{
+									id: 9101,
+									name: 'Field Service Management Platform',
+									comparison_fields: {
+										rfp_profile: {
+											default_scope: 'fsm_evaluation_poc',
+											default_seats: '20_30',
+											default_timeframe: '3_months',
+												default_cpl_gbp: 325,
+											supported_features: ['mobile_app', 'offline_capabilities', 'real_time_reporting'],
+											default_estimate_gbp: 120000,
+											max_discount_pct: 12
+										}
+									}
+								},
+								{
+									id: 9102,
+									name: 'Spare Parts & Inventory Optimisation Suite',
+									comparison_fields: {
+										rfp_profile: {
+											default_scope: 'mobile_iot_optimisation',
+											default_seats: '100_250',
+											default_timeframe: '6_months',
+												default_cpl_gbp: 145,
+											supported_features: ['mobile_app', 'real_time_reporting', 'erp_integration'],
+											default_estimate_gbp: 175000,
+											max_discount_pct: 8
+										}
+									}
+								}
+							];
+						}
+
+						// Affinity scoring constants (mirrors SponsorAffinityService.php)
+						var AFFINITY_THRESHOLDS = { base: 5, recognition: 20, engagement: 45, interest: 75 };
+						var AFFINITY_UPLIFTS    = { base_affinity: 1.00, brand_recognition: 1.15, brand_engagement: 1.30, brand_interest: 1.50 };
+						var AFFINITY_LABELS     = { base_affinity: 'Base Affinity', brand_recognition: 'Brand Recognition', brand_engagement: 'Brand Engagement', brand_interest: 'Brand Interest' };
+
+						function resolveAffinityTier(score) {
+							if (score >= AFFINITY_THRESHOLDS.interest)    return 'brand_interest';
+							if (score >= AFFINITY_THRESHOLDS.engagement)  return 'brand_engagement';
+							if (score >= AFFINITY_THRESHOLDS.recognition) return 'brand_recognition';
+							if (score >= AFFINITY_THRESHOLDS.base)        return 'base_affinity';
+							return null;
+						}
+
+						function applyAffinityUplift(baseCents, tier) {
+							return Math.round(baseCents * (AFFINITY_UPLIFTS[tier] || 1.00));
+						}
+
+						function demoLeads() {
+							// Pricing: £75 baseline × tier multiplier (pence)
+							// Exploring=7500p  Assessing=15000p  Accelerating=37500p
+							//
+							// Affinity signals per lead (field service demo):
+							//
+							// Lead 1 – Brand Interest (score 80):
+							//   12 articles (+5+8×3+15=44) + 3 profile views (+10+15=25) + bookmark (+25) = 94 → Brand Interest
+							//   Uplift: +50% → £375 × 1.5 = £563
+							//
+							// Lead 2 – Brand Recognition (score 28):
+							//   3 articles (+5+2×3=11) + web click (+15) + 1 profile view (+10) = 36 → Brand Recognition
+							//   Uplift: +15% → £150 × 1.15 = £173
+							//
+							// Lead 3 – Base Affinity (score 5):
+							//   1 article (+5) = 5 → Base Affinity, no uplift
+							//   Uplift: none → £75
+
+							var leads = [
+								{
+									id: 7001,
+									opportunity_status: 'detected',
+									commercial_tier: 'premium',
+									person_score: 0.91,
+									internal_stage: 'solution',
+									unit_price_cents: 37500,
+									pricing_model: 'CPL',
+									is_demo: true,
+									request_type: 'direct_connection',
+									affinity: { score: 94, signals: { articles_read: 12, profile_views: 3, bookmarks: 1 } },
+									anonymised_profile: {
+										segment: 'Mid-market field service operator (50–500 engineers)',
+										region: 'UK & Ireland',
+										intent: 'Explicitly opted in to vendor outreach for FSM platform evaluation'
+									}
+								},
+								{
+									id: 7002,
+									opportunity_status: 'offered',
+									commercial_tier: 'standard',
+									person_score: 0.76,
+									internal_stage: 'diagnosis',
+									unit_price_cents: 15000,
+									pricing_model: 'CPL',
+									is_demo: true,
+									request_type: 'direct_connection',
+									affinity: { score: 36, signals: { articles_read: 3, profile_views: 1, website_clicks: 1 } },
+									anonymised_profile: {
+										segment: 'Industrial distributor reviewing spare parts procurement',
+										region: 'DACH',
+										intent: 'Actively researching inventory optimisation & parts availability solutions'
+									}
+								},
+								{
+									id: 7003,
+									opportunity_status: 'intro_requested',
+									commercial_tier: 'exploratory',
+									person_score: 0.63,
+									internal_stage: 'attention',
+									unit_price_cents: 7500,
+									pricing_model: 'CPL',
+									is_demo: true,
+									request_type: 'direct_connection',
+									provider_id: 9102,
+									affinity: { score: 5, signals: { articles_read: 1 } },
+									anonymised_profile: {
+										segment: 'Enterprise facilities management group',
+										region: 'North America',
+										intent: 'Early-stage awareness of connected field service capabilities'
+									}
+								},
+								{
+									id: 7005,
+									opportunity_status: 'detected',
+									commercial_tier: 'engaged',
+									person_score: 0.98,
+									internal_stage: 'decision',
+									unit_price_cents: 150000,
+									pricing_model: 'CPL',
+									is_demo: true,
+									request_type: 'direct_connection',
+									affinity: { score: 86, signals: { articles_read: 7, profile_views: 4, website_clicks: 3, explicit_optins: 1 } },
+									anonymised_profile: {
+										segment: 'National field services group in final vendor shortlist',
+										region: 'UK',
+										intent: 'Explicitly opted in for direct sales consultation'
+									}
+								},
+								{
+									id: 7004,
+									opportunity_status: 'detected',
+									commercial_tier: 'standard',
+									person_score: 0.54,
+									internal_stage: 'diagnosis',
+									unit_price_cents: 15000,
+									pricing_model: 'CPL',
+									is_demo: true,
+									request_type: 'direct_connection',
+									affinity: { score: 22, signals: { articles_read: 2, profile_views: 1 } },
+									anonymised_profile: {
+										segment: 'Regional utilities provider evaluating workforce scheduling',
+										region: 'Benelux',
+										intent: 'Researching mobile workforce management and scheduling optimisation'
+									}
+								}
+							];
+
+							// Resolve affinity tier and adjusted price for each lead
+							leads.forEach(function(lead) {
+								if (lead.commercial_tier === 'engaged') {
+									// Keep the demo score as-is; just tag the affinity tier
+									lead.affinity.tier  = 'brand_interest';
+									lead.affinity.label = AFFINITY_LABELS.brand_interest;
+									lead.affinity.uplift = 1.00;
+									lead.affinity.adjusted_price_cents = lead.unit_price_cents;
+									return;
+								}
+
+								var tier = resolveAffinityTier(lead.affinity.score);
+								lead.affinity.tier   = tier;
+								lead.affinity.label  = tier ? AFFINITY_LABELS[tier] : null;
+								lead.affinity.uplift = tier ? AFFINITY_UPLIFTS[tier] : 1.00;
+								lead.affinity.adjusted_price_cents = tier ? applyAffinityUplift(lead.unit_price_cents, tier) : lead.unit_price_cents;
+							});
+
+							return leads;
+						}
+
+						function buildAnonymisedSignals(lead) {
+							var profile = lead.anonymised_profile || {};
+							return [
+								{ label: 'Segment', value: profile.segment || 'Undisclosed segment' },
+								{ label: 'Region', value: profile.region || 'Undisclosed region' },
+								{ label: 'Intent', value: profile.intent || 'Active evaluation signal' }
+							];
+						}
+
+						var PAGE_SIZE = 3;
+						var ENGAGED_OPTION_TWO_ENABLED =
+							(window.khmConnectConfig && typeof window.khmConnectConfig.engagedOptionTwoEnabled !== 'undefined')
+								? !!window.khmConnectConfig.engagedOptionTwoEnabled
+								: true;
+						var currentPage = 0;
+						var allOpps = [];
+						var allProviders = [];
+
+						function renderPage(page) {
+							currentPage = page;
+							var start = page * PAGE_SIZE;
+							var pageOpps = allOpps.slice(start, start + PAGE_SIZE);
+							var totalPages = Math.ceil(allOpps.length / PAGE_SIZE);
+
 							grid.innerHTML = '';
-							opps.forEach(function(o) {
-								var scorePct = Math.round((o.person_score || 0) * 100);
+							pageOpps.forEach(function(o) {
+								var scorePct = toPercent(o.person_score);
+								var aff = o.affinity || {};
+								var rawAffinityPct = toPercent(aff.score);
+								var normalizedTier = normalizeCommercialTier(o.commercial_tier, rawAffinityPct || scorePct);
+								var affinityPct = normalizedTier === 'engaged'
+									? 100
+									: (rawAffinityPct || scorePct);
+								var inferredAffinityTier = resolveAffinityTier(affinityPct);
+								var appliedAffinityTier = aff.tier || inferredAffinityTier;
 								var canAccept = (o.opportunity_status === 'detected' || o.opportunity_status === 'offered');
 								var acceptedAlready = o.opportunity_status === 'sponsor_accepted' || o.opportunity_status === 'intro_requested' || o.opportunity_status === 'introduced';
+								var acceptedAlready = o.opportunity_status === 'sponsor_accepted' || o.opportunity_status === 'intro_requested' || o.opportunity_status === 'introduced';
 
-								var providerOpts = providers.map(function(p) {
+								var providerOpts = allProviders.map(function(p) {
 									return '<option value="' + parseInt(p.id,10) + '"' + (o.provider_id == p.id ? ' selected' : '') + '>' + p.name.replace(/</g,'&lt;') + '</option>';
 								}).join('');
 
 								var acceptHtml = '';
-								if (canAccept && providers.length) {
-									acceptHtml = '<div class="khm-qc-lead-accept-form">' +
-										'<select class="khm-qc-lead-provider-sel"><option value=""><?php echo esc_js( __( 'Select provider…', 'khm-membership' ) ); ?></option>' + providerOpts + '</select> ' +
-										'<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-lead-accept-btn" data-id="' + o.id + '" style="font-size:12px;padding:4px 10px;"><?php echo esc_js( __( 'Accept', 'khm-membership' ) ); ?></button>' +
-									'</div>';
+								if (canAccept && allProviders.length) {
+									if (normalizedTier === 'engaged') {
+										var optionTwoBtn = ENGAGED_OPTION_TWO_ENABLED
+											? '<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-lead-accept-btn" data-id="' + o.id + '" data-engaged-option="option_2"><?php echo esc_js( __( 'Request Option 2', 'khm-membership' ) ); ?></button>'
+											: '';
+										acceptHtml = '<div class="khm-qc-lead-accept-form">' +
+											'<select class="khm-qc-lead-provider-sel">' + providerOpts + '</select>' +
+											'<div class="khm-qc-lead-engaged-ctas">' +
+												'<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-lead-accept-btn" data-id="' + o.id + '" data-engaged-option="option_1"><?php echo esc_js( __( 'Request Option 1', 'khm-membership' ) ); ?></button>' +
+												optionTwoBtn +
+											'</div>' +
+										'</div>';
+									} else {
+										acceptHtml = '<div class="khm-qc-lead-accept-form">' +
+											'<select class="khm-qc-lead-provider-sel">' + providerOpts + '</select>' +
+											'<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-lead-accept-btn" data-id="' + o.id + '"><?php echo esc_js( __( 'Request', 'khm-membership' ) ); ?></button>' +
+										'</div>';
+									}
 								} else if (acceptedAlready) {
-									acceptHtml = '<span class="khm-qc-lead-status" style="color:#1e8c45;">&#10003; ' + statusLabel(o.opportunity_status) + '</span>';
+									var matchedProvider = allProviders.find(function(p){ return p.id == o.provider_id; });
+									var providerLine = matchedProvider ? '<span style="font-size:12px;font-weight:600;color:#3c434a;">' + safe(matchedProvider.name) + '</span>' : '';
+									acceptHtml = providerLine + (providerLine ? '<br>' : '') + '<span class="khm-qc-lead-status" style="color:#1e8c45;">&#10003; ' + statusLabel(o.opportunity_status) + '</span>';
 								}
 
 								var card = document.createElement('div');
 								card.className = 'khm-qc-lead-card';
 								card.dataset.status = o.opportunity_status;
 								card.dataset.id = o.id;
+								card.dataset.demo = o.is_demo ? '1' : '0';
+
+								var signalHtml = buildAnonymisedSignals(o).map(function(signal){
+									return '<span><strong>' + safe(signal.label) + ':</strong> ' + safe(signal.value) + '</span>';
+								}).join('');
+								var maturityTooltip = 'Confidence score calculated from the buyer\'s tracked engagement events. Factors include: touchpoint type and weight, engagement depth (scroll, dwell time, content completion), activity frequency in the past 30 days, and recency decay (score halves roughly every 6 weeks of inactivity).';
+								var tierTooltips = {
+									'premium':     'Accelerating — buyer is actively evaluating solutions. High intent, solution-stage engagement. Highest CPL tier (5× baseline).',
+									'standard':    'Assessing — buyer is investigating the problem space and researching vendors. Mid-tier CPL (2× baseline).',
+									'exploratory': 'Exploring — buyer has shown early category interest. Awareness-stage signals. Entry-level CPL (1× baseline).',
+									'engaged':     'Engaged — definitive vendor selection phase with explicit opt-in for direct sales consultation. Commercial options: £1.5K fixed CPL, or £375 + 15% commission.'
+								};
+								var tierTooltip = tierTooltips[normalizedTier] || '';
+
+								var basePrice = o.unit_price_cents || 0;
+								var adjPrice  = aff.adjusted_price_cents || (appliedAffinityTier ? applyAffinityUplift(basePrice, appliedAffinityTier) : basePrice);
+								var affinityTooltip = 'Sponsor affinity score — calculated from content interactions: articles read, Connect profile views, website click-throughs, saves, and explicit opt-ins. Higher affinity reflects stronger buyer awareness of your brand and applies a CPL uplift.';
+
+								var priceHtml = (adjPrice !== basePrice)
+									? formatPrice(adjPrice) + ' <span class="khm-qc-lead-price-base" title="Base CPL before affinity uplift">(base ' + formatPrice(basePrice) + ')</span> ' + safe(o.pricing_model || '')
+									: formatPrice(basePrice) + ' ' + safe(o.pricing_model || '');
+
+								var engagedOptionsHtml = '';
+								if (normalizedTier === 'engaged') {
+									engagedOptionsHtml =
+										'<div class="khm-qc-lead-engaged-options">' +
+											'<span><strong>Option 1:</strong> £1.5K (20 x baseline)</span>' +
+											'<span><strong>Option 2:</strong> £375 (5 x baseline) + 15% commission*</span>' +
+										'</div>';
+								} else {
+									engagedOptionsHtml = '<div class="khm-qc-lead-engaged-options khm-qc-lead-engaged-options-placeholder" aria-hidden="true"></div>';
+								}
+
 								card.innerHTML =
-									'<div><span class="khm-qc-lead-tier ' + tierClass(o.commercial_tier) + '">' + (o.commercial_tier || 'unknown') + '</span></div>' +
+									'<div><span class="khm-qc-lead-tier ' + tierClass(normalizedTier) + '" title="' + tierTooltip + '" style="cursor:help;">' + safe(tierLabel(normalizedTier) || 'unknown') + '</span></div>' +
 									'<div class="khm-qc-lead-score-bar"><div class="khm-qc-lead-score-fill" style="width:' + scorePct + '%"></div></div>' +
 									'<div class="khm-qc-lead-meta">' +
-										'<span><?php echo esc_js( __( 'Score', 'khm-membership' ) ); ?>: <strong>' + scorePct + '%</strong></span>' +
-										'<span><?php echo esc_js( __( 'Stage', 'khm-membership' ) ); ?>: ' + (o.internal_stage || '—') + '</span>' +
-										'<span><?php echo esc_js( __( 'Price', 'khm-membership' ) ); ?>: ' + formatPrice(o.unit_price_cents) + ' ' + (o.pricing_model || '') + '</span>' +
+										'<span title="' + maturityTooltip + '" style="cursor:help;">Maturity: <strong>' + scorePct + '%</strong></span>' +
+										'<span title="' + affinityTooltip + '" style="cursor:help;">Affinity: <strong>' + affinityPct + '%</strong></span>' +
 									'</div>' +
+									'<div class="khm-qc-lead-price"><?php echo esc_js( __( 'Price', 'khm-membership' ) ); ?>: ' + priceHtml + '</div>' +
+									engagedOptionsHtml +
+									'<div class="khm-qc-lead-anon">' + signalHtml + '</div>' +
 									(acceptHtml ? '<div class="khm-qc-lead-actions">' + acceptHtml + '</div>' : '');
 								grid.appendChild(card);
 							});
 
-							// Bind accept buttons
+							// Pagination nav
+							var nav = panel.querySelector('.khm-qc-leads-nav');
+							if (totalPages > 1) {
+								nav.innerHTML =
+									'<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-leads-prev"' + (page === 0 ? ' disabled' : '') + '>&#8592;</button>' +
+									'<span class="khm-qc-leads-page-label">Page ' + (page + 1) + ' of ' + totalPages + '</span>' +
+									'<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-leads-next"' + (page >= totalPages - 1 ? ' disabled' : '') + '>&#8594;</button>';
+								nav.querySelector('.khm-qc-leads-prev').addEventListener('click', function(){ renderPage(currentPage - 1); });
+								nav.querySelector('.khm-qc-leads-next').addEventListener('click', function(){ renderPage(currentPage + 1); });
+							} else {
+								nav.innerHTML = '';
+							}
+
+							// Bind request buttons
 							grid.querySelectorAll('.khm-qc-lead-accept-btn').forEach(function(btn) {
 								btn.addEventListener('click', function() {
+									var engagedOption = btn.dataset.engagedOption || '';
+									var leadCard = btn.closest('.khm-qc-lead-card');
+									if (leadCard && leadCard.dataset.demo === '1') {
+										var allBtns = btn.closest('.khm-qc-lead-actions').querySelectorAll('.khm-qc-lead-accept-btn');
+										allBtns.forEach(function(b){ b.disabled = true; });
+										btn.textContent = engagedOption
+											? (engagedOption === 'option_1' ? <?php echo wp_json_encode( __( 'Option 1 Requested', 'khm-membership' ) ); ?> : <?php echo wp_json_encode( __( 'Option 2 Requested', 'khm-membership' ) ); ?>)
+											: <?php echo wp_json_encode( __( 'Requested', 'khm-membership' ) ); ?>;
+										return;
+									}
 									var oppId     = parseInt(btn.dataset.id, 10);
 									var sel       = btn.closest('.khm-qc-lead-accept-form').querySelector('.khm-qc-lead-provider-sel');
 									var providerId = sel ? parseInt(sel.value, 10) : 0;
-									if (!providerId) { showNotice(<?php echo wp_json_encode( __( 'Please select a provider first.', 'khm-membership' ) ); ?>, false); return; }
+									if (!providerId) { showNotice(<?php echo wp_json_encode( __( 'No provider mapping found for this RFP.', 'khm-membership' ) ); ?>, false); return; }
 									btn.disabled = true;
 									fetch(restBase + 'opportunities/mine/' + oppId + '/accept', {
 										method: 'POST',
 										headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
-										body: JSON.stringify({ provider_id: providerId })
+										body: JSON.stringify({
+											provider_id: providerId,
+											engaged_option: engagedOption || null
+										})
 									}).then(function(r){ return r.json(); }).then(function(d) {
 										if (d.success) {
-											showNotice(<?php echo wp_json_encode( __( 'Lead accepted — intro thread will open shortly.', 'khm-membership' ) ); ?>, true);
+											showNotice(<?php echo wp_json_encode( __( 'Introduction requested — intro thread will open shortly.', 'khm-membership' ) ); ?>, true);
 											loadLeads();
 										} else {
-											showNotice((d.message || <?php echo wp_json_encode( __( 'Accept failed.', 'khm-membership' ) ); ?>), false);
+											showNotice((d.message || <?php echo wp_json_encode( __( 'Request failed.', 'khm-membership' ) ); ?>), false);
 											btn.disabled = false;
 										}
 									}).catch(function(){ showNotice(<?php echo wp_json_encode( __( 'Network error — please try again.', 'khm-membership' ) ); ?>, false); btn.disabled = false; });
@@ -802,19 +2156,22 @@ class QuoteClubPortalShortcode {
 							});
 						}
 
+						function renderCards(opps, providers) {
+							allOpps      = opps;
+							allProviders = providers;
+							currentPage  = 0;
+							if (!opps.length) {
+								grid.innerHTML = '<p class="khm-qc-leads-empty"><?php echo esc_js( __( 'No active matches at this time.', 'khm-membership' ) ); ?></p>';
+								var nav = panel.querySelector('.khm-qc-leads-nav');
+								if (nav) nav.innerHTML = '';
+								return;
+							}
+							renderPage(0);
+						}
+
 						function loadLeads() {
 							grid.innerHTML = '<p class="khm-qc-leads-empty"><?php echo esc_js( __( 'Loading…', 'khm-membership' ) ); ?></p>';
-							// Load opportunities + providers in parallel
-							Promise.all([
-								fetch(restBase + 'opportunities/mine', { headers: { 'X-WP-Nonce': nonce } }).then(function(r){ return r.json(); }),
-								fetch(<?php echo wp_json_encode( trailingslashit( rest_url( 'khm/v1/connect' ) ) . 'providers/mine' ); ?>, { headers: { 'X-WP-Nonce': nonce } }).then(function(r){ return r.json(); }).catch(function(){ return { providers: [] }; })
-							]).then(function(results) {
-								var opps      = (results[0].opportunities || []);
-								var providers = (results[1].providers     || []);
-								renderCards(opps, providers);
-							}).catch(function() {
-								grid.innerHTML = '<p class="khm-qc-leads-empty" style="color:#c5221f;"><?php echo esc_js( __( 'Failed to load leads.', 'khm-membership' ) ); ?></p>';
-							});
+							renderCards(demoLeads(), demoProviders());
 						}
 
 						btn.addEventListener('click', loadLeads);
@@ -822,7 +2179,839 @@ class QuoteClubPortalShortcode {
 					})();
 					</script>
 
+					<section class="khm-qc-connect-panel khm-qc-rfp-requests-panel khm-qc-connect-span-full" id="khm-qc-rfp-requests-panel-<?php echo (int) ( $sponsor['id'] ?? 0 ); ?>">
+						<div class="khm-qc-connect-panel-head">
+							<div>
+								<h3><?php esc_html_e( 'RFP Requests', 'khm-membership' ); ?></h3>
+								<p><?php esc_html_e( 'Buyers with formal procurement processes and defined requirements. RFP scope details below.', 'khm-membership' ); ?></p>
+							</div>
+							<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfp-refresh"><?php esc_html_e( 'Refresh', 'khm-membership' ); ?></button>
+						</div>
+						<div class="khm-qc-rfp-notice" role="status" aria-live="polite"></div>
+						<div class="khm-qc-rfp-grid"></div>
+							<div class="khm-qc-rfp-nav"></div>
+					<script>
+					(function() {
+						var sponsorId   = <?php echo (int) ( $sponsor['id'] ?? 0 ); ?>;
+						var restBase    = <?php echo wp_json_encode( trailingslashit( rest_url( 'khm/v1/connect' ) ) ); ?>;
+						var nonce       = <?php echo wp_json_encode( wp_create_nonce( 'wp_rest' ) ); ?>;
+						var allowDemoFallback = /(localhost|\.local)$/i.test(window.location.hostname || '');
+						var panel       = document.getElementById('khm-qc-rfp-requests-panel-' + sponsorId);
+						if (!panel || !sponsorId) return;
+
+						var grid   = panel.querySelector('.khm-qc-rfp-grid');
+						var notice = panel.querySelector('.khm-qc-rfp-notice');
+						var btn    = panel.querySelector('.khm-qc-rfp-refresh');
+
+						function showNotice(msg, ok) {
+							notice.textContent = msg;
+							notice.className = 'khm-qc-rfp-notice ' + (ok ? 'khm-qc-rfp-notice-ok' : 'khm-qc-rfp-notice-err');
+							notice.style.display = 'block';
+							setTimeout(function(){ notice.style.display = 'none'; }, 5000);
+						}
+
+						function tierClass(tier) {
+							if (tier === 'premium') return 'khm-qc-lead-tier-premium';
+							if (tier === 'standard') return 'khm-qc-lead-tier-standard';
+							if (tier === 'exploratory') return 'khm-qc-lead-tier-exploratory';
+							if (tier === 'engaged') return 'khm-qc-lead-tier-engaged';
+							return '';
+						}
+
+						function tierLabel(tier) {
+							var map = {
+								'premium': 'Accelerating',
+								'standard': 'Assessing',
+								'exploratory': 'Exploring',
+								'engaged': 'Engaged'
+							};
+							return map[tier] || tier;
+						}
+
+						function safe(value) {
+							return String(value || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+						}
+
+						function demoProviders() {
+							return [
+								{
+									id: 9101,
+									name: 'Field Service Management Platform',
+									comparison_fields: {
+										rfp_profile: {
+											default_scope: 'fsm_evaluation_poc',
+											default_seats: '20_30',
+											default_timeframe: '3_months',
+												default_cpl_gbp: 325,
+											supported_features: ['mobile_app', 'offline_capabilities', 'real_time_reporting'],
+											default_estimate_gbp: 120000,
+											max_discount_pct: 12
+										}
+									}
+								},
+								{
+									id: 9102,
+									name: 'Spare Parts & Inventory Optimisation Suite',
+									comparison_fields: {
+										rfp_profile: {
+											default_scope: 'mobile_iot_optimisation',
+											default_seats: '100_250',
+											default_timeframe: '6_months',
+												default_cpl_gbp: 145,
+											supported_features: ['mobile_app', 'real_time_reporting', 'erp_integration'],
+											default_estimate_gbp: 175000,
+											max_discount_pct: 8
+										}
+									}
+								}
+							];
+						}
+
+						function buildAnonymisedSignals(lead) {
+							var profile = lead.anonymised_profile || {};
+							return [
+								{ label: 'Segment', value: profile.segment || 'Undisclosed segment' },
+								{ label: 'Region', value: profile.region || 'Undisclosed region' },
+								{ label: 'Intent', value: profile.intent || 'Active evaluation signal' }
+							];
+						}
+
+						function demoRfpLeads() {
+							// Demo RFP Requests: Buyers with defined procurement scope and timeline
+							// RFP metadata includes: scope, timeline, budget_range, deadline, competing_vendors
+							var rfpLeads = [
+								{
+									id: 8001,
+									opportunity_status: 'detected',
+									commercial_tier: 'engaged',
+									person_score: 0.85,
+									internal_stage: 'decision',
+									unit_price_cents: 150000,
+									pricing_model: 'CPL',
+									is_demo: true,
+									request_type: 'rfp_request',
+									provider_id: 9101,
+									affinity: { score: 100, signals: {} },
+									rfp_metadata: {
+										scope: 'Complete FSM platform evaluation and POC (proof of concept) with 20-30 user seats for 3 months. Include mobile app, offline capabilities, and real-time reporting dashboard.',
+										timeline: 'RFP issued Q2 2026; vendor demos Q3; contract signature Q3/Q4',
+										budget_range: '£80K–£150K annual license + £20K implementation',
+										deadline: '2026-06-30',
+										competing_vendors: ['Competitor A (FSM Leader)', 'Competitor B (Emerging)', 'Competitor C (Regional)']
+									},
+									anonymised_profile: {
+										segment: 'Global logistics and supply chain operator (2,000+ field engineers)',
+										region: 'EMEA HQ',
+										intent: 'Formal procurement process; evaluation of 3–4 shortlisted vendors'
+									}
+								},
+								{
+									id: 8002,
+									opportunity_status: 'detected',
+									commercial_tier: 'engaged',
+									person_score: 0.78,
+									internal_stage: 'decision',
+									unit_price_cents: 150000,
+									pricing_model: 'CPL',
+									is_demo: true,
+									request_type: 'rfp_request',
+									provider_id: 9102,
+									affinity: { score: 100, signals: {} },
+									rfp_metadata: {
+										scope: 'Mobile-first field operations platform with advanced analytics, IoT sensor integration, and AI-powered route optimization. Integration with existing ERP (SAP).',
+										timeline: 'RFP responses due 2026-07-15; shortlist narrowed by Aug; final decision Sept 2026',
+										budget_range: '£150K–£300K annual + implementation',
+										deadline: '2026-07-15',
+										competing_vendors: ['Competitor D', 'Competitor E', 'Incumbent Provider']
+									},
+									anonymised_profile: {
+										segment: 'Manufacturing group with 500+ field technicians across Europe',
+										region: 'Nordics',
+										intent: 'Multi-vendor evaluation; 2-year commitment with growth optionality'
+									}
+								}
+							];
+
+							// Set affinity for RFP (always 100%, no uplift)
+							rfpLeads.forEach(function(lead) {
+								lead.affinity.tier  = 'brand_interest';
+								lead.affinity.label = 'Brand Interest';
+								lead.affinity.uplift = 1.00;
+								lead.affinity.adjusted_price_cents = lead.unit_price_cents;
+							});
+
+							return rfpLeads;
+						}
+
+						function buildRfpMetadata(rfpMeta) {
+							if (!rfpMeta) return [];
+							return [
+								{ label: 'Scope', value: rfpMeta.scope || '' },
+								{ label: 'Timeline', value: rfpMeta.timeline || '' },
+								{ label: 'Budget', value: rfpMeta.budget_range || '' },
+								{ label: 'Deadline', value: rfpMeta.deadline || '' },
+								{ label: 'Competitors', value: (rfpMeta.competing_vendors || []).join(', ') || '' }
+							].filter(function(m){ return m.value; });
+						}
+
+						function optionHtml(options, selectedValue) {
+							return options.map(function(opt) {
+								var selected = String(opt.value) === String(selectedValue) ? ' selected' : '';
+								return '<option value="' + safe(opt.value) + '"' + selected + '>' + safe(opt.label) + '</option>';
+							}).join('');
+						}
+
+						function featureCheckboxHtml(features, selected) {
+							selected = selected || [];
+							var matched = features.filter(function(feature) {
+								return selected.indexOf(feature.value) !== -1;
+							});
+							var hiddenInputs = matched.map(function(feature) {
+								return '<input type="hidden" class="khm-qc-rfp-feature" value="' + safe(feature.value) + '" />';
+							}).join('');
+							var items = matched.map(function(feature) {
+								return '<li>' + safe(feature.label) + '</li>';
+							}).join('');
+							return hiddenInputs + '<ul class="khm-qc-rfp-summary-sublist">' + items + '</ul>';
+						}
+
+						function seatRangeForValue(value) {
+							switch (String(value || '')) {
+								case '50_100': return { min: 50, max: 100, label: '50-100 licences' };
+								case '100_250': return { min: 100, max: 250, label: '100-250 licences' };
+								case '500_plus': return { min: 500, max: 500, label: '500+ licences' };
+								case '20_30':
+								default: return { min: 20, max: 30, label: '20-30 licences' };
+							}
+						}
+
+						function timeframeLabelForValue(value) {
+							switch (String(value || '')) {
+								case '6_months': return '6 months';
+								case '12_months': return '12 months';
+								case '3_months':
+								default: return '3 months';
+							}
+						}
+
+						function deriveServiceItems(meta) {
+							var combined = [meta.scope, meta.timeline, meta.budget_range, meta.intent].join(' ').toLowerCase();
+							var items = [];
+							if (combined.indexOf('implementation') !== -1) items.push('Implementation');
+							if (combined.indexOf('integration') !== -1 || combined.indexOf('erp') !== -1 || combined.indexOf('sap') !== -1) items.push('Integration services');
+							if (combined.indexOf('migration') !== -1) items.push('Migration');
+							if (combined.indexOf('training') !== -1) items.push('Training');
+							if (combined.indexOf('support') !== -1 || combined.indexOf('managed') !== -1) items.push('Support');
+							if (!items.length && combined.indexOf('poc') !== -1) items.push('Implementation');
+							return items.filter(function(item, index, arr) {
+								return arr.indexOf(item) === index;
+							});
+						}
+
+						function parseBudgetMidpointGbp(rangeText) {
+							var text = String(rangeText || '');
+							var m = text.match(/£\s*(\d+)\s*K\s*[\u2013\-]\s*£\s*(\d+)\s*K/i);
+							if (m) {
+								return Math.round(((parseInt(m[1], 10) + parseInt(m[2], 10)) / 2) * 1000);
+							}
+							var single = text.match(/£\s*(\d+)\s*K/i);
+							if (single) {
+								return parseInt(single[1], 10) * 1000;
+							}
+							return 0;
+						}
+
+						function deriveDefaultCplGbp(profile, seatsValue, annualEstimateGbp) {
+							var profileCpl = Number(profile && profile.default_cpl_gbp ? profile.default_cpl_gbp : 0);
+							if (profileCpl > 0) {
+								return profileCpl;
+							}
+							var seatRange = seatRangeForValue(seatsValue);
+							var averageSeats = seatRange.max ? (seatRange.min + seatRange.max) / 2 : seatRange.min;
+							var annualEstimate = Number(annualEstimateGbp || 0);
+							if (annualEstimate > 0 && averageSeats > 0) {
+								return annualEstimate / averageSeats / 12;
+							}
+							return 0;
+						}
+
+						function deriveMiniRfpDraft(o, provider) {
+							var meta = o.rfp_metadata || {};
+							var providerProfile = provider && provider.comparison_fields && provider.comparison_fields.rfp_profile
+								? provider.comparison_fields.rfp_profile
+								: {};
+							var scopeText = String(meta.scope || '').toLowerCase();
+							var timelineText = String(meta.timeline || '').toLowerCase();
+							var pilotText = String(meta.pilot_scheme || '').toLowerCase();
+
+							var scopeValue = 'fsm_evaluation_poc';
+							if (scopeText.indexOf('mobile-first') !== -1 || scopeText.indexOf('iot') !== -1) {
+								scopeValue = 'mobile_iot_optimisation';
+							}
+
+							var seatsValue = '20_30';
+							if (scopeText.indexOf('500+') !== -1 || scopeText.indexOf('500 +') !== -1) seatsValue = '500_plus';
+							else if (scopeText.indexOf('100-250') !== -1 || scopeText.indexOf('100 to 250') !== -1) seatsValue = '100_250';
+							else if (scopeText.indexOf('50-100') !== -1 || scopeText.indexOf('50 to 100') !== -1) seatsValue = '50_100';
+
+							var timeframeValue = '3_months';
+							if (scopeText.indexOf('6 months') !== -1 || timelineText.indexOf('q4') !== -1) timeframeValue = '6_months';
+							if (scopeText.indexOf('12 months') !== -1 || scopeText.indexOf('1 year') !== -1) timeframeValue = '12_months';
+
+							var pilotRequested = false;
+							if (scopeText.indexOf('pilot') !== -1 || timelineText.indexOf('pilot') !== -1) {
+								pilotRequested = true;
+							}
+							if (pilotText === 'yes' || pilotText === 'true' || pilotText === '1' || pilotText === 'required') {
+								pilotRequested = true;
+							}
+
+							var pilotSchemeValue = 'no';
+							var profilePilotScheme = String(providerProfile.pilot_scheme_available || '').toLowerCase();
+							if (profilePilotScheme === 'yes' || profilePilotScheme === 'no') {
+								pilotSchemeValue = profilePilotScheme;
+							} else if (String(providerProfile.default_scope || '') === 'pilot_scheme') {
+								pilotSchemeValue = 'yes';
+							}
+
+							var features = [];
+							if (scopeText.indexOf('mobile') !== -1) features.push('mobile_app');
+							if (scopeText.indexOf('offline') !== -1) features.push('offline_capabilities');
+							if (scopeText.indexOf('reporting') !== -1 || scopeText.indexOf('dashboard') !== -1) features.push('real_time_reporting');
+							if (scopeText.indexOf('erp') !== -1 || scopeText.indexOf('sap') !== -1) features.push('erp_integration');
+							if (!features.length) features = ['mobile_app', 'real_time_reporting'];
+
+							var annualEstimateGbp = providerProfile.default_estimate_gbp || parseBudgetMidpointGbp(meta.budget_range) || 120000;
+
+							return {
+								scope_value: providerProfile.default_scope || scopeValue,
+								seats_value: providerProfile.default_seats || seatsValue,
+								timeframe_value: providerProfile.default_timeframe || timeframeValue,
+								pilot_requested: pilotRequested,
+								pilot_scheme_available: pilotSchemeValue,
+								service_items: deriveServiceItems(meta),
+								default_cpl_gbp: deriveDefaultCplGbp(providerProfile, providerProfile.default_seats || seatsValue, annualEstimateGbp),
+								features: (Array.isArray(providerProfile.supported_features) && providerProfile.supported_features.length) ? providerProfile.supported_features : features,
+								provisional_estimate_gbp: annualEstimateGbp,
+								seller_discount_pct: 0,
+								max_discount_pct: Math.max(0, Math.min(30, parseInt(providerProfile.max_discount_pct, 10) || 30))
+							};
+						}
+
+						function formatGbp(value) {
+							var amount = Number(value || 0);
+							return '£' + amount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+						}
+
+						function deriveOpportunityBaselineGbp(unitPriceCents, commercialTier) {
+							var unitPriceGbp = Number(unitPriceCents || 0) / 100;
+							if (unitPriceGbp <= 0) return 0;
+							var tier = String(commercialTier || '').toLowerCase();
+							if (tier === 'engaged') {
+								return unitPriceGbp / 20;
+							}
+							return unitPriceGbp;
+						}
+
+						function calculateRfpPricing(cplValue, seatRange, commissionRate, offerPlatformDiscount, opportunityBaselineGbp) {
+							var cpl = Number(cplValue || 0);
+							var rate = Math.max(5, Math.min(25, parseInt(commissionRate, 10) || 5));
+							var baseline = Math.max(0, Number(opportunityBaselineGbp || 0));
+							var annualBaseMin = seatRange.min * cpl * 12;
+							var annualBaseMax = seatRange.max * cpl * 12;
+							var annualBaseMid = (annualBaseMin + annualBaseMax) / 2;
+							var discountedMin = offerPlatformDiscount ? annualBaseMin * (1 - (rate / 100)) : annualBaseMin;
+							var discountedMax = offerPlatformDiscount ? annualBaseMax * (1 - (rate / 100)) : annualBaseMax;
+							var totalCommercialMid = offerPlatformDiscount ? annualBaseMid * (rate / 100) : 0;
+							var estimatedBuyerDiscount = totalCommercialMid * 0.5;
+							var estimatedPlatformCommission = totalCommercialMid * 0.5;
+							var flatFee = baseline * (offerPlatformDiscount ? 5 : 20);
+							return {
+								rate: rate,
+								flatFeeBasis: baseline,
+								annualBaseMin: annualBaseMin,
+								annualBaseMax: annualBaseMax,
+								annualBaseMid: annualBaseMid,
+								discountedMin: discountedMin,
+								discountedMax: discountedMax,
+								estimatedBuyerDiscount: estimatedBuyerDiscount,
+								estimatedPlatformCommission: estimatedPlatformCommission,
+								flatFee: flatFee
+							};
+						}
+
+						function ensureRfpReviewModal() {
+							var modal = document.getElementById('khm-qc-rfp-review-modal');
+							if (modal) return modal;
+							modal = document.createElement('div');
+							modal.id = 'khm-qc-rfp-review-modal';
+							modal.className = 'khm-qc-rfp-review-modal';
+							modal.innerHTML =
+								'<div class="khm-qc-rfp-review-dialog" role="dialog" aria-modal="true" aria-labelledby="khm-qc-rfp-review-title">' +
+									'<div class="khm-qc-rfp-review-head">' +
+										'<h3 id="khm-qc-rfp-review-title"><?php echo esc_js( __( 'Review Proposal Terms', 'khm-membership' ) ); ?></h3>' +
+										'<button type="button" class="khm-qc-rfp-review-close" aria-label="<?php echo esc_js( __( 'Close', 'khm-membership' ) ); ?>">&times;</button>' +
+									'</div>' +
+									'<div class="khm-qc-rfp-review-preview"></div>' +
+									'<div class="khm-qc-rfp-review-terms"></div>' +
+									'<div class="khm-qc-rfp-review-actions">' +
+										'<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfp-review-cancel"><?php echo esc_js( __( 'Back', 'khm-membership' ) ); ?></button>' +
+										'<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-rfp-review-confirm"><?php echo esc_js( __( 'Send Proposal', 'khm-membership' ) ); ?></button>' +
+									'</div>' +
+								'</div>';
+							document.body.appendChild(modal);
+							var closeModal = function() {
+								modal.classList.remove('is-open');
+								modal.dataset.confirmHandler = '';
+							};
+							modal.querySelector('.khm-qc-rfp-review-close').addEventListener('click', closeModal);
+							modal.querySelector('.khm-qc-rfp-review-cancel').addEventListener('click', closeModal);
+							modal.addEventListener('click', function(event) {
+								if (event.target === modal) closeModal();
+							});
+							return modal;
+						}
+
+						function closeAllRfpTooltips(exceptNode) {
+							document.querySelectorAll('.khm-qc-rfp-tooltip.is-open').forEach(function(node) {
+								if (exceptNode && node === exceptNode) return;
+								node.classList.remove('is-open');
+								var btn = node.querySelector('.khm-qc-rfp-tooltip-btn');
+								if (btn) btn.setAttribute('aria-expanded', 'false');
+							});
+						}
+
+						document.addEventListener('click', function(event) {
+							var btn = event.target.closest('.khm-qc-rfp-tooltip-btn');
+							if (btn) {
+								event.preventDefault();
+								event.stopPropagation();
+								var wrap = btn.closest('.khm-qc-rfp-tooltip');
+								if (!wrap) return;
+								var isOpen = wrap.classList.contains('is-open');
+								closeAllRfpTooltips();
+								if (!isOpen) {
+									wrap.classList.add('is-open');
+									btn.setAttribute('aria-expanded', 'true');
+								}
+								return;
+							}
+							if (!event.target.closest('.khm-qc-rfp-tooltip')) {
+								closeAllRfpTooltips();
+							}
+						});
+
+						document.addEventListener('keydown', function(event) {
+							if (event.key === 'Escape') {
+								closeAllRfpTooltips();
+							}
+						});
+
+						var PAGE_SIZE = 3;
+						var currentPage = 0;
+						var allRfps = [];
+						var allProviders = [];
+
+						function renderPage(page) {
+							currentPage = page;
+							var start = page * PAGE_SIZE;
+							var pageRfps = allRfps.slice(start, start + PAGE_SIZE);
+							var totalPages = Math.ceil(allRfps.length / PAGE_SIZE);
+
+							grid.innerHTML = '';
+							pageRfps.forEach(function(o) {
+								var scorePct = Math.round((o.person_score || 0) * 100);
+								var canAccept = (o.opportunity_status === 'detected' || o.opportunity_status === 'offered');
+								var acceptedAlready = o.opportunity_status === 'sponsor_accepted' || o.opportunity_status === 'intro_requested' || o.opportunity_status === 'introduced';
+
+								var acceptHtml = '';
+								if (canAccept && allProviders.length) {
+									var selectedProviderId = o.provider_id || (allProviders[0] && allProviders[0].id) || 0;
+									var matchedProvider = allProviders.find(function(p){ return parseInt(p.id, 10) === parseInt(selectedProviderId, 10); }) || null;
+									var miniRfp = deriveMiniRfpDraft(o, matchedProvider);
+									var scopeOptions = [
+										{ value: 'pilot_scheme', label: 'Structured pilot scheme (time-boxed, defined success criteria)' },
+										{ value: 'fsm_evaluation_poc', label: 'Complete FSM platform evaluation and POC' },
+										{ value: 'mobile_iot_optimisation', label: 'Mobile-first FSM with IoT and route optimisation' },
+										{ value: 'workforce_scheduling_upgrade', label: 'Workforce scheduling and dispatch modernisation' }
+									];
+									var seatOptions = [
+										{ value: '20_30', label: '20-30 user seats' },
+										{ value: '50_100', label: '50-100 user seats' },
+										{ value: '100_250', label: '100-250 user seats' },
+										{ value: '500_plus', label: '500+ user seats' }
+									];
+									var featureOptions = [
+										{ value: 'mobile_app', label: 'Mobile app' },
+										{ value: 'offline_capabilities', label: 'Offline capabilities' },
+										{ value: 'real_time_reporting', label: 'Real-time reporting dashboard' },
+										{ value: 'erp_integration', label: 'ERP integration' }
+									];
+									var baseCpl = Number(miniRfp.default_cpl_gbp || 0);
+										var opportunityBaselineGbp = deriveOpportunityBaselineGbp(o.unit_price_cents, o.commercial_tier);
+									var scopeLabel = (scopeOptions.find(function(s){ return s.value === miniRfp.scope_value; }) || {}).label || miniRfp.scope_value || '';
+									var seatRange = seatRangeForValue(miniRfp.seats_value);
+									var commissionRateDefault = Math.max(5, Math.min(25, parseInt(miniRfp.max_discount_pct, 10) || 10));
+									var pilotRequestedHtml = miniRfp.pilot_requested ? '<li><strong><?php echo esc_js( __( 'Pilot requested:', 'khm-membership' ) ); ?></strong> <?php echo esc_js( __( 'Yes', 'khm-membership' ) ); ?></li>' : '';
+									var servicesHtml = (miniRfp.service_items || []).length
+										? '<li><strong><?php echo esc_js( __( 'Services:', 'khm-membership' ) ); ?></strong><ul class="khm-qc-rfp-summary-sublist">' + miniRfp.service_items.map(function(item){ return '<li>' + safe(item) + '</li>'; }).join('') + '</ul></li>'
+										: '';
+									acceptHtml = '<div class="khm-qc-rfp-accept-form">' +
+										'<input type="hidden" class="khm-qc-rfp-provider-id" value="' + parseInt(selectedProviderId, 10) + '" />' +
+										'<input type="hidden" class="khm-qc-rfp-opportunity-baseline" value="' + opportunityBaselineGbp.toFixed(2) + '" />' +
+										'<div class="khm-qc-lead-engaged-ctas">' +
+											'<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-rfp-open-form-btn" data-id="' + o.id + '"><?php echo esc_js( __( 'Open Proposal Builder', 'khm-membership' ) ); ?></button>' +
+										'</div>' +
+										'<div class="khm-qc-rfp-response-workflow" hidden>' +
+											'<div class="khm-qc-rfp-response-hint"><?php echo esc_js( __( 'Pricing is based on the matched opportunity and your seller profile. Review the commercial terms before sending.', 'khm-membership' ) ); ?></div>' +
+											'<div class="khm-qc-rfp-response-grid">' +
+												'<div class="khm-qc-rfp-response-field khm-qc-rfp-summary">' +
+													'<input type="hidden" class="khm-qc-rfp-response-scope" value="' + miniRfp.scope_value + '" />' +
+													'<input type="hidden" class="khm-qc-rfp-response-seats" value="' + miniRfp.seats_value + '" />' +
+													'<input type="hidden" class="khm-qc-rfp-seat-min" value="' + seatRange.min + '" />' +
+													'<input type="hidden" class="khm-qc-rfp-seat-max" value="' + seatRange.max + '" />' +
+													'<input type="hidden" class="khm-qc-rfp-pilot-requested" value="' + (miniRfp.pilot_requested ? 'yes' : 'no') + '" />' +
+													'<h4><?php echo esc_js( __( 'Engagement Summary', 'khm-membership' ) ); ?></h4>' +
+													'<ul class="khm-qc-rfp-summary-list">' +
+														'<li><strong><?php echo esc_js( __( 'Solution:', 'khm-membership' ) ); ?></strong> ' + scopeLabel + '</li>' +
+														'<li><strong><?php echo esc_js( __( 'Licences:', 'khm-membership' ) ); ?></strong> ' + seatRange.label + '</li>' +
+														pilotRequestedHtml +
+														'<li><strong><?php echo esc_js( __( 'Features:', 'khm-membership' ) ); ?></strong><div class="khm-qc-rfp-feature-grid">' + featureCheckboxHtml(featureOptions, miniRfp.features) + '</div></li>' +
+														servicesHtml +
+													'</ul>' +
+												'</div>' +
+												'<div class="khm-qc-rfp-response-field">' +
+													'<label><?php echo esc_js( __( 'Cost per licence / month (£)', 'khm-membership' ) ); ?></label>' +
+													'<input type="number" min="1" step="0.01" class="khm-qc-rfp-response-cpl" value="' + baseCpl.toFixed(2) + '" />' +
+													'<p class="khm-qc-rfp-estimate-caption"><?php echo esc_js( __( 'Editable commercial price seeded from the matched seller rate.', 'khm-membership' ) ); ?></p>' +
+												'</div>' +
+												'<div class="khm-qc-rfp-response-field">' +
+													'<label><?php echo esc_js( __( '12-month estimate', 'khm-membership' ) ); ?></label>' +
+													'<div class="khm-qc-rfp-calc-card">' +
+														'<div class="khm-qc-rfp-estimate-value khm-qc-rfp-estimate-range"></div>' +
+														'<div class="khm-qc-rfp-estimate-caption"><?php echo esc_js( __( 'Calculated from the licence range in the RFP over 12 months.', 'khm-membership' ) ); ?></div>' +
+													'</div>' +
+												'</div>' +
+												'<div class="khm-qc-rfp-response-field">' +
+													'<label class="khm-qc-rfp-toggle">' +
+														'<input type="checkbox" class="khm-qc-rfp-discount-toggle" />' +
+														'<span><?php echo esc_js( __( 'Offer platform discount', 'khm-membership' ) ); ?></span>' +
+													'</label>' +
+												'</div>' +
+												'<div class="khm-qc-rfp-response-field">' +
+													'<div class="khm-qc-rfp-discount-controls" hidden>' +
+														'<label><?php echo esc_js( __( 'Discount / commission rate (%)', 'khm-membership' ) ); ?></label>' +
+														'<input type="range" min="5" max="25" step="1" value="' + commissionRateDefault + '" class="khm-qc-rfp-commission-rate" />' +
+														'<div class="khm-qc-rfp-discount-readout"><span><?php echo esc_js( __( 'Selected rate:', 'khm-membership' ) ); ?> <strong class="khm-qc-rfp-rate-value">' + commissionRateDefault + '%</strong></span><span><?php echo esc_js( __( 'This total rate is split 50/50 between estimated buyer discount and estimated platform commission.', 'khm-membership' ) ); ?></span></div>' +
+													'</div>' +
+												'</div>' +
+												'<div class="khm-qc-rfp-response-field">' +
+													'<label><?php echo esc_js( __( 'Commercial breakdown', 'khm-membership' ) ); ?></label>' +
+													'<div class="khm-qc-rfp-calc-card">' +
+														'<div class="khm-qc-rfp-breakdown-row"><span><?php echo esc_js( __( 'Payable today', 'khm-membership' ) ); ?></span><strong class="khm-qc-rfp-flat-fee"></strong></div>' +
+														'<div class="khm-qc-rfp-commission-breakdown" hidden>' +
+															'<div class="khm-qc-rfp-breakdown-row"><span class="khm-qc-rfp-tooltip"><?php echo esc_js( __( 'Estimated buyer discount', 'khm-membership' ) ); ?><button type="button" class="khm-qc-rfp-tooltip-btn" aria-label="<?php echo esc_js( __( 'Buyer discount help', 'khm-membership' ) ); ?>">i</button><span class="khm-qc-rfp-tooltip-bubble"><?php echo esc_js( __( 'Deductible from the buyer\'s first invoice with your company.', 'khm-membership' ) ); ?></span></span><strong class="khm-qc-rfp-client-saving"></strong></div>' +
+															'<div class="khm-qc-rfp-breakdown-row"><span class="khm-qc-rfp-tooltip"><?php echo esc_js( __( 'Estimated platform commission', 'khm-membership' ) ); ?><button type="button" class="khm-qc-rfp-tooltip-btn" aria-label="<?php echo esc_js( __( 'Platform commission help', 'khm-membership' ) ); ?>">i</button><span class="khm-qc-rfp-tooltip-bubble"><?php echo esc_js( __( 'Debited from your account when the buyer confirms agreement so they can claim discount.', 'khm-membership' ) ); ?></span></span><strong class="khm-qc-rfp-platform-commission"></strong></div>' +
+														'</div>' +
+													'</div>' +
+												'</div>' +
+												'<div class="khm-qc-rfp-response-field">' +
+													'<label><?php echo esc_js( __( 'Note to send with this proposal (optional)', 'khm-membership' ) ); ?></label>' +
+													'<textarea class="khm-qc-rfp-response-notes" placeholder="<?php echo esc_js( __( 'Any caveats, assumptions, or implementation notes…', 'khm-membership' ) ); ?>"></textarea>' +
+												'</div>' +
+											'</div>' +
+											'<div class="khm-qc-rfp-response-actions">' +
+												'<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-rfp-submit-btn" data-id="' + o.id + '"><?php echo esc_js( __( 'Review Proposal Terms', 'khm-membership' ) ); ?></button>' +
+												'<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfp-cancel-btn"><?php echo esc_js( __( 'Cancel', 'khm-membership' ) ); ?></button>' +
+											'</div>' +
+										'</div>' +
+									'</div>';
+								} else if (acceptedAlready) {
+									var matchedProvider = allProviders.find(function(p){ return p.id == o.provider_id; });
+									var providerLine = matchedProvider ? '<span style="font-size:12px;font-weight:600;color:#3c434a;">' + safe(matchedProvider.name) + '</span>' : '';
+									acceptHtml = providerLine + (providerLine ? '<br>' : '') + '<span class="khm-qc-lead-status" style="color:#1e8c45;">&#10003; ' + rfpStatusLabel(o.opportunity_status) + '</span>';
+								}
+
+								var card = document.createElement('div');
+								card.className = 'khm-qc-rfp-card';
+								card.dataset.status = o.opportunity_status;
+								card.dataset.id = o.id;
+								card.dataset.demo = o.is_demo ? '1' : '0';
+
+								var signalHtml = buildAnonymisedSignals(o).map(function(signal){
+									return '<span><strong>' + safe(signal.label) + ':</strong> ' + safe(signal.value) + '</span>';
+								}).join('');
+
+								var rfpMetadata = buildRfpMetadata(o.rfp_metadata);
+								var rfpMetadataHtml = rfpMetadata.map(function(m){
+									return '<span><strong>' + safe(m.label) + ':</strong> ' + safe(m.value) + '</span>';
+								}).join('');
+
+								var maturityTooltip = 'Confidence score calculated from RFP issuance signals and procurement stage signals.';
+								var tierTooltip = 'Engaged — RFP Procurement: Formal vendor selection process with multiple buyers and defined requirements.';
+
+								card.innerHTML =
+									'<div><span class="khm-qc-lead-tier ' + tierClass(o.commercial_tier) + '" title="' + tierTooltip + '" style="cursor:help;">RFP Request</span></div>' +
+									'<div class="khm-qc-lead-score-bar"><div class="khm-qc-lead-score-fill" style="width:' + scorePct + '%"></div></div>' +
+									'<div class="khm-qc-lead-meta">' +
+										'<span title="' + maturityTooltip + '" style="cursor:help;">Maturity: <strong>' + scorePct + '%</strong></span>' +
+									'</div>' +
+									'<div class="khm-qc-rfp-metadata">' + rfpMetadataHtml + '</div>' +
+									'<div class="khm-qc-lead-anon">' + signalHtml + '</div>' +
+									(acceptHtml ? '<div class="khm-qc-lead-actions">' + acceptHtml + '</div>' : '');
+								grid.appendChild(card);
+							});
+
+							// Pagination nav
+							var nav = panel.querySelector('.khm-qc-rfp-nav');
+							if (totalPages > 1) {
+								nav.innerHTML =
+									'<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfp-prev"' + (page === 0 ? ' disabled' : '') + '>&#8592;</button>' +
+									'<span class="khm-qc-rfp-page-label">Page ' + (page + 1) + ' of ' + totalPages + '</span>' +
+									'<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfp-next"' + (page >= totalPages - 1 ? ' disabled' : '') + '>&#8594;</button>';
+								nav.querySelector('.khm-qc-rfp-prev').addEventListener('click', function(){ renderPage(currentPage - 1); });
+								nav.querySelector('.khm-qc-rfp-next').addEventListener('click', function(){ renderPage(currentPage + 1); });
+							} else {
+								nav.innerHTML = '';
+							}
+
+							function updateRfpPricing(form) {
+								if (!form) return null;
+								var cplInput = form.querySelector('.khm-qc-rfp-response-cpl');
+								var seatMinInput = form.querySelector('.khm-qc-rfp-seat-min');
+								var seatMaxInput = form.querySelector('.khm-qc-rfp-seat-max');
+								var discountToggle = form.querySelector('.khm-qc-rfp-discount-toggle');
+								var rateInput = form.querySelector('.khm-qc-rfp-commission-rate');
+								var discountControls = form.querySelector('.khm-qc-rfp-discount-controls');
+								var commissionBreakdown = form.querySelector('.khm-qc-rfp-commission-breakdown');
+								var rateValueNode = form.querySelector('.khm-qc-rfp-rate-value');
+								var estimateNode = form.querySelector('.khm-qc-rfp-estimate-range');
+								var flatFeeNode = form.querySelector('.khm-qc-rfp-flat-fee');
+								var clientSavingNode = form.querySelector('.khm-qc-rfp-client-saving');
+								var platformCommissionNode = form.querySelector('.khm-qc-rfp-platform-commission');
+								var baselineInput = form.querySelector('.khm-qc-rfp-opportunity-baseline');
+								var pricing = calculateRfpPricing(
+									parseFloat(cplInput && cplInput.value ? cplInput.value : '0') || 0,
+									{
+										min: parseInt(seatMinInput && seatMinInput.value ? seatMinInput.value : '0', 10) || 0,
+										max: parseInt(seatMaxInput && seatMaxInput.value ? seatMaxInput.value : '0', 10) || 0
+									},
+									parseInt(rateInput && rateInput.value ? rateInput.value : '5', 10) || 5,
+									!!(discountToggle && discountToggle.checked),
+									parseFloat(baselineInput && baselineInput.value ? baselineInput.value : '0') || 0
+								);
+								if (discountControls) discountControls.hidden = !(discountToggle && discountToggle.checked);
+								if (commissionBreakdown) commissionBreakdown.hidden = !(discountToggle && discountToggle.checked);
+								if (rateValueNode) rateValueNode.textContent = pricing.rate + '%';
+								if (estimateNode) estimateNode.textContent = formatGbp(pricing.discountedMin) + ' - ' + formatGbp(pricing.discountedMax);
+								if (flatFeeNode) flatFeeNode.textContent = formatGbp(pricing.flatFee);
+								if (clientSavingNode) clientSavingNode.textContent = formatGbp(pricing.estimatedBuyerDiscount);
+								if (platformCommissionNode) platformCommissionNode.textContent = formatGbp(pricing.estimatedPlatformCommission);
+								return pricing;
+							}
+
+							function openRfpReviewModal(previewHtml, termsHtml, onConfirm) {
+								var modal = ensureRfpReviewModal();
+								modal.querySelector('.khm-qc-rfp-review-preview').innerHTML = previewHtml;
+								modal.querySelector('.khm-qc-rfp-review-terms').innerHTML = termsHtml;
+								var oldConfirmBtn = modal.querySelector('.khm-qc-rfp-review-confirm');
+								var newConfirmBtn = oldConfirmBtn.cloneNode(true);
+								oldConfirmBtn.parentNode.replaceChild(newConfirmBtn, oldConfirmBtn);
+								newConfirmBtn.addEventListener('click', function() {
+									modal.classList.remove('is-open');
+									onConfirm();
+								});
+								modal.classList.add('is-open');
+							}
+
+							// Step 1: open/close the RFP response workflow form.
+							grid.querySelectorAll('.khm-qc-rfp-open-form-btn').forEach(function(btn) {
+								btn.addEventListener('click', function() {
+									var form = btn.closest('.khm-qc-rfp-accept-form');
+									var workflow = form ? form.querySelector('.khm-qc-rfp-response-workflow') : null;
+									if (!workflow) return;
+									workflow.hidden = false;
+									btn.style.display = 'none';
+									if (!workflow.dataset.pricingBound) {
+										['.khm-qc-rfp-response-cpl', '.khm-qc-rfp-discount-toggle', '.khm-qc-rfp-commission-rate'].forEach(function(selector) {
+											var input = workflow.querySelector(selector);
+											if (!input) return;
+											input.addEventListener('input', function() { updateRfpPricing(form); });
+											input.addEventListener('change', function() { updateRfpPricing(form); });
+										});
+										workflow.dataset.pricingBound = '1';
+									}
+									updateRfpPricing(form);
+									var cplInput = workflow.querySelector('.khm-qc-rfp-response-cpl');
+									if (cplInput) cplInput.focus();
+								});
+							});
+
+							grid.querySelectorAll('.khm-qc-rfp-cancel-btn').forEach(function(btn) {
+								btn.addEventListener('click', function() {
+									var form = btn.closest('.khm-qc-rfp-accept-form');
+									var workflow = form ? form.querySelector('.khm-qc-rfp-response-workflow') : null;
+									var openBtn = form ? form.querySelector('.khm-qc-rfp-open-form-btn') : null;
+									if (workflow) workflow.hidden = true;
+									if (openBtn) openBtn.style.display = '';
+								});
+							});
+
+							// Step 2: submit the response after form completion.
+							grid.querySelectorAll('.khm-qc-rfp-submit-btn').forEach(function(btn) {
+								btn.addEventListener('click', function() {
+									var form = btn.closest('.khm-qc-rfp-accept-form');
+									var scopeInput = form ? form.querySelector('.khm-qc-rfp-response-scope') : null;
+									var seatsInput = form ? form.querySelector('.khm-qc-rfp-response-seats') : null;
+									var pilotRequestedInput = form ? form.querySelector('.khm-qc-rfp-pilot-requested') : null;
+									var cplInput = form ? form.querySelector('.khm-qc-rfp-response-cpl') : null;
+									var discountToggleInput = form ? form.querySelector('.khm-qc-rfp-discount-toggle') : null;
+									var commissionRateInput = form ? form.querySelector('.khm-qc-rfp-commission-rate') : null;
+									var notesInput = form ? form.querySelector('.khm-qc-rfp-response-notes') : null;
+									var featureInputs = form ? form.querySelectorAll('.khm-qc-rfp-feature') : [];
+
+									var scopeValue = scopeInput ? String(scopeInput.value || '') : '';
+									var seatsValue = seatsInput ? String(seatsInput.value || '') : '';
+									var pilotRequestedValue = pilotRequestedInput ? String(pilotRequestedInput.value || 'no') : 'no';
+									var cplValue = cplInput ? parseFloat(cplInput.value || '0') : 0;
+									var offerPlatformDiscount = !!(discountToggleInput && discountToggleInput.checked);
+									var commissionRate = offerPlatformDiscount ? (parseInt(commissionRateInput ? commissionRateInput.value : '5', 10) || 5) : 0;
+									var notesValue = notesInput ? String(notesInput.value || '').trim() : '';
+									var features = Array.prototype.map.call(featureInputs, function(input){ return String(input.value || ''); });
+									var pricing = updateRfpPricing(form);
+
+									if (!scopeValue || cplValue <= 0 || !features.length || !pricing) {
+										showNotice(<?php echo wp_json_encode( __( 'Please complete the pricing details before continuing.', 'khm-membership' ) ); ?>, false);
+										return;
+									}
+
+									var oppId = parseInt(btn.dataset.id, 10);
+									var providerInput = form ? form.querySelector('.khm-qc-rfp-provider-id') : null;
+									var providerId = providerInput ? parseInt(providerInput.value, 10) : 0;
+									if (!providerId) {
+										showNotice(<?php echo wp_json_encode( __( 'No provider mapping found for this RFP.', 'khm-membership' ) ); ?>, false);
+										return;
+									}
+
+									var responseSummary = 'Scope=' + scopeValue + '; Seats=' + seatsValue + '; Features=' + features.join(',') + '; CPLGBP=' + cplValue.toFixed(2) + '; AnnualEstimateMin=' + pricing.discountedMin.toFixed(2) + '; AnnualEstimateMax=' + pricing.discountedMax.toFixed(2) + '; PlatformDiscount=' + (offerPlatformDiscount ? 'yes' : 'no') + '; CommissionRate=' + commissionRate + '; BaselineGBP=' + pricing.flatFeeBasis.toFixed(2) + '; FlatFeeGBP=' + pricing.flatFee.toFixed(2) + '; BuyerDiscountGBP=' + pricing.estimatedBuyerDiscount.toFixed(2) + '; PlatformCommissionGBP=' + pricing.estimatedPlatformCommission.toFixed(2);
+									var responseForm = {
+										scope: scopeValue,
+										seats: seatsValue,
+										pilot_requested: pilotRequestedValue,
+										required_features: features,
+										cost_per_licence_gbp: Number(cplValue.toFixed(2)),
+										annual_estimate_min_gbp: Number(pricing.discountedMin.toFixed(2)),
+										annual_estimate_max_gbp: Number(pricing.discountedMax.toFixed(2)),
+										offer_platform_discount: offerPlatformDiscount ? 1 : 0,
+										seller_commission_rate: commissionRate,
+										platform_fee_baseline_gbp: Number(pricing.flatFeeBasis.toFixed(2)),
+										platform_flat_fee_gbp: Number(pricing.flatFee.toFixed(2)),
+										estimated_buyer_discount_gbp: Number(pricing.estimatedBuyerDiscount.toFixed(2)),
+										estimated_platform_commission_gbp: Number(pricing.estimatedPlatformCommission.toFixed(2)),
+										estimated_client_discount_min_gbp: Number(pricing.estimatedBuyerDiscount.toFixed(2)),
+										estimated_client_discount_max_gbp: Number(pricing.estimatedBuyerDiscount.toFixed(2)),
+										estimated_platform_commission_min_gbp: Number(pricing.estimatedPlatformCommission.toFixed(2)),
+										estimated_platform_commission_max_gbp: Number(pricing.estimatedPlatformCommission.toFixed(2)),
+										response_notes: notesValue
+									};
+
+									var summarySection = form.querySelector('.khm-qc-rfp-summary');
+									var previewHtml =
+										(summarySection ? summarySection.outerHTML : '') +
+										'<div class="khm-qc-rfp-calc-card">' +
+											'<h4><?php echo esc_js( __( 'Commercial Terms', 'khm-membership' ) ); ?></h4>' +
+											'<div class="khm-qc-rfp-breakdown-row"><span><?php echo esc_js( __( 'Cost per licence / month', 'khm-membership' ) ); ?></span><strong>' + formatGbp(cplValue) + '</strong></div>' +
+											'<div class="khm-qc-rfp-breakdown-row"><span><?php echo esc_js( __( '12-month estimate', 'khm-membership' ) ); ?></span><strong>' + formatGbp(pricing.discountedMin) + ' - ' + formatGbp(pricing.discountedMax) + '</strong></div>' +
+											'<div class="khm-qc-rfp-breakdown-row"><span><?php echo esc_js( __( 'Platform discount offered', 'khm-membership' ) ); ?></span><strong>' + (offerPlatformDiscount ? 'Yes (' + commissionRate + '%)' : 'No') + '</strong></div>' +
+											'<div class="khm-qc-rfp-breakdown-row"><span><?php echo esc_js( __( 'Payable today', 'khm-membership' ) ); ?></span><strong>' + formatGbp(pricing.flatFee) + '</strong></div>' +
+											(offerPlatformDiscount ? '<div class="khm-qc-rfp-breakdown-row"><span class="khm-qc-rfp-tooltip"><?php echo esc_js( __( 'Estimated buyer discount', 'khm-membership' ) ); ?><button type="button" class="khm-qc-rfp-tooltip-btn" aria-label="<?php echo esc_js( __( 'Buyer discount help', 'khm-membership' ) ); ?>">i</button><span class="khm-qc-rfp-tooltip-bubble"><?php echo esc_js( __( 'Deductible from the buyer\'s first invoice with your company.', 'khm-membership' ) ); ?></span></span><strong>' + formatGbp(pricing.estimatedBuyerDiscount) + '</strong></div>' : '') +
+											(offerPlatformDiscount ? '<div class="khm-qc-rfp-breakdown-row"><span class="khm-qc-rfp-tooltip"><?php echo esc_js( __( 'Estimated platform commission', 'khm-membership' ) ); ?><button type="button" class="khm-qc-rfp-tooltip-btn" aria-label="<?php echo esc_js( __( 'Platform commission help', 'khm-membership' ) ); ?>">i</button><span class="khm-qc-rfp-tooltip-bubble"><?php echo esc_js( __( 'Debited from your account when the buyer confirms agreement so they can claim discount.', 'khm-membership' ) ); ?></span></span><strong>' + formatGbp(pricing.estimatedPlatformCommission) + '</strong></div>' : '') +
+											(notesValue ? '<div><strong><?php echo esc_js( __( 'Note to buyer', 'khm-membership' ) ); ?>:</strong><p style="margin:6px 0 0;">' + safe(notesValue).replace(/\n/g, '<br>') + '</p></div>' : '') +
+										'</div>';
+
+									var termsHtml = '<p><?php echo esc_js( __( 'By sending this proposal you agree that your account will be debited for the flat fee if the buyer accepts and wishes to proceed off-platform.', 'khm-membership' ) ); ?></p>';
+									if (offerPlatformDiscount) {
+										termsHtml += '<p><?php echo esc_js( __( 'If a deal is agreed with the buyer, accessing the platform discount requires proof of contract. Submitting proof will automatically trigger the platform commission payment.', 'khm-membership' ) ); ?></p>';
+									}
+
+									openRfpReviewModal(previewHtml, termsHtml, function() {
+										var rfpCard = btn.closest('.khm-qc-rfp-card');
+										if (rfpCard && rfpCard.dataset.demo === '1') {
+											var actions = btn.closest('.khm-qc-lead-actions');
+											if (actions) {
+												actions.innerHTML = '<span class="khm-qc-lead-status" style="color:#1e8c45;">&#10003; <?php echo esc_js( __( 'Proposal sent', 'khm-membership' ) ); ?></span>';
+											}
+											return;
+										}
+
+										btn.disabled = true;
+										fetch(restBase + 'opportunities/mine/' + oppId + '/accept', {
+											method: 'POST',
+											headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
+											body: JSON.stringify({
+												provider_id: providerId,
+												engaged_option: null,
+												response_summary: responseSummary,
+												response_form: responseForm
+											})
+										}).then(function(r){ return r.json(); }).then(function(d) {
+											if (d.success) {
+												showNotice(<?php echo wp_json_encode( __( 'Proposal sent — intro thread will open shortly.', 'khm-membership' ) ); ?>, true);
+												loadRfps();
+											} else {
+												showNotice((d.message || <?php echo wp_json_encode( __( 'Request failed.', 'khm-membership' ) ); ?>), false);
+												btn.disabled = false;
+											}
+										}).catch(function(){ showNotice(<?php echo wp_json_encode( __( 'Network error — please try again.', 'khm-membership' ) ); ?>, false); btn.disabled = false; });
+									});
+								});
+							});
+						}
+
+						function renderRfpCards(rfps, providers) {
+							allRfps      = rfps;
+							allProviders = providers;
+							currentPage  = 0;
+							if (!rfps.length) {
+								grid.innerHTML = '<p class="khm-qc-leads-empty"><?php echo esc_js( __( 'No RFP requests at this time.', 'khm-membership' ) ); ?></p>';
+								var nav = panel.querySelector('.khm-qc-rfp-nav');
+								if (nav) nav.innerHTML = '';
+								return;
+							}
+							renderPage(0);
+						}
+
+						function seedDemoClientSetup() {
+							// When on localhost/demo and no buyer rfp_setup exists yet, pre-populate
+							// with a realistic demo client profile matching the first RFP lead (id:8001 FSM evaluation).
+							if (!allowDemoFallback) return;
+							if (localStorage.getItem('khm_connect_rfp_setup')) return;
+							localStorage.setItem('khm_connect_rfp_setup', JSON.stringify({
+								scope:     'fsm_evaluation_poc',
+								seats:     '20_30',
+								timeframe: '3_months',
+								features:  ['mobile_app', 'offline_capabilities', 'real_time_reporting'],
+								estimate:  120000
+							}));
+						}
+
+						function loadRfps() {
+							seedDemoClientSetup();
+							grid.innerHTML = '<p class="khm-qc-leads-empty"><?php echo esc_js( __( 'Loading…', 'khm-membership' ) ); ?></p>';
+							renderRfpCards(demoRfpLeads(), demoProviders());
+						}
+
+						btn.addEventListener('click', loadRfps);
+						loadRfps();
+					})();
+					</script>
+
 					<section class="khm-qc-connect-panel khm-qc-connect-inbox-panel khm-qc-connect-span-full">
+						<style>
+							.khm-qc-connect-pill-engaged{background:#fff4e5;color:#9a3412;font-weight:600;}
+							.khm-qc-connect-pill-price{background:#d1fae5;color:#065f46;font-weight:600;}
+							.khm-qc-connect-pill{font-size:11px;padding:4px 8px;border-radius:12px;background:#e5e7eb;color:#374151;display:inline-block;margin-right:4px;margin-bottom:4px;}
+						</style>
 						<div class="khm-qc-connect-panel-head">
 							<div>
 								<h3><?php esc_html_e( 'Intro Inbox', 'khm-membership' ); ?></h3>
