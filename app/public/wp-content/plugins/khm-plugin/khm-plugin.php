@@ -171,6 +171,8 @@ require_once __DIR__ . '/src/Admin/PriceValidationAjax.php';
 require_once __DIR__ . '/src/Membership/MembershipMigration.php';
 require_once __DIR__ . '/src/Membership/AttributionEndpoint.php';
 require_once __DIR__ . '/src/Membership/TierRegistry.php';
+require_once __DIR__ . '/src/Membership/ReadershiptTierConfig.php';
+require_once __DIR__ . '/src/Migrations/SeedReadershipTiers.php';
 require_once __DIR__ . '/src/Membership/SignupEndpoint.php';
 require_once __DIR__ . '/src/Membership/LandingSuccessEndpoint.php';
 require_once __DIR__ . '/src/Membership/PriceOverrideEndpoint.php';
@@ -1622,6 +1624,15 @@ register_activation_hook(__FILE__, function () {
                 }
             }
 
+            // Seed readership subscription tier slugs into the tier registry.
+            if ( class_exists('KHM\\Migrations\\SeedReadershipTiers') ) {
+                try {
+                    KHM\Migrations\SeedReadershipTiers::seed();
+                } catch (\Exception $e) {
+                    error_log('SeedReadershipTiers failed: ' . $e->getMessage());
+                }
+            }
+
             // Add distribution_site_ids to press releases table (S7 – portfolio distribution).
             if ( class_exists('KHM\\Migrations\\AddPressReleaseDistribution') ) {
                 try {
@@ -1873,6 +1884,7 @@ if ( defined('WP_CLI') && WP_CLI ) {
     require_once __DIR__ . $cli_dir . 'AnonymizeAttributionCommand.php';
     require_once __DIR__ . $cli_dir . 'RetentionRunCommand.php';
     require_once __DIR__ . $cli_dir . 'MembershipEmailControlCommand.php';
+    require_once __DIR__ . $cli_dir . 'ConnectDemoSeedCommand.php';
 
     // Register CLI commands
     WP_CLI::add_command( 'khm membership:dlq', 'KHM\\CLI\\MembershipWebhookDeadLettersCommand' );
@@ -1880,6 +1892,7 @@ if ( defined('WP_CLI') && WP_CLI ) {
     WP_CLI::add_command( 'khm anonymize_attribution', 'KHM\\CLI\\AnonymizeAttributionCommand' );
     WP_CLI::add_command( 'khm retention:run', 'KHM\\CLI\\RetentionRunCommand' );
     WP_CLI::add_command( 'khm membership:email-control', 'KHM\\CLI\\MembershipEmailControlCommand' );
+    WP_CLI::add_command( 'khm connect', 'KHM\\CLI\\ConnectDemoSeedCommand' );
 }
 
 // Register webhook email notifications
@@ -1965,6 +1978,11 @@ add_action('init', function () {
         // Register commerce frontend (unified modal for cart/checkout)
         if ( class_exists('KHM\\Frontend\\CommerceFrontend') ) {
             $commerce_frontend = new KHM\Frontend\CommerceFrontend();
+        }
+
+        // Register readership tier price resolver (bridges level_id → TierRegistry).
+        if ( class_exists('KHM\\Membership\\ReadershiptTierConfig') ) {
+            new KHM\Membership\ReadershiptTierConfig();
         }
 
         // Register membership checkout handler (modal for membership signup)

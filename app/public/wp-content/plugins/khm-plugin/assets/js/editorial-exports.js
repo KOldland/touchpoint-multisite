@@ -1,4 +1,4 @@
-// Editorial Exports React App
+https://appcenter.intuit.com/connect/oauth2?client_id=ABYksPaLcXNSMLcwjmIKchevkqWF6mBqwOHzhI3Yd04akPp2JP&scope=com.intuit.quickbooks.accounting&redirect_uri=http%3A%2F%2Ftouchpoint-multisite.local%2Fwp-json%2Fkhm%2Fv1%2Fqbo%2Foauth%2Fcallback&response_type=code&state=4ufi8yS8LijBNQ7vfe68F6IS// Editorial Exports React App
 const { useState, useEffect } = wp.element;
 const { apiFetch } = wp.apiFetch;
 const { dispatch } = wp.data;

@@ -10,6 +10,7 @@ namespace KHM\Frontend;
 
 use KHM\Services\LevelRepository;
 use KHM\Services\DiscountCodeService;
+use KHM\Membership\TierRegistry;
 
 class MembershipCheckoutHandler {
 
@@ -135,11 +136,17 @@ class MembershipCheckoutHandler {
             $user_id
         );
 
+        // Resolve tier_slug so the webhook can validate against TierRegistry.
+        $tier_entry = TierRegistry::find_tier_by_price( $price_id );
+        $tier_slug  = $tier_entry ? (string) $tier_entry['slug'] : '';
+
         // Prepare metadata for Stripe (will be sent back via webhook)
         $metadata = [
-            'purchase_type' => 'subscription',
-            'membership_level_id' => (string) $level_id,
+            'purchase_type'         => 'subscription',
+            'membership_level_id'   => (string) $level_id,
             'membership_level_name' => $level->name ?? 'Membership',
+            'tier_slug'             => $tier_slug,
+            'stripe_price_id'       => $price_id,
         ];
 
         if ($user_id) {

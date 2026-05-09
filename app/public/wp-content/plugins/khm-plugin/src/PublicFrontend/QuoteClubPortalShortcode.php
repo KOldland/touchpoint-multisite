@@ -135,6 +135,16 @@ class QuoteClubPortalShortcode {
 			true
 		);
 
+		wp_enqueue_script(
+			'khm-connect-subscription-modal',
+			$plugin_url . 'assets/js/connect-subscription-modal.js',
+			[],
+			file_exists( $plugin_path . 'assets/js/connect-subscription-modal.js' )
+				? filemtime( $plugin_path . 'assets/js/connect-subscription-modal.js' )
+				: '1',
+			true
+		);
+
 		$user_id = get_current_user_id();
 		$sponsor = SponsorService::get_user_sponsor( $user_id );
 
@@ -158,9 +168,21 @@ class QuoteClubPortalShortcode {
 			'shareLinkedInBase' => esc_url_raw( add_query_arg( [ 'qc_section' => 'social', 'li_suggest_title' => '' ], get_permalink( get_queried_object_id() ) ?: home_url( '/quote-club/' ) ) ),
 		] );
 
-		// Inject engaged pricing config from DB — consumed by the Connect portal JS
-		// as window.khmConnectConfig (feature flag + editable pricing labels).
-		wp_localize_script( 'khm-quote-club-connect', 'khmConnectConfig', ConnectEngagedSettingsPage::get_js_config() );
+		// Inject engaged pricing config from DB for Connect portal JS.
+		// Fallback keeps the portal working if engaged settings class is unavailable.
+		$connect_config = [
+			'engagedOptionTwoEnabled' => true,
+			'optionOneLabel'          => 'Option 1: Fixed Fee',
+			'optionTwoLabel'          => 'Option 2: Success Fee',
+			'optionOnePriceDesc'      => '£1,500 one-off introduction fee',
+			'optionTwoPriceDesc'      => '£375 listing fee + 15% commission on first-year contract value',
+		];
+
+		if ( class_exists( '\\KHM\\Connect\\ConnectEngagedSettingsPage' ) ) {
+			$connect_config = ConnectEngagedSettingsPage::get_js_config();
+		}
+
+		wp_localize_script( 'khm-quote-club-connect', 'khmConnectConfig', $connect_config );
 
 	}
 
@@ -245,9 +267,6 @@ class QuoteClubPortalShortcode {
 				'press_monthly_remaining'       => 2,
 				'press_purchased_remaining'     => 1,
 			];
-		}
-		if ( $_use_demo_header || $connected_sites < 5 ) {
-			$connected_sites = 5;
 		}
 		?>
 		<header class="khm-qc-header">
@@ -733,26 +752,13 @@ class QuoteClubPortalShortcode {
 			return 0;
 		}
 
-		$with_urls = (int) $wpdb->get_var(
+		return (int) $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT COUNT(DISTINCT website_url)
+				"SELECT COUNT(DISTINCT blog_id)
 				 FROM {$table}
 				 WHERE sponsor_id = %d
 				   AND status = %s
-				   AND website_url IS NOT NULL
-				   AND website_url <> ''",
-				$sponsor_id,
-				'active'
-			)
-		);
-
-		if ( $with_urls > 0 ) {
-			return $with_urls;
-		}
-
-		return (int) $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT COUNT(*) FROM {$table} WHERE sponsor_id = %d AND status = %s",
+				   AND blog_id > 1",
 				$sponsor_id,
 				'active'
 			)
@@ -1313,37 +1319,362 @@ class QuoteClubPortalShortcode {
 				<div class="khm-qc-connect-grid">
 					<section class="khm-qc-connect-panel khm-qc-connect-subscription-panel khm-qc-connect-span-full" id="khm-qc-sub-panel-<?php echo esc_attr( (int) ( $sponsor['id'] ?? 0 ) ); ?>">
 						<style>
-							.khm-qc-sub-sites{margin:12px 0;display:grid;gap:8px;}
-							.khm-qc-sub-site{border:1px solid #dcdcde;border-radius:8px;padding:10px 12px;background:#fff;font-size:14px;}
+							.khm-qc-sub-carousel-shell{margin:14px 0 10px;}
+							.khm-qc-sub-carousel-window{overflow:hidden;border:1px solid #dcdcde;border-radius:12px;background:#f8fafc;padding:12px;}
+							.khm-qc-sub-carousel-track{display:flex;gap:12px;transition:transform .3s ease;will-change:transform;}
+							.khm-qc-sub-site-card{flex:0 0 170px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:158px;}
+							.khm-qc-sub-site-card.is-connected{border-color:#2563eb;box-shadow:0 1px 6px rgba(37,99,235,.14);}
+							.khm-qc-sub-site-card.is-not-connected{filter:grayscale(1);opacity:.58;}
+							.khm-qc-sub-logo-link{display:flex;align-items:center;justify-content:center;width:100%;height:100%;}
+							.khm-qc-sub-logo-link:hover img{opacity:.75;}
+							.khm-qc-sub-logo-link img{transition:opacity .15s;}
+							.khm-qc-sub-logo-wrap{width:140px;height:72px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;}
+							.khm-qc-sub-logo-wrap img{max-width:100%;max-height:100%;object-fit:contain;display:block;}
+							.khm-qc-sub-logo-fallback{width:58px;height:58px;border-radius:8px;background:#e5e7eb;color:#6b7280;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+							.khm-qc-sub-site-name{font-size:12px;line-height:1.25;font-weight:600;color:#111827;text-align:center;margin-bottom:6px;}
+							.khm-qc-sub-site-status{font-size:11px;line-height:1.2;font-weight:600;text-transform:uppercase;letter-spacing:.03em;}
+							.khm-qc-sub-site-card.is-connected .khm-qc-sub-site-status{color:#1d4ed8;}
+							.khm-qc-sub-site-card.is-not-connected .khm-qc-sub-site-status{color:#6b7280;}
+							.khm-qc-sub-carousel-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;}
+							.khm-qc-sub-carousel-btn{width:36px;height:36px;border:1px solid #d1d5db;border-radius:999px;background:#fff;display:inline-flex;align-items:center;justify-content:center;color:#111827;font-weight:700;cursor:pointer;}
+							.khm-qc-sub-carousel-btn[disabled]{opacity:.38;cursor:default;}
+							.khm-qc-sub-carousel-pages{font-size:12px;color:#4b5563;font-weight:600;}
 							.khm-qc-sub-empty{font-size:13px;color:#646970;padding:10px 12px;border:1px dashed #ccd0d4;border-radius:8px;background:#fbfcfd;}
 							.khm-qc-sub-notice{display:none;font-size:12px;padding:8px 12px;border-radius:4px;margin-bottom:8px;}
 							.khm-qc-sub-actions{display:flex;gap:8px;flex-wrap:wrap;}
+							@media (max-width: 1024px){
+								.khm-qc-sub-site-card{flex-basis:158px;}
+							}
+							@media (max-width: 768px){
+								.khm-qc-sub-site-card{flex-basis:146px;min-height:146px;}
+								.khm-qc-sub-logo-wrap{width:120px;height:60px;}
+							}
+
+							/* ── Subscription Modal ───────────────────────────────── */
+							#khm-sub-modal{position:fixed;inset:0;z-index:100000;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px;}
+							#khm-sub-modal[hidden]{display:none;}
+							.khm-sub-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:0;}
+							.khm-sub-modal-dialog{position:relative;z-index:1;background:#fff;border-radius:16px;padding:28px 28px 20px;width:100%;max-width:720px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.22);}
+							.khm-sub-modal-close{position:absolute;top:14px;right:16px;background:none;border:none;font-size:22px;line-height:1;color:#6b7280;cursor:pointer;padding:4px 6px;border-radius:4px;}
+							.khm-sub-modal-close:hover{color:#111827;background:#f3f4f6;}
+							.khm-sub-modal-title{font-size:18px;font-weight:700;color:#111827;margin:0 0 18px;}
+
+							/* Grid of site cards inside the modal */
+							.khm-sub-sites-grid{display:flex;flex-wrap:wrap;gap:12px;list-style:none;margin:0;padding:0;}
+							.khm-sub-site-card{flex:0 0 calc(20% - 10px);min-width:120px;border:2px solid #e5e7eb;border-radius:10px;padding:12px 8px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;background:#fff;transition:border-color .15s,box-shadow .15s;}
+							.khm-sub-site-card.is-connected{border-color:#2563eb;background:#f0f6ff;}
+							.khm-sub-site-card.is-selected{border-color:#059669;box-shadow:0 0 0 3px rgba(5,150,105,.15);}
+							.khm-sub-site-card.is-pending{border-color:#d97706;background:#fffbf0;}
+							.khm-sub-site-card.is-not-connected{opacity:.65;filter:grayscale(1);transition:filter .2s,opacity .2s;}
+							.khm-sub-site-card.is-not-connected.is-selected{filter:none;opacity:1;}
+							.khm-sub-card-logo{width:110px;height:56px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+							.khm-sub-card-logo img{max-width:100%;max-height:100%;object-fit:contain;display:block;}
+							.khm-sub-card-logo-fallback{width:48px;height:48px;border-radius:8px;background:#e5e7eb;color:#6b7280;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+							.khm-sub-card-label{font-size:11px;font-weight:600;color:#111827;text-align:center;line-height:1.3;}
+							.khm-sub-card-status{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;}
+							.khm-sub-site-card.is-connected .khm-sub-card-status{color:#1d4ed8;}
+							.khm-sub-site-card.is-pending .khm-sub-card-status{color:#b45309;}
+							.khm-sub-site-card{position:relative;}
+							.khm-sub-card-cancel{position:absolute;bottom:6px;right:6px;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;padding:0;border:1px solid #d1d5db;border-radius:50%;background:#fff;color:#9ca3af;cursor:pointer;}
+							.khm-sub-card-cancel:hover{background:#fee2e2;border-color:#fca5a5;color:#b91c1c;}
+							.khm-sub-card-check{width:16px;height:16px;cursor:pointer;accent-color:#059669;margin-top:2px;}
+
+							/* Cart bar */
+							.khm-sub-cart-bar{margin-top:18px;padding:14px 16px;background:#f0f6ff;border:1px solid #bfdbfe;border-radius:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+							.khm-sub-cart-bar[hidden]{display:none;}
+							.khm-sub-cart-summary{flex:1;min-width:180px;}
+							.khm-sub-cart-label{display:block;font-size:12px;color:#374151;font-weight:600;margin-bottom:2px;}
+							.khm-sub-cart-price{display:block;font-size:20px;font-weight:700;color:#1d4ed8;}
+							.khm-sub-cart-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+
+
+							/* Upgrade banner */
+							.khm-sub-upgrade-banner{margin-bottom:16px;padding:12px 16px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+							.khm-sub-upgrade-banner[hidden]{display:none;}
+							.khm-sub-upgrade-banner-inner{flex:1;min-width:160px;}
+							.khm-sub-upgrade-banner-inner strong{display:block;font-size:13px;color:#166534;}
+							.khm-sub-upgrade-desc{display:block;font-size:12px;color:#15803d;margin-top:1px;}
+							.khm-sub-upgrade-credit-note{display:block;font-size:11px;color:#4d7c0f;margin-top:2px;}
+							.khm-sub-upgrade-net-price{display:block;font-size:15px;font-weight:700;color:#166534;margin-top:4px;}
+
+							/* Notice */
+							.khm-sub-modal-notice{display:block;padding:8px 12px;border-radius:6px;font-size:12px;margin-top:12px;}
+							.khm-sub-modal-notice[hidden]{display:none;}
+							.khm-sub-modal-notice--ok{background:#f0fdf4;color:#166534;border:1px solid #86efac;}
+							.khm-sub-modal-notice--err{background:#fef2f2;color:#991b1b;border:1px solid #fca5a5;}
+
+							@media (max-width: 600px){
+								.khm-sub-site-card{flex:0 0 calc(33.33% - 8px);}
+								.khm-sub-modal-dialog{padding:20px 14px 16px;}
+							}
+							@media (max-width: 400px){
+								.khm-sub-site-card{flex:0 0 calc(50% - 6px);}
+							}
 						</style>
 						<div class="khm-qc-connect-panel-head">
 							<div>
 								<h3><?php esc_html_e( 'Connect Subscription', 'khm-membership' ); ?></h3>
-								<p><?php esc_html_e( 'Connected sites currently covered by your Connect setup.', 'khm-membership' ); ?></p>
+								<p><?php esc_html_e( 'Network channels and their live connection status.', 'khm-membership' ); ?></p>
 							</div>
 						</div>
 						<div class="khm-qc-sub-notice" role="status" aria-live="polite"></div>
-						<div class="khm-qc-sub-sites"></div>
+						<div class="khm-qc-sub-carousel-shell">
+							<div class="khm-qc-sub-carousel-window">
+								<div class="khm-qc-sub-carousel-track">
+									<?php
+										$logo_map = array(
+										// Horizontal
+										'pricing'                => 'revenue_operations.png',
+										'aftermarket'            => 'aftermarket-operations.png',
+										'field-service'          => 'field-service-management-logo.png',
+										'spare-parts'            => 'spare-parts-and-logistics2.png',
+										'ecommerce'              => 'Industrial-eCommerce.png',
+										// Vertical
+										'industrial'             => 'industrial-operations.png',
+										'aerospace'              => 'aerospace-engineering-logo.png',
+										'utilities-ops'          => 'utilities-operations.png',
+										'built-env'              => 'infrastructure_operations.png',
+										'manufacturing-flagship' => 'modern-manufacturing-logo.png',
+									);
+
+									// Build a URL map from the live network blog list.
+									$_url_map = array();
+									foreach ( get_sites( array( 'number' => 100 ) ) as $_s ) {
+										$_ps = trim( $_s->path, '/' );
+										if ( $_ps ) {
+											$_url_map[ $_ps ] = get_home_url( (int) $_s->blog_id );
+										}
+									}
+
+									// 10-channel network catalog (Portal excluded — user is already there).
+									// blog_slugs: WP site path slugs that map to this channel (first = primary URL).
+									$all_sites = array(
+										// --- Horizontal ---
+										array( 'slug' => 'pricing',               'label' => 'Revenue Operations',        'blog_slugs' => array( 'pricing' ) ),
+										array( 'slug' => 'aftermarket',           'label' => 'Aftermarket Operations',    'blog_slugs' => array( 'aftermarket' ) ),
+										array( 'slug' => 'field-service',         'label' => 'Field Service Management',  'blog_slugs' => array( 'field-service' ) ),
+										array( 'slug' => 'spare-parts',           'label' => 'Spare Parts & Logistics',   'blog_slugs' => array( 'spare-parts' ) ),
+										array( 'slug' => 'ecommerce',             'label' => 'Industrial eCommerce',      'blog_slugs' => array( 'ecommerce' ) ),
+										// --- Vertical ---
+										array( 'slug' => 'industrial',            'label' => 'Industrial Operations',     'blog_slugs' => array( 'industrial' ) ),
+										array( 'slug' => 'aerospace',             'label' => 'Aerospace Engineering',     'blog_slugs' => array( 'aerospace' ) ),
+										array( 'slug' => 'utilities-ops',         'label' => 'Utilities Operations',      'blog_slugs' => array( 'energy', 'utilities' ) ),
+										array( 'slug' => 'built-env',             'label' => 'Infrastructure Operations', 'blog_slugs' => array( 'built-env' ) ),
+										array( 'slug' => 'manufacturing-flagship','label' => 'Modern Manufacturing',      'blog_slugs' => array( 'flagship', 'manufacturing' ) ),
+									);
+
+									$connected = array();
+									$sponsor_id = (int) ( $sponsor['id'] ?? 0 );
+									if ( $sponsor_id > 0 ) {
+										global $wpdb;
+										$table = $wpdb->prefix . 'connect_providers';
+										if ( $this->table_exists( $table ) ) {
+											$rows = $wpdb->get_results(
+												$wpdb->prepare(
+													"SELECT DISTINCT b.path
+													 FROM {$table} p
+													 INNER JOIN {$wpdb->blogs} b ON b.blog_id = p.blog_id
+													 WHERE p.sponsor_id = %d AND p.status = %s AND p.blog_id > 1",
+													$sponsor_id,
+													'active'
+												),
+												ARRAY_A
+											);
+											foreach ( (array) $rows as $row ) {
+												$path_slug = trim( (string) ( $row['path'] ?? '' ), '/' );
+												if ( $path_slug ) {
+													$connected[ $path_slug ] = true;
+												}
+											}
+										}
+									}
+
+									foreach ( $all_sites as $site_item ) :
+										$slug         = (string) $site_item['slug'];
+										$label        = (string) $site_item['label'];
+										$logo_file    = $logo_map[ $slug ] ?? '';
+										$initials     = strtoupper( substr( preg_replace( '/[^a-z]/i', '', $slug ), 0, 2 ) );
+										$primary_slug = $site_item['blog_slugs'][0] ?? '';
+										$site_url     = $primary_slug ? ( $_url_map[ $primary_slug ] ?? '' ) : '';
+
+										// Connected if ANY of the mapped blog slugs are active for this sponsor.
+										$is_connected = false;
+										foreach ( $site_item['blog_slugs'] as $bs ) {
+											if ( ! empty( $connected[ $bs ] ) ) {
+												$is_connected = true;
+												break;
+											}
+										}
+
+										$card_class  = $is_connected ? 'is-connected' : 'is-not-connected';
+										$status_text = $is_connected ? 'Connected' : 'Not connected';
+									?>
+										<div class="khm-qc-sub-site-card <?php echo esc_attr( $card_class ); ?>">
+											<div class="khm-qc-sub-logo-wrap">
+												<?php if ( $logo_file ) : ?>
+													<?php if ( $site_url ) : ?>
+														<a href="<?php echo esc_url( $site_url ); ?>" target="_blank" rel="noopener" class="khm-qc-sub-logo-link" title="<?php echo esc_attr( sprintf( 'Visit %s', $label ) ); ?>">
+															<img src="<?php echo esc_url( plugin_dir_url( dirname( __DIR__ ) ) . 'assets/images/sites/' . rawurlencode( $logo_file ) ); ?>" alt="<?php echo esc_attr( $label . ' logo' ); ?>" />
+														</a>
+													<?php else : ?>
+														<img src="<?php echo esc_url( plugin_dir_url( dirname( __DIR__ ) ) . 'assets/images/sites/' . rawurlencode( $logo_file ) ); ?>" alt="<?php echo esc_attr( $label . ' logo' ); ?>" />
+													<?php endif; ?>
+												<?php else : ?>
+													<div class="khm-qc-sub-logo-fallback"><?php echo esc_html( $initials ?: 'NA' ); ?></div>
+												<?php endif; ?>
+											</div>
+											<div class="khm-qc-sub-site-name"><?php echo esc_html( $label ); ?></div>
+											<div class="khm-qc-sub-site-status"><?php echo esc_html( $status_text ); ?></div>
+										</div>
+									<?php endforeach; ?>
+								</div>
+							</div>
+							<div class="khm-qc-sub-carousel-nav">
+								<button type="button" class="khm-qc-sub-carousel-btn khm-qc-sub-prev" aria-label="<?php esc_attr_e( 'Previous slide', 'khm-membership' ); ?>">&#8592;</button>
+								<div class="khm-qc-sub-carousel-pages">1 / 1</div>
+								<button type="button" class="khm-qc-sub-carousel-btn khm-qc-sub-next" aria-label="<?php esc_attr_e( 'Next slide', 'khm-membership' ); ?>">&#8594;</button>
+							</div>
+						</div>
 						<div class="khm-qc-sub-actions">
-							<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-sub-connect-more"><?php esc_html_e( 'Connect More Sites', 'khm-membership' ); ?></button>
+							<button type="button" class="khm-qc-btn khm-qc-btn-primary" id="khm-sub-modal-trigger" data-khm-sub-modal-trigger>
+								<?php esc_html_e( 'Manage Connections', 'khm-membership' ); ?>
+							</button>
 						</div>
 					</section>
+
+					<?php
+						// ── Inject window.khmSubData for the modal ──────────────────
+						$_user_id_for_sub = get_current_user_id();
+						$_site_subs_raw   = get_user_meta( $_user_id_for_sub, 'khm_connect_site_subscriptions', true );
+						$_site_subs_raw   = is_array( $_site_subs_raw ) ? $_site_subs_raw : [];
+						$_portfolio_raw   = get_user_meta( $_user_id_for_sub, 'khm_connect_subscription', true );
+						$_portfolio_raw   = is_array( $_portfolio_raw ) ? $_portfolio_raw : [];
+						$_prices_opt      = get_option( 'khm_connect_subscription_annual_prices', [] );
+						$_prices          = [
+							'site'      => isset( $_prices_opt['site'] ) ? (int) $_prices_opt['site'] : 35000,
+							'portfolio' => isset( $_prices_opt['portfolio'] ) ? (int) $_prices_opt['portfolio'] : 250000,
+						];
+
+						// Build site sub data with provider connected state.
+						$_sub_sites_data  = [];
+						foreach ( $all_sites as $_sub_site_item ) {
+							$_ss      = $_sub_site_item['slug'];
+							$_sub     = $_site_subs_raw[ $_ss ] ?? [];
+							$_status  = (string) ( $_sub['status'] ?? 'inactive' );
+							$_expires = (string) ( $_sub['expires_at'] ?? '' );
+							$_days    = $_expires ? max( 0, (int) ceil( ( strtotime( $_expires ) - time() ) / 86400 ) ) : 0;
+
+							$_is_prov = false;
+							foreach ( $_sub_site_item['blog_slugs'] as $_bs ) {
+								if ( ! empty( $connected[ $_bs ] ) ) { $_is_prov = true; break; }
+							}
+
+							$_sub_sites_data[] = [
+								'slug'             => $_ss,
+								'label'            => $_sub_site_item['label'],
+								'logo'             => $logo_map[ $_ss ] ?? '',
+								'logo_url'         => $logo_map[ $_ss ] ? ( plugin_dir_url( dirname( __DIR__ ) ) . 'assets/images/sites/' . $logo_map[ $_ss ] ) : '',
+								'is_connected'     => $_is_prov || in_array( $_status, [ 'active', 'pending_invoice' ], true ),
+								'is_provider'      => $_is_prov,
+								'status'           => $_is_prov && $_status === 'inactive' ? 'provider_active' : $_status,
+								'expires_at'       => $_expires,
+								'cancelled_at'     => (string) ( $_sub['cancelled_at'] ?? '' ),
+								'days_remaining'   => $_days,
+								'renews_on'        => $_expires ? date_i18n( 'j M Y', strtotime( $_expires ) ) : '',
+							];
+						}
+
+						// Pro-rata upgrade credit.
+						$_credit = 0;
+						foreach ( $_site_subs_raw as $_sub_entry ) {
+							if ( ( $_sub_entry['status'] ?? '' ) !== 'active' ) continue;
+							$_exp = $_sub_entry['expires_at'] ?? '';
+							if ( ! $_exp ) continue;
+							$_dr = max( 0, (int) ceil( ( strtotime( $_exp ) - time() ) / 86400 ) );
+							$_credit += (int) round( ( $_prices['site'] / 365 ) * $_dr );
+						}
+						$_upgrade_cost = max( 0, $_prices['portfolio'] - $_credit );
+						$_has_portfolio = ( $_portfolio_raw['scope'] ?? '' ) === 'portfolio' && ( $_portfolio_raw['status'] ?? '' ) === 'active';
+					?>
+					<script>
+					window.khmSubData = <?php echo wp_json_encode( [
+						'nonce'               => wp_create_nonce( 'wp_rest' ),
+						'apiBase'             => esc_url_raw( rest_url( 'khm/v1/connect/subscription' ) ),
+						'sites'               => $_sub_sites_data,
+						'portfolio'           => $_portfolio_raw,
+						'hasPortfolio'        => $_has_portfolio,
+						'prices'              => $_prices,
+						'upgradeCreditPence'  => $_credit,
+						'upgradeCostPence'    => $_upgrade_cost,
+						'logoBase'            => plugin_dir_url( dirname( __DIR__ ) ) . 'assets/images/sites/',
+					] ); ?>;
+					</script>
+
+					<!-- ── Connect Subscription Modal ─────────────────────────────── -->
+					<div id="khm-sub-modal" class="khm-sub-modal" role="dialog" aria-modal="true" aria-labelledby="khm-sub-modal-title" hidden>
+						<div class="khm-sub-modal-backdrop"></div>
+						<div class="khm-sub-modal-dialog">
+							<button type="button" class="khm-sub-modal-close" aria-label="<?php esc_attr_e( 'Close', 'khm-membership' ); ?>">&times;</button>
+							<h2 id="khm-sub-modal-title" class="khm-sub-modal-title"><?php esc_html_e( 'Manage Connections', 'khm-membership' ); ?></h2>
+
+							<!-- Upgrade banner (shown when upgrade is available and portfolio not active) -->
+							<div class="khm-sub-upgrade-banner" hidden>
+								<div class="khm-sub-upgrade-banner-inner">
+									<strong><?php esc_html_e( 'Upgrade to Portfolio', 'khm-membership' ); ?></strong>
+									<span class="khm-sub-upgrade-desc"></span>
+									<span class="khm-sub-upgrade-credit-note"></span>
+									<span class="khm-sub-upgrade-net-price"></span>
+								</div>
+								<div class="khm-sub-upgrade-actions">
+									<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-sub-upgrade-btn">
+										<?php esc_html_e( 'Upgrade to Portfolio', 'khm-membership' ); ?>
+									</button>
+								</div>
+							</div>
+
+							<!-- Sites grid -->
+							<div class="khm-sub-sites-grid" role="list"></div>
+
+							<!-- Cart bar (shown when unconnected sites are selected) -->
+							<div class="khm-sub-cart-bar" hidden>
+								<div class="khm-sub-cart-summary">
+									<span class="khm-sub-cart-label"></span>
+									<span class="khm-sub-cart-price"></span>
+								</div>
+								<div class="khm-sub-cart-controls">
+									<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-sub-cart-confirm">
+										<?php esc_html_e( 'Checkout', 'khm-membership' ); ?>
+									</button>
+								</div>
+							</div>
+
+							<p class="khm-sub-modal-notice" role="status" aria-live="polite"></p>
+						</div>
+					</div>
+					<!-- /Connect Subscription Modal -->
 
 					<script>
 					(function(){
 						var sponsorId = <?php echo (int) ( $sponsor['id'] ?? 0 ); ?>;
-						var providersEndpoint = <?php echo wp_json_encode( trailingslashit( rest_url( 'khm/v1/connect' ) ) . 'providers/mine' ); ?>;
-						var nonce     = <?php echo wp_json_encode( wp_create_nonce( 'wp_rest' ) ); ?>;
-						var allowDemoFallback = /(localhost|\.local)$/i.test(window.location.hostname || '');
-						var panel     = document.getElementById('khm-qc-sub-panel-' + sponsorId);
+						var panel = document.getElementById('khm-qc-sub-panel-' + sponsorId);
 						if (!panel || !sponsorId) return;
 
-						var sitesWrap = panel.querySelector('.khm-qc-sub-sites');
-						var notice    = panel.querySelector('.khm-qc-sub-notice');
-						var connectBtn = panel.querySelector('.khm-qc-sub-connect-more');
+						var carouselWindow = panel.querySelector('.khm-qc-sub-carousel-window');
+						var track = panel.querySelector('.khm-qc-sub-carousel-track');
+						var pageLabel = panel.querySelector('.khm-qc-sub-carousel-pages');
+						var prevBtn = panel.querySelector('.khm-qc-sub-prev');
+						var nextBtn = panel.querySelector('.khm-qc-sub-next');
+						var notice = panel.querySelector('.khm-qc-sub-notice');
+						var cards = Array.prototype.slice.call(track.querySelectorAll('.khm-qc-sub-site-card'));
+						var currentPage = 0;
+						var visibleCount = 6;
+
+						function getVisibleCount(){
+							if (window.innerWidth <= 560) return 2;
+							if (window.innerWidth <= 860) return 3;
+							if (window.innerWidth <= 1180) return 4;
+							return 6;
+						}
 
 						function showNotice(msg, ok){
 							notice.textContent = msg;
@@ -1353,68 +1684,92 @@ class QuoteClubPortalShortcode {
 							setTimeout(function(){ notice.style.display = 'none'; }, 5000);
 						}
 
-						function normalizeSiteLabel(provider){
-							var url = provider && provider.website_url ? String(provider.website_url) : '';
-							if (url) {
-								try {
-									return new URL(url).hostname.replace(/^www\./,'');
-								} catch (e) {
-									return url.replace(/^https?:\/\//,'').replace(/^www\./,'').split('/')[0] || url;
-								}
-							}
-							return (provider && provider.name) ? String(provider.name) : <?php echo wp_json_encode( __( 'Unnamed site', 'khm-membership' ) ); ?>;
+						function updateNav(){
+							visibleCount = getVisibleCount();
+							var totalPages = Math.max(1, Math.ceil(cards.length / visibleCount));
+							if (currentPage > totalPages - 1) currentPage = totalPages - 1;
+
+							var card = track.querySelector('.khm-qc-sub-site-card');
+							var cardWidth = card ? (card.offsetWidth + 12) : 182;
+							var shift = currentPage * visibleCount * cardWidth;
+							track.style.transform = 'translateX(-' + shift + 'px)';
+
+							pageLabel.textContent = (currentPage + 1) + ' / ' + totalPages;
+							prevBtn.disabled = currentPage <= 0;
+							nextBtn.disabled = currentPage >= totalPages - 1;
 						}
 
-						function renderSites(providers){
-							var names = [];
-							(providers || []).forEach(function(provider){
-								names.push(normalizeSiteLabel(provider));
-							});
-
-							var seen = {};
-							var uniqueNames = names.filter(function(name){
-								var key = name.toLowerCase();
-								if (seen[key]) return false;
-								seen[key] = true;
-								return true;
-							}).sort();
-
-							if (!uniqueNames.length && allowDemoFallback) {
-								uniqueNames = [
-									'demo-finance-insights.local',
-									'demo-cyber-briefing.local',
-									'demo-growth-playbooks.local'
-								];
-
-
-							sitesWrap.innerHTML = uniqueNames.map(function(name){
-								return '<div class="khm-qc-sub-site">' + name.replace(/</g,'&lt;') + '</div>';
-							}).join('');
+						function goPrev(){
+							currentPage = Math.max(0, currentPage - 1);
+							updateNav();
 						}
 
-						function loadSites(){
-							sitesWrap.innerHTML = '<div class="khm-qc-sub-empty"><?php echo esc_js( __( 'Loading connected sites…', 'khm-membership' ) ); ?></div>';
-							fetch(providersEndpoint, { headers:{ 'X-WP-Nonce':nonce } })
-								.then(function(r){ return r.json(); })
-								.then(function(d){ renderSites(d.providers || []); })
-								.catch(function(){
-									renderSites([]);
-									if (!allowDemoFallback) {
-										sitesWrap.innerHTML = '<div class="khm-qc-sub-empty" style="color:#c5221f;"><?php echo esc_js( __( 'Unable to load connected sites right now.', 'khm-membership' ) ); ?></div>';
-									}
-								});
+						function goNext(){
+							var maxPage = Math.max(0, Math.ceil(cards.length / visibleCount) - 1);
+							currentPage = Math.min(maxPage, currentPage + 1);
+							updateNav();
 						}
 
-						connectBtn.addEventListener('click', function(){
-							var newBtn = document.querySelector('.khm-qc-connect-new');
-							if (newBtn) {
-								newBtn.click();
-								newBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-								showNotice(<?php echo wp_json_encode( __( 'Use the form below to connect another site.', 'khm-membership' ) ); ?>, true);
-							}
+						prevBtn.addEventListener('click', function(){
+							goPrev();
 						});
 
-						loadSites();
+						nextBtn.addEventListener('click', function(){
+							goNext();
+						});
+
+						if (carouselWindow) {
+							var wheelLocked = false;
+							var pointerStartX = 0;
+							var pointerStartY = 0;
+							var pointerActive = false;
+
+							carouselWindow.setAttribute('tabindex', '0');
+
+							carouselWindow.addEventListener('wheel', function(event){
+								var delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+								if (Math.abs(delta) < 16) return;
+								event.preventDefault();
+								if (wheelLocked) return;
+								wheelLocked = true;
+								if (delta > 0) goNext(); else goPrev();
+								setTimeout(function(){ wheelLocked = false; }, 220);
+							}, { passive: false });
+
+							carouselWindow.addEventListener('pointerdown', function(event){
+								pointerActive = true;
+								pointerStartX = event.clientX;
+								pointerStartY = event.clientY;
+							});
+
+							carouselWindow.addEventListener('pointerup', function(event){
+								if (!pointerActive) return;
+								pointerActive = false;
+								var dx = event.clientX - pointerStartX;
+								var dy = event.clientY - pointerStartY;
+								if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+								if (dx < 0) goNext(); else goPrev();
+							});
+
+							carouselWindow.addEventListener('pointercancel', function(){
+								pointerActive = false;
+							});
+
+							carouselWindow.addEventListener('keydown', function(event){
+								if (event.key === 'ArrowLeft') {
+									event.preventDefault();
+									goPrev();
+								}
+								if (event.key === 'ArrowRight') {
+									event.preventDefault();
+									goNext();
+								}
+							});
+						}
+
+						window.addEventListener('resize', updateNav);
+
+						updateNav();
 					})();
 					</script>
 
@@ -2004,6 +2359,71 @@ class QuoteClubPortalShortcode {
 						var allOpps = [];
 						var allProviders = [];
 
+						function bindLeadsInputControls() {
+							if (!grid || grid.dataset.navBound === '1') return;
+							grid.dataset.navBound = '1';
+							grid.setAttribute('tabindex', '0');
+
+							var wheelLocked = false;
+							var pointerStartX = 0;
+							var pointerStartY = 0;
+							var pointerActive = false;
+
+							function goPrev() {
+								if (currentPage <= 0) return;
+								renderPage(currentPage - 1);
+							}
+
+							function goNext() {
+								var maxPage = Math.max(0, Math.ceil(allOpps.length / PAGE_SIZE) - 1);
+								if (currentPage >= maxPage) return;
+								renderPage(currentPage + 1);
+							}
+
+							grid.addEventListener('wheel', function(event) {
+								if (!allOpps.length || allOpps.length <= PAGE_SIZE) return;
+								if (event.target && event.target.closest('input,select,textarea,button')) return;
+								var delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+								if (Math.abs(delta) < 16) return;
+								event.preventDefault();
+								if (wheelLocked) return;
+								wheelLocked = true;
+								if (delta > 0) goNext(); else goPrev();
+								setTimeout(function(){ wheelLocked = false; }, 220);
+							}, { passive: false });
+
+							grid.addEventListener('pointerdown', function(event) {
+								pointerActive = true;
+								pointerStartX = event.clientX;
+								pointerStartY = event.clientY;
+							});
+
+							grid.addEventListener('pointerup', function(event) {
+								if (!pointerActive || !allOpps.length || allOpps.length <= PAGE_SIZE) return;
+								pointerActive = false;
+								var dx = event.clientX - pointerStartX;
+								var dy = event.clientY - pointerStartY;
+								if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+								if (dx < 0) goNext(); else goPrev();
+							});
+
+							grid.addEventListener('pointercancel', function() {
+								pointerActive = false;
+							});
+
+							grid.addEventListener('keydown', function(event) {
+								if (!allOpps.length || allOpps.length <= PAGE_SIZE) return;
+								if (event.key === 'ArrowLeft') {
+									event.preventDefault();
+									goPrev();
+								}
+								if (event.key === 'ArrowRight') {
+									event.preventDefault();
+									goNext();
+								}
+							});
+						}
+
 						function renderPage(page) {
 							currentPage = page;
 							var start = page * PAGE_SIZE;
@@ -2118,6 +2538,99 @@ class QuoteClubPortalShortcode {
 								nav.innerHTML = '';
 							}
 
+							// ── Active match payment modal ──────────────────────────────────────
+							var khmMatchModalEl = document.getElementById('khm-match-payment-modal');
+							if (!khmMatchModalEl) {
+								khmMatchModalEl = document.createElement('div');
+								khmMatchModalEl.id = 'khm-match-payment-modal';
+								khmMatchModalEl.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);align-items:center;justify-content:center;';
+								khmMatchModalEl.innerHTML =
+									'<div style="background:#fff;border-radius:8px;padding:32px 28px;max-width:480px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.18);">' +
+										'<h3 style="margin:0 0 8px;font-size:1.2rem;" id="khm-match-modal-title"><?php echo esc_js( __( 'Complete payment to request introduction', 'khm-membership' ) ); ?></h3>' +
+										'<p style="margin:0 0 20px;color:#555;font-size:.9rem;" id="khm-match-modal-amount"></p>' +
+										'<div id="khm-match-payment-element" style="margin-bottom:20px;"></div>' +
+										'<div id="khm-match-payment-error" style="color:#c0392b;margin-bottom:12px;font-size:.85rem;display:none;"></div>' +
+										'<div style="display:flex;gap:12px;justify-content:flex-end;">' +
+											'<button type="button" id="khm-match-modal-cancel" style="background:none;border:1px solid #ccc;padding:8px 20px;border-radius:4px;cursor:pointer;"><?php echo esc_js( __( 'Cancel', 'khm-membership' ) ); ?></button>' +
+											'<button type="button" id="khm-match-modal-pay" style="background:#2271b1;color:#fff;border:none;padding:8px 20px;border-radius:4px;cursor:pointer;font-weight:600;"><?php echo esc_js( __( 'Pay & Request Introduction', 'khm-membership' ) ); ?></button>' +
+										'</div>' +
+									'</div>';
+								document.body.appendChild(khmMatchModalEl);
+							}
+
+							var khmMatchStripe = null, khmMatchElements = null, khmMatchPaymentEl = null;
+							var khmMatchCurrentState = {};
+
+							function khmMatchShowModal(oppId, providerId, engagedOption, amount, currency, clientSecret, paymentIntentId, pubKey) {
+								khmMatchCurrentState = { oppId: oppId, providerId: providerId, engagedOption: engagedOption, paymentIntentId: paymentIntentId };
+								var amountFmt = (amount / 100).toFixed(2);
+								var currSym   = (currency || 'gbp').toUpperCase() === 'GBP' ? '£' : (currency || '').toUpperCase() === 'USD' ? '$' : currency.toUpperCase();
+								document.getElementById('khm-match-modal-amount').textContent = currSym + amountFmt + ' — ' + <?php echo wp_json_encode( __( 'one-off match fee', 'khm-membership' ) ); ?>;
+								document.getElementById('khm-match-payment-error').style.display = 'none';
+								document.getElementById('khm-match-modal-pay').disabled = false;
+								document.getElementById('khm-match-modal-pay').textContent = <?php echo wp_json_encode( __( 'Pay & Request Introduction', 'khm-membership' ) ); ?>;
+								khmMatchModalEl.style.display = 'flex';
+
+								if (typeof Stripe === 'undefined') {
+									document.getElementById('khm-match-payment-error').textContent = <?php echo wp_json_encode( __( 'Payment system not available. Please refresh the page.', 'khm-membership' ) ); ?>;
+									document.getElementById('khm-match-payment-error').style.display = 'block';
+									return;
+								}
+
+								khmMatchStripe   = Stripe(pubKey);
+								khmMatchElements = khmMatchStripe.elements({ clientSecret: clientSecret, appearance: { theme: 'stripe' } });
+								khmMatchPaymentEl = khmMatchElements.create('payment');
+								document.getElementById('khm-match-payment-element').innerHTML = '';
+								khmMatchPaymentEl.mount('#khm-match-payment-element');
+							}
+
+							document.getElementById('khm-match-modal-cancel').addEventListener('click', function() {
+								khmMatchModalEl.style.display = 'none';
+								khmMatchElements = null;
+								khmMatchPaymentEl = null;
+							});
+
+							document.getElementById('khm-match-modal-pay').addEventListener('click', function() {
+								if (!khmMatchStripe || !khmMatchElements) return;
+								var payBtn = this;
+								payBtn.disabled = true;
+								payBtn.textContent = <?php echo wp_json_encode( __( 'Processing…', 'khm-membership' ) ); ?>;
+								document.getElementById('khm-match-payment-error').style.display = 'none';
+
+								khmMatchStripe.confirmPayment({ elements: khmMatchElements, redirect: 'if_required' }).then(function(result) {
+									if (result.error) {
+										document.getElementById('khm-match-payment-error').textContent = result.error.message;
+										document.getElementById('khm-match-payment-error').style.display = 'block';
+										payBtn.disabled = false;
+										payBtn.textContent = <?php echo wp_json_encode( __( 'Pay & Request Introduction', 'khm-membership' ) ); ?>;
+										return;
+									}
+									// Payment confirmed — call accept endpoint
+									var s = khmMatchCurrentState;
+									fetch('<?php echo esc_js( rest_url( 'khm/v1/connect/match/' ) ); ?>' + s.oppId + '/accept', {
+										method: 'POST',
+										headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
+										body: JSON.stringify({
+											provider_id: s.providerId,
+											engaged_option: s.engagedOption || null,
+											payment_intent_id: s.paymentIntentId
+										})
+									}).then(function(r){ return r.json(); }).then(function(d) {
+										khmMatchModalEl.style.display = 'none';
+										if (d.success) {
+											showNotice(<?php echo wp_json_encode( __( 'Payment confirmed — introduction requested. Your inbox will update shortly.', 'khm-membership' ) ); ?>, true);
+											loadLeads();
+										} else {
+											showNotice((d.message || <?php echo wp_json_encode( __( 'Request failed after payment. Please contact support.', 'khm-membership' ) ); ?>), false);
+										}
+									}).catch(function() {
+										khmMatchModalEl.style.display = 'none';
+										showNotice(<?php echo wp_json_encode( __( 'Network error after payment. Please contact support.', 'khm-membership' ) ); ?>, false);
+									});
+								});
+							});
+							// ── End match payment modal ──────────────────────────────────────────
+
 							// Bind request buttons
 							grid.querySelectorAll('.khm-qc-lead-accept-btn').forEach(function(btn) {
 								btn.addEventListener('click', function() {
@@ -2136,27 +2649,25 @@ class QuoteClubPortalShortcode {
 									var providerId = sel ? parseInt(sel.value, 10) : 0;
 									if (!providerId) { showNotice(<?php echo wp_json_encode( __( 'No provider mapping found for this RFP.', 'khm-membership' ) ); ?>, false); return; }
 									btn.disabled = true;
-									fetch(restBase + 'opportunities/mine/' + oppId + '/accept', {
+									// Step 1: Create PaymentIntent for this match
+									fetch('<?php echo esc_js( rest_url( 'khm/v1/connect/match/' ) ); ?>' + oppId + '/payment-intent', {
 										method: 'POST',
 										headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
-										body: JSON.stringify({
-											provider_id: providerId,
-											engaged_option: engagedOption || null
-										})
+										body: JSON.stringify({})
 									}).then(function(r){ return r.json(); }).then(function(d) {
-										if (d.success) {
-											showNotice(<?php echo wp_json_encode( __( 'Introduction requested — intro thread will open shortly.', 'khm-membership' ) ); ?>, true);
-											loadLeads();
+										btn.disabled = false;
+										if (d.success && d.client_secret) {
+											khmMatchShowModal(oppId, providerId, engagedOption, d.amount, d.currency, d.client_secret, d.payment_intent_id, d.publishable_key);
 										} else {
-											showNotice((d.message || <?php echo wp_json_encode( __( 'Request failed.', 'khm-membership' ) ); ?>), false);
-											btn.disabled = false;
+											showNotice((d.message || <?php echo wp_json_encode( __( 'Unable to initiate payment. Please try again.', 'khm-membership' ) ); ?>), false);
 										}
-									}).catch(function(){ showNotice(<?php echo wp_json_encode( __( 'Network error — please try again.', 'khm-membership' ) ); ?>, false); btn.disabled = false; });
+									}).catch(function(){ btn.disabled = false; showNotice(<?php echo wp_json_encode( __( 'Network error — please try again.', 'khm-membership' ) ); ?>, false); });
 								});
 							});
 						}
 
 						function renderCards(opps, providers) {
+							bindLeadsInputControls();
 							allOpps      = opps;
 							allProviders = providers;
 							currentPage  = 0;
@@ -2612,6 +3123,71 @@ class QuoteClubPortalShortcode {
 						var allRfps = [];
 						var allProviders = [];
 
+						function bindRfpInputControls() {
+							if (!grid || grid.dataset.navBound === '1') return;
+							grid.dataset.navBound = '1';
+							grid.setAttribute('tabindex', '0');
+
+							var wheelLocked = false;
+							var pointerStartX = 0;
+							var pointerStartY = 0;
+							var pointerActive = false;
+
+							function goPrev() {
+								if (currentPage <= 0) return;
+								renderPage(currentPage - 1);
+							}
+
+							function goNext() {
+								var maxPage = Math.max(0, Math.ceil(allRfps.length / PAGE_SIZE) - 1);
+								if (currentPage >= maxPage) return;
+								renderPage(currentPage + 1);
+							}
+
+							grid.addEventListener('wheel', function(event) {
+								if (!allRfps.length || allRfps.length <= PAGE_SIZE) return;
+								if (event.target && event.target.closest('input,select,textarea,button')) return;
+								var delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+								if (Math.abs(delta) < 16) return;
+								event.preventDefault();
+								if (wheelLocked) return;
+								wheelLocked = true;
+								if (delta > 0) goNext(); else goPrev();
+								setTimeout(function(){ wheelLocked = false; }, 220);
+							}, { passive: false });
+
+							grid.addEventListener('pointerdown', function(event) {
+								pointerActive = true;
+								pointerStartX = event.clientX;
+								pointerStartY = event.clientY;
+							});
+
+							grid.addEventListener('pointerup', function(event) {
+								if (!pointerActive || !allRfps.length || allRfps.length <= PAGE_SIZE) return;
+								pointerActive = false;
+								var dx = event.clientX - pointerStartX;
+								var dy = event.clientY - pointerStartY;
+								if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+								if (dx < 0) goNext(); else goPrev();
+							});
+
+							grid.addEventListener('pointercancel', function() {
+								pointerActive = false;
+							});
+
+							grid.addEventListener('keydown', function(event) {
+								if (!allRfps.length || allRfps.length <= PAGE_SIZE) return;
+								if (event.key === 'ArrowLeft') {
+									event.preventDefault();
+									goPrev();
+								}
+								if (event.key === 'ArrowRight') {
+									event.preventDefault();
+									goNext();
+								}
+							});
+						}
+
 						function renderPage(page) {
 							currentPage = page;
 							var start = page * PAGE_SIZE;
@@ -2969,6 +3545,7 @@ class QuoteClubPortalShortcode {
 						}
 
 						function renderRfpCards(rfps, providers) {
+							bindRfpInputControls();
 							allRfps      = rfps;
 							allProviders = providers;
 							currentPage  = 0;
@@ -3011,6 +3588,9 @@ class QuoteClubPortalShortcode {
 							.khm-qc-connect-pill-engaged{background:#fff4e5;color:#9a3412;font-weight:600;}
 							.khm-qc-connect-pill-price{background:#d1fae5;color:#065f46;font-weight:600;}
 							.khm-qc-connect-pill{font-size:11px;padding:4px 8px;border-radius:12px;background:#e5e7eb;color:#374151;display:inline-block;margin-right:4px;margin-bottom:4px;}
+							.khm-qc-connect-inbox-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;height:700px;}
+							.khm-qc-connect-thread-list{overflow-y:auto;border-right:1px solid #e5e7eb;padding-right:8px;}
+							.khm-qc-connect-thread-detail{overflow-y:auto;}
 						</style>
 						<div class="khm-qc-connect-panel-head">
 							<div>

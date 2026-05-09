@@ -133,23 +133,122 @@ class ConnectOpportunityRepository {
 		return false !== $updated;
 	}
 
-	public function mark_sponsor_acceptance( int $opportunity_id, int $sponsor_id, int $provider_id ): bool {
+	/**
+	 * Create an engaged opportunity (direct connection or RFP request)
+	 *
+	 * @param array<string,mixed> $data
+	 * @return int Opportunity ID or 0 on failure
+	 */
+	public function create_engaged_opportunity( array $data ): int {
+		$actor_email = sanitize_email( (string) ( $data['actor_email'] ?? '' ) );
+		if ( '' === $actor_email ) {
+			return 0;
+		}
+
+		$request_type = sanitize_key( (string) ( $data['request_type'] ?? 'direct_connection' ) );
+		if ( ! in_array( $request_type, array( 'direct_connection', 'rfp_request' ), true ) ) {
+			return 0;
+		}
+
+		$domain = '';
+		if ( false !== strpos( $actor_email, '@' ) ) {
+			$domain = strtolower( (string) substr( $actor_email, (int) strpos( $actor_email, '@' ) + 1 ) );
+		}
+
+		$date  = gmdate( 'Y-m-d' );
+		$tier  = 'engaged';
+		$pricing = ConnectTiering::pricing_snapshot( $tier );
+
+		$dedupe_key = hash_hmac( 'sha256', strtolower( $actor_email ) . '|' . $tier . '|' . $date . '|' . $request_type, wp_salt( 'auth' ) );
+
+		// Build rfp_metadata if provided
+		$rfp_metadata = null;
+		if ( 'rfp_request' === $request_type && isset( $data['rfp_metadata'] ) && is_array( $data['rfp_metadata'] ) ) {
+			$rfp_metadata = wp_json_encode( $data['rfp_metadata'] );
+		}
+
+		global $wpdb;
+		$table = ConnectWorkflowMigration::opportunities_table_name();
+
+		$insert_data = array(
+			'blog_id'             => $this->current_blog_id(),
+			'actor_email_hash'    => $this->hash_email( $actor_email ),
+			'actor_email_domain'  => $domain,
+			'company_domain'      => $this->normalize_nullable_string( (string) ( $data['company_domain'] ?? $domain ) ),
+			'sponsor_id'          => null,
+			'provider_id'         => null,
+			'internal_stage'      => 'decision',
+			'commercial_tier'     => $tier,
+			'person_score'        => 'rfp_request' === $request_type ? 0.0 : (float) ( $data['person_score'] ?? 0.98 ),
+			'opportunity_status'  => 'detected',
+			'request_type'        => $request_type,
+			'rfp_metadata'        => $rfp_metadata,
+			'pricing_model'       => $pricing['pricing_model'],
+			'unit_price_cents'    => (int) $pricing['unit_price_cents'],
+			'commission_eligible' => (int) $pricing['commission_eligible'],
+			'dedupe_key'          => $dedupe_key,
+			'source'              => sanitize_key( (string) ( $data['source'] ?? 'direct_request' ) ),
+		);
+
+		$formats = array( '%d', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s' );
+
+		$inserted = $wpdb->insert( $table, $insert_data, $formats );
+
+		if ( false === $inserted ) {
+			return 0;
+		}
+
+		$opportunity_id = (int) $wpdb->insert_id;
+
+		$this->log_consent_event(
+			$opportunity_id,
+			array(
+				'event_key'    => 'engaged_opportunity_created',
+				'event_source' => $request_type,
+				'actor_role'   => 'subscriber',
+				'payload'      => array(
+					'request_type' => $request_type,
+					'person_score' => (float) ( $data['person_score'] ?? 0.98 ),
+				),
+			)
+		);
+
+		return $opportunity_id;
+	}
+
+	public function mark_sponsor_acceptance( int $opportunity_id, int $sponsor_id, int $provider_id, ?string $engaged_option = null ): bool {
 		if ( $opportunity_id <= 0 || $sponsor_id <= 0 || $provider_id <= 0 ) {
 			return false;
 		}
 
+		// Validate engaged_option if provided
+		if ( $engaged_option && ! in_array( $engaged_option, array( 'option_1', 'option_2' ), true ) ) {
+			$engaged_option = null;
+		}
+
 		global $wpdb;
+		$update_data = array(
+			'sponsor_id'           => $sponsor_id,
+			'provider_id'          => $provider_id,
+			'opportunity_status'   => 'sponsor_accepted',
+			'sponsor_accepted_at'  => current_time( 'mysql' ),
+			'updated_at'           => current_time( 'mysql' ),
+		);
+
+		if ( $engaged_option ) {
+			$update_data['engaged_option'] = $engaged_option;
+		}
+
+		$formats = array( '%d', '%d', '%s', '%s', '%s' );
+		if ( $engaged_option ) {
+			$formats[] = '%s';
+		}
+
 		$updated = $wpdb->update(
 			ConnectWorkflowMigration::opportunities_table_name(),
-			array(
-				'sponsor_id'           => $sponsor_id,
-				'provider_id'          => $provider_id,
-				'opportunity_status'   => 'sponsor_accepted',
-				'sponsor_accepted_at'  => current_time( 'mysql' ),
-				'updated_at'           => current_time( 'mysql' ),
-			),
+			$update_data,
 			array( 'id' => $opportunity_id ),
-			array( '%d', '%d', '%s', '%s', '%s' ),
+			$formats,
 			array( '%d' )
 		);
 
@@ -164,8 +263,9 @@ class ConnectOpportunityRepository {
 				'event_source' => 'sponsor_portal',
 				'actor_role'   => 'sponsor',
 				'payload'      => array(
-					'sponsor_id'  => $sponsor_id,
-					'provider_id' => $provider_id,
+					'sponsor_id'      => $sponsor_id,
+					'provider_id'     => $provider_id,
+					'engaged_option'  => $engaged_option,
 				),
 			)
 		);
@@ -321,6 +421,11 @@ class ConnectOpportunityRepository {
 	}
 
 	private function hydrate_opportunity( array $row ): array {
+		$rfp_meta = $row['rfp_metadata'] ?? null;
+		if ( is_string( $rfp_meta ) ) {
+			$rfp_meta = json_decode( $rfp_meta, true );
+		}
+
 		return array(
 			'id'                 => (int) ( $row['id'] ?? 0 ),
 			'blog_id'            => (int) ( $row['blog_id'] ?? 1 ),
@@ -333,6 +438,9 @@ class ConnectOpportunityRepository {
 			'commercial_tier'    => (string) ( $row['commercial_tier'] ?? '' ),
 			'person_score'       => (float) ( $row['person_score'] ?? 0 ),
 			'opportunity_status' => (string) ( $row['opportunity_status'] ?? 'detected' ),
+			'request_type'       => (string) ( $row['request_type'] ?? 'direct_connection' ),
+			'rfp_metadata'       => is_array( $rfp_meta ) ? $rfp_meta : null,
+			'engaged_option'     => $row['engaged_option'] ? (string) $row['engaged_option'] : null,
 			'pricing_model'      => (string) ( $row['pricing_model'] ?? 'cpl' ),
 			'unit_price_cents'   => (int) ( $row['unit_price_cents'] ?? 0 ),
 			'commission_eligible'=> (int) ( $row['commission_eligible'] ?? 0 ),

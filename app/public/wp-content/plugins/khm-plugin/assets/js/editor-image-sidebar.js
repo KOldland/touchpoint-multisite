@@ -1,4 +1,4 @@
-/**
+https://appcenter.intuit.com/connect/oauth2?client_id=ABYksPaLcXNSMLcwjmIKchevkqWF6mBqwOHzhI3Yd04akPp2JP&scope=com.intuit.quickbooks.accounting&redirect_uri=http%3A%2F%2Ftouchpoint-multisite.local%2Fwp-json%2Fkhm%2Fv1%2Fqbo%2Foauth%2Fcallback&response_type=code&state=GnkBcg6IIbHj6HK6H9aiWdY5/**
  * KHM Image Generator — Gutenberg Plugin Sidebar
  *
  * Provides "Recommend Image Prompt" and "Generate Image" actions

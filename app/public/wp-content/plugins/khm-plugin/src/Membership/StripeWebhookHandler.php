@@ -300,6 +300,13 @@ class StripeWebhookHandler {
             $consent_given ? 1 : 0
         );
 
+        // Route connect_subscription purchases before the generic membership path.
+        $purchase_type_check = isset( $metadata['purchase_type'] ) ? sanitize_key( (string) $metadata['purchase_type'] ) : '';
+        if ( 'connect_subscription' === $purchase_type_check ) {
+            $this->handle_connect_subscription_checkout_completed( $session, $user_id, $metadata, $operation_key, $session_id );
+            return;
+        }
+
         if ( 'subscription' === $mode ) {
             if ( ! $plan_id ) {
                 throw new \RuntimeException( 'checkout.session.completed missing membership tier metadata' );
@@ -417,6 +424,13 @@ class StripeWebhookHandler {
             return;
         }
 
+        // Route qc_bundle purchases through the dedicated bundle service.
+        $purchase_type = isset( $metadata['purchase_type'] ) ? sanitize_key( (string) $metadata['purchase_type'] ) : '';
+        if ( 'qc_bundle' === $purchase_type ) {
+            $this->handle_qc_bundle_checkout( $session, $user_id, $metadata, $operation_key );
+            return;
+        }
+
         $credits_amount = $this->resolve_checkout_credits_amount( $metadata );
         if ( $credits_amount <= 0 ) {
             throw new \RuntimeException( 'checkout.session.completed payment mode missing credits metadata' );
@@ -461,6 +475,10 @@ class StripeWebhookHandler {
             isset( $invoice->customer ) ? (string) $invoice->customer : ''
         );
         if ( !$user_id ) {
+            // Before giving up, try the Connect subscription renewal path.
+            if ( '' !== $subscription_id && $this->try_renew_connect_subscription( $subscription_id, $invoice, $operation_key, $event_id, $event_created ) ) {
+                return;
+            }
             throw new \RuntimeException( 'invoice.paid unable to resolve user' );
         }
 
@@ -675,6 +693,9 @@ class StripeWebhookHandler {
     }
 
     private function handle_subscription_deleted($subscription) {
+        // Handle Connect subscriptions regardless of user_membership row presence.
+        $this->try_cancel_connect_subscription( $subscription );
+
         $user_id = $this->get_user_id_by_stripe_customer($subscription->customer);
         if ( !$user_id ) {
             return;
@@ -692,6 +713,136 @@ class StripeWebhookHandler {
             ],
             ['user_id' => $user_id]
         );
+    }
+
+    /**
+     * Attempt to renew a Connect subscription via invoice.paid.
+     *
+     * Retrieves the Stripe Subscription to inspect its metadata. If it is a
+     * Connect subscription (khm_type=connect_subscription) the per-site
+     * expires_at values are extended to the invoice's period_end and the
+     * operation is marked succeeded.
+     *
+     * @return bool True if handled as a Connect renewal (caller should return), false otherwise.
+     */
+    private function try_renew_connect_subscription( string $subscription_id, $invoice, string $operation_key, string $event_id, int $event_created ): bool {
+        if ( ! function_exists( 'khm_get_stripe_secret' ) ) {
+            return false;
+        }
+        $secret = trim( (string) ( khm_get_stripe_secret( 'KH_STRIPE_SECRET_KEY' ) ?? '' ) );
+        if ( '' === $secret ) {
+            return false;
+        }
+
+        try {
+            \Stripe\Stripe::setApiKey( $secret );
+            $subscription = \Stripe\Subscription::retrieve( $subscription_id );
+        } catch ( \Throwable $e ) {
+            error_log( '[KHM Connect] Failed to retrieve subscription for renewal check: ' . $e->getMessage() );
+            return false;
+        }
+
+        $meta = isset( $subscription->metadata ) ? (array) $subscription->metadata : [];
+        if ( ( $meta['khm_type'] ?? '' ) !== 'connect_subscription' ) {
+            return false;
+        }
+
+        $user_id  = isset( $meta['user_id'] ) ? (int) $meta['user_id'] : 0;
+        $sites    = isset( $meta['sites'] ) ? array_filter( array_map( 'sanitize_key', explode( ',', (string) $meta['sites'] ) ) ) : [];
+        $scope    = isset( $meta['scope'] ) ? sanitize_key( (string) $meta['scope'] ) : 'site';
+
+        if ( ! $user_id || empty( $sites ) ) {
+            error_log( '[KHM Connect] invoice.paid for Connect sub ' . $subscription_id . ' missing user_id or sites in metadata.' );
+            return false;
+        }
+
+        // Use invoice period_end as the new expiry date.
+        $period_end = isset( $invoice->lines->data[0]->period->end )
+            ? (int) $invoice->lines->data[0]->period->end
+            : ( isset( $invoice->period_end ) ? (int) $invoice->period_end : 0 );
+
+        if ( $period_end <= 0 ) {
+            error_log( '[KHM Connect] invoice.paid for Connect sub ' . $subscription_id . ' has no period_end — falling back to +1 year.' );
+            $period_end = strtotime( '+1 year' );
+        }
+
+        $new_expires = gmdate( 'Y-m-d H:i:s', $period_end );
+        $now         = current_time( 'mysql', true );
+
+        $site_subs = \KHM\Connect\ConnectSubscriptionEndpoint::get_site_subs( $user_id );
+        foreach ( $sites as $slug ) {
+            $existing            = $site_subs[ $slug ] ?? [];
+            $site_subs[ $slug ]  = array_merge( $existing, [
+                'status'                 => 'active',
+                'expires_at'             => $new_expires,
+                'last_renewed_at'        => $now,
+                'stripe_subscription_id' => $subscription_id,
+            ] );
+        }
+        update_user_meta( $user_id, \KHM\Connect\ConnectSubscriptionEndpoint::META_KEY, $site_subs );
+
+        do_action( 'khm_connect_site_subscriptions_renewed', $user_id, $sites, $scope, $new_expires );
+
+        $this->emit_telemetry( 'connect.subscription.renewed', [
+            'user_id'         => $user_id,
+            'scope'           => $scope,
+            'subscription_id' => $subscription_id,
+            'new_expires'     => $new_expires,
+        ] );
+        $this->audit_handler(
+            'invoice.paid',
+            $operation_key,
+            isset( $invoice->id ) ? (string) $invoice->id : '',
+            $user_id,
+            'success',
+            'Connect subscription renewed.',
+            [ 'scope' => $scope, 'sites' => implode( ',', $sites ), 'new_expires' => $new_expires ]
+        );
+        if ( '' !== $subscription_id ) {
+            $this->update_subscription_event_cursor( $subscription_id, $event_created );
+        }
+        $this->mark_operation_succeeded( $operation_key );
+
+        return true;
+    }
+
+    /**
+     * Cancel Connect per-site subscriptions when Stripe fires customer.subscription.deleted.
+     *
+     * Safe to call for any subscription — exits early if not a Connect subscription.
+     */
+    private function try_cancel_connect_subscription( $subscription ): void {
+        $meta = isset( $subscription->metadata ) ? (array) $subscription->metadata : [];
+        if ( ( $meta['khm_type'] ?? '' ) !== 'connect_subscription' ) {
+            return;
+        }
+
+        $user_id = isset( $meta['user_id'] ) ? (int) $meta['user_id'] : 0;
+        $sites   = isset( $meta['sites'] ) ? array_filter( array_map( 'sanitize_key', explode( ',', (string) $meta['sites'] ) ) ) : [];
+
+        if ( ! $user_id || empty( $sites ) ) {
+            error_log( '[KHM Connect] customer.subscription.deleted for Connect sub missing user_id or sites in metadata.' );
+            return;
+        }
+
+        $now       = current_time( 'mysql', true );
+        $site_subs = \KHM\Connect\ConnectSubscriptionEndpoint::get_site_subs( $user_id );
+
+        foreach ( $sites as $slug ) {
+            $existing           = $site_subs[ $slug ] ?? [];
+            $site_subs[ $slug ] = array_merge( $existing, [
+                'status'       => 'cancelled',
+                'cancelled_at' => $now,
+            ] );
+        }
+        update_user_meta( $user_id, \KHM\Connect\ConnectSubscriptionEndpoint::META_KEY, $site_subs );
+
+        do_action( 'khm_connect_site_subscriptions_cancelled', $user_id, $sites );
+
+        $this->emit_telemetry( 'connect.subscription.cancelled_by_stripe', [
+            'user_id' => $user_id,
+            'sites'   => implode( ',', $sites ),
+        ] );
     }
 
     private function handle_charge_refunded( $charge, string $event_id ): void {
@@ -1331,6 +1482,104 @@ class StripeWebhookHandler {
 
         $normalized = strtolower( trim( (string) $value ) );
         return in_array( $normalized, [ '1', 'true', 'yes', 'on' ], true );
+    }
+
+    private function handle_connect_subscription_checkout_completed( $session, int $user_id, array $metadata, string $operation_key, string $session_id ): void {
+        $tier  = isset( $metadata['tier'] ) ? sanitize_key( (string) $metadata['tier'] ) : '';
+        $scope = isset( $metadata['scope'] ) ? sanitize_key( (string) $metadata['scope'] ) : 'site';
+
+        $stripe_subscription_id = isset( $session->subscription ) ? (string) $session->subscription : '';
+        $stripe_customer_id     = isset( $session->customer ) ? (string) $session->customer : '';
+        $now                    = current_time( 'mysql', true );
+
+        // If metadata contains a `sites` list (from the new cart endpoint), activate per-site.
+        $sites_csv = isset( $metadata['sites'] ) ? sanitize_text_field( (string) $metadata['sites'] ) : '';
+        if ( $sites_csv ) {
+            $sites = array_filter( array_map( 'sanitize_key', explode( ',', $sites_csv ) ) );
+            if ( 'portfolio' === $scope ) {
+                \KHM\Connect\ConnectSubscriptionEndpoint::activate_portfolio_subscription(
+                    $user_id, $sites, $stripe_subscription_id, $session_id
+                );
+            } else {
+                \KHM\Connect\ConnectSubscriptionEndpoint::activate_site_subscriptions(
+                    $user_id, $sites, $scope, $stripe_subscription_id, $session_id
+                );
+            }
+        }
+
+        // Also maintain legacy khm_connect_subscription meta (portfolio or single sub path).
+        $existing = get_user_meta( $user_id, 'khm_connect_subscription', true );
+        $existing = is_array( $existing ) ? $existing : [];
+
+        $sub = array_merge( $existing, [
+            'scope'                  => $scope,
+            'status'                 => 'active',
+            'stripe_session_id'      => $session_id,
+            'stripe_subscription_id' => $stripe_subscription_id,
+            'stripe_customer_id'     => $stripe_customer_id,
+            'activated_at'           => $now,
+        ] );
+        if ( $tier ) {
+            $sub['tier'] = $tier;
+        }
+
+        update_user_meta( $user_id, 'khm_connect_subscription', $sub );
+
+        $this->emit_telemetry( 'connect.subscription.activated', [
+            'user_id' => $user_id,
+            'tier'    => $tier,
+            'scope'   => $scope,
+            'reference' => $session_id,
+        ] );
+        $this->audit_handler(
+            'checkout.session.completed',
+            $operation_key,
+            $session_id,
+            $user_id,
+            'success',
+            'Connect site connection subscription activated.',
+            [ 'tier' => $tier, 'scope' => $scope, 'purchase_type' => 'connect_subscription' ]
+        );
+        $this->mark_operation_succeeded( $operation_key );
+    }
+
+    private function handle_qc_bundle_checkout( $session, int $user_id, array $metadata, string $operation_key ): void {
+        $session_id = isset( $session->id ) ? (string) $session->id : '';
+        if ( ! class_exists( '\KHM\Services\CreditService' )
+            || ! class_exists( '\KHM\Services\MembershipRepository' )
+            || ! class_exists( '\KHM\Services\LevelRepository' )
+            || ! class_exists( '\KHM\Services\QuoteClubCreditBundleService' )
+        ) {
+            throw new \RuntimeException( 'qc_bundle fulfil: required service classes unavailable' );
+        }
+
+        $credit_service = new \KHM\Services\CreditService(
+            new \KHM\Services\MembershipRepository(),
+            new \KHM\Services\LevelRepository()
+        );
+        $bundle_service = new \KHM\Services\QuoteClubCreditBundleService( $credit_service );
+        $fulfilled      = $bundle_service->fulfil_purchase( $session_id );
+
+        if ( ! $fulfilled ) {
+            throw new \RuntimeException( 'qc_bundle fulfil: fulfil_purchase returned false for session ' . $session_id );
+        }
+
+        $bundle_id = isset( $metadata['bundle_id'] ) ? absint( $metadata['bundle_id'] ) : 0;
+        $this->emit_telemetry( 'membership.credits.bundle_purchased', [
+            'user_id'   => $user_id,
+            'bundle_id' => $bundle_id,
+            'reference' => $session_id,
+        ] );
+        $this->audit_handler(
+            'checkout.session.completed',
+            $operation_key,
+            $session_id,
+            $user_id,
+            'success',
+            'QC credit bundle fulfilled.',
+            [ 'bundle_id' => $bundle_id, 'purchase_type' => 'qc_bundle' ]
+        );
+        $this->mark_operation_succeeded( $operation_key );
     }
 
     private function resolve_checkout_credits_amount( array $metadata ): int {

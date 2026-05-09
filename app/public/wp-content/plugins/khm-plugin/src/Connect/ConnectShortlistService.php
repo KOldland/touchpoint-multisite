@@ -51,6 +51,8 @@ class ConnectShortlistService {
 		$score += $this->score_budget( $criteria['budget'], $rules, $reasons );
 		$score += $this->score_typed_budget( $criteria['budget'], $provider, $reasons );
 		$score += $this->score_keyword_fit( $criteria['keywords'], $rules['keywords'] ?? array(), $reasons );
+		$score += $this->score_term_set( $criteria['sector'], $this->merge_term_sources( $rules['industries'] ?? array(), $provider['industries'] ?? array() ), 10, 'Sector fit', $reasons );
+		$score += $this->score_integration_fit( $criteria['integrations'], $provider['integrations'] ?? array(), $reasons );
 
 		if ( '' !== $title_context ) {
 			$title_weights = is_array( $rules['title_weights'] ?? null ) ? $rules['title_weights'] : array();
@@ -75,6 +77,8 @@ class ConnectShortlistService {
 			'deployment'    => $this->normalize_list( $criteria['deployment'] ?? array() ),
 			'keywords'      => $this->normalize_keywords( $criteria['keywords'] ?? array() ),
 			'budget'        => isset( $criteria['budget'] ) ? (float) $criteria['budget'] : 0.0,
+			'sector'        => $this->normalize_list( $criteria['sector'] ?? array() ),
+			'integrations'  => $this->normalize_list( $criteria['integrations'] ?? array() ),
 		);
 	}
 
@@ -223,20 +227,26 @@ class ConnectShortlistService {
 			return array();
 		}
 
-		$range_max = $max > 0 ? $max : max( $min, 1000000 );
+		$range_max = $max > 0 ? $max : 9999999;
 		$buckets   = array();
 
-		if ( $min <= 199 && $range_max >= 1 ) {
-			$buckets[] = 'smb';
-		}
-		if ( $min <= 999 && $range_max >= 200 ) {
-			$buckets[] = 'mid-market';
-		}
-		if ( $range_max >= 1000 ) {
-			$buckets[] = 'enterprise';
+		$bands = array(
+			'1-50'      => array( 1, 50 ),
+			'51-250'    => array( 51, 250 ),
+			'251-500'   => array( 251, 500 ),
+			'501-1000'  => array( 501, 1000 ),
+			'1001-2500' => array( 1001, 2500 ),
+			'2501-5000' => array( 2501, 5000 ),
+			'5000+'     => array( 5001, 9999999 ),
+		);
+
+		foreach ( $bands as $label => $range ) {
+			if ( $min <= $range[1] && $range_max >= $range[0] ) {
+				$buckets[] = $label;
+			}
 		}
 
-		return array_values( array_unique( $buckets ) );
+		return $buckets;
 	}
 
 	private function score_keyword_fit( array $keywords, $available, array &$reasons ): float {
@@ -253,6 +263,22 @@ class ConnectShortlistService {
 		$reasons[] = sprintf( 'Keyword overlap: %s', implode( ', ', $matches ) );
 
 		return min( 10.0, count( $matches ) * 5.0 );
+	}
+
+	private function score_integration_fit( array $wanted, $available, array &$reasons ): float {
+		$available = $this->normalize_list( $available );
+		if ( empty( $wanted ) || empty( $available ) ) {
+			return 0.0;
+		}
+
+		$matches = array_intersect( $wanted, $available );
+		if ( empty( $matches ) ) {
+			return 0.0;
+		}
+
+		$reasons[] = sprintf( 'Integration overlap: %s', implode( ', ', $matches ) );
+
+		return min( 5.0, count( $matches ) * 2.5 );
 	}
 
 	private function build_comparison_summary( array $provider ): array {

@@ -3,6 +3,7 @@
 namespace KHM\Connect;
 
 use KHM\Services\SponsorService;
+use KHM\QuickBooks\QBOService;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -77,6 +78,18 @@ class ConnectSponsorProviderEndpoint {
 
 		register_rest_route(
 			'khm/v1',
+			'/connect/subscription/checkout',
+			array(
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( $this, 'create_subscription_checkout' ),
+					'permission_callback' => array( $this, 'check_permission' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			'khm/v1',
 			'/connect/providers/mine/(?P<id>\d+)',
 			array(
 				array(
@@ -110,6 +123,16 @@ class ConnectSponsorProviderEndpoint {
 
 		if ( is_wp_error( $sponsor_id ) ) {
 			return $sponsor_id;
+		}
+
+		if ( 'network' === $request->get_param( 'scope' ) ) {
+			$providers = $this->providers->list_sites_for_sponsor( (int) $sponsor_id );
+			return rest_ensure_response(
+				array(
+					'success'   => true,
+					'providers' => array_values( array_map( array( $this, 'format_provider' ), $providers ) ),
+				)
+			);
 		}
 
 		$providers = $this->providers->list_for_sponsor( (int) $sponsor_id );
@@ -326,18 +349,75 @@ class ConnectSponsorProviderEndpoint {
 		$existing = is_array( $existing ) ? $existing : array();
 
 		$now = current_time( 'mysql', true );
+
+		$user_id      = get_current_user_id();
+		$sponsor      = SponsorService::get_user_sponsor( $user_id );
+		$sponsor_name = is_array( $sponsor ) ? ( (string) ( $sponsor['name'] ?? '' ) ) : '';
+		$user         = get_userdata( $user_id );
+		$user_email   = $user ? $user->user_email : '';
+
+		// ── Attempt QuickBooks invoice creation ───────────────────────────────
+		$qbo_invoice_id  = null;
+		$qbo_invoice_url = null;
+		$sub_status      = 'pending';
+
+		try {
+			$qbo = new QBOService();
+			if ( $qbo->is_connected() ) {
+				// Resolve price for description.
+				$tier_config  = ConnectTiering::get_config();
+				$tier_data    = $tier_config[ $tier ] ?? [];
+				$unit_pence   = (int) ( $tier_data['unit_price_cents'] ?? 0 );
+				$amount_gbp   = round( $unit_pence / 100, 2 );
+				$currency     = strtoupper( (string) get_option( 'khm_connect_match_currency', 'gbp' ) );
+				$description  = sprintf( 'Connect %s subscription (%s scope)', ucfirst( $tier ), $scope );
+
+				$qb_customer_id = $qbo->find_or_create_customer(
+					$user_email,
+					$sponsor_name ?: $user_email
+				);
+
+				$invoice = $qbo->create_invoice(
+					$qb_customer_id,
+					$description,
+					$amount_gbp,
+					$currency,
+					[
+						'user_id'    => $user_id,
+						'tier'       => $tier,
+						'scope'      => $scope,
+						'source'     => 'connect_subscription',
+					]
+				);
+
+				$qbo_invoice_id  = $invoice['id'];
+				$qbo_invoice_url = $invoice['deep_link'];
+				$sub_status      = 'pending_invoice';
+			}
+		} catch ( \Throwable $e ) {
+			// Non-fatal — fall back to admin-email path.
+			error_log( '[KHM QBO] create_subscription invoice error: ' . $e->getMessage() );
+		}
+
 		$sub = array_merge( $existing, array(
 			'tier'         => $tier,
 			'scope'        => $scope,
-			'status'       => 'pending',
+			'status'       => $sub_status,
 			'requested_at' => $now,
 		) );
 
-		update_user_meta( get_current_user_id(), 'khm_connect_subscription', $sub );
+		if ( $qbo_invoice_id ) {
+			$sub['qbo_invoice_id']  = $qbo_invoice_id;
+			$sub['qbo_invoice_url'] = $qbo_invoice_url;
+		}
 
-		// Notify admin.
-		$sponsor = SponsorService::get_user_sponsor( get_current_user_id() );
-		$sponsor_name = is_array( $sponsor ) ? ( (string) ( $sponsor['name'] ?? '' ) ) : '';
+		update_user_meta( $user_id, 'khm_connect_subscription', $sub );
+
+		// ── Notify admin (always) ─────────────────────────────────────────────
+		$invoice_line = $qbo_invoice_url
+			? sprintf( "\n\nQuickBooks Invoice: %s", $qbo_invoice_url )
+			: "\n\n(No QB invoice — please activate manually.)";
+
 		wp_mail(
 			get_option( 'admin_email' ),
 			sprintf(
@@ -346,20 +426,153 @@ class ConnectSponsorProviderEndpoint {
 				$sponsor_name
 			),
 			sprintf(
-				/* translators: 1: sponsor name, 2: tier, 3: scope */
-				__( 'Sponsor "%1$s" has requested a Connect subscription.\n\nTier: %2$s\nScope: %3$s\nRequested at: %4$s\n\nPlease activate in the admin panel.', 'khm-membership' ),
+				/* translators: 1: sponsor name, 2: tier, 3: scope, 4: date, 5: invoice line */
+				__( 'Sponsor "%1$s" has requested a Connect subscription.\n\nTier: %2$s\nScope: %3$s\nRequested at: %4$s%5$s', 'khm-membership' ),
 				$sponsor_name,
 				$tier,
 				$scope,
-				$now
+				$now,
+				$invoice_line
 			)
 		);
+
+		$message = $qbo_invoice_id
+			? __( 'A QuickBooks invoice has been sent to your email. Your subscription will activate once payment is received.', 'khm-membership' )
+			: __( 'Your Connect subscription request has been received. We will activate it within 1 business day.', 'khm-membership' );
 
 		return rest_ensure_response( array(
 			'success'      => true,
 			'subscription' => $sub,
-			'message'      => __( 'Your Connect subscription request has been received. We will activate it within 1 business day.', 'khm-membership' ),
+			'message'      => $message,
 		) );
+	}
+
+	/**
+	 * Create a Stripe Checkout Session for an annual site connection membership fee.
+	 *
+	 * POST /khm/v1/connect/subscription/checkout
+	 * Body: { tier: string, scope: 'site'|'portfolio' }
+	 *
+	 * Returns { success: true, checkout_url: string } on success.
+	 * Price IDs are configured via the khm_connect_subscription_price_ids option:
+	 *   { 'premium_site' => 'price_xxx', 'premium_portfolio' => 'price_xxx', ... }
+	 */
+	public function create_subscription_checkout( WP_REST_Request $request ): WP_REST_Response {
+		$sponsor_id = $this->resolve_sponsor_id();
+		if ( is_wp_error( $sponsor_id ) ) {
+			return rest_ensure_response( [ 'success' => false, 'message' => __( 'Sponsor account required.', 'khm-membership' ) ] );
+		}
+
+		$params = $request->get_json_params();
+		$params = is_array( $params ) ? $params : [];
+
+		$tier  = sanitize_key( (string) ( $params['tier']  ?? '' ) );
+		$scope = sanitize_key( (string) ( $params['scope'] ?? 'site' ) );
+
+		if ( ! in_array( $tier, ConnectTiering::TIERS, true ) ) {
+			return rest_ensure_response( [ 'success' => false, 'message' => __( 'Invalid tier.', 'khm-membership' ) ] );
+		}
+		if ( ! in_array( $scope, [ 'site', 'portfolio' ], true ) ) {
+			$scope = 'site';
+		}
+
+		// Resolve the Stripe annual subscription price ID.
+		$price_map = get_option( 'khm_connect_subscription_price_ids', [] );
+		$price_key = $tier . '_' . $scope;
+		$price_id  = is_array( $price_map ) ? ( (string) ( $price_map[ $price_key ] ?? '' ) ) : '';
+
+		if ( empty( $price_id ) ) {
+			return rest_ensure_response( [
+				'success' => false,
+				'code'    => 'no_price_configured',
+				'message' => __( 'Stripe price not yet configured for this plan. Please contact support.', 'khm-membership' ),
+			] );
+		}
+
+		$stripe_secret = function_exists( 'khm_get_stripe_secret' )
+			? (string) ( khm_get_stripe_secret( 'KH_STRIPE_SECRET_KEY' ) ?? '' )
+			: '';
+
+		if ( empty( $stripe_secret ) ) {
+			return rest_ensure_response( [ 'success' => false, 'message' => __( 'Payment system not configured.', 'khm-membership' ) ] );
+		}
+
+		$user_id    = get_current_user_id();
+		$user_email = wp_get_current_user()->user_email;
+		$sponsor    = SponsorService::get_user_sponsor( $user_id );
+
+		$success_url = apply_filters(
+			'khm_connect_subscription_checkout_success_url',
+			home_url( '/partner-portal/?connect_sub=success' ),
+			$tier,
+			$scope
+		);
+		$cancel_url = apply_filters(
+			'khm_connect_subscription_checkout_cancel_url',
+			home_url( '/partner-portal/?connect_sub=cancelled' ),
+			$tier,
+			$scope
+		);
+
+		try {
+			\Stripe\Stripe::setApiKey( $stripe_secret );
+
+			$session_params = [
+				'mode'       => 'subscription',
+				'line_items' => [
+					[
+						'price'    => $price_id,
+						'quantity' => 1,
+					],
+				],
+				'success_url'         => $success_url,
+				'cancel_url'          => $cancel_url,
+				'customer_email'      => $user_email,
+				'metadata'            => [
+					'purchase_type' => 'connect_subscription',
+					'user_id'       => (string) $user_id,
+					'sponsor_id'    => is_array( $sponsor ) ? (string) ( $sponsor['id'] ?? '' ) : '',
+					'tier'          => $tier,
+					'scope'         => $scope,
+					'stripe_price_id' => $price_id,
+				],
+				'subscription_data'   => [
+					'metadata' => [
+						'purchase_type' => 'connect_subscription',
+						'user_id'       => (string) $user_id,
+						'tier'          => $tier,
+						'scope'         => $scope,
+					],
+				],
+			];
+
+			$session_params = apply_filters( 'khm_connect_subscription_checkout_params', $session_params, $tier, $scope, $user_id );
+			$session        = \Stripe\Checkout\Session::create( $session_params );
+
+			if ( empty( $session->url ) ) {
+				throw new \Exception( 'Checkout session created but missing URL' );
+			}
+
+			// Record pending state so UI can poll.
+			$now = current_time( 'mysql', true );
+			$sub = [
+				'tier'               => $tier,
+				'scope'              => $scope,
+				'status'             => 'pending_stripe',
+				'stripe_session_id'  => $session->id,
+				'requested_at'       => $now,
+			];
+			update_user_meta( $user_id, 'khm_connect_subscription', $sub );
+
+			return rest_ensure_response( [
+				'success'      => true,
+				'checkout_url' => $session->url,
+			] );
+
+		} catch ( \Exception $e ) {
+			error_log( '[KHM Connect] Subscription checkout session failed: ' . $e->getMessage() );
+			return rest_ensure_response( [ 'success' => false, 'message' => __( 'Unable to start checkout. Please try again.', 'khm-membership' ) ] );
+		}
 	}
 
 	private function get_request_params( WP_REST_Request $request ): array {
@@ -386,6 +599,9 @@ class ConnectSponsorProviderEndpoint {
 		return array(
 			'id'                   => (int) $provider['id'],
 			'sponsor_id'           => (int) $provider['sponsor_id'],
+			'blog_id'              => (int) ( $provider['blog_id'] ?? 0 ),
+			'site_domain'          => (string) ( $provider['site_domain'] ?? '' ),
+			'site_path'            => (string) ( $provider['site_path'] ?? '' ),
 			'name'                 => (string) $provider['name'],
 			'slug'                 => (string) $provider['slug'],
 			'description'          => (string) $provider['description'],

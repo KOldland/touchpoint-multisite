@@ -218,6 +218,39 @@ class ConnectLegacyShortcodes {
 				<label>Budget
 					<input type="number" min="0" step="1" data-khm="budget" placeholder="e.g. 2500" />
 				</label>
+				<label>RFP Scope
+					<select data-khm="rfp_scope">
+						<option value="pilot_scheme">Structured pilot scheme (time-boxed, defined success criteria)</option>
+						<option value="fsm_evaluation_poc">Complete FSM platform evaluation and POC</option>
+						<option value="mobile_iot_optimisation">Mobile-first FSM with IoT optimisation</option>
+						<option value="workforce_scheduling_upgrade">Workforce scheduling and dispatch modernisation</option>
+					</select>
+				</label>
+				<label>Seat Band
+					<select data-khm="rfp_seats">
+						<option value="20_30">20-30 seats</option>
+						<option value="50_100">50-100 seats</option>
+						<option value="100_250">100-250 seats</option>
+						<option value="500_plus">500+ seats</option>
+					</select>
+				</label>
+				<label>Timeframe
+					<select data-khm="rfp_timeframe">
+						<option value="3_months">3 months</option>
+						<option value="6_months">6 months</option>
+						<option value="12_months">12 months</option>
+					</select>
+				</label>
+				<label>Provisional Estimate (£)
+					<input type="number" min="0" step="500" data-khm="rfp_estimate" value="120000" />
+				</label>
+				<div style="grid-column:1/-1;">
+					<span style="display:block;font-size:13px;font-weight:600;margin-bottom:4px;">Required Features</span>
+					<label style="display:inline-flex;align-items:center;gap:6px;margin-right:12px;"><input type="checkbox" data-khm="rfp_feature" value="mobile_app" checked /> Mobile app</label>
+					<label style="display:inline-flex;align-items:center;gap:6px;margin-right:12px;"><input type="checkbox" data-khm="rfp_feature" value="offline_capabilities" checked /> Offline capabilities</label>
+					<label style="display:inline-flex;align-items:center;gap:6px;margin-right:12px;"><input type="checkbox" data-khm="rfp_feature" value="real_time_reporting" checked /> Real-time reporting dashboard</label>
+					<label style="display:inline-flex;align-items:center;gap:6px;margin-right:12px;"><input type="checkbox" data-khm="rfp_feature" value="erp_integration" /> ERP integration</label>
+				</div>
 			</div>
 			<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
 				<button type="button" data-khm="run">Build shortlist</button>
@@ -241,6 +274,16 @@ class ConnectLegacyShortcodes {
 			const compareBtn = root.querySelector('[data-khm="compare"]');
 			const toList = (value) => (value || '').split(',').map(v => v.trim()).filter(Boolean);
 			const selectedIds = new Set();
+			const getRfpSetup = () => {
+				const features = Array.from(root.querySelectorAll('[data-khm="rfp_feature"]:checked')).map((el) => String(el.value || ''));
+				return {
+					scope: String((root.querySelector('[data-khm="rfp_scope"]') || {}).value || 'fsm_evaluation_poc'),
+					seats: String((root.querySelector('[data-khm="rfp_seats"]') || {}).value || '20_30'),
+					timeframe: String((root.querySelector('[data-khm="rfp_timeframe"]') || {}).value || '3_months'),
+					provisional_estimate_gbp: Number((root.querySelector('[data-khm="rfp_estimate"]') || {}).value || 0),
+					required_features: features
+				};
+			};
 
 			const esc = (value) => String(value || '')
 				.replaceAll('&', '&amp;')
@@ -262,6 +305,8 @@ class ConnectLegacyShortcodes {
 				comparison.innerHTML = '';
 				selectedIds.clear();
 				updateCompareState();
+				const rfpSetup = getRfpSetup();
+				try { localStorage.setItem('khm_connect_rfp_setup', JSON.stringify(rfpSetup)); } catch (_) {}
 				const payload = {
 					title_context: titleContext,
 					limit: limit,
@@ -271,7 +316,8 @@ class ConnectLegacyShortcodes {
 						company_sizes: toList(root.querySelector('[data-khm="company_sizes"]').value),
 						deployment: toList(root.querySelector('[data-khm="deployment"]').value),
 						keywords: toList(root.querySelector('[data-khm="keywords"]').value),
-						budget: Number(root.querySelector('[data-khm="budget"]').value || 0)
+						budget: Number(root.querySelector('[data-khm="budget"]').value || 0),
+						rfp_setup: rfpSetup
 					}
 				};
 				try {
@@ -293,8 +339,16 @@ class ConnectLegacyShortcodes {
 							: '<p>No match reasons available.</p>';
 						const providerId = Number(p.id || p.provider_id || 0);
 						const name = p.name || 'Provider';
+						const currentRfpSetup = getRfpSetup();
 						const introHref = continueUrl
-							? (continueUrl + (continueUrl.includes('?') ? '&' : '?') + 'provider_id=' + encodeURIComponent(String(p.id || p.provider_id || '')) + '&provider_name=' + encodeURIComponent(name))
+							? (continueUrl + (continueUrl.includes('?') ? '&' : '?')
+								+ 'provider_id=' + encodeURIComponent(String(p.id || p.provider_id || ''))
+								+ '&provider_name=' + encodeURIComponent(name)
+								+ '&rfp_scope=' + encodeURIComponent(String(currentRfpSetup.scope || ''))
+								+ '&rfp_seats=' + encodeURIComponent(String(currentRfpSetup.seats || ''))
+								+ '&rfp_timeframe=' + encodeURIComponent(String(currentRfpSetup.timeframe || ''))
+								+ '&rfp_features=' + encodeURIComponent((currentRfpSetup.required_features || []).join(','))
+								+ '&rfp_estimate=' + encodeURIComponent(String(currentRfpSetup.provisional_estimate_gbp || 0)))
 							: '#';
 						const checkbox = providerId > 0
 							? '<label style="display:block;margin:6px 0;"><input type="checkbox" data-khm="select-provider" value="' + providerId + '" /> Compare</label>'
@@ -415,8 +469,44 @@ class ConnectLegacyShortcodes {
 			<label>Company (optional)
 				<input type="text" data-khm="buyer_company" />
 			</label>
-			<label>Message
-				<textarea rows="5" data-khm="message" required>We would like a mediated intro and next-step discussion.</textarea>
+			<fieldset style="border:1px solid #dcdcde;border-radius:6px;padding:12px;margin:10px 0;background:#fafbfc;">
+				<legend style="font-size:12px;font-weight:600;padding:0 6px;">Mini-RFP Setup</legend>
+				<label>Scope
+					<select data-khm="rfp_scope">
+						<option value="pilot_scheme">Structured pilot scheme (time-boxed, defined success criteria)</option>
+						<option value="fsm_evaluation_poc">Complete FSM platform evaluation and POC</option>
+						<option value="mobile_iot_optimisation">Mobile-first FSM with IoT optimisation</option>
+						<option value="workforce_scheduling_upgrade">Workforce scheduling and dispatch modernisation</option>
+					</select>
+				</label>
+				<label>Seats
+					<select data-khm="rfp_seats">
+						<option value="20_30">20-30 seats</option>
+						<option value="50_100">50-100 seats</option>
+						<option value="100_250">100-250 seats</option>
+						<option value="500_plus">500+ seats</option>
+					</select>
+				</label>
+				<label>Timeframe
+					<select data-khm="rfp_timeframe">
+						<option value="3_months">3 months</option>
+						<option value="6_months">6 months</option>
+						<option value="12_months">12 months</option>
+					</select>
+				</label>
+				<label>Provisional Estimate (£)
+					<input type="number" min="0" step="500" data-khm="rfp_estimate" value="120000" />
+				</label>
+				<div>
+					<span style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Required Features</span>
+					<label style="display:inline-flex;align-items:center;gap:6px;margin-right:10px;"><input type="checkbox" data-khm="rfp_feature" value="mobile_app" checked /> Mobile app</label>
+					<label style="display:inline-flex;align-items:center;gap:6px;margin-right:10px;"><input type="checkbox" data-khm="rfp_feature" value="offline_capabilities" checked /> Offline capabilities</label>
+					<label style="display:inline-flex;align-items:center;gap:6px;margin-right:10px;"><input type="checkbox" data-khm="rfp_feature" value="real_time_reporting" checked /> Real-time reporting dashboard</label>
+					<label style="display:inline-flex;align-items:center;gap:6px;margin-right:10px;"><input type="checkbox" data-khm="rfp_feature" value="erp_integration" /> ERP integration</label>
+				</div>
+			</fieldset>
+			<label>Additional Message (optional)
+				<textarea rows="5" data-khm="message">We would like a mediated intro and next-step discussion.</textarea>
 			</label>
 			<button type="button" data-khm="submit">Send intro request</button>
 			<div data-khm="status" aria-live="polite"></div>
@@ -428,15 +518,64 @@ class ConnectLegacyShortcodes {
 			const restBase = <?php echo wp_json_encode( $rest_base ); ?>;
 			const statusUrl = <?php echo wp_json_encode( $status_url ); ?>;
 			const status = root.querySelector('[data-khm="status"]');
+			const params = new URLSearchParams(window.location.search || '');
+
+			function applyBuyerRfpDefaults() {
+				let stored = null;
+				try { stored = JSON.parse(localStorage.getItem('khm_connect_rfp_setup') || 'null'); } catch (_) { stored = null; }
+				const setup = stored || {};
+				const scope = params.get('rfp_scope') || setup.scope || 'fsm_evaluation_poc';
+				const seats = params.get('rfp_seats') || setup.seats || '20_30';
+				const timeframe = params.get('rfp_timeframe') || setup.timeframe || '3_months';
+				const estimate = Number(params.get('rfp_estimate') || setup.provisional_estimate_gbp || 120000);
+				const featuresRaw = params.get('rfp_features') || (Array.isArray(setup.required_features) ? setup.required_features.join(',') : 'mobile_app,offline_capabilities,real_time_reporting');
+				const features = String(featuresRaw || '').split(',').map((f) => f.trim()).filter(Boolean);
+
+				const scopeEl = root.querySelector('[data-khm="rfp_scope"]');
+				const seatsEl = root.querySelector('[data-khm="rfp_seats"]');
+				const timeframeEl = root.querySelector('[data-khm="rfp_timeframe"]');
+				const estimateEl = root.querySelector('[data-khm="rfp_estimate"]');
+				if (scopeEl) scopeEl.value = scope;
+				if (seatsEl) seatsEl.value = seats;
+				if (timeframeEl) timeframeEl.value = timeframe;
+				if (estimateEl) estimateEl.value = estimate > 0 ? String(estimate) : '120000';
+
+				root.querySelectorAll('[data-khm="rfp_feature"]').forEach((el) => {
+					el.checked = features.includes(String(el.value || ''));
+				});
+			}
+
+			applyBuyerRfpDefaults();
+
+			function collectBuyerRfpSetup() {
+				const featureList = Array.from(root.querySelectorAll('[data-khm="rfp_feature"]:checked')).map((el) => String(el.value || ''));
+				return {
+					scope: String((root.querySelector('[data-khm="rfp_scope"]') || {}).value || 'fsm_evaluation_poc'),
+					seats: String((root.querySelector('[data-khm="rfp_seats"]') || {}).value || '20_30'),
+					timeframe: String((root.querySelector('[data-khm="rfp_timeframe"]') || {}).value || '3_months'),
+					provisional_estimate_gbp: Number((root.querySelector('[data-khm="rfp_estimate"]') || {}).value || 0),
+					required_features: featureList
+				};
+			}
 
 			root.querySelector('[data-khm="submit"]').addEventListener('click', async () => {
 				status.textContent = 'Submitting intro request...';
+				const rfpSetup = collectBuyerRfpSetup();
+				try { localStorage.setItem('khm_connect_rfp_setup', JSON.stringify(rfpSetup)); } catch (_) {}
+				const rfpSummary =
+					'Mini-RFP Setup\n'
+					+ '- Scope: ' + rfpSetup.scope + '\n'
+					+ '- Seats: ' + rfpSetup.seats + '\n'
+					+ '- Timeframe: ' + rfpSetup.timeframe + '\n'
+					+ '- Required Features: ' + (rfpSetup.required_features || []).join(', ') + '\n'
+					+ '- Provisional Estimate (GBP): ' + String(rfpSetup.provisional_estimate_gbp || 0) + '\n\n';
+				const extraMessage = (root.querySelector('[data-khm="message"]').value || '').trim();
 				const payload = {
 					provider_id: Number(root.querySelector('[data-khm="provider_id"]').value || 0),
 					buyer_name: (root.querySelector('[data-khm="buyer_name"]').value || '').trim(),
 					buyer_email: (root.querySelector('[data-khm="buyer_email"]').value || '').trim(),
 					buyer_company: (root.querySelector('[data-khm="buyer_company"]').value || '').trim(),
-					message: (root.querySelector('[data-khm="message"]').value || '').trim(),
+					message: rfpSummary + (extraMessage || 'Buyer requests a mediated intro based on the mini-RFP criteria.'),
 					session_id: 'connect-shortcode'
 				};
 				try {
@@ -596,6 +735,7 @@ class ConnectLegacyShortcodes {
 					const messages = Array.isArray(data.messages) ? data.messages : [];
 					const sponsorMessages = messages.filter(m => String(m && m.sender_role || '') === 'sponsor');
 					const latestSponsorReply = sponsorMessages.length ? sponsorMessages[sponsorMessages.length - 1] : null;
+					const senderLabel = (role) => String(role || '') === 'buyer' ? 'You' : 'Provider';
 					const milestones = Array.isArray(data.milestones) ? data.milestones : [];
 					const timelineHtml = milestones.length
 						? ('<ul>' + milestones.map((ev) => {
@@ -620,7 +760,7 @@ class ConnectLegacyShortcodes {
 						+ '<p><strong>Handover status:</strong> ' + esc(handoverStatus) + '</p>'
 						+ '<ol>'
 						+ '<li><strong>Request Sent:</strong> ' + milestoneDate(data.thread && data.thread.created_at) + '</li>'
-						+ '<li><strong>Sponsor Replied:</strong> ' + milestoneDate(latestSponsorReply && latestSponsorReply.created_at) + '</li>'
+						+ '<li><strong>Provider Replied:</strong> ' + milestoneDate(latestSponsorReply && latestSponsorReply.created_at) + '</li>'
 						+ '<li><strong>Handover Requested:</strong> ' + milestoneDate(handoverRequestedAt) + '</li>'
 						+ '<li><strong>Handover Confirmed:</strong> ' + milestoneDate(handoverConfirmedAt) + '</li>'
 						+ '</ol>'
@@ -628,7 +768,7 @@ class ConnectLegacyShortcodes {
 						+ '<h3>Event Timeline</h3>'
 						+ timelineHtml
 						+ '<h3>Messages</h3>'
-						+ (messages.length ? '<ul>' + messages.map(m => '<li><strong>' + esc(m.sender_role || 'message') + ':</strong> ' + esc(m.message || '') + '</li>').join('') + '</ul>' : '<p>No messages yet.</p>');
+						+ (messages.length ? '<ul>' + messages.map(m => '<li><strong>' + esc(senderLabel(m.sender_role)) + ':</strong> ' + esc(m.message || '') + '</li>').join('') + '</ul>' : '<p>No messages yet.</p>');
 
 					const button = content.querySelector('[data-khm="handover"]');
 					if (button) {

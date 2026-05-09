@@ -368,7 +368,18 @@ class ConnectAdminPage {
 				</table>
 				<?php endforeach; ?>
 
-				<?php submit_button( __( 'Save Pricing', 'khm-membership' ) ); ?>
+				<h2 style="border-bottom:1px solid #ccd0d4;padding-bottom:8px;margin-top:32px;"><?php esc_html_e( 'Cold Outreach Guardrails', 'khm-membership' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="khm_cold_outreach_cap"><?php esc_html_e( 'Active Cold Outreach Cap', 'khm-membership' ); ?></label></th>
+						<td>
+							<input class="small-text" type="number" min="1" max="50" id="khm_cold_outreach_cap" name="cold_outreach_cap" value="<?php echo esc_attr( (string) (int) get_option( 'khm_connect_cold_outreach_cap', 3 ) ); ?>" />
+							<p class="description"><?php esc_html_e( 'Maximum active direct-connection (cold outreach) intro threads a sponsor can hold open at once. Default: 3.', 'khm-membership' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+			<?php submit_button( __( 'Save Pricing', 'khm-membership' ) ); ?>
 			</form>
 		</div>
 		<?php
@@ -393,6 +404,9 @@ class ConnectAdminPage {
 		}
 
 		ConnectTiering::save_config( $config );
+
+		$cap = isset( $_POST['cold_outreach_cap'] ) ? max( 1, (int) $_POST['cold_outreach_cap'] ) : 3;
+		update_option( 'khm_connect_cold_outreach_cap', $cap );
 
 		wp_safe_redirect( admin_url( 'admin.php?page=khm-connect-pricing&connect_notice=pricing_saved' ) );
 		exit;

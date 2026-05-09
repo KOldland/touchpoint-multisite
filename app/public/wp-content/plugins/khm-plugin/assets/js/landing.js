@@ -1,4 +1,4 @@
-(function (root, helpers) {
+http://touchpoint-multisite.local/wp-admin/admin-post.php?action=khm_qbo_connect&_wpnonce=537a544834(function (root, helpers) {
     'use strict';
 
     var MAX_POLL_ATTEMPTS = 5;

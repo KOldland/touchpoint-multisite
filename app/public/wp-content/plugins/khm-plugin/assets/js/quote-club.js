@@ -448,6 +448,7 @@
       provider_name: providerName || '',
       session_id: sessionId || '',
       handover_status: 'not_started',
+      seller_response_status: 'not_requested',
       created_at: new Date().toISOString()
     };
     if (idx >= 0) {
@@ -477,6 +478,23 @@
     } catch (e) {}
   }
 
+  function updateStoredThreadSellerResponseStatus(threadId, status) {
+    if (!window.localStorage) {
+      return;
+    }
+    var threads = getStoredIntroThreads();
+    var i;
+    for (i = 0; i < threads.length; i++) {
+      if (parseInt(threads[i].thread_id, 10) === parseInt(threadId, 10)) {
+        threads[i].seller_response_status = status;
+        break;
+      }
+    }
+    try {
+      window.localStorage.setItem(connectIntroThreadsKey, JSON.stringify(threads));
+    } catch (e) {}
+  }
+
   function renderBuyerThreadPanel(sessionId) {
     var $zone = $('.khm-connect-my-threads');
     if (!$zone.length) {
@@ -491,11 +509,19 @@
       return;
     }
 
-    // Refresh handover statuses from the API (fire-and-forget; re-render on response).
+    // Refresh handover and seller_response statuses from the API (fire-and-forget; re-render on response).
     threads.forEach(function (t) {
       connectApi('intro-threads/' + t.thread_id + '/status?buyer_token=' + encodeURIComponent(t.buyer_token), 'GET').done(function (res) {
+        var changed = false;
         if (res && res.handover_status && res.handover_status !== t.handover_status) {
           updateStoredThreadHandoverStatus(t.thread_id, res.handover_status);
+          changed = true;
+        }
+        if (res && res.seller_response_status && res.seller_response_status !== t.seller_response_status) {
+          updateStoredThreadSellerResponseStatus(t.thread_id, res.seller_response_status);
+          changed = true;
+        }
+        if (changed) {
           renderBuyerThreadPanelFromStorage(String(sessionId));
         }
       });
@@ -519,8 +545,8 @@
     }
 
     var handoverLabels = {
-      not_started: 'Awaiting sponsor reply',
-      buyer_requested: 'Direct contact requested — awaiting sponsor confirmation',
+      not_started: 'Awaiting provider reply',
+      buyer_requested: 'Direct contact requested — awaiting provider confirmation',
       confirmed: 'Direct contact confirmed'
     };
     var handoverClasses = {
@@ -533,16 +559,40 @@
     html += '<div class="khm-connect-my-threads-list">';
     threads.forEach(function (t) {
       var hs = t.handover_status || 'not_started';
+      var srs = t.seller_response_status || 'not_requested';
       var label = handoverLabels[hs] || hs;
       var cls = handoverClasses[hs] || '';
-      var showBtn = hs === 'not_started';
+      // Show "Request direct contact" only when handover not yet started AND no pending seller proposal.
+      var showHandoverBtn = hs === 'not_started' && srs !== 'submitted';
+
+      // Seller proposal accept/reject panel — shown only when seller has submitted and handover not yet requested.
+      var proposalPanel = '';
+      if (srs === 'submitted' && hs === 'not_started') {
+        proposalPanel =
+          '<div class="khm-connect-proposal-panel">' +
+            '<p class="khm-connect-proposal-notice">' +
+              '<strong>Proposal received.</strong> The seller has submitted a light proposal for your review. ' +
+              'Accepting proceeds to full RFP handover — the platform fee is charged at handover confirmation.' +
+            '</p>' +
+            '<div class="khm-connect-proposal-actions">' +
+              '<button type="button" class="button button-primary khm-connect-accept-seller-response"' +
+                ' data-thread-id="' + escapeHtml(String(t.thread_id)) + '"' +
+                ' data-buyer-token="' + escapeHtml(t.buyer_token) + '">Accept proposal &amp; proceed to handover</button>' +
+              ' <button type="button" class="button khm-connect-reject-seller-response"' +
+                ' data-thread-id="' + escapeHtml(String(t.thread_id)) + '"' +
+                ' data-buyer-token="' + escapeHtml(t.buyer_token) + '">Reject proposal</button>' +
+            '</div>' +
+          '</div>';
+      }
+
       html +=
         '<div class="khm-connect-thread-item">' +
           '<div class="khm-connect-thread-item-head">' +
             '<strong>' + escapeHtml(t.provider_name || 'Provider') + '</strong>' +
             '<span class="khm-connect-handover-badge ' + cls + '">' + escapeHtml(label) + '</span>' +
           '</div>' +
-          (showBtn
+          proposalPanel +
+          (showHandoverBtn
             ? '<button type="button" class="button button-small khm-connect-request-handover"' +
                 ' data-thread-id="' + escapeHtml(String(t.thread_id)) + '"' +
                 ' data-buyer-token="' + escapeHtml(t.buyer_token) + '">Request direct contact</button>'
@@ -631,7 +681,31 @@
               '<label>Name<input type="text" name="buyer_name" required></label>' +
               '<label>Email<input type="email" name="buyer_email" required></label>' +
             '</div>' +
-            '<label>Company<input type="text" name="buyer_company"></label>' +
+            '<div class="khm-connect-intro-grid">' +
+              '<label>Company<input type="text" name="buyer_company"></label>' +
+              '<label>Job title<input type="text" name="buyer_job_title" required></label>' +
+            '</div>' +
+            '<div class="khm-connect-intro-grid">' +
+              '<label>Sector<input type="text" name="buyer_sector" required></label>' +
+              '<label>Company size<select name="buyer_company_size" required>' +
+                '<option value="">Select size</option>' +
+                '<option value="1-10">1-10</option>' +
+                '<option value="11-50">11-50</option>' +
+                '<option value="51-200">51-200</option>' +
+                '<option value="201-500">201-500</option>' +
+                '<option value="501-1000">501-1000</option>' +
+                '<option value="1001-2000">1001-2000</option>' +
+                '<option value="2000+">2000+</option>' +
+              '</select></label>' +
+            '</div>' +
+            '<div class="khm-connect-intro-grid">' +
+              '<label>Country<input type="text" name="buyer_country" required></label>' +
+              '<label>City<input type="text" name="buyer_city"></label>' +
+            '</div>' +
+            '<div class="khm-connect-intro-grid">' +
+              '<label>Phone (optional)<input type="tel" name="buyer_phone"></label>' +
+              '<label>LinkedIn (optional)<input type="url" name="buyer_linkedin" placeholder="https://www.linkedin.com/in/..."></label>' +
+            '</div>' +
             '<label>Why are you a fit?<textarea name="message" rows="5" required></textarea></label>' +
             '<div class="khm-connect-intro-status" aria-live="polite"></div>' +
             '<div class="khm-connect-intro-actions">' +
@@ -1276,6 +1350,24 @@
     closeIntroModal();
   });
 
+  // Flow 1: Generic "Request intro" entry point.
+  // Any element anywhere on the platform (commentary bylines, provider profile pages,
+  // session match cards) can trigger the intro modal by carrying:
+  //   data-khm-intro-provider-id="123"
+  //   data-khm-intro-provider-name="Acme Consulting"   (optional)
+  // The handler constructs a minimal provider object and opens the existing modal.
+  $(document).on('click', '[data-khm-intro-provider-id]', function () {
+    var $el = $(this);
+    var providerId = parseInt($el.data('khm-intro-provider-id'), 10) || 0;
+    var providerName = ($el.data('khm-intro-provider-name') || '').toString().trim() || 'Provider';
+
+    if (!providerId) {
+      return;
+    }
+
+    openIntroModal({ provider_id: providerId, name: providerName });
+  });
+
   $(document).on('click', '.khm-connect-request-handover', function () {
     var $button = $(this);
     var threadId = parseInt($button.data('thread-id'), 10) || 0;
@@ -1302,6 +1394,63 @@
     });
   });
 
+  $(document).on('click', '.khm-connect-accept-seller-response', function () {
+    var $button = $(this);
+    var threadId = parseInt($button.data('thread-id'), 10) || 0;
+    var buyerToken = ($button.data('buyer-token') || '').toString();
+    var sessionId = $('.khm-quoteclub-detail').data('session-id') || '';
+
+    if (!threadId || !buyerToken) {
+      return;
+    }
+
+    if (!window.confirm('Accept this proposal and proceed to handover? The platform fee is charged when handover is confirmed.')) {
+      return;
+    }
+
+    $button.prop('disabled', true).text('Accepting...');
+    $button.siblings('.khm-connect-reject-seller-response').prop('disabled', true);
+
+    connectApi('intro-threads/' + threadId + '/seller-response/accept', 'POST', { buyer_token: buyerToken }).done(function () {
+      updateStoredThreadSellerResponseStatus(threadId, 'accepted');
+      updateStoredThreadHandoverStatus(threadId, 'not_started');
+      renderBuyerThreadPanel(String(sessionId));
+    }).fail(function (xhr) {
+      var res = xhr && xhr.responseJSON ? xhr.responseJSON : {};
+      alert(res.message || 'Unable to accept the proposal right now. Please try again.');
+      $button.prop('disabled', false).text('Accept proposal & proceed to handover');
+      $button.siblings('.khm-connect-reject-seller-response').prop('disabled', false);
+    });
+  });
+
+  $(document).on('click', '.khm-connect-reject-seller-response', function () {
+    var $button = $(this);
+    var threadId = parseInt($button.data('thread-id'), 10) || 0;
+    var buyerToken = ($button.data('buyer-token') || '').toString();
+    var sessionId = $('.khm-quoteclub-detail').data('session-id') || '';
+
+    if (!threadId || !buyerToken) {
+      return;
+    }
+
+    if (!window.confirm('Reject this proposal? The seller will be notified and the thread will be closed.')) {
+      return;
+    }
+
+    $button.prop('disabled', true).text('Rejecting...');
+    $button.siblings('.khm-connect-accept-seller-response').prop('disabled', true);
+
+    connectApi('intro-threads/' + threadId + '/seller-response/reject', 'POST', { buyer_token: buyerToken }).done(function () {
+      updateStoredThreadSellerResponseStatus(threadId, 'rejected');
+      renderBuyerThreadPanel(String(sessionId));
+    }).fail(function (xhr) {
+      var res = xhr && xhr.responseJSON ? xhr.responseJSON : {};
+      alert(res.message || 'Unable to reject the proposal right now. Please try again.');
+      $button.prop('disabled', false).text('Reject proposal');
+      $button.siblings('.khm-connect-accept-seller-response').prop('disabled', false);
+    });
+  });
+
   $(document).on('submit', '.khm-connect-intro-form', function (event) {
     var $form = $(this);
     var $modal = $('#khm-connect-intro-modal');
@@ -1323,6 +1472,13 @@
       buyer_name: $form.find('[name="buyer_name"]').val().trim(),
       buyer_email: $form.find('[name="buyer_email"]').val().trim(),
       buyer_company: $form.find('[name="buyer_company"]').val().trim(),
+      buyer_job_title: $form.find('[name="buyer_job_title"]').val().trim(),
+      buyer_sector: $form.find('[name="buyer_sector"]').val().trim(),
+      buyer_company_size: $form.find('[name="buyer_company_size"]').val().trim(),
+      buyer_country: $form.find('[name="buyer_country"]').val().trim(),
+      buyer_city: $form.find('[name="buyer_city"]').val().trim(),
+      buyer_phone: $form.find('[name="buyer_phone"]').val().trim(),
+      buyer_linkedin: $form.find('[name="buyer_linkedin"]').val().trim(),
       message: $form.find('[name="message"]').val().trim()
     };
 
