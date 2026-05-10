@@ -5,7 +5,6 @@
 
     const ICON_SAVE = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>';
     const ICON_INTRO = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg>';
-    const ICON_RFP = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>';
 
     // Solution type icons (Feather/Lucide stroke style)
     const ICON_SOFTWARE    = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
@@ -283,7 +282,7 @@
         const backBtn = root.querySelector('[data-action="step-back"]');
         const nextBtn = root.querySelector('[data-action="step-next"]');
         const findBtn = root.querySelector('[data-action="apply-filters"]');
-        const rfqBtn = root.querySelector('[data-action="save-as-rfp"]');
+        const saveBtn = root.querySelector('[data-action="save-search"]');
         const finalStep = clamped === state.totalSteps;
 
         if (backBtn) backBtn.hidden = clamped <= 1;
@@ -292,7 +291,7 @@
             nextBtn.textContent = clamped === 1 ? 'Begin' : 'Continue';
         }
         if (findBtn) findBtn.hidden = !finalStep;
-        if (rfqBtn) rfqBtn.hidden = !finalStep;
+        if (saveBtn) saveBtn.hidden = !finalStep;
 
         if (finalStep) {
             updateReview(root, state);
@@ -791,7 +790,6 @@
             '  <td class="khm-col-actions">',
             '    <button type="button" class="khm-icon-btn' + savedClass + '" data-action="toggle-shortlist" data-provider-id="' + providerId + '" title="Shortlist" aria-label="Shortlist ' + escapeHtml(provider.name || '') + '">' + ICON_SAVE + '</button>',
             '    <button type="button" class="khm-icon-btn khm-icon-btn-primary" data-action="send-request" data-provider-id="' + providerId + '" title="Request Intro" aria-label="Request intro from ' + escapeHtml(provider.name || '') + '">' + ICON_INTRO + '</button>',
-            '    <button type="button" class="khm-icon-btn khm-icon-btn-rfp" data-action="save-row-rfp" data-provider-id="' + providerId + '" title="Save as RFQ" aria-label="Save RFQ for ' + escapeHtml(provider.name || '') + '">' + ICON_RFP + '</button>',
             '  </td>',
             '</tr>'
         ].join('');
@@ -881,15 +879,7 @@
         }
     }
 
-    async function saveAsRfq(root, state) {
-        if (!cfg.isLoggedIn) {
-            window.location.href = cfg.loginUrl || '/wp-login.php';
-            return;
-        }
-
-        setStatus(root, 'Saving RFQ...', false);
-
-        // Map budget band to min/max integers
+    function buildCriteriaFromWizard(root, state) {
         var budgetBand = pickerValue(root, 'budget_band');
         var budgetMinMax = { min: null, max: null };
         var budgetMap = {
@@ -904,7 +894,6 @@
             budgetMinMax.max = budgetMap[budgetBand][1];
         }
 
-        // Map proof_of_commitment to pilot_required + free_trial
         var proof = normalizePreference(pickerValue(root, 'proof_of_commitment'));
         var pilotRequired = proof === 'pilot-expected' || proof === 'pilot-essential' || proof === 'required';
         var freeTrial = proof === 'free-test-expected' || proof === 'required' || proof === 'preferred';
@@ -912,11 +901,10 @@
         var partnerPosture = getEffectivePartnerPosture(root);
         var providerType = mapPartnerPostureToProviderType(partnerPosture);
 
-        // Collect integrations_other from text input
         var integrationsOtherEl = root.querySelector('[data-picker="integrations_other"]');
         var integrationsOther = integrationsOtherEl ? (integrationsOtherEl.value || '').trim() : '';
 
-        const body = {
+        return {
             expertise: selectedValues(root, '[data-filter="expertise"]'),
             challenge: state.selectedProblem ? state.selectedProblem.label : '',
             solution_types: selectedTypes,
@@ -939,27 +927,29 @@
             budget_max: budgetMinMax.max,
             criteria_priority_order: getPriorityOrder(root)
         };
+    }
+
+    async function saveSearch(root, state) {
+        if (!cfg.isLoggedIn) {
+            window.location.href = cfg.loginUrl || '/wp-login.php';
+            return;
+        }
+
+        setStatus(root, 'Saving search...', false);
+
+        var criteria = buildCriteriaFromWizard(root, state);
+        var defaultLabel = criteria.challenge || (Array.isArray(criteria.expertise) && criteria.expertise.length ? criteria.expertise.join(', ') : 'Saved search');
+        var label = (window.prompt('Name this saved search:', defaultLabel) || '').trim();
+        if (!label) {
+            setStatus(root, 'Save cancelled.', false);
+            return;
+        }
 
         try {
-            const created = await apiFetch('rfq', { method: 'POST', body: body });
-            const rfq = created && (created.rfq || created.rfp);
-            if (!rfq || !rfq.id) throw new Error((cfg.strings && cfg.strings.rfqCreateFailed) || 'Could not create RFQ');
-
-            const result = await apiFetch('rfq/' + rfq.id + '/matches?sort=best_match');
-            const matches = Array.isArray(result.matches) ? result.matches : [];
-
-            state.providers = matches;
-            state.providersById = new Map(matches.map(function (provider) {
-                return [Number(provider.id), provider];
-            }));
-
-            const message = matches.length
-                ? ('RFQ #' + rfq.id + ' saved - ' + matches.length + ' ranked match(es).')
-                : ('RFQ #' + rfq.id + ' saved - no strong matches yet.');
-
-            showResultsPanel(root, matches, state, message);
+            await apiFetch('saved-searches', { method: 'POST', body: { label: label, criteria: criteria } });
+            setStatus(root, 'Saved. Find it under Saved Searches.', false);
         } catch (err) {
-            setStatus(root, err.message || ((cfg.strings && cfg.strings.matchesFailed) || 'RFQ failed'), true);
+            setStatus(root, err.message || 'Could not save search.', true);
         }
     }
 
@@ -1060,13 +1050,8 @@
                 return;
             }
 
-            if (target.matches('[data-action="save-as-rfp"]')) {
-                await saveAsRfq(root, state);
-                return;
-            }
-
-            if (target.matches('[data-action="save-row-rfp"]')) {
-                await saveAsRfq(root, state);
+            if (target.matches('[data-action="save-search"]')) {
+                await saveSearch(root, state);
                 return;
             }
 
@@ -1146,11 +1131,110 @@
 
     function init() {
         const roots = document.querySelectorAll('.khm-connect-directory');
-        if (!roots.length) return;
-
         roots.forEach(function (root) {
             initDirectory(root);
         });
+
+        const savedRoots = document.querySelectorAll('[data-role="saved-searches"]');
+        savedRoots.forEach(function (root) {
+            initSavedSearches(root);
+        });
+    }
+
+    async function initSavedSearches(root) {
+        if (!cfg.isLoggedIn) {
+            root.innerHTML = '<p>Please log in to view your saved searches.</p>';
+            return;
+        }
+
+        const empty = document.querySelector('[data-role="saved-searches-empty"]');
+
+        async function refresh() {
+            root.innerHTML = '<p>Loading saved searches…</p>';
+            try {
+                const res = await apiFetch('saved-searches/mine');
+                const items = Array.isArray(res.saved_searches) ? res.saved_searches : [];
+
+                if (!items.length) {
+                    root.innerHTML = '';
+                    if (empty) empty.hidden = false;
+                    return;
+                }
+
+                if (empty) empty.hidden = true;
+                root.innerHTML = items.map(renderSavedSearchCard).join('');
+            } catch (err) {
+                root.innerHTML = '<p class="khm-error">Could not load saved searches: ' + escapeHtml(err.message || 'unknown error') + '</p>';
+            }
+        }
+
+        function renderSavedSearchCard(item) {
+            var summary = describeCriteria(item.criteria || {});
+            var lastMatched = item.last_matched_at ? ('Last matched ' + escapeHtml(item.last_matched_at)) : 'Not run yet';
+            return [
+                '<article class="khm-saved-search-card" data-saved-id="' + item.id + '">',
+                '  <header><h4>' + escapeHtml(item.label || 'Untitled') + '</h4>',
+                '    <span class="khm-saved-search-meta">' + lastMatched + '</span></header>',
+                '  <p class="khm-saved-search-summary">' + escapeHtml(summary) + '</p>',
+                '  <div class="khm-saved-search-actions">',
+                '    <button type="button" class="khm-buyer-btn" data-saved-action="run">Re-run</button>',
+                '    <button type="button" class="khm-buyer-btn khm-buyer-btn-secondary" data-saved-action="delete">Delete</button>',
+                '  </div>',
+                '  <div class="khm-saved-search-results" data-saved-results hidden></div>',
+                '</article>'
+            ].join('');
+        }
+
+        function describeCriteria(criteria) {
+            var parts = [];
+            if (criteria.challenge) parts.push(criteria.challenge);
+            if (Array.isArray(criteria.expertise) && criteria.expertise.length) parts.push(criteria.expertise.join(', '));
+            if (criteria.region) parts.push(criteria.region);
+            if (criteria.budget_min || criteria.budget_max) {
+                var lo = criteria.budget_min || 0;
+                var hi = criteria.budget_max || 'open';
+                parts.push('£' + lo + ' – ' + hi);
+            }
+            return parts.length ? parts.join(' · ') : 'No criteria recorded';
+        }
+
+        root.addEventListener('click', async function (e) {
+            const target = e.target instanceof Element ? e.target.closest('[data-saved-action]') : null;
+            if (!target) return;
+            const card = target.closest('[data-saved-id]');
+            if (!card) return;
+            const id = card.getAttribute('data-saved-id');
+            const action = target.getAttribute('data-saved-action');
+
+            if (action === 'delete') {
+                if (!window.confirm('Delete this saved search?')) return;
+                try {
+                    await apiFetch('saved-searches/' + id, { method: 'DELETE' });
+                    await refresh();
+                } catch (err) {
+                    window.alert('Delete failed: ' + (err.message || 'unknown error'));
+                }
+                return;
+            }
+
+            if (action === 'run') {
+                const out = card.querySelector('[data-saved-results]');
+                if (!out) return;
+                out.hidden = false;
+                out.innerHTML = '<p>Re-matching…</p>';
+                try {
+                    const res = await apiFetch('saved-searches/' + id + '/run', { method: 'POST', body: {} });
+                    const matches = Array.isArray(res.matches) ? res.matches : [];
+                    out.innerHTML = matches.length
+                        ? '<p>' + matches.length + ' match(es). <a href="?bh_section=discover">Open in Discover</a> to act on them.</p>'
+                        : '<p>No matches yet for this search.</p>';
+                } catch (err) {
+                    out.innerHTML = '<p class="khm-error">Re-run failed: ' + escapeHtml(err.message || 'unknown error') + '</p>';
+                }
+            }
+        });
+
+        await refresh();
     }
 
     if (document.readyState === 'loading') {

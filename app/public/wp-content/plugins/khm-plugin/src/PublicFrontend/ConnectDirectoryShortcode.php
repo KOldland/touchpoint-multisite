@@ -120,7 +120,7 @@ class ConnectDirectoryShortcode {
         $this->handle_team_settings_post();
 
         $section = isset( $_GET['bh_section'] ) ? sanitize_key( (string) $_GET['bh_section'] ) : 'overview';
-        if ( ! in_array( $section, [ 'overview', 'discover', 'requests', 'membership', 'credits', 'team' ], true ) ) {
+        if ( ! in_array( $section, [ 'overview', 'discover', 'searches', 'requests', 'membership', 'credits', 'team' ], true ) ) {
             $section = 'overview';
         }
 
@@ -146,6 +146,9 @@ class ConnectDirectoryShortcode {
                                 'show_compare' => true,
                                 'hub_mode'     => true,
                             ] );
+                            break;
+                        case 'searches':
+                            $this->render_searches_panel();
                             break;
                         case 'requests':
                             $this->render_requests_panel();
@@ -175,6 +178,7 @@ class ConnectDirectoryShortcode {
         $tabs = [
             'overview'   => __( 'Overview', 'khm-membership' ),
             'discover'   => __( 'Discover', 'khm-membership' ),
+            'searches'   => __( 'Saved Searches', 'khm-membership' ),
             'requests'   => __( 'My Requests', 'khm-membership' ),
             'membership' => __( 'Membership', 'khm-membership' ),
             'credits'    => __( 'Credits', 'khm-membership' ),
@@ -214,6 +218,24 @@ class ConnectDirectoryShortcode {
         <div class="khm-buyer-overview-modules">
             <?php echo do_shortcode( '[khm_portal_dashboard show_activity="no" show_quick_actions="yes"]' ); ?>
         </div>
+        <?php
+    }
+
+    private function render_searches_panel(): void {
+        $discover_url = esc_url( add_query_arg( 'bh_section', 'discover' ) );
+        ?>
+        <h3><?php esc_html_e( 'Saved Searches', 'khm-membership' ); ?></h3>
+        <p><?php esc_html_e( 'Bookmarked sets of search criteria. Re-running a search shows the current matches without contacting providers — quotes are only sent when you click Send RFQ.', 'khm-membership' ); ?></p>
+        <div class="khm-saved-searches" data-role="saved-searches"></div>
+        <p class="khm-saved-searches-empty" data-role="saved-searches-empty" hidden>
+            <?php
+            printf(
+                /* translators: %s: link to the Discover wizard */
+                esc_html__( 'No saved searches yet. Run the wizard from %s and save the criteria.', 'khm-membership' ),
+                '<a href="' . esc_attr( $discover_url ) . '">' . esc_html__( 'Discover', 'khm-membership' ) . '</a>'
+            );
+            ?>
+        </p>
         <?php
     }
 
@@ -661,9 +683,7 @@ class ConnectDirectoryShortcode {
                     <button type="button" class="khm-buyer-btn khm-buyer-btn-secondary" data-action="step-back"><?php esc_html_e( 'Back', 'khm-membership' ); ?></button>
                     <button type="button" class="khm-buyer-btn" data-action="step-next"><?php esc_html_e( 'Continue', 'khm-membership' ); ?></button>
                     <button type="button" class="khm-buyer-btn khm-buyer-btn-secondary" data-action="apply-filters" hidden><?php esc_html_e( 'Find Matches', 'khm-membership' ); ?></button>
-                    <?php if ( $opts['show_rfp'] ) : ?>
-                        <button type="button" class="khm-buyer-btn" data-action="save-as-rfp" hidden><?php esc_html_e( 'Save as RFQ', 'khm-membership' ); ?></button>
-                    <?php endif; ?>
+                    <button type="button" class="khm-buyer-btn" data-action="save-search" hidden><?php esc_html_e( 'Save Search', 'khm-membership' ); ?></button>
                     <p class="khm-step-blocked-message" data-role="step-blocked-message" hidden></p>
                 </div>
             </div>

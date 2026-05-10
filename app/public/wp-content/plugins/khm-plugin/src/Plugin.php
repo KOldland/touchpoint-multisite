@@ -25,9 +25,11 @@ use KHM\Connect\ConnectSubscriptionEndpoint;
 use KHM\Connect\ConnectProviderActivationListener;
 use KHM\Connect\ConnectDirectoryEndpoint;
 use KHM\Connect\ConnectRfqEndpoint;
+use KHM\Connect\ConnectSavedSearchEndpoint;
 use KHM\Migrations\RenameRfpToRfq;
 use KHM\Migrations\AddConnectBuyerDirectoryColumns;
 use KHM\Migrations\AddConnectRfpExtendedFields;
+use KHM\Migrations\CreateConnectSavedSearchesTable;
 use KHM\QuickBooks\QBOAuthEndpoint;
 use KHM\QuickBooks\QBOWebhookEndpoint;
 use KHM\Migrations\AddRFPUpsellSentAt;
@@ -145,6 +147,7 @@ class Plugin {
         AddConnectRfpExtendedFields::up();
         CreateSellerPaymentProfilesTable::run();
         CreateRFPSupportTables::run();
+        CreateConnectSavedSearchesTable::up();
 
         ( new ConnectShortlistEndpoint() )->register();
         ( new ConnectComparisonEndpoint() )->register();
@@ -169,6 +172,7 @@ class Plugin {
         ( new ConnectProviderActivationListener() )->register();
         ( new ConnectDirectoryEndpoint() )->register();
         ( new ConnectRfqEndpoint() )->register();
+        ( new ConnectSavedSearchEndpoint() )->register();
         ( new ConnectDirectoryShortcode() )->register();
         ( new QBOAuthEndpoint() )->register();
         ( new QBOWebhookEndpoint() )->register();
