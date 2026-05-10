@@ -283,7 +283,7 @@
         const backBtn = root.querySelector('[data-action="step-back"]');
         const nextBtn = root.querySelector('[data-action="step-next"]');
         const findBtn = root.querySelector('[data-action="apply-filters"]');
-        const rfpBtn = root.querySelector('[data-action="save-as-rfp"]');
+        const rfqBtn = root.querySelector('[data-action="save-as-rfp"]');
         const finalStep = clamped === state.totalSteps;
 
         if (backBtn) backBtn.hidden = clamped <= 1;
@@ -292,7 +292,7 @@
             nextBtn.textContent = clamped === 1 ? 'Begin' : 'Continue';
         }
         if (findBtn) findBtn.hidden = !finalStep;
-        if (rfpBtn) rfpBtn.hidden = !finalStep;
+        if (rfqBtn) rfqBtn.hidden = !finalStep;
 
         if (finalStep) {
             updateReview(root, state);
@@ -791,7 +791,7 @@
             '  <td class="khm-col-actions">',
             '    <button type="button" class="khm-icon-btn' + savedClass + '" data-action="toggle-shortlist" data-provider-id="' + providerId + '" title="Shortlist" aria-label="Shortlist ' + escapeHtml(provider.name || '') + '">' + ICON_SAVE + '</button>',
             '    <button type="button" class="khm-icon-btn khm-icon-btn-primary" data-action="send-request" data-provider-id="' + providerId + '" title="Request Intro" aria-label="Request intro from ' + escapeHtml(provider.name || '') + '">' + ICON_INTRO + '</button>',
-            '    <button type="button" class="khm-icon-btn khm-icon-btn-rfp" data-action="save-row-rfp" data-provider-id="' + providerId + '" title="Save as RFP" aria-label="Save RFP for ' + escapeHtml(provider.name || '') + '">' + ICON_RFP + '</button>',
+            '    <button type="button" class="khm-icon-btn khm-icon-btn-rfp" data-action="save-row-rfp" data-provider-id="' + providerId + '" title="Save as RFQ" aria-label="Save RFQ for ' + escapeHtml(provider.name || '') + '">' + ICON_RFP + '</button>',
             '  </td>',
             '</tr>'
         ].join('');
@@ -881,13 +881,13 @@
         }
     }
 
-    async function saveAsRfp(root, state) {
+    async function saveAsRfq(root, state) {
         if (!cfg.isLoggedIn) {
             window.location.href = cfg.loginUrl || '/wp-login.php';
             return;
         }
 
-        setStatus(root, 'Saving RFP...', false);
+        setStatus(root, 'Saving RFQ...', false);
 
         // Map budget band to min/max integers
         var budgetBand = pickerValue(root, 'budget_band');
@@ -941,11 +941,11 @@
         };
 
         try {
-            const created = await apiFetch('rfp', { method: 'POST', body: body });
-            const rfp = created && created.rfp;
-            if (!rfp || !rfp.id) throw new Error((cfg.strings && cfg.strings.rfpCreateFailed) || 'Could not create RFP');
+            const created = await apiFetch('rfq', { method: 'POST', body: body });
+            const rfq = created && (created.rfq || created.rfp);
+            if (!rfq || !rfq.id) throw new Error((cfg.strings && cfg.strings.rfqCreateFailed) || 'Could not create RFQ');
 
-            const result = await apiFetch('rfp/' + rfp.id + '/matches?sort=best_match');
+            const result = await apiFetch('rfq/' + rfq.id + '/matches?sort=best_match');
             const matches = Array.isArray(result.matches) ? result.matches : [];
 
             state.providers = matches;
@@ -954,12 +954,12 @@
             }));
 
             const message = matches.length
-                ? ('RFP #' + rfp.id + ' saved - ' + matches.length + ' ranked match(es).')
-                : ('RFP #' + rfp.id + ' saved - no strong matches yet.');
+                ? ('RFQ #' + rfq.id + ' saved - ' + matches.length + ' ranked match(es).')
+                : ('RFQ #' + rfq.id + ' saved - no strong matches yet.');
 
             showResultsPanel(root, matches, state, message);
         } catch (err) {
-            setStatus(root, err.message || ((cfg.strings && cfg.strings.matchesFailed) || 'RFP failed'), true);
+            setStatus(root, err.message || ((cfg.strings && cfg.strings.matchesFailed) || 'RFQ failed'), true);
         }
     }
 
@@ -1061,12 +1061,12 @@
             }
 
             if (target.matches('[data-action="save-as-rfp"]')) {
-                await saveAsRfp(root, state);
+                await saveAsRfq(root, state);
                 return;
             }
 
             if (target.matches('[data-action="save-row-rfp"]')) {
-                await saveAsRfp(root, state);
+                await saveAsRfq(root, state);
                 return;
             }
 

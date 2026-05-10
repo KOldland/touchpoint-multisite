@@ -90,9 +90,9 @@ class ConnectDirectoryShortcode {
                 'maxCompare'         => __( 'You can compare up to 3 providers.', 'khm-membership' ),
                 'requestSent'        => __( 'Request sent successfully.', 'khm-membership' ),
                 'requestFailed'      => __( 'Could not send request. Please try again.', 'khm-membership' ),
-                'rfpCreated'         => __( 'RFP created. Fetching matches...', 'khm-membership' ),
-                'rfpCreateFailed'    => __( 'Could not create RFP.', 'khm-membership' ),
-                'matchesFailed'      => __( 'Could not load matches for this RFP.', 'khm-membership' ),
+                'rfqCreated'         => __( 'RFQ created. Fetching matches...', 'khm-membership' ),
+                'rfqCreateFailed'    => __( 'Could not create RFQ.', 'khm-membership' ),
+                'matchesFailed'      => __( 'Could not load matches for this RFQ.', 'khm-membership' ),
                 'loginRequired'      => __( 'Please log in with an active membership to continue.', 'khm-membership' ),
             ],
         ] );
@@ -129,7 +129,7 @@ class ConnectDirectoryShortcode {
         <div class="khm-buyer-hub">
             <header class="khm-buyer-hub-header">
                 <h2><?php esc_html_e( 'Buyer Hub', 'khm-membership' ); ?></h2>
-                <p><?php esc_html_e( 'Find providers, run RFPs, manage membership, and coordinate your team from one place.', 'khm-membership' ); ?></p>
+                <p><?php esc_html_e( 'Find providers, run RFQs, manage membership, and coordinate your team from one place.', 'khm-membership' ); ?></p>
             </header>
 
             <div class="khm-buyer-hub-body">
@@ -386,7 +386,7 @@ class ConnectDirectoryShortcode {
                             </button>
                         <?php endforeach; ?>
                     </div>
-                    <?php /* Hidden select — only focus-area slugs — so buildDirectoryParams/saveAsRfp continue to work */ ?>
+                    <?php /* Hidden select — only focus-area slugs — so buildDirectoryParams/saveAsRfq continue to work */ ?>
                     <select data-filter="expertise" multiple aria-hidden="true" style="display:none">
                         <?php foreach ( $focus_area_slugs as $slug ) :
                             $label = ConnectTaxonomy::EXPERTISE_AREAS[ $slug ] ?? $slug;
@@ -662,7 +662,7 @@ class ConnectDirectoryShortcode {
                     <button type="button" class="khm-buyer-btn" data-action="step-next"><?php esc_html_e( 'Continue', 'khm-membership' ); ?></button>
                     <button type="button" class="khm-buyer-btn khm-buyer-btn-secondary" data-action="apply-filters" hidden><?php esc_html_e( 'Find Matches', 'khm-membership' ); ?></button>
                     <?php if ( $opts['show_rfp'] ) : ?>
-                        <button type="button" class="khm-buyer-btn" data-action="save-as-rfp" hidden><?php esc_html_e( 'Save as RFP', 'khm-membership' ); ?></button>
+                        <button type="button" class="khm-buyer-btn" data-action="save-as-rfp" hidden><?php esc_html_e( 'Save as RFQ', 'khm-membership' ); ?></button>
                     <?php endif; ?>
                     <p class="khm-step-blocked-message" data-role="step-blocked-message" hidden></p>
                 </div>

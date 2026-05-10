@@ -2,7 +2,7 @@
 /**
  * Seller Response Endpoint
  *
- * Handles the seller's structured initial response to an RFP intro thread:
+ * Handles the seller's structured initial response to an RFQ intro thread:
  *   POST /khm/v1/connect/intro-threads/(?P<id>\d+)/seller-response   – submit response
  *   GET  /khm/v1/connect/intro-threads/(?P<id>\d+)/seller-response   – get response (seller + buyer)
  *   POST /khm/v1/connect/intro-threads/(?P<id>\d+)/seller-response/accept – buyer accepts
@@ -77,7 +77,7 @@ class ConnectSellerResponseEndpoint {
 
 	/**
 	 * POST …/seller-response
-	 * Seller submits structured RFP response + sets commission rate.
+	 * Seller submits structured RFQ response + sets commission rate.
 	 */
 	public function submit_response( WP_REST_Request $request ): WP_REST_Response|WP_Error {
 		global $wpdb;

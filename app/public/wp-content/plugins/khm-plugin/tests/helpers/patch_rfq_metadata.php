@@ -1,32 +1,32 @@
 <?php
 /**
- * One-shot patch: set rfp_metadata on demo opportunities.
- * Run via: wp eval-file wp-content/plugins/khm-plugin/tests/helpers/patch_rfp_metadata.php
+ * One-shot patch: set rfq_metadata on demo opportunities.
+ * Run via: wp eval-file wp-content/plugins/khm-plugin/tests/helpers/patch_rfq_metadata.php
  */
 global $wpdb;
 
 $patches = [
-	'rfp-demo-alice-a' => [
+	'rfq-demo-alice-a' => [
 		'segment'           => 'Enterprise IT & Infrastructure',
 		'region'            => 'United Kingdom',
 		'intent'            => 'Active vendor evaluation — EMM platform',
 		'scope'             => 'Unified endpoint management platform for 450 distributed field engineers. Must cover Windows, macOS, iOS and Android, with automated patch management, remote wipe, and compliance reporting against ISO 27001.',
-		'timeline'          => 'RFP issued 28 Apr 2026; vendor demos week of 2 Jun; shortlist decision 20 Jun; contract target 1 Aug 2026.',
+		'timeline'          => 'RFQ issued 28 Apr 2026; vendor demos week of 2 Jun; shortlist decision 20 Jun; contract target 1 Aug 2026.',
 		'budget_range'      => '£55K–£90K annual licence + £12K onboarding',
 		'deadline'          => '2026-06-05',
 		'competing_vendors' => [ 'Jamf Pro', 'Microsoft Intune', 'Kandji' ],
 	],
-	'rfp-demo-marcus-b' => [
+	'rfq-demo-marcus-b' => [
 		'segment'           => 'Mid-market IT Services',
 		'region'            => 'United Kingdom',
 		'intent'            => 'Active vendor evaluation — ITSM replacement',
 		'scope'             => 'Cloud-native ITSM replacement for a 1,200-seat organisation currently on ServiceNow Essentials. Requirements include AI-assisted triage, self-service portal, SLA dashboards, and CMDB integration. GDPR data-residency in UK mandatory.',
-		'timeline'          => 'RFP responses due 20 May 2026; supplier presentations 3–7 Jun; final decision 30 Jun; go-live target Q4 2026.',
+		'timeline'          => 'RFQ responses due 20 May 2026; supplier presentations 3–7 Jun; final decision 30 Jun; go-live target Q4 2026.',
 		'budget_range'      => '£120K–£200K annual + £35K implementation',
 		'deadline'          => '2026-05-20',
 		'competing_vendors' => [ 'Freshservice', 'Jira Service Management', 'TOPdesk' ],
 	],
-	'rfp-demo-alice-c' => [
+	'rfq-demo-alice-c' => [
 		'segment'           => 'Enterprise IT Operations',
 		'region'            => 'UK & EU (multi-site)',
 		'intent'            => 'Vendor shortlisting — network observability platform',
@@ -36,7 +36,7 @@ $patches = [
 		'deadline'          => '2026-05-23',
 		'competing_vendors' => [ 'Datadog', 'Auvik', 'PRTG Network Monitor' ],
 	],
-	'rfp-demo-priya-d' => [
+	'rfq-demo-priya-d' => [
 		'segment'           => 'Utilities & Field Operations',
 		'region'            => 'United Kingdom',
 		'intent'            => 'Contract awarded — implementation phase',
@@ -46,7 +46,7 @@ $patches = [
 		'deadline'          => '2026-04-30',
 		'competing_vendors' => [ 'ServiceMax', 'ClickSoftware', 'IFS Field Service' ],
 	],
-	'rfp-demo-priya-e' => [
+	'rfq-demo-priya-e' => [
 		'segment'           => 'Legal & Professional Services',
 		'region'            => 'United Kingdom',
 		'intent'            => 'Deal closed — commission settlement in progress',
@@ -61,7 +61,7 @@ $patches = [
 foreach ( $patches as $dedupe_key => $meta ) {
 	$n = $wpdb->update(
 		$wpdb->prefix . 'connect_opportunities',
-		[ 'rfp_metadata' => wp_json_encode( $meta ) ],
+		[ 'rfq_metadata' => wp_json_encode( $meta ) ],
 		[ 'dedupe_key'   => $dedupe_key ],
 		[ '%s' ],
 		[ '%s' ]

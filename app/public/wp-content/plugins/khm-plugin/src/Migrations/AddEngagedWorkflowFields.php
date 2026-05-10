@@ -2,7 +2,7 @@
 /**
  * Migration: Add Engaged Workflow Fields
  *
- * Adds support for RFP requests and direct connections as distinct request types,
+ * Adds support for RFQ requests and direct connections as distinct request types,
  * plus engaged option tracking for pricing model selection.
  */
 
@@ -32,11 +32,11 @@ class AddEngagedWorkflowFields {
 			);
 		}
 
-		// Add rfp_metadata column if not exists
-		if ( ! static::column_exists( $opportunities_table, 'rfp_metadata' ) ) {
+		// Add rfq_metadata column if not exists
+		if ( ! static::column_exists( $opportunities_table, 'rfq_metadata' ) ) {
 			$wpdb->query(
 				"ALTER TABLE {$opportunities_table} 
-				ADD COLUMN rfp_metadata JSON DEFAULT NULL AFTER request_type"
+				ADD COLUMN rfq_metadata JSON DEFAULT NULL AFTER request_type"
 			);
 		}
 
@@ -61,7 +61,7 @@ class AddEngagedWorkflowFields {
 
 		$wpdb->query( "ALTER TABLE {$opportunities_table} DROP INDEX IF EXISTS idx_request_type" );
 		$wpdb->query( "ALTER TABLE {$opportunities_table} DROP COLUMN IF EXISTS request_type" );
-		$wpdb->query( "ALTER TABLE {$opportunities_table} DROP COLUMN IF EXISTS rfp_metadata" );
+		$wpdb->query( "ALTER TABLE {$opportunities_table} DROP COLUMN IF EXISTS rfq_metadata" );
 		$wpdb->query( "ALTER TABLE {$opportunities_table} DROP COLUMN IF EXISTS engaged_option" );
 
 		return true;

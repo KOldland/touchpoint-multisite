@@ -335,8 +335,8 @@ class ConnectDemoSeeder {
 
 		return array(
 			array(
-				'session_id'          => 'demo_rfp_fieldsync',
-				'request_type'        => 'rfp_request',
+				'session_id'          => 'demo_rfq_fieldsync',
+				'request_type'        => 'rfq_request',
 				'buyer_name'          => 'Sarah Chen',
 				'buyer_company'       => 'TechFlow Services Ltd',
 				'buyer_email'         => 'sarah.chen+demo@techflow.local',
@@ -371,7 +371,7 @@ class ConnectDemoSeeder {
 					array(
 						'sender_role' => 'buyer',
 						'created_at'  => gmdate( 'Y-m-d H:i:s', $now - 7200 ),
-						'message'     => 'Looks good. Please complete the full RFP pack once handover is accepted: https://example.local/rfp-pack/FS-203',
+						'message'     => 'Looks good. Please complete the full RFQ pack once handover is accepted: https://example.local/rfq-pack/FS-203',
 					),
 				),
 			),

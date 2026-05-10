@@ -118,13 +118,13 @@
       activeId = 0;
       $form.trigger('reset');
       $form.find('[name="id"]').val('');
-      $form.find('[name="rfp_default_scope"]').val('fsm_evaluation_poc');
-      $form.find('[name="rfp_default_seats"]').val('20_30');
-      $form.find('[name="rfp_default_timeframe"]').val('3_months');
-      $form.find('[name="rfp_default_cpl_gbp"]').val('325');
-      $form.find('[name="rfp_supported_features"]').val('mobile_app,offline_capabilities,real_time_reporting');
-      $form.find('[name="rfp_default_estimate_gbp"]').val('120000');
-      $form.find('[name="rfp_max_discount_pct"]').val('10');
+      $form.find('[name="rfq_default_scope"]').val('fsm_evaluation_poc');
+      $form.find('[name="rfq_default_seats"]').val('20_30');
+      $form.find('[name="rfq_default_timeframe"]').val('3_months');
+      $form.find('[name="rfq_default_cpl_gbp"]').val('325');
+      $form.find('[name="rfq_supported_features"]').val('mobile_app,offline_capabilities,real_time_reporting');
+      $form.find('[name="rfq_default_estimate_gbp"]').val('120000');
+      $form.find('[name="rfq_max_discount_pct"]').val('10');
       $form.find('[name="comparison_fields"]').val('{}');
       $form.find('[name="match_rules"]').val('{}');
       $deleteButton.hide();
@@ -141,7 +141,7 @@
       $form.find('[name="provider_type"]').val(provider.provider_type || '');
       $form.find('[name="description"]').val(provider.description || '');
       $form.find('[name="sweet_spot_summary"]').val(provider.sweet_spot_summary || '');
-      var rfpProfile = provider.comparison_fields && provider.comparison_fields.rfp_profile ? provider.comparison_fields.rfp_profile : {};
+      var rfqProfile = provider.comparison_fields && provider.comparison_fields.rfq_profile ? provider.comparison_fields.rfq_profile : {};
       $form.find('[name="titles"]').val(Array.isArray(provider.titles) ? provider.titles.join(', ') : '');
       $form.find('[name="regions"]').val(Array.isArray(provider.regions) ? provider.regions.join(', ') : '');
       $form.find('[name="deployment_modes"]').val(Array.isArray(provider.deployment_modes) ? provider.deployment_modes.join(', ') : '');
@@ -151,13 +151,13 @@
       $form.find('[name="budget_min"]').val(provider.budget_min || '');
       $form.find('[name="budget_max"]').val(provider.budget_max || '');
       $form.find('[name="onboarding_days"]').val(provider.onboarding_days || '');
-      $form.find('[name="rfp_default_scope"]').val(rfpProfile.default_scope || 'fsm_evaluation_poc');
-      $form.find('[name="rfp_default_seats"]').val(rfpProfile.default_seats || '20_30');
-      $form.find('[name="rfp_default_timeframe"]').val(rfpProfile.default_timeframe || '3_months');
-      $form.find('[name="rfp_default_cpl_gbp"]').val(rfpProfile.default_cpl_gbp || 325);
-      $form.find('[name="rfp_supported_features"]').val(Array.isArray(rfpProfile.supported_features) ? rfpProfile.supported_features.join(', ') : 'mobile_app,offline_capabilities,real_time_reporting');
-      $form.find('[name="rfp_default_estimate_gbp"]').val(rfpProfile.default_estimate_gbp || 120000);
-      $form.find('[name="rfp_max_discount_pct"]').val(rfpProfile.max_discount_pct || 10);
+      $form.find('[name="rfq_default_scope"]').val(rfqProfile.default_scope || 'fsm_evaluation_poc');
+      $form.find('[name="rfq_default_seats"]').val(rfqProfile.default_seats || '20_30');
+      $form.find('[name="rfq_default_timeframe"]').val(rfqProfile.default_timeframe || '3_months');
+      $form.find('[name="rfq_default_cpl_gbp"]').val(rfqProfile.default_cpl_gbp || 325);
+      $form.find('[name="rfq_supported_features"]').val(Array.isArray(rfqProfile.supported_features) ? rfqProfile.supported_features.join(', ') : 'mobile_app,offline_capabilities,real_time_reporting');
+      $form.find('[name="rfq_default_estimate_gbp"]').val(rfqProfile.default_estimate_gbp || 120000);
+      $form.find('[name="rfq_max_discount_pct"]').val(rfqProfile.max_discount_pct || 10);
       $form.find('[name="status"]').val(provider.status || 'active');
       $form.find('[name="commentary_enabled"]').prop('checked', !!provider.commentary_enabled);
       $form.find('[name="ad_targeting_enabled"]').prop('checked', !!provider.ad_targeting_enabled);
@@ -235,8 +235,8 @@
 
         // Build compact at-a-glance tags (channel, handover state, commercial, messages)
         var sellerResponseStatus = thread.seller_response_status || 'not_requested';
-        var isRfp = thread.request_type === 'rfp_request';
-        var cardBtnLabel = (isRfp && (sellerResponseStatus === 'awaiting_response' || sellerResponseStatus === 'not_requested'))
+        var isRfq = thread.request_type === 'rfq_request';
+        var cardBtnLabel = (isRfq && (sellerResponseStatus === 'awaiting_response' || sellerResponseStatus === 'not_requested'))
           ? 'Move to Inbox after reply'
           : 'Open';
         var handoverLabelMap = {
@@ -251,8 +251,8 @@
           engaged: 'Engaged'
         };
         var commercialTier = String(thread.commercial_tier || '').toLowerCase();
-        var isActiveMatch = !isRfp && (!!thread.engaged_option || !!commercialTier);
-        var channelLabel = isRfp ? 'RFP' : (isActiveMatch ? 'Active Match' : 'Inbound Connection');
+        var isActiveMatch = !isRfq && (!!thread.engaged_option || !!commercialTier);
+        var channelLabel = isRfq ? 'RFQ' : (isActiveMatch ? 'Active Match' : 'Inbound Connection');
         var handoverLabel = handoverLabelMap[thread.handover_status || 'not_started'] || 'Handover Not Started';
 
         var commercialLabel = '';
@@ -270,8 +270,8 @@
           '<span class="khm-qc-connect-pill">' + esc(commercialLabel) + '</span>' +
           '<span class="khm-qc-connect-pill">' + esc(thread.message_count || 0) + ' messages</span>';
 
-        // Hint shown on RFP cards before the seller submits a response
-        var rfpHint = (isRfp && (sellerResponseStatus === 'awaiting_response' || sellerResponseStatus === 'not_requested'))
+        // Hint shown on RFQ cards before the seller submits a response
+        var rfqHint = (isRfq && (sellerResponseStatus === 'awaiting_response' || sellerResponseStatus === 'not_requested'))
           ? '<p class="khm-qc-connect-card-hint">Open this thread, write your light proposal reply, and submit it — the prospect will then be able to accept or reject it to proceed to full handover.</p>'
           : '';
 
@@ -292,35 +292,35 @@
               engagementTags +
             '</div>' +
             (thread.last_message_excerpt ? '<p class="khm-qc-connect-card-summary">' + esc(stripUrlsFromText(thread.last_message_excerpt)) + '</p>' : '') +
-            rfpHint +
+            rfqHint +
           '</article>';
       }).join(''));
     }
 
-    var rfpLinkStore = {}; // Store RFP links in memory, keyed by button ID
-    var rfpLinkCounter = 0;
+    var rfqLinkStore = {}; // Store RFQ links in memory, keyed by button ID
+    var rfqLinkCounter = 0;
 
-    function extractAndObfuscateRfpLink(message) {
+    function extractAndObfuscateRfqLink(message) {
       if (!message) {
         return { text: message, link: null, linkId: null };
       }
-      var urlPattern = /https?:\/\/[^\s]+(?:rfp-pack|\.local)[^\s]*/gi;
+      var urlPattern = /https?:\/\/[^\s]+(?:rfq-pack|\.local)[^\s]*/gi;
       var match = message.match(urlPattern);
       if (!match || !match.length) {
         return { text: message, link: null, linkId: null };
       }
       var link = match[0];
       var text = message.replace(urlPattern, '').replace(/\s+at\s+this\s+link\s+/gi, '').replace(/:\s*$/, '.');
-      var linkId = 'rfp-link-' + (++rfpLinkCounter);
-      rfpLinkStore[linkId] = link;
+      var linkId = 'rfq-link-' + (++rfqLinkCounter);
+      rfqLinkStore[linkId] = link;
       return { text: text.trim(), link: link, linkId: linkId };
     }
 
     function classifyLinkCta(messageText, link) {
       var text = String(messageText || '').toLowerCase();
       var href = String(link || '').toLowerCase();
-      if (href.indexOf('rfp-pack') !== -1 || text.indexOf('rfp') !== -1) {
-        return { type: 'rfp', label: 'Complete Full RFP' };
+      if (href.indexOf('rfq-pack') !== -1 || text.indexOf('rfp') !== -1) {
+        return { type: 'rfq', label: 'Complete Full RFQ' };
       }
       if (/calendly|meet|schedule|booking|calendar/.test(href) || /meeting|schedule|calendar/.test(text)) {
         return { type: 'meeting', label: 'Arrange Meeting' };
@@ -336,7 +336,7 @@
       for (var i = messages.length - 1; i >= 0; i -= 1) {
         var current = messages[i] || {};
         var messageText = current.message || '';
-        var extracted = extractAndObfuscateRfpLink(messageText);
+        var extracted = extractAndObfuscateRfqLink(messageText);
         if (extracted && extracted.linkId) {
           var cta = classifyLinkCta(messageText, extracted.link);
           return {
@@ -358,7 +358,7 @@
       return messages.map(function (message) {
         var role = message.sender_role === 'sponsor' ? 'You' : 'Prospect';
         var messageText = message.message || '';
-        var extracted = extractAndObfuscateRfpLink(messageText);
+        var extracted = extractAndObfuscateRfqLink(messageText);
         var cleanMessage = extracted.text;
 
         return '' +
@@ -423,8 +423,8 @@
     function renderSellerResponsePanel(thread) {
       var status = thread.seller_response_status || 'not_requested';
 
-      // Only show for RFP threads
-      if (thread.request_type !== 'rfp_request') {
+      // Only show for RFQ threads
+      if (thread.request_type !== 'rfq_request') {
         return '';
       }
 
@@ -441,7 +441,7 @@
         var leadContact = resp.lead_contact || {};
 
         return '<div class="khm-qc-connect-seller-response khm-qc-connect-seller-response-submitted">' +
-          '<h5>RFP Response submitted</h5>' +
+          '<h5>RFQ Response submitted</h5>' +
           fields.map(function (f) {
             return '<div class="khm-qc-connect-resp-row"><strong>' + esc(f.label) + ':</strong> ' + esc(f.value) + '</div>';
           }).join('') +
@@ -451,8 +451,8 @@
 
       // Show response form if not yet submitted
       return '<div class="khm-qc-connect-seller-response">' +
-        '<h5>Submit your RFP response</h5>' +
-        '<p class="khm-qc-connect-thread-meta">Provide a structured response to this prospect\'s RFP. Once submitted the prospect can accept or reject it.</p>' +
+        '<h5>Submit your RFQ response</h5>' +
+        '<p class="khm-qc-connect-thread-meta">Provide a structured response to this prospect\'s RFQ. Once submitted the prospect can accept or reject it.</p>' +
         '<form class="khm-qc-connect-seller-response-form" data-thread-id="' + esc(thread.id) + '">' +
           '<label>Capability summary<textarea name="capability" rows="3" required placeholder="Describe how your offering meets the prospect\'s requirements."></textarea></label>' +
           '<label>Cost range<input type="text" name="cost_range" placeholder="e.g. £50K\u2013£80K implementation + £30K annual"></label>' +
@@ -463,17 +463,17 @@
           '<label>Lead contact title<input type="text" name="lead_title"></label>' +
           '<label>Platform Discount Offered (5\u201325%)<input type="number" name="commission_rate" min="5" max="25" step="1" required placeholder="e.g. 10"></label>' +
           '<div class="khm-qc-connect-actions">' +
-            '<button type="submit" class="khm-qc-btn khm-qc-btn-primary">Submit RFP response</button>' +
+            '<button type="submit" class="khm-qc-btn khm-qc-btn-primary">Submit RFQ response</button>' +
           '</div>' +
         '</form>' +
       '</div>';
     }
 
     function renderInboundCommissionPanel(thread) {
-      var isRfp = thread.request_type === 'rfp_request';
+      var isRfq = thread.request_type === 'rfq_request';
       var isActiveMatch = !!thread.engaged_option || !!thread.commercial_tier;
 
-      if (isRfp || isActiveMatch) {
+      if (isRfq || isActiveMatch) {
         return '';
       }
 
@@ -501,32 +501,32 @@
       }
 
       var handoverStatus = handover && handover.status ? handover.status : (thread.handover_status || 'not_started');
-      var isRfpThread = thread.request_type === 'rfp_request';
+      var isRfqThread = thread.request_type === 'rfq_request';
       var isActiveMatchThread = !!thread.engaged_option || !!thread.commercial_tier;
-      var showInlineCommission = handoverStatus === 'buyer_requested' && !isRfpThread && !isActiveMatchThread;
+      var showInlineCommission = handoverStatus === 'buyer_requested' && !isRfqThread && !isActiveMatchThread;
       var currentCommRate = parseInt(thread.seller_commission_rate || 0, 10) || 10;
       var hasDiscount = !!(thread.seller_commission_rate);
       var inlineCommissionHtml = showInlineCommission
         ? '<div class="khm-qc-connect-discount-panel">' +
-            '<div class="khm-qc-rfp-response-field">' +
+            '<div class="khm-qc-rfq-response-field">' +
               '<label>Commercial breakdown</label>' +
-              '<div class="khm-qc-rfp-calc-card">' +
-                '<div class="khm-qc-rfp-breakdown-row"><span>Payable today</span><strong class="khm-qc-connect-flat-fee">' + (hasDiscount ? '£375.00' : '£1,500.00') + '</strong></div>' +
-                '<div class="khm-qc-rfp-breakdown-row">' +
-                  '<label class="khm-qc-rfp-toggle">' +
+              '<div class="khm-qc-rfq-calc-card">' +
+                '<div class="khm-qc-rfq-breakdown-row"><span>Payable today</span><strong class="khm-qc-connect-flat-fee">' + (hasDiscount ? '£375.00' : '£1,500.00') + '</strong></div>' +
+                '<div class="khm-qc-rfq-breakdown-row">' +
+                  '<label class="khm-qc-rfq-toggle">' +
                     '<input type="checkbox" class="khm-qc-connect-discount-toggle"' + (hasDiscount ? ' checked' : '') + ' />' +
                     '<span>Offer platform discount</span>' +
                   '</label>' +
                 '</div>' +
                 '<div class="khm-qc-connect-discount-controls"' + (hasDiscount ? '' : ' hidden') + '>' +
-                  '<div class="khm-qc-rfp-response-field" style="padding:8px 0 0;">' +
+                  '<div class="khm-qc-rfq-response-field" style="padding:8px 0 0;">' +
                     '<label>Discount / commission rate (%)</label>' +
-                    '<input type="range" min="5" max="25" step="1" value="' + currentCommRate + '" class="khm-qc-rfp-commission-rate" name="commission_rate" />' +
-                    '<div class="khm-qc-rfp-discount-readout"><span>Selected rate: <strong class="khm-qc-rfp-rate-value">' + currentCommRate + '%</strong></span><span>This total rate is split 50/50 between estimated buyer discount and estimated platform commission.</span></div>' +
+                    '<input type="range" min="5" max="25" step="1" value="' + currentCommRate + '" class="khm-qc-rfq-commission-rate" name="commission_rate" />' +
+                    '<div class="khm-qc-rfq-discount-readout"><span>Selected rate: <strong class="khm-qc-rfq-rate-value">' + currentCommRate + '%</strong></span><span>This total rate is split 50/50 between estimated buyer discount and estimated platform commission.</span></div>' +
                   '</div>' +
                   '<div class="khm-qc-connect-commission-breakdown">' +
-                    '<div class="khm-qc-rfp-breakdown-row"><span>Buyer discount</span><span class="khm-qc-connect-buyer-discount-readout">' + (currentCommRate / 2) + '% of contract value</span></div>' +
-                    '<div class="khm-qc-rfp-breakdown-row"><span>Platform commission</span><span class="khm-qc-connect-commission-rate-readout">' + (currentCommRate / 2) + '% of contract value</span></div>' +
+                    '<div class="khm-qc-rfq-breakdown-row"><span>Buyer discount</span><span class="khm-qc-connect-buyer-discount-readout">' + (currentCommRate / 2) + '% of contract value</span></div>' +
+                    '<div class="khm-qc-rfq-breakdown-row"><span>Platform commission</span><span class="khm-qc-connect-commission-rate-readout">' + (currentCommRate / 2) + '% of contract value</span></div>' +
                   '</div>' +
                 '</div>' +
               '</div>' +
@@ -546,7 +546,7 @@
       if (handoverStatus === 'buyer_requested') {
         handoverActionButton = '<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-connect-confirm-handover" data-thread-id="' + esc(thread.id) + '"' + confirmDisabled + '>Accept handover</button>';
       } else if (handoverStatus === 'confirmed' && postHandoverCta && postHandoverCta.linkId) {
-        handoverActionButton = '<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfp-link-btn" data-link-id="' + esc(postHandoverCta.linkId) + '">' + esc(postHandoverCta.label) + '</button>';
+        handoverActionButton = '<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfq-link-btn" data-link-id="' + esc(postHandoverCta.linkId) + '">' + esc(postHandoverCta.label) + '</button>';
       }
 
       if (handover && handover.requested_at) {
@@ -585,14 +585,14 @@
 
     function collectPayload() {
       var comparisonFields = parseJsonField($form.find('[name="comparison_fields"]').val());
-      comparisonFields.rfp_profile = {
-        default_scope: $form.find('[name="rfp_default_scope"]').val() || 'fsm_evaluation_poc',
-        default_seats: $form.find('[name="rfp_default_seats"]').val() || '20_30',
-        default_timeframe: $form.find('[name="rfp_default_timeframe"]').val() || '3_months',
-        default_cpl_gbp: Number($form.find('[name="rfp_default_cpl_gbp"]').val() || 0),
-        supported_features: splitList($form.find('[name="rfp_supported_features"]').val()),
-        default_estimate_gbp: Number($form.find('[name="rfp_default_estimate_gbp"]').val() || 0),
-        max_discount_pct: Number($form.find('[name="rfp_max_discount_pct"]').val() || 0)
+      comparisonFields.rfq_profile = {
+        default_scope: $form.find('[name="rfq_default_scope"]').val() || 'fsm_evaluation_poc',
+        default_seats: $form.find('[name="rfq_default_seats"]').val() || '20_30',
+        default_timeframe: $form.find('[name="rfq_default_timeframe"]').val() || '3_months',
+        default_cpl_gbp: Number($form.find('[name="rfq_default_cpl_gbp"]').val() || 0),
+        supported_features: splitList($form.find('[name="rfq_supported_features"]').val()),
+        default_estimate_gbp: Number($form.find('[name="rfq_default_estimate_gbp"]').val() || 0),
+        max_discount_pct: Number($form.find('[name="rfq_max_discount_pct"]').val() || 0)
       };
 
       return {
@@ -789,12 +789,12 @@
         lead_title:       $form.find('[name="lead_title"]').val().trim(),
         commission_rate:  commissionRate
       }).done(function () {
-        showStatus('RFP response submitted. The prospect can now review, accept, or reject it.', 'success');
+        showStatus('RFQ response submitted. The prospect can now review, accept, or reject it.', 'success');
         loadThreads(threadId);
       }).fail(function (xhr) {
         var res = xhr && xhr.responseJSON ? xhr.responseJSON : {};
         showStatus(res.message || 'Unable to submit response.', 'error');
-        $submit.prop('disabled', false).text('Submit RFP response');
+        $submit.prop('disabled', false).text('Submit RFQ response');
       });
     });
 
@@ -805,7 +805,7 @@
 
       var $panel = $button.closest('.khm-qc-connect-thread-detail, .khm-qc-connect-thread-reply').closest('.khm-qc-connect-thread-detail');
       var $toggle = $panel.find('.khm-qc-connect-discount-toggle');
-      var $rateInput = $panel.find('.khm-qc-rfp-commission-rate');
+      var $rateInput = $panel.find('.khm-qc-rfq-commission-rate');
       var offerDiscount = $toggle.length && $toggle.is(':checked');
       var commissionRate = offerDiscount ? (parseInt($rateInput.val(), 10) || 0) : null;
 
@@ -847,14 +847,14 @@
       submitHandoverAcceptance(threadId, $button);
     });
 
-    $shell.on('change input', '.khm-qc-connect-discount-toggle, .khm-qc-rfp-commission-rate', function () {
+    $shell.on('change input', '.khm-qc-connect-discount-toggle, .khm-qc-rfq-commission-rate', function () {
       var $panel = $(this).closest('.khm-qc-connect-discount-panel');
       var $toggle = $panel.find('.khm-qc-connect-discount-toggle');
       var $controls = $panel.find('.khm-qc-connect-discount-controls');
-      var $rateValue = $panel.find('.khm-qc-rfp-rate-value');
+      var $rateValue = $panel.find('.khm-qc-rfq-rate-value');
       var $flatFee = $panel.find('.khm-qc-connect-flat-fee');
       var isOn = $toggle.is(':checked');
-      var rate = parseInt($panel.find('.khm-qc-rfp-commission-rate').val(), 10) || 10;
+      var rate = parseInt($panel.find('.khm-qc-rfq-commission-rate').val(), 10) || 10;
       var halfRate = rate / 2;
       $controls.prop('hidden', !isOn);
       $flatFee.text(isOn ? '£375.00' : '£1,500.00');
@@ -866,9 +866,9 @@
       }
     });
 
-    $shell.on('click', '.khm-qc-rfp-link-btn', function () {
+    $shell.on('click', '.khm-qc-rfq-link-btn', function () {
       var linkId = $(this).data('link-id');
-      var link = rfpLinkStore[linkId];
+      var link = rfqLinkStore[linkId];
       if (link) {
         window.open(link, '_blank', 'noopener,noreferrer');
       }

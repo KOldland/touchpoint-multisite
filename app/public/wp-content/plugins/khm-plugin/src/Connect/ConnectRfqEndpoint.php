@@ -10,15 +10,15 @@ use WP_REST_Request;
 use WP_REST_Response;
 
 /**
- * Buyer-facing RFP and request endpoints. Requires active KHM membership.
+ * Buyer-facing RFQ and request endpoints. Requires active KHM membership.
  *
- * POST   /khm/v1/connect/rfp                          – create an RFP
- * GET    /khm/v1/connect/rfp/{id}/matches             – ranked provider matches for an RFP
- * POST   /khm/v1/connect/directory/{provider_id}/request – send a direct or RFP-backed request
+ * POST   /khm/v1/connect/rfq                          – create an RFQ (alias: /connect/rfp)
+ * GET    /khm/v1/connect/rfq/{id}/matches             – ranked provider matches for an RFQ
+ * POST   /khm/v1/connect/directory/{provider_id}/request – send a direct or RFQ-backed request
  */
-class ConnectRfpEndpoint {
+class ConnectRfqEndpoint {
 
-	private const MAX_ACTIVE_RFPS     = 3;
+	private const MAX_ACTIVE_RFQS     = 3;
 	private const MAX_ACTIVE_REQUESTS = 3;
 
 	public function register(): void {
@@ -26,52 +26,59 @@ class ConnectRfpEndpoint {
 	}
 
 	public function register_routes(): void {
-		register_rest_route( 'khm/v1', '/connect/rfp', [
-			'methods'             => 'POST',
-			'callback'            => [ $this, 'create_rfp' ],
-			'permission_callback' => [ $this, 'require_active_member' ],
-			'args'                => [
-				'expertise'               => [ 'type' => 'array', 'items' => [ 'type' => 'string' ], 'default' => [] ],
-				'industry'                => [ 'type' => 'array', 'items' => [ 'type' => 'string' ], 'default' => [] ],
-				'budget_min'              => [ 'type' => 'integer', 'minimum' => 0 ],
-				'budget_max'              => [ 'type' => 'integer', 'minimum' => 0 ],
-				'company_size'            => [ 'type' => 'integer', 'minimum' => 1 ],
-				'provider_type'           => [ 'type' => 'string' ],
-				'partner_posture'         => [ 'type' => 'string' ],
-				'deployment_needed'       => [ 'type' => 'string' ],
-				'deployment_mode'         => [ 'type' => 'string' ],
-				'onboarding_style'        => [ 'type' => 'string' ],
-				'installation_preference' => [ 'type' => 'string' ],
-				'proof_of_commitment'     => [ 'type' => 'string' ],
-				'pilot_required'          => [ 'type' => 'boolean', 'default' => false ],
-				'criteria_priority_order' => [ 'type' => 'array', 'items' => [ 'type' => 'string' ], 'default' => [] ],
-				'challenge'               => [ 'type' => 'string' ],
-				'solution_types'          => [ 'type' => 'array', 'items' => [ 'type' => 'string' ], 'default' => [] ],
-				'sector'                  => [ 'type' => 'string' ],
-				'region'                  => [ 'type' => 'string' ],
-				'company_size_band'       => [ 'type' => 'string' ],
-				'integrations'            => [ 'type' => 'array', 'items' => [ 'type' => 'string' ], 'default' => [] ],
-				'integrations_other'      => [ 'type' => 'string' ],
-				'delivery_model'          => [ 'type' => 'string' ],
-				'engagement_model'        => [ 'type' => 'string' ],
-				'free_trial'              => [ 'type' => 'boolean', 'default' => false ],
-			],
-		] );
+		$create_args = [
+			'expertise'               => [ 'type' => 'array', 'items' => [ 'type' => 'string' ], 'default' => [] ],
+			'industry'                => [ 'type' => 'array', 'items' => [ 'type' => 'string' ], 'default' => [] ],
+			'budget_min'              => [ 'type' => 'integer', 'minimum' => 0 ],
+			'budget_max'              => [ 'type' => 'integer', 'minimum' => 0 ],
+			'company_size'            => [ 'type' => 'integer', 'minimum' => 1 ],
+			'provider_type'           => [ 'type' => 'string' ],
+			'partner_posture'         => [ 'type' => 'string' ],
+			'deployment_needed'       => [ 'type' => 'string' ],
+			'deployment_mode'         => [ 'type' => 'string' ],
+			'onboarding_style'        => [ 'type' => 'string' ],
+			'installation_preference' => [ 'type' => 'string' ],
+			'proof_of_commitment'     => [ 'type' => 'string' ],
+			'pilot_required'          => [ 'type' => 'boolean', 'default' => false ],
+			'criteria_priority_order' => [ 'type' => 'array', 'items' => [ 'type' => 'string' ], 'default' => [] ],
+			'challenge'               => [ 'type' => 'string' ],
+			'solution_types'          => [ 'type' => 'array', 'items' => [ 'type' => 'string' ], 'default' => [] ],
+			'sector'                  => [ 'type' => 'string' ],
+			'region'                  => [ 'type' => 'string' ],
+			'company_size_band'       => [ 'type' => 'string' ],
+			'integrations'            => [ 'type' => 'array', 'items' => [ 'type' => 'string' ], 'default' => [] ],
+			'integrations_other'      => [ 'type' => 'string' ],
+			'delivery_model'          => [ 'type' => 'string' ],
+			'engagement_model'        => [ 'type' => 'string' ],
+			'free_trial'              => [ 'type' => 'boolean', 'default' => false ],
+		];
 
-		register_rest_route( 'khm/v1', '/connect/rfp/(?P<id>\d+)/matches', [
-			'methods'             => 'GET',
-			'callback'            => [ $this, 'get_matches' ],
-			'permission_callback' => [ $this, 'require_active_member' ],
-			'args'                => [
-				'sort' => [ 'type' => 'string', 'enum' => [ 'best_match', 'best_price' ], 'default' => 'best_match' ],
-			],
-		] );
+		// Register /rfq (primary) and /rfp (legacy alias) so cached JS, external bookmarks,
+		// and in-flight integrations keep working through the rename window.
+		foreach ( [ 'rfq', 'rfp' ] as $slug ) {
+			register_rest_route( 'khm/v1', "/connect/{$slug}", [
+				'methods'             => 'POST',
+				'callback'            => [ $this, 'create_rfq' ],
+				'permission_callback' => [ $this, 'require_active_member' ],
+				'args'                => $create_args,
+			] );
+
+			register_rest_route( 'khm/v1', "/connect/{$slug}/(?P<id>\\d+)/matches", [
+				'methods'             => 'GET',
+				'callback'            => [ $this, 'get_matches' ],
+				'permission_callback' => [ $this, 'require_active_member' ],
+				'args'                => [
+					'sort' => [ 'type' => 'string', 'enum' => [ 'best_match', 'best_price' ], 'default' => 'best_match' ],
+				],
+			] );
+		}
 
 		register_rest_route( 'khm/v1', '/connect/directory/(?P<provider_id>\d+)/request', [
 			'methods'             => 'POST',
 			'callback'            => [ $this, 'send_request' ],
 			'permission_callback' => [ $this, 'require_active_member' ],
 			'args'                => [
+				'rfq_id' => [ 'type' => 'integer', 'minimum' => 1 ],
 				'rfp_id' => [ 'type' => 'integer', 'minimum' => 1 ],
 			],
 		] );
@@ -94,17 +101,17 @@ class ConnectRfpEndpoint {
 	// ─── Handlers ──────────────────────────────────────────────────────────────
 
 	/**
-	 * POST /khm/v1/connect/rfp
-	 * Create a new RFP for the authenticated buyer.
+	 * POST /khm/v1/connect/rfq (alias: /khm/v1/connect/rfp)
+	 * Create a new RFQ for the authenticated buyer.
 	 */
-	public function create_rfp( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+	public function create_rfq( WP_REST_Request $request ): WP_REST_Response|WP_Error {
 		$user_id = get_current_user_id();
-		$repo    = new ConnectRfpRepository();
+		$repo    = new ConnectRfqRepository();
 
-		if ( $repo->count_active_for_user( $user_id ) >= self::MAX_ACTIVE_RFPS ) {
+		if ( $repo->count_active_for_user( $user_id ) >= self::MAX_ACTIVE_RFQS ) {
 			return new WP_Error(
-				'rfp_cap_reached',
-				sprintf( 'You can have at most %d active RFPs at a time.', self::MAX_ACTIVE_RFPS ),
+				'rfq_cap_reached',
+				sprintf( 'You can have at most %d active RFQs at a time.', self::MAX_ACTIVE_RFQS ),
 				[ 'status' => 422 ]
 			);
 		}
@@ -138,83 +145,84 @@ class ConnectRfpEndpoint {
 		] );
 
 		if ( $id <= 0 ) {
-			return new WP_Error( 'rfp_create_failed', 'Failed to save RFP.', [ 'status' => 500 ] );
+			return new WP_Error( 'rfq_create_failed', 'Failed to save RFQ.', [ 'status' => 500 ] );
 		}
 
-		return new WP_REST_Response( [ 'rfp' => $repo->get( $id ) ], 201 );
+		$created = $repo->get( $id );
+		return new WP_REST_Response( [ 'rfq' => $created, 'rfp' => $created ], 201 );
 	}
 
 	/**
-	 * GET /khm/v1/connect/rfp/{id}/matches
-	 * Return providers ranked against the RFP criteria.
+	 * GET /khm/v1/connect/rfq/{id}/matches (alias: /khm/v1/connect/rfp/{id}/matches)
+	 * Return providers ranked against the RFQ criteria.
 	 */
 	public function get_matches( WP_REST_Request $request ): WP_REST_Response|WP_Error {
 		$user_id = get_current_user_id();
-		$repo    = new ConnectRfpRepository();
-		$rfp     = $repo->get_for_user( $user_id, (int) $request->get_param( 'id' ) );
+		$repo    = new ConnectRfqRepository();
+		$rfq     = $repo->get_for_user( $user_id, (int) $request->get_param( 'id' ) );
 
-		if ( ! $rfp ) {
-			return new WP_Error( 'rfp_not_found', 'RFP not found.', [ 'status' => 404 ] );
+		if ( ! $rfq ) {
+			return new WP_Error( 'rfq_not_found', 'RFQ not found.', [ 'status' => 404 ] );
 		}
 
-		// Resolve matching blog_ids from RFP expertise + industry filters
-		$blog_ids = $this->blog_ids_from_rfp( $rfp );
+		// Resolve matching blog_ids from RFQ expertise + industry filters
+		$blog_ids = $this->blog_ids_from_rfq( $rfq );
 
-		$proof_of_commitment = isset( $rfp['proof_of_commitment'] ) ? sanitize_key( (string) $rfp['proof_of_commitment'] ) : '';
-		$needs_pilot = in_array( $proof_of_commitment, [ 'pilot-expected', 'pilot-essential', 'required' ], true ) || ! empty( $rfp['pilot_required'] );
-		$needs_trial = in_array( $proof_of_commitment, [ 'free-test-expected', 'required', 'preferred' ], true ) || ! empty( $rfp['free_trial'] );
+		$proof_of_commitment = isset( $rfq['proof_of_commitment'] ) ? sanitize_key( (string) $rfq['proof_of_commitment'] ) : '';
+		$needs_pilot = in_array( $proof_of_commitment, [ 'pilot-expected', 'pilot-essential', 'required' ], true ) || ! empty( $rfq['pilot_required'] );
+		$needs_trial = in_array( $proof_of_commitment, [ 'free-test-expected', 'required', 'preferred' ], true ) || ! empty( $rfq['free_trial'] );
 
-		$provider_type = $this->map_posture_to_provider_type( (string) ( $rfp['partner_posture'] ?? '' ) );
+		$provider_type = $this->map_posture_to_provider_type( (string) ( $rfq['partner_posture'] ?? '' ) );
 		if ( '' === $provider_type ) {
-			$provider_type = sanitize_key( (string) ( $rfp['provider_type'] ?? '' ) );
+			$provider_type = sanitize_key( (string) ( $rfq['provider_type'] ?? '' ) );
 		}
 
 		$provider_repo = new ConnectProviderRepository();
 		$providers     = $provider_repo->list_filtered( [
 			'blog_ids'        => $blog_ids,
 			'provider_type'   => in_array( $provider_type, [ 'platform', 'specialist' ], true ) ? $provider_type : null,
-			'deployment_mode' => ! empty( $rfp['deployment_mode'] ) ? $rfp['deployment_mode'] : ( ! empty( $rfp['delivery_model'] ) ? $rfp['delivery_model'] : null ),
+			'deployment_mode' => ! empty( $rfq['deployment_mode'] ) ? $rfq['deployment_mode'] : ( ! empty( $rfq['delivery_model'] ) ? $rfq['delivery_model'] : null ),
 			'pilot_available' => $needs_pilot,
 			'free_trial'      => $needs_trial,
-			'budget_min'      => $rfp['budget_min'],
-			'budget_max'      => $rfp['budget_max'],
-			'company_size'    => $rfp['company_size'],
+			'budget_min'      => $rfq['budget_min'],
+			'budget_max'      => $rfq['budget_max'],
+			'company_size'    => $rfq['company_size'],
 		] );
 
 		$company_sizes = [];
-		if ( ! empty( $rfp['company_size_band'] ) ) {
-			$company_sizes = [ $rfp['company_size_band'] ];
-		} elseif ( ! empty( $rfp['company_size'] ) ) {
-			$company_sizes = [ (string) $rfp['company_size'] ];
+		if ( ! empty( $rfq['company_size_band'] ) ) {
+			$company_sizes = [ $rfq['company_size_band'] ];
+		} elseif ( ! empty( $rfq['company_size'] ) ) {
+			$company_sizes = [ (string) $rfq['company_size'] ];
 		}
 
 		$deployment = [];
-		if ( ! empty( $rfp['deployment_mode'] ) ) {
-			$deployment = [ $rfp['deployment_mode'] ];
-		} elseif ( ! empty( $rfp['delivery_model'] ) ) {
-			$deployment = [ $rfp['delivery_model'] ];
-		} elseif ( ! empty( $rfp['deployment_needed'] ) ) {
-			$deployment = [ $rfp['deployment_needed'] ];
+		if ( ! empty( $rfq['deployment_mode'] ) ) {
+			$deployment = [ $rfq['deployment_mode'] ];
+		} elseif ( ! empty( $rfq['delivery_model'] ) ) {
+			$deployment = [ $rfq['delivery_model'] ];
+		} elseif ( ! empty( $rfq['deployment_needed'] ) ) {
+			$deployment = [ $rfq['deployment_needed'] ];
 		}
 
 		$sector_values = [];
-		if ( ! empty( $rfp['sector'] ) ) {
+		if ( ! empty( $rfq['sector'] ) ) {
 			$sector_values = array_values(
 				array_filter(
-					array_map( 'sanitize_key', array_map( 'trim', explode( ',', (string) $rfp['sector'] ) ) )
+					array_map( 'sanitize_key', array_map( 'trim', explode( ',', (string) $rfq['sector'] ) ) )
 				)
 			);
 		}
 
 		$criteria = [
-			'industries'    => $rfp['industry'],
-			'regions'       => ! empty( $rfp['region'] ) ? [ $rfp['region'] ] : [],
+			'industries'    => $rfq['industry'],
+			'regions'       => ! empty( $rfq['region'] ) ? [ $rfq['region'] ] : [],
 			'company_sizes' => $company_sizes,
 			'deployment'    => $deployment,
 			'keywords'      => [],
-			'budget'        => $rfp['budget_min'] ?? 0,
+			'budget'        => $rfq['budget_min'] ?? 0,
 			'sector'        => $sector_values,
-			'integrations'  => $rfp['integrations'] ?? [],
+			'integrations'  => $rfq['integrations'] ?? [],
 		];
 
 		$shortlist = new ConnectShortlistService();
@@ -238,7 +246,7 @@ class ConnectRfpEndpoint {
 			return $provider;
 		}, $ranked );
 
-		return new WP_REST_Response( [ 'rfp_id' => $rfp['id'], 'matches' => array_values( $ranked ) ], 200 );
+		return new WP_REST_Response( [ 'rfq_id' => $rfq['id'], 'matches' => array_values( $ranked ) ], 200 );
 	}
 
 	private function map_posture_to_provider_type( string $posture ): string {
@@ -255,12 +263,13 @@ class ConnectRfpEndpoint {
 
 	/**
 	 * POST /khm/v1/connect/directory/{provider_id}/request
-	 * Send a direct or RFP-backed intro request to a provider.
+	 * Send a direct or RFQ-backed intro request to a provider.
 	 */
 	public function send_request( WP_REST_Request $request ): WP_REST_Response|WP_Error {
 		$user_id     = get_current_user_id();
 		$provider_id = (int) $request->get_param( 'provider_id' );
-		$rfp_id      = (int) ( $request->get_param( 'rfp_id' ) ?: 0 );
+		// Accept either rfq_id (current) or rfp_id (legacy) for the rename window.
+		$rfq_id      = (int) ( $request->get_param( 'rfq_id' ) ?: $request->get_param( 'rfp_id' ) ?: 0 );
 
 		// Enforce active request cap
 		if ( $this->count_active_requests( $user_id ) >= self::MAX_ACTIVE_REQUESTS ) {
@@ -278,14 +287,14 @@ class ConnectRfpEndpoint {
 			return new WP_Error( 'buyer_email_missing', 'Could not resolve buyer email.', [ 'status' => 500 ] );
 		}
 
-		$request_type = $rfp_id > 0 ? 'rfp_request' : 'direct_connection';
-		$rfp_meta     = [];
+		$request_type = $rfq_id > 0 ? 'rfq_request' : 'direct_connection';
+		$rfq_meta     = [];
 
-		if ( $rfp_id > 0 ) {
-			$rfp_repo = new ConnectRfpRepository();
-			$rfp      = $rfp_repo->get_for_user( $user_id, $rfp_id );
-			if ( $rfp ) {
-				$rfp_meta = $rfp;
+		if ( $rfq_id > 0 ) {
+			$rfq_repo = new ConnectRfqRepository();
+			$rfq      = $rfq_repo->get_for_user( $user_id, $rfq_id );
+			if ( $rfq ) {
+				$rfq_meta = $rfq;
 			}
 		}
 
@@ -293,7 +302,7 @@ class ConnectRfpEndpoint {
 		$opp_id   = $opp_repo->create_engaged_opportunity( [
 			'actor_email'  => $buyer_email,
 			'request_type' => $request_type,
-			'rfp_metadata' => $rfp_meta,
+			'rfq_metadata' => $rfq_meta,
 			'provider_id'  => $provider_id,
 			'source'       => 'buyer_directory',
 		] );
@@ -318,14 +327,14 @@ class ConnectRfpEndpoint {
 	// ─── Helpers ───────────────────────────────────────────────────────────────
 
 	/**
-	 * Translate RFP expertise + industry into blog_ids.
+	 * Translate RFQ expertise + industry into blog_ids.
 	 * Returns null when no filter set (all sites).
 	 *
 	 * @return int[]|null
 	 */
-	private function blog_ids_from_rfp( array $rfp ): ?array {
-		$expertise = (array) ( $rfp['expertise'] ?? [] );
-		$industry  = (array) ( $rfp['industry'] ?? [] );
+	private function blog_ids_from_rfq( array $rfq ): ?array {
+		$expertise = (array) ( $rfq['expertise'] ?? [] );
+		$industry  = (array) ( $rfq['industry'] ?? [] );
 
 		if ( empty( $expertise ) && empty( $industry ) ) {
 			return null;

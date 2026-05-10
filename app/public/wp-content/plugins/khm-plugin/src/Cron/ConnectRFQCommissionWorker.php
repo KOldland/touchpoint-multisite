@@ -1,6 +1,6 @@
 <?php
 /**
- * RFP Commission Charge Worker
+ * RFQ Commission Charge Worker
  *
  * Daily WP-Cron job that processes due commission invoices.
  *
@@ -14,8 +14,8 @@
  *  6. Disputed invoices are never touched by this job -- admin resolves manually.
  *
  * Fires:
- *   do_action( 'khm_rfp_commission_charged', $invoice_id, $thread_id, $sponsor_id, $intent_id, $commission_amount )
- *   do_action( 'khm_rfp_commission_failed',  $invoice_id, $sponsor_id, $reason )
+ *   do_action( 'khm_rfq_commission_charged', $invoice_id, $thread_id, $sponsor_id, $intent_id, $commission_amount )
+ *   do_action( 'khm_rfq_commission_failed',  $invoice_id, $sponsor_id, $reason )
  *
  * @package KHM\Cron
  */
@@ -27,9 +27,9 @@ use KHM\Migrations\CreateRFPSupportTables;
 
 defined( 'ABSPATH' ) || exit;
 
-class ConnectRFPCommissionWorker {
+class ConnectRFQCommissionWorker {
 
-	public const HOOK       = 'khm_rfp_commission_daily';
+	public const HOOK       = 'khm_rfq_commission_daily';
 	public const CHUNK_SIZE = 25;
 
 	private ConnectSellerPaymentRepository $payment_repo;
@@ -49,7 +49,7 @@ class ConnectRFPCommissionWorker {
 		}
 
 		if ( ! wp_next_scheduled( self::HOOK ) ) {
-			// 03:00 AM to avoid conflict with the existing RFP upsell cron at 02:00.
+			// 03:00 AM to avoid conflict with the existing RFQ upsell cron at 02:00.
 			wp_schedule_event( strtotime( 'tomorrow 03:00:00' ), 'daily', self::HOOK );
 		}
 	}
@@ -87,7 +87,7 @@ class ConnectRFPCommissionWorker {
 			: '';
 
 		if ( empty( $stripe_key ) ) {
-			error_log( '[KHM RFP Commission] Stripe not configured — aborting cron run.' );
+			error_log( '[KHM RFQ Commission] Stripe not configured — aborting cron run.' );
 			return [ 'charged' => 0, 'failed' => 0, 'skipped' => count( $due_invoices ) ];
 		}
 
@@ -105,7 +105,7 @@ class ConnectRFPCommissionWorker {
 			$amount_pence      = (int) round( $commission_amount * 100 );
 
 			if ( $amount_pence <= 0 ) {
-				error_log( sprintf( '[KHM RFP Commission] Invoice #%d has zero/negative amount — skipping.', $invoice_id ) );
+				error_log( sprintf( '[KHM RFQ Commission] Invoice #%d has zero/negative amount — skipping.', $invoice_id ) );
 				$skipped++;
 				continue;
 			}
@@ -115,12 +115,12 @@ class ConnectRFPCommissionWorker {
 
 			if ( ! $profile || empty( $profile->stripe_customer_id ) ) {
 				error_log( sprintf(
-					'[KHM RFP Commission] No Stripe payment profile for sponsor %d (invoice #%d) — marking failed.',
+					'[KHM RFQ Commission] No Stripe payment profile for sponsor %d (invoice #%d) — marking failed.',
 					$sponsor_id, $invoice_id
 				) );
 				$this->mark_failed( $invoice_id, 'no_payment_profile' );
 				$failed++;
-				do_action( 'khm_rfp_commission_failed', $invoice_id, $sponsor_id, 'no_payment_profile' );
+				do_action( 'khm_rfq_commission_failed', $invoice_id, $sponsor_id, 'no_payment_profile' );
 				continue;
 			}
 
@@ -135,12 +135,12 @@ class ConnectRFPCommissionWorker {
 
 				if ( empty( $pm_id ) ) {
 					error_log( sprintf(
-						'[KHM RFP Commission] No default payment method for customer %s (invoice #%d) — marking failed.',
+						'[KHM RFQ Commission] No default payment method for customer %s (invoice #%d) — marking failed.',
 						$stripe_customer_id, $invoice_id
 					) );
 					$this->mark_failed( $invoice_id, 'no_default_payment_method' );
 					$failed++;
-					do_action( 'khm_rfp_commission_failed', $invoice_id, $sponsor_id, 'no_default_payment_method' );
+					do_action( 'khm_rfq_commission_failed', $invoice_id, $sponsor_id, 'no_default_payment_method' );
 					continue;
 				}
 
@@ -151,9 +151,9 @@ class ConnectRFPCommissionWorker {
 					'payment_method' => $pm_id,
 					'off_session'    => true,
 					'confirm'        => true,
-					'description'    => sprintf( 'RFP commission — thread #%d', $thread_id ),
+					'description'    => sprintf( 'RFQ commission — thread #%d', $thread_id ),
 					'metadata'       => [
-						'purchase_type' => 'rfp_commission',
+						'purchase_type' => 'rfq_commission',
 						'invoice_id'    => (string) $invoice_id,
 						'thread_id'     => (string) $thread_id,
 						'sponsor_id'    => (string) $sponsor_id,
@@ -164,7 +164,7 @@ class ConnectRFPCommissionWorker {
 					$this->mark_charged( $invoice_id, $intent->id );
 					$charged++;
 					error_log( sprintf(
-						'[KHM RFP Commission] Invoice #%d charged GBP %.2f for thread #%d (intent %s).',
+						'[KHM RFQ Commission] Invoice #%d charged GBP %.2f for thread #%d (intent %s).',
 						$invoice_id, $commission_amount, $thread_id, $intent->id
 					) );
 					/**
@@ -176,27 +176,27 @@ class ConnectRFPCommissionWorker {
 					 * @param string $intent_id         Stripe PaymentIntent ID.
 					 * @param float  $commission_amount GBP decimal.
 					 */
-					do_action( 'khm_rfp_commission_charged', $invoice_id, $thread_id, $sponsor_id, $intent->id, $commission_amount );
+					do_action( 'khm_rfq_commission_charged', $invoice_id, $thread_id, $sponsor_id, $intent->id, $commission_amount );
 				} else {
 					// Intent is in requires_action or other incomplete state.
 					error_log( sprintf(
-						'[KHM RFP Commission] Invoice #%d intent %s has status "%s" — marking failed.',
+						'[KHM RFQ Commission] Invoice #%d intent %s has status "%s" — marking failed.',
 						$invoice_id, $intent->id, $intent->status
 					) );
 					$this->mark_failed( $invoice_id, 'intent_status_' . sanitize_key( $intent->status ) );
 					$failed++;
-					do_action( 'khm_rfp_commission_failed', $invoice_id, $sponsor_id, $intent->status );
+					do_action( 'khm_rfq_commission_failed', $invoice_id, $sponsor_id, $intent->status );
 				}
 			} catch ( \Stripe\Exception\CardException $e ) {
-				error_log( sprintf( '[KHM RFP Commission] Card declined for invoice #%d: %s', $invoice_id, $e->getMessage() ) );
+				error_log( sprintf( '[KHM RFQ Commission] Card declined for invoice #%d: %s', $invoice_id, $e->getMessage() ) );
 				$this->mark_failed( $invoice_id, 'card_declined' );
 				$failed++;
-				do_action( 'khm_rfp_commission_failed', $invoice_id, $sponsor_id, 'card_declined' );
+				do_action( 'khm_rfq_commission_failed', $invoice_id, $sponsor_id, 'card_declined' );
 			} catch ( \Exception $e ) {
-				error_log( sprintf( '[KHM RFP Commission] Exception for invoice #%d: %s', $invoice_id, $e->getMessage() ) );
+				error_log( sprintf( '[KHM RFQ Commission] Exception for invoice #%d: %s', $invoice_id, $e->getMessage() ) );
 				$this->mark_failed( $invoice_id, 'stripe_exception' );
 				$failed++;
-				do_action( 'khm_rfp_commission_failed', $invoice_id, $sponsor_id, 'stripe_exception' );
+				do_action( 'khm_rfq_commission_failed', $invoice_id, $sponsor_id, 'stripe_exception' );
 			}
 		}
 

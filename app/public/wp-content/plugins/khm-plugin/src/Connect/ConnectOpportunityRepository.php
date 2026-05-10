@@ -134,7 +134,7 @@ class ConnectOpportunityRepository {
 	}
 
 	/**
-	 * Create an engaged opportunity (direct connection or RFP request)
+	 * Create an engaged opportunity (direct connection or RFQ request)
 	 *
 	 * @param array<string,mixed> $data
 	 * @return int Opportunity ID or 0 on failure
@@ -146,7 +146,7 @@ class ConnectOpportunityRepository {
 		}
 
 		$request_type = sanitize_key( (string) ( $data['request_type'] ?? 'direct_connection' ) );
-		if ( ! in_array( $request_type, array( 'direct_connection', 'rfp_request' ), true ) ) {
+		if ( ! in_array( $request_type, array( 'direct_connection', 'rfq_request' ), true ) ) {
 			return 0;
 		}
 
@@ -161,10 +161,10 @@ class ConnectOpportunityRepository {
 
 		$dedupe_key = hash_hmac( 'sha256', strtolower( $actor_email ) . '|' . $tier . '|' . $date . '|' . $request_type, wp_salt( 'auth' ) );
 
-		// Build rfp_metadata if provided
-		$rfp_metadata = null;
-		if ( 'rfp_request' === $request_type && isset( $data['rfp_metadata'] ) && is_array( $data['rfp_metadata'] ) ) {
-			$rfp_metadata = wp_json_encode( $data['rfp_metadata'] );
+		// Build rfq_metadata if provided
+		$rfq_metadata = null;
+		if ( 'rfq_request' === $request_type && isset( $data['rfq_metadata'] ) && is_array( $data['rfq_metadata'] ) ) {
+			$rfq_metadata = wp_json_encode( $data['rfq_metadata'] );
 		}
 
 		global $wpdb;
@@ -179,10 +179,10 @@ class ConnectOpportunityRepository {
 			'provider_id'         => null,
 			'internal_stage'      => 'decision',
 			'commercial_tier'     => $tier,
-			'person_score'        => 'rfp_request' === $request_type ? 0.0 : (float) ( $data['person_score'] ?? 0.98 ),
+			'person_score'        => 'rfq_request' === $request_type ? 0.0 : (float) ( $data['person_score'] ?? 0.98 ),
 			'opportunity_status'  => 'detected',
 			'request_type'        => $request_type,
-			'rfp_metadata'        => $rfp_metadata,
+			'rfq_metadata'        => $rfq_metadata,
 			'pricing_model'       => $pricing['pricing_model'],
 			'unit_price_cents'    => (int) $pricing['unit_price_cents'],
 			'commission_eligible' => (int) $pricing['commission_eligible'],
@@ -421,9 +421,9 @@ class ConnectOpportunityRepository {
 	}
 
 	private function hydrate_opportunity( array $row ): array {
-		$rfp_meta = $row['rfp_metadata'] ?? null;
-		if ( is_string( $rfp_meta ) ) {
-			$rfp_meta = json_decode( $rfp_meta, true );
+		$rfq_meta = $row['rfq_metadata'] ?? null;
+		if ( is_string( $rfq_meta ) ) {
+			$rfq_meta = json_decode( $rfq_meta, true );
 		}
 
 		return array(
@@ -439,7 +439,7 @@ class ConnectOpportunityRepository {
 			'person_score'       => (float) ( $row['person_score'] ?? 0 ),
 			'opportunity_status' => (string) ( $row['opportunity_status'] ?? 'detected' ),
 			'request_type'       => (string) ( $row['request_type'] ?? 'direct_connection' ),
-			'rfp_metadata'       => is_array( $rfp_meta ) ? $rfp_meta : null,
+			'rfq_metadata'       => is_array( $rfq_meta ) ? $rfq_meta : null,
 			'engaged_option'     => $row['engaged_option'] ? (string) $row['engaged_option'] : null,
 			'pricing_model'      => (string) ( $row['pricing_model'] ?? 'cpl' ),
 			'unit_price_cents'   => (int) ( $row['unit_price_cents'] ?? 0 ),

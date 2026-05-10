@@ -1,15 +1,15 @@
 <?php
 /**
- * RFP Upsell Worker (Phase G)
+ * RFQ Upsell Worker (Phase G)
  *
- * Daily WP-Cron job that finds RFP opportunities created ~30 days ago
+ * Daily WP-Cron job that finds RFQ opportunities created ~30 days ago
  * and fires the upsell hook so email listeners can send a "How did it go?"
  * + upgrade prompt to the buyer.
  *
  * Safe to run multiple times — each opportunity is stamped with
- * rfp_upsell_sent_at on first send and skipped on subsequent runs.
+ * rfq_upsell_sent_at on first send and skipped on subsequent runs.
  *
- * Register via: ( new ConnectRFPUpsellWorker() )->register();
+ * Register via: ( new ConnectRFQUpsellWorker() )->register();
  */
 
 namespace KHM\Cron;
@@ -18,9 +18,9 @@ use KHM\Migrations\ConnectWorkflowMigration;
 
 defined( 'ABSPATH' ) || exit;
 
-class ConnectRFPUpsellWorker {
+class ConnectRFQUpsellWorker {
 
-	public const HOOK            = 'khm_rfp_upsell_daily';
+	public const HOOK            = 'khm_rfq_upsell_daily';
 	public const WINDOW_DAYS_MIN = 28;
 	public const WINDOW_DAYS_MAX = 32;
 	public const CHUNK_SIZE      = 50;
@@ -44,12 +44,12 @@ class ConnectRFPUpsellWorker {
 	/**
 	 * Main cron callback.
 	 *
-	 * Finds all RFP opportunities where:
-	 *   - request_type = 'rfp_request'
-	 *   - rfp_created_at is between (now - 32 days) and (now - 28 days)
-	 *   - rfp_upsell_sent_at IS NULL  (not yet processed)
+	 * Finds all RFQ opportunities where:
+	 *   - request_type = 'rfq_request'
+	 *   - rfq_created_at is between (now - 32 days) and (now - 28 days)
+	 *   - rfq_upsell_sent_at IS NULL  (not yet processed)
 	 *
-	 * For each, fires khm_rfp_upsell_trigger then stamps rfp_upsell_sent_at.
+	 * For each, fires khm_rfq_upsell_trigger then stamps rfq_upsell_sent_at.
 	 *
 	 * @return array{ processed: int, skipped: int }
 	 */
@@ -62,12 +62,12 @@ class ConnectRFPUpsellWorker {
 		$max_cutoff = gmdate( 'Y-m-d H:i:s', strtotime( sprintf( '-%d days', self::WINDOW_DAYS_MIN ) ) );
 
 		$rows = $wpdb->get_results( $wpdb->prepare(
-			"SELECT id, buyer_account_id, sponsor_id, rfp_created_at
+			"SELECT id, buyer_account_id, sponsor_id, rfq_created_at
 			 FROM `{$table}`
-			 WHERE request_type = 'rfp_request'
-			   AND rfp_created_at BETWEEN %s AND %s
-			   AND rfp_upsell_sent_at IS NULL
-			 ORDER BY rfp_created_at ASC
+			 WHERE request_type = 'rfq_request'
+			   AND rfq_created_at BETWEEN %s AND %s
+			   AND rfq_upsell_sent_at IS NULL
+			 ORDER BY rfq_created_at ASC
 			 LIMIT %d",
 			$min_cutoff,
 			$max_cutoff,
@@ -88,7 +88,7 @@ class ConnectRFPUpsellWorker {
 			// Stamp first so a fatal inside the action doesn't retrigger
 			$wpdb->update(
 				$table,
-				[ 'rfp_upsell_sent_at' => current_time( 'mysql' ) ],
+				[ 'rfq_upsell_sent_at' => current_time( 'mysql' ) ],
 				[ 'id' => $opportunity_id ],
 				[ '%s' ],
 				[ '%d' ]
@@ -96,13 +96,13 @@ class ConnectRFPUpsellWorker {
 
 			if ( $wpdb->rows_affected > 0 ) {
 				/**
-				 * Fires when an RFP opportunity is ~30 days old.
+				 * Fires when an RFQ opportunity is ~30 days old.
 				 * Listeners should send the buyer an upsell / experience survey email.
 				 *
 				 * @param int $opportunity_id
 				 * @param int $buyer_account_id  WordPress user ID (may be sponsor_id if no account linked)
 				 */
-				do_action( 'khm_rfp_upsell_trigger', $opportunity_id, $buyer_account_id );
+				do_action( 'khm_rfq_upsell_trigger', $opportunity_id, $buyer_account_id );
 				$processed++;
 			} else {
 				$skipped++;

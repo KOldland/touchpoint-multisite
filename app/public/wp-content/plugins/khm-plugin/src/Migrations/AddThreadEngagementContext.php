@@ -4,7 +4,7 @@
  *
  * Adds three columns to connect_intro_threads table to track:
  * - opportunity_id: Foreign key to parent opportunity (for deduping and context)
- * - request_type: 'direct_connection' or 'rfp_request' (workflow type)
+ * - request_type: 'direct_connection' or 'rfq_request' (workflow type)
  * - engaged_option: 'option_1' or 'option_2' (pricing option selected for engaged tier)
  *
  * @package KHM\Migrations

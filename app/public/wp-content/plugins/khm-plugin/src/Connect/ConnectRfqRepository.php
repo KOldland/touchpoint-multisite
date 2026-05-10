@@ -7,16 +7,16 @@ defined( 'ABSPATH' ) || exit;
 use KHM\Migrations\AddConnectBuyerDirectoryColumns;
 
 /**
- * CRUD for the connect_rfps table.
+ * CRUD for the connect_rfqs table.
  */
-class ConnectRfpRepository {
+class ConnectRfqRepository {
 
 	private function table(): string {
-		return AddConnectBuyerDirectoryColumns::rfps_table_name();
+		return AddConnectBuyerDirectoryColumns::rfqs_table_name();
 	}
 
 	/**
-	 * Insert a new RFP record.
+	 * Insert a new RFQ record.
 	 *
 	 * @param array<string,mixed> $data
 	 * @return int Inserted ID or 0 on failure
@@ -63,7 +63,7 @@ class ConnectRfpRepository {
 	}
 
 	/**
-	 * Fetch an RFP by ID (any user).
+	 * Fetch an RFQ by ID (any user).
 	 */
 	public function get( int $id ): ?array {
 		global $wpdb;
@@ -76,7 +76,7 @@ class ConnectRfpRepository {
 	}
 
 	/**
-	 * Fetch an RFP by ID, scoped to a specific user.
+	 * Fetch an RFQ by ID, scoped to a specific user.
 	 */
 	public function get_for_user( int $user_id, int $id ): ?array {
 		global $wpdb;
@@ -93,7 +93,7 @@ class ConnectRfpRepository {
 	}
 
 	/**
-	 * Count active RFPs for a user. Used to enforce the 3-RFP cap.
+	 * Count active RFQs for a user. Used to enforce the 3-RFQ cap.
 	 */
 	public function count_active_for_user( int $user_id ): int {
 		global $wpdb;

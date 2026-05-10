@@ -1,11 +1,11 @@
 <?php
 /**
- * RFP Demo Seeder
+ * RFQ Demo Seeder
  *
- * Seeds realistic demo data for the mini-RFP buyer→seller→commission system.
+ * Seeds realistic demo data for the mini-RFQ buyer→seller→commission system.
  *
  * Covers every major workflow state:
- *   A) New RFP, seller not yet contacted          (seller_response_status = not_requested)
+ *   A) New RFQ, seller not yet contacted          (seller_response_status = not_requested)
  *   B) Seller response requested, awaiting reply   (seller_response_status = awaiting_response)
  *   C) Seller submitted terms, buyer reviewing     (seller_response_status = submitted)
  *   D) Accepted, handover completed, code issued   (seller_response_status = accepted, discount code generated)
@@ -14,7 +14,7 @@
  *   G) Commission disputed by seller               (invoice status = disputed)
  *
  * Usage:
- *   wp eval-file wp-content/plugins/khm-plugin/tests/helpers/rfp_demo_seed.php
+ *   wp eval-file wp-content/plugins/khm-plugin/tests/helpers/rfq_demo_seed.php
  *
  * Safe to re-run — all inserts are guarded by email/login existence checks.
  */
@@ -60,7 +60,7 @@ if ( empty( $admin_in_team ) ) {
 	echo "✓ Using existing sponsor: id={$real_sponsor_id} name=\"{$real_sponsor['name']}\"\n";
 }
 
-echo "\n=== KHM RFP Demo Seeder ===\n\n";
+echo "\n=== KHM RFQ Demo Seeder ===\n\n";
 
 // ─── 1. Ensure migrations have run (tables now created with fixes applied) ─────
 
@@ -69,7 +69,7 @@ echo "✓ Migrations executed\n";
 
 // ─── 2. Create demo WP users ───────────────────────────────────────────────────
 
-function rfp_seed_user( string $login, string $email, string $display_name, string $role ): int {
+function rfq_seed_user( string $login, string $email, string $display_name, string $role ): int {
 	$existing = get_user_by( 'login', $login );
 	if ( $existing ) {
 		return (int) $existing->ID;
@@ -88,17 +88,17 @@ function rfp_seed_user( string $login, string $email, string $display_name, stri
 	return (int) $id;
 }
 
-$buyer1_id  = rfp_seed_user( 'demo_buyer_alice',   'alice@buyer.demo',    'Alice Thornton',    'subscriber' );
-$buyer2_id  = rfp_seed_user( 'demo_buyer_marcus',  'marcus@buyer.demo',   'Marcus Reid',       'subscriber' );
-$buyer3_id  = rfp_seed_user( 'demo_buyer_priya',   'priya@buyer.demo',    'Priya Kapoor',      'subscriber' );
-$seller1_id = rfp_seed_user( 'demo_seller_nexus',  'hello@nexusmsp.demo', 'Nexus MSP',         'subscriber' );
-$seller2_id = rfp_seed_user( 'demo_seller_crest',  'hello@crestit.demo',  'Crest IT Solutions','subscriber' );
+$buyer1_id  = rfq_seed_user( 'demo_buyer_alice',   'alice@buyer.demo',    'Alice Thornton',    'subscriber' );
+$buyer2_id  = rfq_seed_user( 'demo_buyer_marcus',  'marcus@buyer.demo',   'Marcus Reid',       'subscriber' );
+$buyer3_id  = rfq_seed_user( 'demo_buyer_priya',   'priya@buyer.demo',    'Priya Kapoor',      'subscriber' );
+$seller1_id = rfq_seed_user( 'demo_seller_nexus',  'hello@nexusmsp.demo', 'Nexus MSP',         'subscriber' );
+$seller2_id = rfq_seed_user( 'demo_seller_crest',  'hello@crestit.demo',  'Crest IT Solutions','subscriber' );
 
 echo "✓ Users: buyers ({$buyer1_id}, {$buyer2_id}, {$buyer3_id}), sellers ({$seller1_id}, {$seller2_id})\n";
 
 // ─── 3. Ensure provider rows exist for sellers ────────────────────────────────
 
-function rfp_seed_provider( int $sponsor_id, string $name, string $slug ): int {
+function rfq_seed_provider( int $sponsor_id, string $name, string $slug ): int {
 	global $wpdb;
 	$table = $wpdb->prefix . 'connect_providers';
 	$existing = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM `{$table}` WHERE slug = %s LIMIT 1", $slug ) );
@@ -118,8 +118,8 @@ function rfp_seed_provider( int $sponsor_id, string $name, string $slug ): int {
 	return (int) $wpdb->insert_id;
 }
 
-$provider1_id = rfp_seed_provider( $seller1_id, 'Nexus MSP', 'nexus-msp-demo' );
-$provider2_id = rfp_seed_provider( $seller2_id, 'Crest IT Solutions', 'crest-it-demo' );
+$provider1_id = rfq_seed_provider( $seller1_id, 'Nexus MSP', 'nexus-msp-demo' );
+$provider2_id = rfq_seed_provider( $seller2_id, 'Crest IT Solutions', 'crest-it-demo' );
 
 echo "✓ Providers: {$provider1_id} (Nexus), {$provider2_id} (Crest)\n";
 
@@ -157,7 +157,7 @@ if ( $profiles_table === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', 
 
 $opps_table = $wpdb->prefix . 'connect_opportunities';
 
-function rfp_seed_opportunity( array $data ): int {
+function rfq_seed_opportunity( array $data ): int {
 	global $wpdb;
 	$opps_table = $wpdb->prefix . 'connect_opportunities';
 
@@ -172,8 +172,8 @@ function rfp_seed_opportunity( array $data ): int {
 			$opps_table,
 			[
 				'sponsor_id'   => $data['sponsor_id'] ?? null,
-				'request_type' => $data['request_type'] ?? 'rfp_request',
-				'rfp_metadata' => $data['rfp_metadata'] ?? null,
+				'request_type' => $data['request_type'] ?? 'rfq_request',
+				'rfq_metadata' => $data['rfq_metadata'] ?? null,
 			],
 			[ 'id' => (int) $existing ],
 			[ '%d', '%s', '%s' ],
@@ -187,16 +187,16 @@ function rfp_seed_opportunity( array $data ): int {
 		'actor_email_hash'            => md5( $data['dedupe_key'] . '_hash' ),
 		'actor_email_domain'          => 'buyer.demo',
 		'company_domain'              => 'buyer.demo',
-		'request_type'                => 'rfp_request',
-		'internal_stage'              => 'rfp',
+		'request_type'                => 'rfq_request',
+		'internal_stage'              => 'rfq',
 		'commercial_tier'             => 'mid',
 		'person_score'                => rand( 60, 95 ),
 		'opportunity_status'          => 'active',
 		'commission_eligible'         => 1,
-		'source'                      => 'rfp_portal',
+		'source'                      => 'rfq_portal',
 		'buyer_validation_status'     => 'verified',
 		'buyer_validation_badge_visible' => 1,
-		'rfp_count_active'            => 1,
+		'rfq_count_active'            => 1,
 		'created_at'                  => current_time( 'mysql' ),
 		'updated_at'                  => current_time( 'mysql' ),
 	];
@@ -212,49 +212,49 @@ $ago20d  = gmdate( 'Y-m-d H:i:s', strtotime( '-20 days' ) );
 $ago5d   = gmdate( 'Y-m-d H:i:s', strtotime( '-5 days' ) );
 $ago45d  = gmdate( 'Y-m-d H:i:s', strtotime( '-45 days' ) );
 
-$opp_a_id = rfp_seed_opportunity( [
-	'dedupe_key'       => 'rfp-demo-alice-a',
+$opp_a_id = rfq_seed_opportunity( [
+	'dedupe_key'       => 'rfq-demo-alice-a',
 	'sponsor_id'       => $real_sponsor_id,
 	'provider_id'      => $provider1_id,
 	'buyer_account_id' => $buyer1_id,
-	'rfp_created_at'   => $ago5d,
-	'rfp_metadata'     => wp_json_encode( [
+	'rfq_created_at'   => $ago5d,
+	'rfq_metadata'     => wp_json_encode( [
 		'segment'           => 'Enterprise IT & Infrastructure',
 		'region'            => 'United Kingdom',
 		'intent'            => 'Active vendor evaluation — EMM platform',
 		'scope'             => 'Unified endpoint management platform for 450 distributed field engineers. Must cover Windows, macOS, iOS and Android, with automated patch management, remote wipe, and compliance reporting against ISO 27001.',
-		'timeline'          => 'RFP issued 28 Apr 2026; vendor demos week of 2 Jun; shortlist decision 20 Jun; contract target 1 Aug 2026.',
+		'timeline'          => 'RFQ issued 28 Apr 2026; vendor demos week of 2 Jun; shortlist decision 20 Jun; contract target 1 Aug 2026.',
 		'budget_range'      => '£55K–£90K annual licence + £12K onboarding',
 		'deadline'          => '2026-06-05',
 		'competing_vendors' => [ 'Jamf Pro', 'Microsoft Intune', 'Kandji' ],
 	] ),
 ] );
 
-$opp_b_id = rfp_seed_opportunity( [
-	'dedupe_key'       => 'rfp-demo-marcus-b',
+$opp_b_id = rfq_seed_opportunity( [
+	'dedupe_key'       => 'rfq-demo-marcus-b',
 	'sponsor_id'       => $real_sponsor_id,
 	'provider_id'      => $provider1_id,
 	'buyer_account_id' => $buyer2_id,
-	'rfp_created_at'   => $ago20d,
-	'rfp_metadata'     => wp_json_encode( [
+	'rfq_created_at'   => $ago20d,
+	'rfq_metadata'     => wp_json_encode( [
 		'segment'           => 'Mid-market IT Services',
 		'region'            => 'United Kingdom',
 		'intent'            => 'Active vendor evaluation — ITSM replacement',
 		'scope'             => 'Cloud-native ITSM replacement for a 1,200-seat organisation currently on ServiceNow Essentials. Requirements include AI-assisted triage, self-service portal, SLA dashboards, and CMDB integration. GDPR data-residency in UK mandatory.',
-		'timeline'          => 'RFP responses due 20 May 2026; supplier presentations 3–7 Jun; final decision 30 Jun; go-live target Q4 2026.',
+		'timeline'          => 'RFQ responses due 20 May 2026; supplier presentations 3–7 Jun; final decision 30 Jun; go-live target Q4 2026.',
 		'budget_range'      => '£120K–£200K annual + £35K implementation',
 		'deadline'          => '2026-05-20',
 		'competing_vendors' => [ 'Freshservice', 'Jira Service Management', 'TOPdesk' ],
 	] ),
 ] );
 
-$opp_c_id = rfp_seed_opportunity( [
-	'dedupe_key'       => 'rfp-demo-alice-c',
+$opp_c_id = rfq_seed_opportunity( [
+	'dedupe_key'       => 'rfq-demo-alice-c',
 	'sponsor_id'       => $real_sponsor_id,
 	'provider_id'      => $provider2_id,
 	'buyer_account_id' => $buyer1_id,
-	'rfp_created_at'   => $ago20d,
-	'rfp_metadata'     => wp_json_encode( [
+	'rfq_created_at'   => $ago20d,
+	'rfq_metadata'     => wp_json_encode( [
 		'segment'           => 'Enterprise IT Operations',
 		'region'            => 'UK & EU (multi-site)',
 		'intent'            => 'Vendor shortlisting — network observability platform',
@@ -266,15 +266,15 @@ $opp_c_id = rfp_seed_opportunity( [
 	] ),
 ] );
 
-$opp_d_id = rfp_seed_opportunity( [
-	'dedupe_key'         => 'rfp-demo-priya-d',
+$opp_d_id = rfq_seed_opportunity( [
+	'dedupe_key'         => 'rfq-demo-priya-d',
 	'sponsor_id'         => $real_sponsor_id,
 	'provider_id'        => $provider1_id,
 	'buyer_account_id'   => $buyer3_id,
-	'rfp_created_at'     => $ago30d,
-	'rfp_count_active'   => 0,
+	'rfq_created_at'     => $ago30d,
+	'rfq_count_active'   => 0,
 	'opportunity_status' => 'closed',
-	'rfp_metadata'       => wp_json_encode( [
+	'rfq_metadata'       => wp_json_encode( [
 		'segment'           => 'Utilities & Field Operations',
 		'region'            => 'United Kingdom',
 		'intent'            => 'Contract awarded — implementation phase',
@@ -286,17 +286,17 @@ $opp_d_id = rfp_seed_opportunity( [
 	] ),
 ] );
 
-$opp_e_id = rfp_seed_opportunity( [
-	'dedupe_key'              => 'rfp-demo-priya-e',
+$opp_e_id = rfq_seed_opportunity( [
+	'dedupe_key'              => 'rfq-demo-priya-e',
 	'sponsor_id'              => $real_sponsor_id,
 	'provider_id'             => $provider2_id,
 	'buyer_account_id'        => $buyer3_id,
-	'rfp_created_at'          => $ago45d,
-	'rfp_upsell_sent_at'      => $ago35d,
-	'rfp_count_active'        => 0,
+	'rfq_created_at'          => $ago45d,
+	'rfq_upsell_sent_at'      => $ago35d,
+	'rfq_count_active'        => 0,
 	'opportunity_status'      => 'closed',
 	'buyer_validation_status' => 'verified',
-	'rfp_metadata'            => wp_json_encode( [
+	'rfq_metadata'            => wp_json_encode( [
 		'segment'           => 'Legal & Professional Services',
 		'region'            => 'United Kingdom',
 		'intent'            => 'Deal closed — commission settlement in progress',
@@ -314,7 +314,7 @@ echo "✓ Opportunities: A={$opp_a_id} B={$opp_b_id} C={$opp_c_id} D={$opp_d_id}
 
 $threads_table = $wpdb->prefix . 'connect_intro_threads';
 
-function rfp_seed_thread( array $data ): int {
+function rfq_seed_thread( array $data ): int {
 	global $wpdb;
 	$threads_table = $wpdb->prefix . 'connect_intro_threads';
 
@@ -341,8 +341,8 @@ function rfp_seed_thread( array $data ): int {
 	return (int) $wpdb->insert_id;
 }
 
-// Scenario A: new RFP, seller not yet contacted
-$thread_a = rfp_seed_thread( [
+// Scenario A: new RFQ, seller not yet contacted
+$thread_a = rfq_seed_thread( [
 	'opportunity_id'          => $opp_a_id,
 	'provider_id'             => $provider1_id,
 	'sponsor_id'              => $real_sponsor_id,
@@ -358,7 +358,7 @@ $thread_a = rfp_seed_thread( [
 ] );
 
 // Scenario B: seller response requested, awaiting reply
-$thread_b = rfp_seed_thread( [
+$thread_b = rfq_seed_thread( [
 	'opportunity_id'         => $opp_b_id,
 	'provider_id'            => $provider1_id,
 	'sponsor_id'             => $real_sponsor_id,
@@ -374,7 +374,7 @@ $thread_b = rfp_seed_thread( [
 ] );
 
 // Scenario C: seller submitted terms, buyer reviewing (Crest IT, Alice)
-$thread_c = rfp_seed_thread( [
+$thread_c = rfq_seed_thread( [
 	'opportunity_id'             => $opp_c_id,
 	'provider_id'                => $provider2_id,
 	'sponsor_id'                 => $real_sponsor_id,
@@ -399,7 +399,7 @@ $thread_c = rfp_seed_thread( [
 
 // Scenario D: accepted, handover done, discount code issued (Nexus, Priya)
 $demo_code_d = 'NEXUSDEMO001';
-$thread_d = rfp_seed_thread( [
+$thread_d = rfq_seed_thread( [
 	'opportunity_id'             => $opp_d_id,
 	'provider_id'                => $provider1_id,
 	'sponsor_id'                 => $real_sponsor_id,
@@ -430,7 +430,7 @@ $thread_d = rfp_seed_thread( [
 $demo_code_e     = 'CRESTCLOSE02';
 $claimed_at_e    = gmdate( 'Y-m-d H:i:s', strtotime( '-12 days' ) );
 $auto_debit_e    = gmdate( 'Y-m-d H:i:s', strtotime( '-12 days +15 days' ) );
-$thread_e = rfp_seed_thread( [
+$thread_e = rfq_seed_thread( [
 	'opportunity_id'             => $opp_e_id,
 	'provider_id'                => $provider2_id,
 	'sponsor_id'                 => $real_sponsor_id,
@@ -461,7 +461,7 @@ $dc_table = $wpdb->prefix . 'connect_discount_codes';
 
 if ( $dc_table === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $dc_table ) ) ) {
 
-	function rfp_seed_discount_code( array $data ): void {
+	function rfq_seed_discount_code( array $data ): void {
 		global $wpdb;
 		$dc_table = $wpdb->prefix . 'connect_discount_codes';
 		$exists = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM `{$dc_table}` WHERE code = %s LIMIT 1", $data['code'] ) );
@@ -471,14 +471,14 @@ if ( $dc_table === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $dc_ta
 	}
 
 	// Code D: issued but not yet claimed
-	rfp_seed_discount_code( [
+	rfq_seed_discount_code( [
 		'code'       => $demo_code_d,
 		'thread_id'  => $thread_d,
 		'created_at' => gmdate( 'Y-m-d H:i:s', strtotime( '-25 days' ) ),
 	] );
 
 	// Code E: claimed 12 days ago
-	rfp_seed_discount_code( [
+	rfq_seed_discount_code( [
 		'code'                    => $demo_code_e,
 		'thread_id'               => $thread_e,
 		'created_at'              => gmdate( 'Y-m-d H:i:s', strtotime( '-40 days' ) ),
@@ -487,7 +487,7 @@ if ( $dc_table === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $dc_ta
 	] );
 
 	// Code F: from a completed deal — invoice charged (standalone thread reference reuses thread_d for simplicity)
-	rfp_seed_discount_code( [
+	rfq_seed_discount_code( [
 		'code'                    => 'NEXUSCLOSE03',
 		'thread_id'               => $thread_d,
 		'created_at'              => gmdate( 'Y-m-d H:i:s', strtotime( '-60 days' ) ),
@@ -496,7 +496,7 @@ if ( $dc_table === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $dc_ta
 	] );
 
 	// Code G: disputed
-	rfp_seed_discount_code( [
+	rfq_seed_discount_code( [
 		'code'                => 'CRESTDISP04',
 		'thread_id'           => $thread_e,
 		'created_at'          => gmdate( 'Y-m-d H:i:s', strtotime( '-50 days' ) ),
@@ -513,7 +513,7 @@ if ( $dc_table === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $dc_ta
 
 $inv_table = $wpdb->prefix . 'connect_pending_commission_invoices';
 
-function rfp_seed_invoice( array $data ): void {
+function rfq_seed_invoice( array $data ): void {
 	global $wpdb;
 	$inv_table = $wpdb->prefix . 'connect_pending_commission_invoices';
 	$exists = $wpdb->get_var( $wpdb->prepare(
@@ -527,7 +527,7 @@ function rfp_seed_invoice( array $data ): void {
 }
 
 // Invoice for scenario E (pending — debit due in 3 days)
-rfp_seed_invoice( [
+rfq_seed_invoice( [
 	'thread_id'        => $thread_e,
 	'contract_ref'     => 'KHM-E-2026-001',
 	'commission_rate'  => 8,
@@ -538,7 +538,7 @@ rfp_seed_invoice( [
 ] );
 
 // Invoice for scenario F (charged)
-rfp_seed_invoice( [
+rfq_seed_invoice( [
 	'thread_id'              => $thread_d,
 	'contract_ref'           => 'KHM-F-2026-002',
 	'commission_rate'        => 10,
@@ -552,7 +552,7 @@ rfp_seed_invoice( [
 ] );
 
 // Invoice for scenario G (disputed)
-rfp_seed_invoice( [
+rfq_seed_invoice( [
 	'thread_id'        => $thread_e,
 	'contract_ref'     => 'KHM-G-2026-003',
 	'commission_rate'  => 8,
@@ -564,7 +564,7 @@ rfp_seed_invoice( [
 ] );
 
 // Invoice for scenario A — failed charge (older deal)
-rfp_seed_invoice( [
+rfq_seed_invoice( [
 	'thread_id'        => $thread_a,
 	'contract_ref'     => 'KHM-A-2026-004',
 	'commission_rate'  => 12,
@@ -591,4 +591,4 @@ echo "\n=== Seed complete ===\n";
 echo "Buyers  : Alice ({$buyer1_id}), Marcus ({$buyer2_id}, pending verify), Priya ({$buyer3_id})\n";
 echo "Sellers : Nexus MSP ({$seller1_id}, payment registered), Crest IT ({$seller2_id})\n";
 echo "Threads : {$thread_a} (not_requested) | {$thread_b} (awaiting_response) | {$thread_c} (submitted) | {$thread_d} (accepted+code) | {$thread_e} (claimed+invoice)\n";
-echo "Invoices: pending / charged / disputed / failed — visit WP Admin → Memberships → RFP Commission Report\n\n";
+echo "Invoices: pending / charged / disputed / failed — visit WP Admin → Memberships → RFQ Commission Report\n\n";

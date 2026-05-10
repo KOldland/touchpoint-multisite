@@ -1860,11 +1860,11 @@ class QuoteClubPortalShortcode {
 								</fieldset>
 
 								<fieldset style="grid-column: 1 / -1; border: 1px solid #dcdcde; border-radius: 6px; padding: 14px; background: #fafbfc; margin: 8px 0;">
-									<legend style="padding: 0 8px; font-weight: 600; font-size: 13px; color: #3c434a; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'RFP Response Defaults', 'khm-membership' ); ?></legend>
+									<legend style="padding: 0 8px; font-weight: 600; font-size: 13px; color: #3c434a; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'RFQ Response Defaults', 'khm-membership' ); ?></legend>
 									<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 8px;">
 										<label>
 											<span><?php esc_html_e( 'Default Scope', 'khm-membership' ); ?></span>
-											<select name="rfp_default_scope">
+											<select name="rfq_default_scope">
 												<option value="pilot_scheme"><?php esc_html_e( 'Structured pilot scheme (time-boxed, defined success criteria)', 'khm-membership' ); ?></option>
 												<option value="fsm_evaluation_poc"><?php esc_html_e( 'Complete FSM platform evaluation and POC', 'khm-membership' ); ?></option>
 												<option value="mobile_iot_optimisation"><?php esc_html_e( 'Mobile-first FSM with IoT optimisation', 'khm-membership' ); ?></option>
@@ -1873,7 +1873,7 @@ class QuoteClubPortalShortcode {
 										</label>
 										<label>
 											<span><?php esc_html_e( 'Default Seat Band', 'khm-membership' ); ?></span>
-											<select name="rfp_default_seats">
+											<select name="rfq_default_seats">
 												<option value="20_30"><?php esc_html_e( '20-30 seats', 'khm-membership' ); ?></option>
 												<option value="50_100"><?php esc_html_e( '50-100 seats', 'khm-membership' ); ?></option>
 												<option value="100_250"><?php esc_html_e( '100-250 seats', 'khm-membership' ); ?></option>
@@ -1882,7 +1882,7 @@ class QuoteClubPortalShortcode {
 										</label>
 										<label>
 											<span><?php esc_html_e( 'Default Timeframe', 'khm-membership' ); ?></span>
-											<select name="rfp_default_timeframe">
+											<select name="rfq_default_timeframe">
 												<option value="3_months"><?php esc_html_e( '3 months', 'khm-membership' ); ?></option>
 												<option value="6_months"><?php esc_html_e( '6 months', 'khm-membership' ); ?></option>
 												<option value="12_months"><?php esc_html_e( '12 months', 'khm-membership' ); ?></option>
@@ -1890,19 +1890,19 @@ class QuoteClubPortalShortcode {
 										</label>
 										<label>
 											<span><?php esc_html_e( 'Default Cost Per Licence / Month (£)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" step="0.01" name="rfp_default_cpl_gbp" placeholder="e.g., 325" />
+											<input type="number" min="0" step="0.01" name="rfq_default_cpl_gbp" placeholder="e.g., 325" />
 										</label>
 										<label>
 											<span><?php esc_html_e( 'Default Buyer Estimate (£)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" step="500" name="rfp_default_estimate_gbp" placeholder="e.g., 120000" />
+											<input type="number" min="0" step="500" name="rfq_default_estimate_gbp" placeholder="e.g., 120000" />
 										</label>
 										<label>
 											<span><?php esc_html_e( 'Max Discount You Will Offer (%)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" max="30" step="1" name="rfp_max_discount_pct" placeholder="e.g., 10" />
+											<input type="number" min="0" max="30" step="1" name="rfq_max_discount_pct" placeholder="e.g., 10" />
 										</label>
 										<label style="grid-column: 1 / -1;">
 											<span><?php esc_html_e( 'Supported Features (comma-separated keys)', 'khm-membership' ); ?></span>
-											<input type="text" name="rfp_supported_features" placeholder="mobile_app,offline_capabilities,real_time_reporting,erp_integration" />
+											<input type="text" name="rfq_supported_features" placeholder="mobile_app,offline_capabilities,real_time_reporting,erp_integration" />
 										</label>
 									</div>
 								</fieldset>
@@ -1996,61 +1996,61 @@ class QuoteClubPortalShortcode {
 							.khm-qc-lead-engaged-options-placeholder{background:transparent;border-color:transparent;visibility:hidden;}
 							.khm-qc-lead-engaged-ctas{display:flex;flex-wrap:wrap;gap:8px;}
 							.khm-qc-lead-engaged-ctas .khm-qc-btn{font-size:12px;padding:4px 10px;}
-							/* RFP Cards */
-							.khm-qc-rfp-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:16px;margin-bottom:16px;align-items:start;}
-							.khm-qc-rfp-card{background:#fafafa;border:1px solid #ddd;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;}
-							.khm-qc-rfp-card[data-status="detected"]{background:#fef9f3;}
-							.khm-qc-rfp-card > div:first-child{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
-							.khm-qc-rfp-metadata{font-size:11px;color:#3c434a;background:#f5f5f5;border:1px solid #e8e8e8;border-radius:6px;padding:8px;display:grid;gap:4px;align-content:start;height:200px;overflow-y:auto;}
-							.khm-qc-rfp-metadata span{display:block;}
-							.khm-qc-rfp-metadata strong{color:#1e8c45;font-weight:600;}
-							.khm-qc-rfp-notice{font-size:12px;padding:8px 12px;border-radius:4px;margin-bottom:8px;display:none;}
-							.khm-qc-rfp-notice-ok{background:#e6f4ea;color:#1e8c45;}
-							.khm-qc-rfp-notice-err{background:#fce8e6;color:#c5221f;}
-							.khm-qc-rfp-nav{display:flex;align-items:center;gap:10px;margin-top:12px;margin-bottom:32px;}
-							.khm-qc-rfp-page-label{flex:1;text-align:center;font-size:12px;color:#555;}
-							.khm-qc-rfp-accept-form{display:flex;flex-direction:column;gap:8px;}
-							.khm-qc-rfp-response-workflow[hidden]{display:none;}
-							.khm-qc-rfp-response-grid{display:grid;gap:12px;}
-							.khm-qc-rfp-response-field{display:grid;gap:4px;}
-							.khm-qc-rfp-response-field label{font-size:11px;font-weight:600;color:#3c434a;}
-							.khm-qc-rfp-response-field input[type="text"],.khm-qc-rfp-response-field input[type="number"],.khm-qc-rfp-response-field textarea,.khm-qc-rfp-response-field select{width:100%;padding:8px 10px;font-size:12px;border:1px solid #ccd0d4;border-radius:6px;background:#fff;}
-							.khm-qc-rfp-response-field textarea{min-height:72px;resize:vertical;}
-							.khm-qc-rfp-response-notes{margin-bottom:8px;}
-							.khm-qc-rfp-response-hint{font-size:11px;color:#555;background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:7px 9px;margin-bottom:10px;}
-							.khm-qc-rfp-summary{background:#fff;border:1px solid #e1e4e8;border-radius:8px;padding:12px;}
-							.khm-qc-rfp-summary input[type="hidden"]{display:none !important;}
-							.khm-qc-rfp-summary h4{margin:0 0 8px;font-size:15px;line-height:1.3;color:#1f2937;}
-							.khm-qc-rfp-summary-list{margin:0;padding-left:18px;display:grid;gap:8px;font-size:12px;color:#3c434a;}
-							.khm-qc-rfp-summary-list > li{margin:0;}
-							.khm-qc-rfp-summary-list strong{color:#111827;}
-							.khm-qc-rfp-summary-sublist{margin:6px 0 0 0;padding-left:18px;display:grid;gap:4px;}
-							.khm-qc-rfp-feature-grid{display:block;}
-							.khm-qc-rfp-calc-card{background:#f8fafc;border:1px solid #dbe4ea;border-radius:8px;padding:10px 12px;display:grid;gap:8px;}
-							.khm-qc-rfp-estimate-value{font-size:16px;font-weight:700;color:#111827;}
-							.khm-qc-rfp-estimate-caption{font-size:11px;color:#6b7280;}
-							.khm-qc-rfp-toggle{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:#1f2937;cursor:pointer;}
-							.khm-qc-rfp-toggle input{width:auto;margin:0;}
-							.khm-qc-rfp-discount-controls[hidden],.khm-qc-rfp-commission-breakdown[hidden]{display:none;}
-							.khm-qc-rfp-discount-readout{font-size:11px;color:#3c434a;display:grid;grid-template-columns:minmax(96px,auto) 1fr;gap:10px 14px;align-items:start;}
-							.khm-qc-rfp-breakdown-row{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#3c434a;align-items:flex-start;}
-							.khm-qc-rfp-breakdown-row strong{color:#111827;}
-							.khm-qc-rfp-tooltip{position:relative;display:inline-flex;align-items:center;gap:6px;}
-							.khm-qc-rfp-tooltip-btn{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border:1px solid #93a1b0;border-radius:999px;background:#fff;color:#3c434a;font-size:10px;line-height:1;cursor:help;padding:0;}
-							.khm-qc-rfp-tooltip-bubble{display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:6;min-width:260px;max-width:320px;background:#111827;color:#f9fafb;border-radius:6px;padding:8px 10px;font-size:11px;line-height:1.35;box-shadow:0 8px 20px rgba(15,23,42,.25);}
-							.khm-qc-rfp-tooltip.is-open .khm-qc-rfp-tooltip-bubble{display:block;}
-							.khm-qc-rfp-tooltip:hover .khm-qc-rfp-tooltip-bubble,.khm-qc-rfp-tooltip:focus-within .khm-qc-rfp-tooltip-bubble{display:block;}
-							.khm-qc-rfp-review-modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:99999;padding:16px;}
-							.khm-qc-rfp-review-modal.is-open{display:flex;}
-							.khm-qc-rfp-review-dialog{background:#fff;border-radius:12px;box-shadow:0 20px 50px rgba(15,23,42,.18);width:min(680px,100%);max-height:90vh;overflow:auto;padding:20px;display:grid;gap:14px;}
-							.khm-qc-rfp-review-head{display:flex;justify-content:space-between;align-items:center;gap:12px;}
-							.khm-qc-rfp-review-head h3{margin:0;font-size:18px;color:#111827;}
-							.khm-qc-rfp-review-close{border:0;background:none;font-size:24px;line-height:1;color:#6b7280;cursor:pointer;padding:0;}
-							.khm-qc-rfp-review-preview{background:#f8fafc;border:1px solid #dbe4ea;border-radius:8px;padding:12px;display:grid;gap:10px;}
-							.khm-qc-rfp-review-preview h4{margin:0;font-size:14px;color:#111827;}
-							.khm-qc-rfp-review-terms{font-size:12px;color:#3c434a;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;display:grid;gap:8px;}
-							.khm-qc-rfp-review-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
-							.khm-qc-rfp-response-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+							/* RFQ Cards */
+							.khm-qc-rfq-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:16px;margin-bottom:16px;align-items:start;}
+							.khm-qc-rfq-card{background:#fafafa;border:1px solid #ddd;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;}
+							.khm-qc-rfq-card[data-status="detected"]{background:#fef9f3;}
+							.khm-qc-rfq-card > div:first-child{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+							.khm-qc-rfq-metadata{font-size:11px;color:#3c434a;background:#f5f5f5;border:1px solid #e8e8e8;border-radius:6px;padding:8px;display:grid;gap:4px;align-content:start;height:200px;overflow-y:auto;}
+							.khm-qc-rfq-metadata span{display:block;}
+							.khm-qc-rfq-metadata strong{color:#1e8c45;font-weight:600;}
+							.khm-qc-rfq-notice{font-size:12px;padding:8px 12px;border-radius:4px;margin-bottom:8px;display:none;}
+							.khm-qc-rfq-notice-ok{background:#e6f4ea;color:#1e8c45;}
+							.khm-qc-rfq-notice-err{background:#fce8e6;color:#c5221f;}
+							.khm-qc-rfq-nav{display:flex;align-items:center;gap:10px;margin-top:12px;margin-bottom:32px;}
+							.khm-qc-rfq-page-label{flex:1;text-align:center;font-size:12px;color:#555;}
+							.khm-qc-rfq-accept-form{display:flex;flex-direction:column;gap:8px;}
+							.khm-qc-rfq-response-workflow[hidden]{display:none;}
+							.khm-qc-rfq-response-grid{display:grid;gap:12px;}
+							.khm-qc-rfq-response-field{display:grid;gap:4px;}
+							.khm-qc-rfq-response-field label{font-size:11px;font-weight:600;color:#3c434a;}
+							.khm-qc-rfq-response-field input[type="text"],.khm-qc-rfq-response-field input[type="number"],.khm-qc-rfq-response-field textarea,.khm-qc-rfq-response-field select{width:100%;padding:8px 10px;font-size:12px;border:1px solid #ccd0d4;border-radius:6px;background:#fff;}
+							.khm-qc-rfq-response-field textarea{min-height:72px;resize:vertical;}
+							.khm-qc-rfq-response-notes{margin-bottom:8px;}
+							.khm-qc-rfq-response-hint{font-size:11px;color:#555;background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:7px 9px;margin-bottom:10px;}
+							.khm-qc-rfq-summary{background:#fff;border:1px solid #e1e4e8;border-radius:8px;padding:12px;}
+							.khm-qc-rfq-summary input[type="hidden"]{display:none !important;}
+							.khm-qc-rfq-summary h4{margin:0 0 8px;font-size:15px;line-height:1.3;color:#1f2937;}
+							.khm-qc-rfq-summary-list{margin:0;padding-left:18px;display:grid;gap:8px;font-size:12px;color:#3c434a;}
+							.khm-qc-rfq-summary-list > li{margin:0;}
+							.khm-qc-rfq-summary-list strong{color:#111827;}
+							.khm-qc-rfq-summary-sublist{margin:6px 0 0 0;padding-left:18px;display:grid;gap:4px;}
+							.khm-qc-rfq-feature-grid{display:block;}
+							.khm-qc-rfq-calc-card{background:#f8fafc;border:1px solid #dbe4ea;border-radius:8px;padding:10px 12px;display:grid;gap:8px;}
+							.khm-qc-rfq-estimate-value{font-size:16px;font-weight:700;color:#111827;}
+							.khm-qc-rfq-estimate-caption{font-size:11px;color:#6b7280;}
+							.khm-qc-rfq-toggle{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:#1f2937;cursor:pointer;}
+							.khm-qc-rfq-toggle input{width:auto;margin:0;}
+							.khm-qc-rfq-discount-controls[hidden],.khm-qc-rfq-commission-breakdown[hidden]{display:none;}
+							.khm-qc-rfq-discount-readout{font-size:11px;color:#3c434a;display:grid;grid-template-columns:minmax(96px,auto) 1fr;gap:10px 14px;align-items:start;}
+							.khm-qc-rfq-breakdown-row{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#3c434a;align-items:flex-start;}
+							.khm-qc-rfq-breakdown-row strong{color:#111827;}
+							.khm-qc-rfq-tooltip{position:relative;display:inline-flex;align-items:center;gap:6px;}
+							.khm-qc-rfq-tooltip-btn{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border:1px solid #93a1b0;border-radius:999px;background:#fff;color:#3c434a;font-size:10px;line-height:1;cursor:help;padding:0;}
+							.khm-qc-rfq-tooltip-bubble{display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:6;min-width:260px;max-width:320px;background:#111827;color:#f9fafb;border-radius:6px;padding:8px 10px;font-size:11px;line-height:1.35;box-shadow:0 8px 20px rgba(15,23,42,.25);}
+							.khm-qc-rfq-tooltip.is-open .khm-qc-rfq-tooltip-bubble{display:block;}
+							.khm-qc-rfq-tooltip:hover .khm-qc-rfq-tooltip-bubble,.khm-qc-rfq-tooltip:focus-within .khm-qc-rfq-tooltip-bubble{display:block;}
+							.khm-qc-rfq-review-modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:99999;padding:16px;}
+							.khm-qc-rfq-review-modal.is-open{display:flex;}
+							.khm-qc-rfq-review-dialog{background:#fff;border-radius:12px;box-shadow:0 20px 50px rgba(15,23,42,.18);width:min(680px,100%);max-height:90vh;overflow:auto;padding:20px;display:grid;gap:14px;}
+							.khm-qc-rfq-review-head{display:flex;justify-content:space-between;align-items:center;gap:12px;}
+							.khm-qc-rfq-review-head h3{margin:0;font-size:18px;color:#111827;}
+							.khm-qc-rfq-review-close{border:0;background:none;font-size:24px;line-height:1;color:#6b7280;cursor:pointer;padding:0;}
+							.khm-qc-rfq-review-preview{background:#f8fafc;border:1px solid #dbe4ea;border-radius:8px;padding:12px;display:grid;gap:10px;}
+							.khm-qc-rfq-review-preview h4{margin:0;font-size:14px;color:#111827;}
+							.khm-qc-rfq-review-terms{font-size:12px;color:#3c434a;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;display:grid;gap:8px;}
+							.khm-qc-rfq-review-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
+							.khm-qc-rfq-response-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
 							/* Affinity block */
 							.khm-qc-lead-affinity{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:11px;padding:6px 10px;border-radius:5px;border:1px solid transparent;}
 							.khm-qc-lead-affinity-signals{width:100%;color:#555;font-size:11px;margin-top:2px;}
@@ -2117,7 +2117,7 @@ class QuoteClubPortalShortcode {
 							return map[tier] || tier;
 						}
 
-						function rfpStatusLabel(status) {
+						function rfqStatusLabel(status) {
 							if (status === 'sponsor_accepted') return 'Response Submitted';
 							if (status === 'intro_requested') return 'Intro Requested';
 							if (status === 'introduced') return 'Introduced';
@@ -2167,7 +2167,7 @@ class QuoteClubPortalShortcode {
 									id: 9101,
 									name: 'Field Service Management Platform',
 									comparison_fields: {
-										rfp_profile: {
+										rfq_profile: {
 											default_scope: 'fsm_evaluation_poc',
 											default_seats: '20_30',
 											default_timeframe: '3_months',
@@ -2182,7 +2182,7 @@ class QuoteClubPortalShortcode {
 									id: 9102,
 									name: 'Spare Parts & Inventory Optimisation Suite',
 									comparison_fields: {
-										rfp_profile: {
+										rfq_profile: {
 											default_scope: 'mobile_iot_optimisation',
 											default_seats: '100_250',
 											default_timeframe: '6_months',
@@ -2647,7 +2647,7 @@ class QuoteClubPortalShortcode {
 									var oppId     = parseInt(btn.dataset.id, 10);
 									var sel       = btn.closest('.khm-qc-lead-accept-form').querySelector('.khm-qc-lead-provider-sel');
 									var providerId = sel ? parseInt(sel.value, 10) : 0;
-									if (!providerId) { showNotice(<?php echo wp_json_encode( __( 'No provider mapping found for this RFP.', 'khm-membership' ) ); ?>, false); return; }
+									if (!providerId) { showNotice(<?php echo wp_json_encode( __( 'No provider mapping found for this RFQ.', 'khm-membership' ) ); ?>, false); return; }
 									btn.disabled = true;
 									// Step 1: Create PaymentIntent for this match
 									fetch('<?php echo esc_js( rest_url( 'khm/v1/connect/match/' ) ); ?>' + oppId + '/payment-intent', {
@@ -2690,33 +2690,33 @@ class QuoteClubPortalShortcode {
 					})();
 					</script>
 
-					<section class="khm-qc-connect-panel khm-qc-rfp-requests-panel khm-qc-connect-span-full" id="khm-qc-rfp-requests-panel-<?php echo (int) ( $sponsor['id'] ?? 0 ); ?>">
+					<section class="khm-qc-connect-panel khm-qc-rfq-requests-panel khm-qc-connect-span-full" id="khm-qc-rfq-requests-panel-<?php echo (int) ( $sponsor['id'] ?? 0 ); ?>">
 						<div class="khm-qc-connect-panel-head">
 							<div>
-								<h3><?php esc_html_e( 'RFP Requests', 'khm-membership' ); ?></h3>
-								<p><?php esc_html_e( 'Buyers with formal procurement processes and defined requirements. RFP scope details below.', 'khm-membership' ); ?></p>
+								<h3><?php esc_html_e( 'RFQ Requests', 'khm-membership' ); ?></h3>
+								<p><?php esc_html_e( 'Buyers with formal procurement processes and defined requirements. RFQ scope details below.', 'khm-membership' ); ?></p>
 							</div>
-							<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfp-refresh"><?php esc_html_e( 'Refresh', 'khm-membership' ); ?></button>
+							<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfq-refresh"><?php esc_html_e( 'Refresh', 'khm-membership' ); ?></button>
 						</div>
-						<div class="khm-qc-rfp-notice" role="status" aria-live="polite"></div>
-						<div class="khm-qc-rfp-grid"></div>
-							<div class="khm-qc-rfp-nav"></div>
+						<div class="khm-qc-rfq-notice" role="status" aria-live="polite"></div>
+						<div class="khm-qc-rfq-grid"></div>
+							<div class="khm-qc-rfq-nav"></div>
 					<script>
 					(function() {
 						var sponsorId   = <?php echo (int) ( $sponsor['id'] ?? 0 ); ?>;
 						var restBase    = <?php echo wp_json_encode( trailingslashit( rest_url( 'khm/v1/connect' ) ) ); ?>;
 						var nonce       = <?php echo wp_json_encode( wp_create_nonce( 'wp_rest' ) ); ?>;
 						var allowDemoFallback = /(localhost|\.local)$/i.test(window.location.hostname || '');
-						var panel       = document.getElementById('khm-qc-rfp-requests-panel-' + sponsorId);
+						var panel       = document.getElementById('khm-qc-rfq-requests-panel-' + sponsorId);
 						if (!panel || !sponsorId) return;
 
-						var grid   = panel.querySelector('.khm-qc-rfp-grid');
-						var notice = panel.querySelector('.khm-qc-rfp-notice');
-						var btn    = panel.querySelector('.khm-qc-rfp-refresh');
+						var grid   = panel.querySelector('.khm-qc-rfq-grid');
+						var notice = panel.querySelector('.khm-qc-rfq-notice');
+						var btn    = panel.querySelector('.khm-qc-rfq-refresh');
 
 						function showNotice(msg, ok) {
 							notice.textContent = msg;
-							notice.className = 'khm-qc-rfp-notice ' + (ok ? 'khm-qc-rfp-notice-ok' : 'khm-qc-rfp-notice-err');
+							notice.className = 'khm-qc-rfq-notice ' + (ok ? 'khm-qc-rfq-notice-ok' : 'khm-qc-rfq-notice-err');
 							notice.style.display = 'block';
 							setTimeout(function(){ notice.style.display = 'none'; }, 5000);
 						}
@@ -2749,7 +2749,7 @@ class QuoteClubPortalShortcode {
 									id: 9101,
 									name: 'Field Service Management Platform',
 									comparison_fields: {
-										rfp_profile: {
+										rfq_profile: {
 											default_scope: 'fsm_evaluation_poc',
 											default_seats: '20_30',
 											default_timeframe: '3_months',
@@ -2764,7 +2764,7 @@ class QuoteClubPortalShortcode {
 									id: 9102,
 									name: 'Spare Parts & Inventory Optimisation Suite',
 									comparison_fields: {
-										rfp_profile: {
+										rfq_profile: {
 											default_scope: 'mobile_iot_optimisation',
 											default_seats: '100_250',
 											default_timeframe: '6_months',
@@ -2787,10 +2787,10 @@ class QuoteClubPortalShortcode {
 							];
 						}
 
-						function demoRfpLeads() {
-							// Demo RFP Requests: Buyers with defined procurement scope and timeline
-							// RFP metadata includes: scope, timeline, budget_range, deadline, competing_vendors
-							var rfpLeads = [
+						function demoRfqLeads() {
+							// Demo RFQ Requests: Buyers with defined procurement scope and timeline
+							// RFQ metadata includes: scope, timeline, budget_range, deadline, competing_vendors
+							var rfqLeads = [
 								{
 									id: 8001,
 									opportunity_status: 'detected',
@@ -2800,12 +2800,12 @@ class QuoteClubPortalShortcode {
 									unit_price_cents: 150000,
 									pricing_model: 'CPL',
 									is_demo: true,
-									request_type: 'rfp_request',
+									request_type: 'rfq_request',
 									provider_id: 9101,
 									affinity: { score: 100, signals: {} },
-									rfp_metadata: {
+									rfq_metadata: {
 										scope: 'Complete FSM platform evaluation and POC (proof of concept) with 20-30 user seats for 3 months. Include mobile app, offline capabilities, and real-time reporting dashboard.',
-										timeline: 'RFP issued Q2 2026; vendor demos Q3; contract signature Q3/Q4',
+										timeline: 'RFQ issued Q2 2026; vendor demos Q3; contract signature Q3/Q4',
 										budget_range: '£80K–£150K annual license + £20K implementation',
 										deadline: '2026-06-30',
 										competing_vendors: ['Competitor A (FSM Leader)', 'Competitor B (Emerging)', 'Competitor C (Regional)']
@@ -2825,12 +2825,12 @@ class QuoteClubPortalShortcode {
 									unit_price_cents: 150000,
 									pricing_model: 'CPL',
 									is_demo: true,
-									request_type: 'rfp_request',
+									request_type: 'rfq_request',
 									provider_id: 9102,
 									affinity: { score: 100, signals: {} },
-									rfp_metadata: {
+									rfq_metadata: {
 										scope: 'Mobile-first field operations platform with advanced analytics, IoT sensor integration, and AI-powered route optimization. Integration with existing ERP (SAP).',
-										timeline: 'RFP responses due 2026-07-15; shortlist narrowed by Aug; final decision Sept 2026',
+										timeline: 'RFQ responses due 2026-07-15; shortlist narrowed by Aug; final decision Sept 2026',
 										budget_range: '£150K–£300K annual + implementation',
 										deadline: '2026-07-15',
 										competing_vendors: ['Competitor D', 'Competitor E', 'Incumbent Provider']
@@ -2843,25 +2843,25 @@ class QuoteClubPortalShortcode {
 								}
 							];
 
-							// Set affinity for RFP (always 100%, no uplift)
-							rfpLeads.forEach(function(lead) {
+							// Set affinity for RFQ (always 100%, no uplift)
+							rfqLeads.forEach(function(lead) {
 								lead.affinity.tier  = 'brand_interest';
 								lead.affinity.label = 'Brand Interest';
 								lead.affinity.uplift = 1.00;
 								lead.affinity.adjusted_price_cents = lead.unit_price_cents;
 							});
 
-							return rfpLeads;
+							return rfqLeads;
 						}
 
-						function buildRfpMetadata(rfpMeta) {
-							if (!rfpMeta) return [];
+						function buildRfqMetadata(rfqMeta) {
+							if (!rfqMeta) return [];
 							return [
-								{ label: 'Scope', value: rfpMeta.scope || '' },
-								{ label: 'Timeline', value: rfpMeta.timeline || '' },
-								{ label: 'Budget', value: rfpMeta.budget_range || '' },
-								{ label: 'Deadline', value: rfpMeta.deadline || '' },
-								{ label: 'Competitors', value: (rfpMeta.competing_vendors || []).join(', ') || '' }
+								{ label: 'Scope', value: rfqMeta.scope || '' },
+								{ label: 'Timeline', value: rfqMeta.timeline || '' },
+								{ label: 'Budget', value: rfqMeta.budget_range || '' },
+								{ label: 'Deadline', value: rfqMeta.deadline || '' },
+								{ label: 'Competitors', value: (rfqMeta.competing_vendors || []).join(', ') || '' }
 							].filter(function(m){ return m.value; });
 						}
 
@@ -2878,12 +2878,12 @@ class QuoteClubPortalShortcode {
 								return selected.indexOf(feature.value) !== -1;
 							});
 							var hiddenInputs = matched.map(function(feature) {
-								return '<input type="hidden" class="khm-qc-rfp-feature" value="' + safe(feature.value) + '" />';
+								return '<input type="hidden" class="khm-qc-rfq-feature" value="' + safe(feature.value) + '" />';
 							}).join('');
 							var items = matched.map(function(feature) {
 								return '<li>' + safe(feature.label) + '</li>';
 							}).join('');
-							return hiddenInputs + '<ul class="khm-qc-rfp-summary-sublist">' + items + '</ul>';
+							return hiddenInputs + '<ul class="khm-qc-rfq-summary-sublist">' + items + '</ul>';
 						}
 
 						function seatRangeForValue(value) {
@@ -2946,10 +2946,10 @@ class QuoteClubPortalShortcode {
 							return 0;
 						}
 
-						function deriveMiniRfpDraft(o, provider) {
-							var meta = o.rfp_metadata || {};
-							var providerProfile = provider && provider.comparison_fields && provider.comparison_fields.rfp_profile
-								? provider.comparison_fields.rfp_profile
+						function deriveMiniRfqDraft(o, provider) {
+							var meta = o.rfq_metadata || {};
+							var providerProfile = provider && provider.comparison_fields && provider.comparison_fields.rfq_profile
+								? provider.comparison_fields.rfq_profile
 								: {};
 							var scopeText = String(meta.scope || '').toLowerCase();
 							var timelineText = String(meta.timeline || '').toLowerCase();
@@ -3024,7 +3024,7 @@ class QuoteClubPortalShortcode {
 							return unitPriceGbp;
 						}
 
-						function calculateRfpPricing(cplValue, seatRange, commissionRate, offerPlatformDiscount, opportunityBaselineGbp) {
+						function calculateRfqPricing(cplValue, seatRange, commissionRate, offerPlatformDiscount, opportunityBaselineGbp) {
 							var cpl = Number(cplValue || 0);
 							var rate = Math.max(5, Math.min(25, parseInt(commissionRate, 10) || 5));
 							var baseline = Math.max(0, Number(opportunityBaselineGbp || 0));
@@ -3051,23 +3051,23 @@ class QuoteClubPortalShortcode {
 							};
 						}
 
-						function ensureRfpReviewModal() {
-							var modal = document.getElementById('khm-qc-rfp-review-modal');
+						function ensureRfqReviewModal() {
+							var modal = document.getElementById('khm-qc-rfq-review-modal');
 							if (modal) return modal;
 							modal = document.createElement('div');
-							modal.id = 'khm-qc-rfp-review-modal';
-							modal.className = 'khm-qc-rfp-review-modal';
+							modal.id = 'khm-qc-rfq-review-modal';
+							modal.className = 'khm-qc-rfq-review-modal';
 							modal.innerHTML =
-								'<div class="khm-qc-rfp-review-dialog" role="dialog" aria-modal="true" aria-labelledby="khm-qc-rfp-review-title">' +
-									'<div class="khm-qc-rfp-review-head">' +
-										'<h3 id="khm-qc-rfp-review-title"><?php echo esc_js( __( 'Review Proposal Terms', 'khm-membership' ) ); ?></h3>' +
-										'<button type="button" class="khm-qc-rfp-review-close" aria-label="<?php echo esc_js( __( 'Close', 'khm-membership' ) ); ?>">&times;</button>' +
+								'<div class="khm-qc-rfq-review-dialog" role="dialog" aria-modal="true" aria-labelledby="khm-qc-rfq-review-title">' +
+									'<div class="khm-qc-rfq-review-head">' +
+										'<h3 id="khm-qc-rfq-review-title"><?php echo esc_js( __( 'Review Proposal Terms', 'khm-membership' ) ); ?></h3>' +
+										'<button type="button" class="khm-qc-rfq-review-close" aria-label="<?php echo esc_js( __( 'Close', 'khm-membership' ) ); ?>">&times;</button>' +
 									'</div>' +
-									'<div class="khm-qc-rfp-review-preview"></div>' +
-									'<div class="khm-qc-rfp-review-terms"></div>' +
-									'<div class="khm-qc-rfp-review-actions">' +
-										'<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfp-review-cancel"><?php echo esc_js( __( 'Back', 'khm-membership' ) ); ?></button>' +
-										'<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-rfp-review-confirm"><?php echo esc_js( __( 'Send Proposal', 'khm-membership' ) ); ?></button>' +
+									'<div class="khm-qc-rfq-review-preview"></div>' +
+									'<div class="khm-qc-rfq-review-terms"></div>' +
+									'<div class="khm-qc-rfq-review-actions">' +
+										'<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfq-review-cancel"><?php echo esc_js( __( 'Back', 'khm-membership' ) ); ?></button>' +
+										'<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-rfq-review-confirm"><?php echo esc_js( __( 'Send Proposal', 'khm-membership' ) ); ?></button>' +
 									'</div>' +
 								'</div>';
 							document.body.appendChild(modal);
@@ -3075,55 +3075,55 @@ class QuoteClubPortalShortcode {
 								modal.classList.remove('is-open');
 								modal.dataset.confirmHandler = '';
 							};
-							modal.querySelector('.khm-qc-rfp-review-close').addEventListener('click', closeModal);
-							modal.querySelector('.khm-qc-rfp-review-cancel').addEventListener('click', closeModal);
+							modal.querySelector('.khm-qc-rfq-review-close').addEventListener('click', closeModal);
+							modal.querySelector('.khm-qc-rfq-review-cancel').addEventListener('click', closeModal);
 							modal.addEventListener('click', function(event) {
 								if (event.target === modal) closeModal();
 							});
 							return modal;
 						}
 
-						function closeAllRfpTooltips(exceptNode) {
-							document.querySelectorAll('.khm-qc-rfp-tooltip.is-open').forEach(function(node) {
+						function closeAllRfqTooltips(exceptNode) {
+							document.querySelectorAll('.khm-qc-rfq-tooltip.is-open').forEach(function(node) {
 								if (exceptNode && node === exceptNode) return;
 								node.classList.remove('is-open');
-								var btn = node.querySelector('.khm-qc-rfp-tooltip-btn');
+								var btn = node.querySelector('.khm-qc-rfq-tooltip-btn');
 								if (btn) btn.setAttribute('aria-expanded', 'false');
 							});
 						}
 
 						document.addEventListener('click', function(event) {
-							var btn = event.target.closest('.khm-qc-rfp-tooltip-btn');
+							var btn = event.target.closest('.khm-qc-rfq-tooltip-btn');
 							if (btn) {
 								event.preventDefault();
 								event.stopPropagation();
-								var wrap = btn.closest('.khm-qc-rfp-tooltip');
+								var wrap = btn.closest('.khm-qc-rfq-tooltip');
 								if (!wrap) return;
 								var isOpen = wrap.classList.contains('is-open');
-								closeAllRfpTooltips();
+								closeAllRfqTooltips();
 								if (!isOpen) {
 									wrap.classList.add('is-open');
 									btn.setAttribute('aria-expanded', 'true');
 								}
 								return;
 							}
-							if (!event.target.closest('.khm-qc-rfp-tooltip')) {
-								closeAllRfpTooltips();
+							if (!event.target.closest('.khm-qc-rfq-tooltip')) {
+								closeAllRfqTooltips();
 							}
 						});
 
 						document.addEventListener('keydown', function(event) {
 							if (event.key === 'Escape') {
-								closeAllRfpTooltips();
+								closeAllRfqTooltips();
 							}
 						});
 
 						var PAGE_SIZE = 3;
 						var currentPage = 0;
-						var allRfps = [];
+						var allRfqs = [];
 						var allProviders = [];
 
-						function bindRfpInputControls() {
+						function bindRfqInputControls() {
 							if (!grid || grid.dataset.navBound === '1') return;
 							grid.dataset.navBound = '1';
 							grid.setAttribute('tabindex', '0');
@@ -3139,13 +3139,13 @@ class QuoteClubPortalShortcode {
 							}
 
 							function goNext() {
-								var maxPage = Math.max(0, Math.ceil(allRfps.length / PAGE_SIZE) - 1);
+								var maxPage = Math.max(0, Math.ceil(allRfqs.length / PAGE_SIZE) - 1);
 								if (currentPage >= maxPage) return;
 								renderPage(currentPage + 1);
 							}
 
 							grid.addEventListener('wheel', function(event) {
-								if (!allRfps.length || allRfps.length <= PAGE_SIZE) return;
+								if (!allRfqs.length || allRfqs.length <= PAGE_SIZE) return;
 								if (event.target && event.target.closest('input,select,textarea,button')) return;
 								var delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
 								if (Math.abs(delta) < 16) return;
@@ -3163,7 +3163,7 @@ class QuoteClubPortalShortcode {
 							});
 
 							grid.addEventListener('pointerup', function(event) {
-								if (!pointerActive || !allRfps.length || allRfps.length <= PAGE_SIZE) return;
+								if (!pointerActive || !allRfqs.length || allRfqs.length <= PAGE_SIZE) return;
 								pointerActive = false;
 								var dx = event.clientX - pointerStartX;
 								var dy = event.clientY - pointerStartY;
@@ -3176,7 +3176,7 @@ class QuoteClubPortalShortcode {
 							});
 
 							grid.addEventListener('keydown', function(event) {
-								if (!allRfps.length || allRfps.length <= PAGE_SIZE) return;
+								if (!allRfqs.length || allRfqs.length <= PAGE_SIZE) return;
 								if (event.key === 'ArrowLeft') {
 									event.preventDefault();
 									goPrev();
@@ -3191,11 +3191,11 @@ class QuoteClubPortalShortcode {
 						function renderPage(page) {
 							currentPage = page;
 							var start = page * PAGE_SIZE;
-							var pageRfps = allRfps.slice(start, start + PAGE_SIZE);
-							var totalPages = Math.ceil(allRfps.length / PAGE_SIZE);
+							var pageRfqs = allRfqs.slice(start, start + PAGE_SIZE);
+							var totalPages = Math.ceil(allRfqs.length / PAGE_SIZE);
 
 							grid.innerHTML = '';
-							pageRfps.forEach(function(o) {
+							pageRfqs.forEach(function(o) {
 								var scorePct = Math.round((o.person_score || 0) * 100);
 								var canAccept = (o.opportunity_status === 'detected' || o.opportunity_status === 'offered');
 								var acceptedAlready = o.opportunity_status === 'sponsor_accepted' || o.opportunity_status === 'intro_requested' || o.opportunity_status === 'introduced';
@@ -3204,7 +3204,7 @@ class QuoteClubPortalShortcode {
 								if (canAccept && allProviders.length) {
 									var selectedProviderId = o.provider_id || (allProviders[0] && allProviders[0].id) || 0;
 									var matchedProvider = allProviders.find(function(p){ return parseInt(p.id, 10) === parseInt(selectedProviderId, 10); }) || null;
-									var miniRfp = deriveMiniRfpDraft(o, matchedProvider);
+									var miniRfq = deriveMiniRfqDraft(o, matchedProvider);
 									var scopeOptions = [
 										{ value: 'pilot_scheme', label: 'Structured pilot scheme (time-boxed, defined success criteria)' },
 										{ value: 'fsm_evaluation_poc', label: 'Complete FSM platform evaluation and POC' },
@@ -3223,93 +3223,93 @@ class QuoteClubPortalShortcode {
 										{ value: 'real_time_reporting', label: 'Real-time reporting dashboard' },
 										{ value: 'erp_integration', label: 'ERP integration' }
 									];
-									var baseCpl = Number(miniRfp.default_cpl_gbp || 0);
+									var baseCpl = Number(miniRfq.default_cpl_gbp || 0);
 										var opportunityBaselineGbp = deriveOpportunityBaselineGbp(o.unit_price_cents, o.commercial_tier);
-									var scopeLabel = (scopeOptions.find(function(s){ return s.value === miniRfp.scope_value; }) || {}).label || miniRfp.scope_value || '';
-									var seatRange = seatRangeForValue(miniRfp.seats_value);
-									var commissionRateDefault = Math.max(5, Math.min(25, parseInt(miniRfp.max_discount_pct, 10) || 10));
-									var pilotRequestedHtml = miniRfp.pilot_requested ? '<li><strong><?php echo esc_js( __( 'Pilot requested:', 'khm-membership' ) ); ?></strong> <?php echo esc_js( __( 'Yes', 'khm-membership' ) ); ?></li>' : '';
-									var servicesHtml = (miniRfp.service_items || []).length
-										? '<li><strong><?php echo esc_js( __( 'Services:', 'khm-membership' ) ); ?></strong><ul class="khm-qc-rfp-summary-sublist">' + miniRfp.service_items.map(function(item){ return '<li>' + safe(item) + '</li>'; }).join('') + '</ul></li>'
+									var scopeLabel = (scopeOptions.find(function(s){ return s.value === miniRfq.scope_value; }) || {}).label || miniRfq.scope_value || '';
+									var seatRange = seatRangeForValue(miniRfq.seats_value);
+									var commissionRateDefault = Math.max(5, Math.min(25, parseInt(miniRfq.max_discount_pct, 10) || 10));
+									var pilotRequestedHtml = miniRfq.pilot_requested ? '<li><strong><?php echo esc_js( __( 'Pilot requested:', 'khm-membership' ) ); ?></strong> <?php echo esc_js( __( 'Yes', 'khm-membership' ) ); ?></li>' : '';
+									var servicesHtml = (miniRfq.service_items || []).length
+										? '<li><strong><?php echo esc_js( __( 'Services:', 'khm-membership' ) ); ?></strong><ul class="khm-qc-rfq-summary-sublist">' + miniRfq.service_items.map(function(item){ return '<li>' + safe(item) + '</li>'; }).join('') + '</ul></li>'
 										: '';
-									acceptHtml = '<div class="khm-qc-rfp-accept-form">' +
-										'<input type="hidden" class="khm-qc-rfp-provider-id" value="' + parseInt(selectedProviderId, 10) + '" />' +
-										'<input type="hidden" class="khm-qc-rfp-opportunity-baseline" value="' + opportunityBaselineGbp.toFixed(2) + '" />' +
+									acceptHtml = '<div class="khm-qc-rfq-accept-form">' +
+										'<input type="hidden" class="khm-qc-rfq-provider-id" value="' + parseInt(selectedProviderId, 10) + '" />' +
+										'<input type="hidden" class="khm-qc-rfq-opportunity-baseline" value="' + opportunityBaselineGbp.toFixed(2) + '" />' +
 										'<div class="khm-qc-lead-engaged-ctas">' +
-											'<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-rfp-open-form-btn" data-id="' + o.id + '"><?php echo esc_js( __( 'Open Proposal Builder', 'khm-membership' ) ); ?></button>' +
+											'<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-rfq-open-form-btn" data-id="' + o.id + '"><?php echo esc_js( __( 'Open Proposal Builder', 'khm-membership' ) ); ?></button>' +
 										'</div>' +
-										'<div class="khm-qc-rfp-response-workflow" hidden>' +
-											'<div class="khm-qc-rfp-response-hint"><?php echo esc_js( __( 'Pricing is based on the matched opportunity and your seller profile. Review the commercial terms before sending.', 'khm-membership' ) ); ?></div>' +
-											'<div class="khm-qc-rfp-response-grid">' +
-												'<div class="khm-qc-rfp-response-field khm-qc-rfp-summary">' +
-													'<input type="hidden" class="khm-qc-rfp-response-scope" value="' + miniRfp.scope_value + '" />' +
-													'<input type="hidden" class="khm-qc-rfp-response-seats" value="' + miniRfp.seats_value + '" />' +
-													'<input type="hidden" class="khm-qc-rfp-seat-min" value="' + seatRange.min + '" />' +
-													'<input type="hidden" class="khm-qc-rfp-seat-max" value="' + seatRange.max + '" />' +
-													'<input type="hidden" class="khm-qc-rfp-pilot-requested" value="' + (miniRfp.pilot_requested ? 'yes' : 'no') + '" />' +
+										'<div class="khm-qc-rfq-response-workflow" hidden>' +
+											'<div class="khm-qc-rfq-response-hint"><?php echo esc_js( __( 'Pricing is based on the matched opportunity and your seller profile. Review the commercial terms before sending.', 'khm-membership' ) ); ?></div>' +
+											'<div class="khm-qc-rfq-response-grid">' +
+												'<div class="khm-qc-rfq-response-field khm-qc-rfq-summary">' +
+													'<input type="hidden" class="khm-qc-rfq-response-scope" value="' + miniRfq.scope_value + '" />' +
+													'<input type="hidden" class="khm-qc-rfq-response-seats" value="' + miniRfq.seats_value + '" />' +
+													'<input type="hidden" class="khm-qc-rfq-seat-min" value="' + seatRange.min + '" />' +
+													'<input type="hidden" class="khm-qc-rfq-seat-max" value="' + seatRange.max + '" />' +
+													'<input type="hidden" class="khm-qc-rfq-pilot-requested" value="' + (miniRfq.pilot_requested ? 'yes' : 'no') + '" />' +
 													'<h4><?php echo esc_js( __( 'Engagement Summary', 'khm-membership' ) ); ?></h4>' +
-													'<ul class="khm-qc-rfp-summary-list">' +
+													'<ul class="khm-qc-rfq-summary-list">' +
 														'<li><strong><?php echo esc_js( __( 'Solution:', 'khm-membership' ) ); ?></strong> ' + scopeLabel + '</li>' +
 														'<li><strong><?php echo esc_js( __( 'Licences:', 'khm-membership' ) ); ?></strong> ' + seatRange.label + '</li>' +
 														pilotRequestedHtml +
-														'<li><strong><?php echo esc_js( __( 'Features:', 'khm-membership' ) ); ?></strong><div class="khm-qc-rfp-feature-grid">' + featureCheckboxHtml(featureOptions, miniRfp.features) + '</div></li>' +
+														'<li><strong><?php echo esc_js( __( 'Features:', 'khm-membership' ) ); ?></strong><div class="khm-qc-rfq-feature-grid">' + featureCheckboxHtml(featureOptions, miniRfq.features) + '</div></li>' +
 														servicesHtml +
 													'</ul>' +
 												'</div>' +
-												'<div class="khm-qc-rfp-response-field">' +
+												'<div class="khm-qc-rfq-response-field">' +
 													'<label><?php echo esc_js( __( 'Cost per licence / month (£)', 'khm-membership' ) ); ?></label>' +
-													'<input type="number" min="1" step="0.01" class="khm-qc-rfp-response-cpl" value="' + baseCpl.toFixed(2) + '" />' +
-													'<p class="khm-qc-rfp-estimate-caption"><?php echo esc_js( __( 'Editable commercial price seeded from the matched seller rate.', 'khm-membership' ) ); ?></p>' +
+													'<input type="number" min="1" step="0.01" class="khm-qc-rfq-response-cpl" value="' + baseCpl.toFixed(2) + '" />' +
+													'<p class="khm-qc-rfq-estimate-caption"><?php echo esc_js( __( 'Editable commercial price seeded from the matched seller rate.', 'khm-membership' ) ); ?></p>' +
 												'</div>' +
-												'<div class="khm-qc-rfp-response-field">' +
+												'<div class="khm-qc-rfq-response-field">' +
 													'<label><?php echo esc_js( __( '12-month estimate', 'khm-membership' ) ); ?></label>' +
-													'<div class="khm-qc-rfp-calc-card">' +
-														'<div class="khm-qc-rfp-estimate-value khm-qc-rfp-estimate-range"></div>' +
-														'<div class="khm-qc-rfp-estimate-caption"><?php echo esc_js( __( 'Calculated from the licence range in the RFP over 12 months.', 'khm-membership' ) ); ?></div>' +
+													'<div class="khm-qc-rfq-calc-card">' +
+														'<div class="khm-qc-rfq-estimate-value khm-qc-rfq-estimate-range"></div>' +
+														'<div class="khm-qc-rfq-estimate-caption"><?php echo esc_js( __( 'Calculated from the licence range in the RFQ over 12 months.', 'khm-membership' ) ); ?></div>' +
 													'</div>' +
 												'</div>' +
-												'<div class="khm-qc-rfp-response-field">' +
-													'<label class="khm-qc-rfp-toggle">' +
-														'<input type="checkbox" class="khm-qc-rfp-discount-toggle" />' +
+												'<div class="khm-qc-rfq-response-field">' +
+													'<label class="khm-qc-rfq-toggle">' +
+														'<input type="checkbox" class="khm-qc-rfq-discount-toggle" />' +
 														'<span><?php echo esc_js( __( 'Offer platform discount', 'khm-membership' ) ); ?></span>' +
 													'</label>' +
 												'</div>' +
-												'<div class="khm-qc-rfp-response-field">' +
-													'<div class="khm-qc-rfp-discount-controls" hidden>' +
+												'<div class="khm-qc-rfq-response-field">' +
+													'<div class="khm-qc-rfq-discount-controls" hidden>' +
 														'<label><?php echo esc_js( __( 'Discount / commission rate (%)', 'khm-membership' ) ); ?></label>' +
-														'<input type="range" min="5" max="25" step="1" value="' + commissionRateDefault + '" class="khm-qc-rfp-commission-rate" />' +
-														'<div class="khm-qc-rfp-discount-readout"><span><?php echo esc_js( __( 'Selected rate:', 'khm-membership' ) ); ?> <strong class="khm-qc-rfp-rate-value">' + commissionRateDefault + '%</strong></span><span><?php echo esc_js( __( 'This total rate is split 50/50 between estimated buyer discount and estimated platform commission.', 'khm-membership' ) ); ?></span></div>' +
+														'<input type="range" min="5" max="25" step="1" value="' + commissionRateDefault + '" class="khm-qc-rfq-commission-rate" />' +
+														'<div class="khm-qc-rfq-discount-readout"><span><?php echo esc_js( __( 'Selected rate:', 'khm-membership' ) ); ?> <strong class="khm-qc-rfq-rate-value">' + commissionRateDefault + '%</strong></span><span><?php echo esc_js( __( 'This total rate is split 50/50 between estimated buyer discount and estimated platform commission.', 'khm-membership' ) ); ?></span></div>' +
 													'</div>' +
 												'</div>' +
-												'<div class="khm-qc-rfp-response-field">' +
+												'<div class="khm-qc-rfq-response-field">' +
 													'<label><?php echo esc_js( __( 'Commercial breakdown', 'khm-membership' ) ); ?></label>' +
-													'<div class="khm-qc-rfp-calc-card">' +
-														'<div class="khm-qc-rfp-breakdown-row"><span><?php echo esc_js( __( 'Payable today', 'khm-membership' ) ); ?></span><strong class="khm-qc-rfp-flat-fee"></strong></div>' +
-														'<div class="khm-qc-rfp-commission-breakdown" hidden>' +
-															'<div class="khm-qc-rfp-breakdown-row"><span class="khm-qc-rfp-tooltip"><?php echo esc_js( __( 'Estimated buyer discount', 'khm-membership' ) ); ?><button type="button" class="khm-qc-rfp-tooltip-btn" aria-label="<?php echo esc_js( __( 'Buyer discount help', 'khm-membership' ) ); ?>">i</button><span class="khm-qc-rfp-tooltip-bubble"><?php echo esc_js( __( 'Deductible from the buyer\'s first invoice with your company.', 'khm-membership' ) ); ?></span></span><strong class="khm-qc-rfp-client-saving"></strong></div>' +
-															'<div class="khm-qc-rfp-breakdown-row"><span class="khm-qc-rfp-tooltip"><?php echo esc_js( __( 'Estimated platform commission', 'khm-membership' ) ); ?><button type="button" class="khm-qc-rfp-tooltip-btn" aria-label="<?php echo esc_js( __( 'Platform commission help', 'khm-membership' ) ); ?>">i</button><span class="khm-qc-rfp-tooltip-bubble"><?php echo esc_js( __( 'Debited from your account when the buyer confirms agreement so they can claim discount.', 'khm-membership' ) ); ?></span></span><strong class="khm-qc-rfp-platform-commission"></strong></div>' +
+													'<div class="khm-qc-rfq-calc-card">' +
+														'<div class="khm-qc-rfq-breakdown-row"><span><?php echo esc_js( __( 'Payable today', 'khm-membership' ) ); ?></span><strong class="khm-qc-rfq-flat-fee"></strong></div>' +
+														'<div class="khm-qc-rfq-commission-breakdown" hidden>' +
+															'<div class="khm-qc-rfq-breakdown-row"><span class="khm-qc-rfq-tooltip"><?php echo esc_js( __( 'Estimated buyer discount', 'khm-membership' ) ); ?><button type="button" class="khm-qc-rfq-tooltip-btn" aria-label="<?php echo esc_js( __( 'Buyer discount help', 'khm-membership' ) ); ?>">i</button><span class="khm-qc-rfq-tooltip-bubble"><?php echo esc_js( __( 'Deductible from the buyer\'s first invoice with your company.', 'khm-membership' ) ); ?></span></span><strong class="khm-qc-rfq-client-saving"></strong></div>' +
+															'<div class="khm-qc-rfq-breakdown-row"><span class="khm-qc-rfq-tooltip"><?php echo esc_js( __( 'Estimated platform commission', 'khm-membership' ) ); ?><button type="button" class="khm-qc-rfq-tooltip-btn" aria-label="<?php echo esc_js( __( 'Platform commission help', 'khm-membership' ) ); ?>">i</button><span class="khm-qc-rfq-tooltip-bubble"><?php echo esc_js( __( 'Debited from your account when the buyer confirms agreement so they can claim discount.', 'khm-membership' ) ); ?></span></span><strong class="khm-qc-rfq-platform-commission"></strong></div>' +
 														'</div>' +
 													'</div>' +
 												'</div>' +
-												'<div class="khm-qc-rfp-response-field">' +
+												'<div class="khm-qc-rfq-response-field">' +
 													'<label><?php echo esc_js( __( 'Note to send with this proposal (optional)', 'khm-membership' ) ); ?></label>' +
-													'<textarea class="khm-qc-rfp-response-notes" placeholder="<?php echo esc_js( __( 'Any caveats, assumptions, or implementation notes…', 'khm-membership' ) ); ?>"></textarea>' +
+													'<textarea class="khm-qc-rfq-response-notes" placeholder="<?php echo esc_js( __( 'Any caveats, assumptions, or implementation notes…', 'khm-membership' ) ); ?>"></textarea>' +
 												'</div>' +
 											'</div>' +
-											'<div class="khm-qc-rfp-response-actions">' +
-												'<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-rfp-submit-btn" data-id="' + o.id + '"><?php echo esc_js( __( 'Review Proposal Terms', 'khm-membership' ) ); ?></button>' +
-												'<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfp-cancel-btn"><?php echo esc_js( __( 'Cancel', 'khm-membership' ) ); ?></button>' +
+											'<div class="khm-qc-rfq-response-actions">' +
+												'<button type="button" class="khm-qc-btn khm-qc-btn-primary khm-qc-rfq-submit-btn" data-id="' + o.id + '"><?php echo esc_js( __( 'Review Proposal Terms', 'khm-membership' ) ); ?></button>' +
+												'<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfq-cancel-btn"><?php echo esc_js( __( 'Cancel', 'khm-membership' ) ); ?></button>' +
 											'</div>' +
 										'</div>' +
 									'</div>';
 								} else if (acceptedAlready) {
 									var matchedProvider = allProviders.find(function(p){ return p.id == o.provider_id; });
 									var providerLine = matchedProvider ? '<span style="font-size:12px;font-weight:600;color:#3c434a;">' + safe(matchedProvider.name) + '</span>' : '';
-									acceptHtml = providerLine + (providerLine ? '<br>' : '') + '<span class="khm-qc-lead-status" style="color:#1e8c45;">&#10003; ' + rfpStatusLabel(o.opportunity_status) + '</span>';
+									acceptHtml = providerLine + (providerLine ? '<br>' : '') + '<span class="khm-qc-lead-status" style="color:#1e8c45;">&#10003; ' + rfqStatusLabel(o.opportunity_status) + '</span>';
 								}
 
 								var card = document.createElement('div');
-								card.className = 'khm-qc-rfp-card';
+								card.className = 'khm-qc-rfq-card';
 								card.dataset.status = o.opportunity_status;
 								card.dataset.id = o.id;
 								card.dataset.demo = o.is_demo ? '1' : '0';
@@ -3318,55 +3318,55 @@ class QuoteClubPortalShortcode {
 									return '<span><strong>' + safe(signal.label) + ':</strong> ' + safe(signal.value) + '</span>';
 								}).join('');
 
-								var rfpMetadata = buildRfpMetadata(o.rfp_metadata);
-								var rfpMetadataHtml = rfpMetadata.map(function(m){
+								var rfqMetadata = buildRfqMetadata(o.rfq_metadata);
+								var rfqMetadataHtml = rfqMetadata.map(function(m){
 									return '<span><strong>' + safe(m.label) + ':</strong> ' + safe(m.value) + '</span>';
 								}).join('');
 
-								var maturityTooltip = 'Confidence score calculated from RFP issuance signals and procurement stage signals.';
-								var tierTooltip = 'Engaged — RFP Procurement: Formal vendor selection process with multiple buyers and defined requirements.';
+								var maturityTooltip = 'Confidence score calculated from RFQ issuance signals and procurement stage signals.';
+								var tierTooltip = 'Engaged — RFQ Procurement: Formal vendor selection process with multiple buyers and defined requirements.';
 
 								card.innerHTML =
-									'<div><span class="khm-qc-lead-tier ' + tierClass(o.commercial_tier) + '" title="' + tierTooltip + '" style="cursor:help;">RFP Request</span></div>' +
+									'<div><span class="khm-qc-lead-tier ' + tierClass(o.commercial_tier) + '" title="' + tierTooltip + '" style="cursor:help;">RFQ Request</span></div>' +
 									'<div class="khm-qc-lead-score-bar"><div class="khm-qc-lead-score-fill" style="width:' + scorePct + '%"></div></div>' +
 									'<div class="khm-qc-lead-meta">' +
 										'<span title="' + maturityTooltip + '" style="cursor:help;">Maturity: <strong>' + scorePct + '%</strong></span>' +
 									'</div>' +
-									'<div class="khm-qc-rfp-metadata">' + rfpMetadataHtml + '</div>' +
+									'<div class="khm-qc-rfq-metadata">' + rfqMetadataHtml + '</div>' +
 									'<div class="khm-qc-lead-anon">' + signalHtml + '</div>' +
 									(acceptHtml ? '<div class="khm-qc-lead-actions">' + acceptHtml + '</div>' : '');
 								grid.appendChild(card);
 							});
 
 							// Pagination nav
-							var nav = panel.querySelector('.khm-qc-rfp-nav');
+							var nav = panel.querySelector('.khm-qc-rfq-nav');
 							if (totalPages > 1) {
 								nav.innerHTML =
-									'<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfp-prev"' + (page === 0 ? ' disabled' : '') + '>&#8592;</button>' +
-									'<span class="khm-qc-rfp-page-label">Page ' + (page + 1) + ' of ' + totalPages + '</span>' +
-									'<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfp-next"' + (page >= totalPages - 1 ? ' disabled' : '') + '>&#8594;</button>';
-								nav.querySelector('.khm-qc-rfp-prev').addEventListener('click', function(){ renderPage(currentPage - 1); });
-								nav.querySelector('.khm-qc-rfp-next').addEventListener('click', function(){ renderPage(currentPage + 1); });
+									'<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfq-prev"' + (page === 0 ? ' disabled' : '') + '>&#8592;</button>' +
+									'<span class="khm-qc-rfq-page-label">Page ' + (page + 1) + ' of ' + totalPages + '</span>' +
+									'<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfq-next"' + (page >= totalPages - 1 ? ' disabled' : '') + '>&#8594;</button>';
+								nav.querySelector('.khm-qc-rfq-prev').addEventListener('click', function(){ renderPage(currentPage - 1); });
+								nav.querySelector('.khm-qc-rfq-next').addEventListener('click', function(){ renderPage(currentPage + 1); });
 							} else {
 								nav.innerHTML = '';
 							}
 
-							function updateRfpPricing(form) {
+							function updateRfqPricing(form) {
 								if (!form) return null;
-								var cplInput = form.querySelector('.khm-qc-rfp-response-cpl');
-								var seatMinInput = form.querySelector('.khm-qc-rfp-seat-min');
-								var seatMaxInput = form.querySelector('.khm-qc-rfp-seat-max');
-								var discountToggle = form.querySelector('.khm-qc-rfp-discount-toggle');
-								var rateInput = form.querySelector('.khm-qc-rfp-commission-rate');
-								var discountControls = form.querySelector('.khm-qc-rfp-discount-controls');
-								var commissionBreakdown = form.querySelector('.khm-qc-rfp-commission-breakdown');
-								var rateValueNode = form.querySelector('.khm-qc-rfp-rate-value');
-								var estimateNode = form.querySelector('.khm-qc-rfp-estimate-range');
-								var flatFeeNode = form.querySelector('.khm-qc-rfp-flat-fee');
-								var clientSavingNode = form.querySelector('.khm-qc-rfp-client-saving');
-								var platformCommissionNode = form.querySelector('.khm-qc-rfp-platform-commission');
-								var baselineInput = form.querySelector('.khm-qc-rfp-opportunity-baseline');
-								var pricing = calculateRfpPricing(
+								var cplInput = form.querySelector('.khm-qc-rfq-response-cpl');
+								var seatMinInput = form.querySelector('.khm-qc-rfq-seat-min');
+								var seatMaxInput = form.querySelector('.khm-qc-rfq-seat-max');
+								var discountToggle = form.querySelector('.khm-qc-rfq-discount-toggle');
+								var rateInput = form.querySelector('.khm-qc-rfq-commission-rate');
+								var discountControls = form.querySelector('.khm-qc-rfq-discount-controls');
+								var commissionBreakdown = form.querySelector('.khm-qc-rfq-commission-breakdown');
+								var rateValueNode = form.querySelector('.khm-qc-rfq-rate-value');
+								var estimateNode = form.querySelector('.khm-qc-rfq-estimate-range');
+								var flatFeeNode = form.querySelector('.khm-qc-rfq-flat-fee');
+								var clientSavingNode = form.querySelector('.khm-qc-rfq-client-saving');
+								var platformCommissionNode = form.querySelector('.khm-qc-rfq-platform-commission');
+								var baselineInput = form.querySelector('.khm-qc-rfq-opportunity-baseline');
+								var pricing = calculateRfqPricing(
 									parseFloat(cplInput && cplInput.value ? cplInput.value : '0') || 0,
 									{
 										min: parseInt(seatMinInput && seatMinInput.value ? seatMinInput.value : '0', 10) || 0,
@@ -3386,11 +3386,11 @@ class QuoteClubPortalShortcode {
 								return pricing;
 							}
 
-							function openRfpReviewModal(previewHtml, termsHtml, onConfirm) {
-								var modal = ensureRfpReviewModal();
-								modal.querySelector('.khm-qc-rfp-review-preview').innerHTML = previewHtml;
-								modal.querySelector('.khm-qc-rfp-review-terms').innerHTML = termsHtml;
-								var oldConfirmBtn = modal.querySelector('.khm-qc-rfp-review-confirm');
+							function openRfqReviewModal(previewHtml, termsHtml, onConfirm) {
+								var modal = ensureRfqReviewModal();
+								modal.querySelector('.khm-qc-rfq-review-preview').innerHTML = previewHtml;
+								modal.querySelector('.khm-qc-rfq-review-terms').innerHTML = termsHtml;
+								var oldConfirmBtn = modal.querySelector('.khm-qc-rfq-review-confirm');
 								var newConfirmBtn = oldConfirmBtn.cloneNode(true);
 								oldConfirmBtn.parentNode.replaceChild(newConfirmBtn, oldConfirmBtn);
 								newConfirmBtn.addEventListener('click', function() {
@@ -3400,51 +3400,51 @@ class QuoteClubPortalShortcode {
 								modal.classList.add('is-open');
 							}
 
-							// Step 1: open/close the RFP response workflow form.
-							grid.querySelectorAll('.khm-qc-rfp-open-form-btn').forEach(function(btn) {
+							// Step 1: open/close the RFQ response workflow form.
+							grid.querySelectorAll('.khm-qc-rfq-open-form-btn').forEach(function(btn) {
 								btn.addEventListener('click', function() {
-									var form = btn.closest('.khm-qc-rfp-accept-form');
-									var workflow = form ? form.querySelector('.khm-qc-rfp-response-workflow') : null;
+									var form = btn.closest('.khm-qc-rfq-accept-form');
+									var workflow = form ? form.querySelector('.khm-qc-rfq-response-workflow') : null;
 									if (!workflow) return;
 									workflow.hidden = false;
 									btn.style.display = 'none';
 									if (!workflow.dataset.pricingBound) {
-										['.khm-qc-rfp-response-cpl', '.khm-qc-rfp-discount-toggle', '.khm-qc-rfp-commission-rate'].forEach(function(selector) {
+										['.khm-qc-rfq-response-cpl', '.khm-qc-rfq-discount-toggle', '.khm-qc-rfq-commission-rate'].forEach(function(selector) {
 											var input = workflow.querySelector(selector);
 											if (!input) return;
-											input.addEventListener('input', function() { updateRfpPricing(form); });
-											input.addEventListener('change', function() { updateRfpPricing(form); });
+											input.addEventListener('input', function() { updateRfqPricing(form); });
+											input.addEventListener('change', function() { updateRfqPricing(form); });
 										});
 										workflow.dataset.pricingBound = '1';
 									}
-									updateRfpPricing(form);
-									var cplInput = workflow.querySelector('.khm-qc-rfp-response-cpl');
+									updateRfqPricing(form);
+									var cplInput = workflow.querySelector('.khm-qc-rfq-response-cpl');
 									if (cplInput) cplInput.focus();
 								});
 							});
 
-							grid.querySelectorAll('.khm-qc-rfp-cancel-btn').forEach(function(btn) {
+							grid.querySelectorAll('.khm-qc-rfq-cancel-btn').forEach(function(btn) {
 								btn.addEventListener('click', function() {
-									var form = btn.closest('.khm-qc-rfp-accept-form');
-									var workflow = form ? form.querySelector('.khm-qc-rfp-response-workflow') : null;
-									var openBtn = form ? form.querySelector('.khm-qc-rfp-open-form-btn') : null;
+									var form = btn.closest('.khm-qc-rfq-accept-form');
+									var workflow = form ? form.querySelector('.khm-qc-rfq-response-workflow') : null;
+									var openBtn = form ? form.querySelector('.khm-qc-rfq-open-form-btn') : null;
 									if (workflow) workflow.hidden = true;
 									if (openBtn) openBtn.style.display = '';
 								});
 							});
 
 							// Step 2: submit the response after form completion.
-							grid.querySelectorAll('.khm-qc-rfp-submit-btn').forEach(function(btn) {
+							grid.querySelectorAll('.khm-qc-rfq-submit-btn').forEach(function(btn) {
 								btn.addEventListener('click', function() {
-									var form = btn.closest('.khm-qc-rfp-accept-form');
-									var scopeInput = form ? form.querySelector('.khm-qc-rfp-response-scope') : null;
-									var seatsInput = form ? form.querySelector('.khm-qc-rfp-response-seats') : null;
-									var pilotRequestedInput = form ? form.querySelector('.khm-qc-rfp-pilot-requested') : null;
-									var cplInput = form ? form.querySelector('.khm-qc-rfp-response-cpl') : null;
-									var discountToggleInput = form ? form.querySelector('.khm-qc-rfp-discount-toggle') : null;
-									var commissionRateInput = form ? form.querySelector('.khm-qc-rfp-commission-rate') : null;
-									var notesInput = form ? form.querySelector('.khm-qc-rfp-response-notes') : null;
-									var featureInputs = form ? form.querySelectorAll('.khm-qc-rfp-feature') : [];
+									var form = btn.closest('.khm-qc-rfq-accept-form');
+									var scopeInput = form ? form.querySelector('.khm-qc-rfq-response-scope') : null;
+									var seatsInput = form ? form.querySelector('.khm-qc-rfq-response-seats') : null;
+									var pilotRequestedInput = form ? form.querySelector('.khm-qc-rfq-pilot-requested') : null;
+									var cplInput = form ? form.querySelector('.khm-qc-rfq-response-cpl') : null;
+									var discountToggleInput = form ? form.querySelector('.khm-qc-rfq-discount-toggle') : null;
+									var commissionRateInput = form ? form.querySelector('.khm-qc-rfq-commission-rate') : null;
+									var notesInput = form ? form.querySelector('.khm-qc-rfq-response-notes') : null;
+									var featureInputs = form ? form.querySelectorAll('.khm-qc-rfq-feature') : [];
 
 									var scopeValue = scopeInput ? String(scopeInput.value || '') : '';
 									var seatsValue = seatsInput ? String(seatsInput.value || '') : '';
@@ -3454,7 +3454,7 @@ class QuoteClubPortalShortcode {
 									var commissionRate = offerPlatformDiscount ? (parseInt(commissionRateInput ? commissionRateInput.value : '5', 10) || 5) : 0;
 									var notesValue = notesInput ? String(notesInput.value || '').trim() : '';
 									var features = Array.prototype.map.call(featureInputs, function(input){ return String(input.value || ''); });
-									var pricing = updateRfpPricing(form);
+									var pricing = updateRfqPricing(form);
 
 									if (!scopeValue || cplValue <= 0 || !features.length || !pricing) {
 										showNotice(<?php echo wp_json_encode( __( 'Please complete the pricing details before continuing.', 'khm-membership' ) ); ?>, false);
@@ -3462,10 +3462,10 @@ class QuoteClubPortalShortcode {
 									}
 
 									var oppId = parseInt(btn.dataset.id, 10);
-									var providerInput = form ? form.querySelector('.khm-qc-rfp-provider-id') : null;
+									var providerInput = form ? form.querySelector('.khm-qc-rfq-provider-id') : null;
 									var providerId = providerInput ? parseInt(providerInput.value, 10) : 0;
 									if (!providerId) {
-										showNotice(<?php echo wp_json_encode( __( 'No provider mapping found for this RFP.', 'khm-membership' ) ); ?>, false);
+										showNotice(<?php echo wp_json_encode( __( 'No provider mapping found for this RFQ.', 'khm-membership' ) ); ?>, false);
 										return;
 									}
 
@@ -3491,17 +3491,17 @@ class QuoteClubPortalShortcode {
 										response_notes: notesValue
 									};
 
-									var summarySection = form.querySelector('.khm-qc-rfp-summary');
+									var summarySection = form.querySelector('.khm-qc-rfq-summary');
 									var previewHtml =
 										(summarySection ? summarySection.outerHTML : '') +
-										'<div class="khm-qc-rfp-calc-card">' +
+										'<div class="khm-qc-rfq-calc-card">' +
 											'<h4><?php echo esc_js( __( 'Commercial Terms', 'khm-membership' ) ); ?></h4>' +
-											'<div class="khm-qc-rfp-breakdown-row"><span><?php echo esc_js( __( 'Cost per licence / month', 'khm-membership' ) ); ?></span><strong>' + formatGbp(cplValue) + '</strong></div>' +
-											'<div class="khm-qc-rfp-breakdown-row"><span><?php echo esc_js( __( '12-month estimate', 'khm-membership' ) ); ?></span><strong>' + formatGbp(pricing.discountedMin) + ' - ' + formatGbp(pricing.discountedMax) + '</strong></div>' +
-											'<div class="khm-qc-rfp-breakdown-row"><span><?php echo esc_js( __( 'Platform discount offered', 'khm-membership' ) ); ?></span><strong>' + (offerPlatformDiscount ? 'Yes (' + commissionRate + '%)' : 'No') + '</strong></div>' +
-											'<div class="khm-qc-rfp-breakdown-row"><span><?php echo esc_js( __( 'Payable today', 'khm-membership' ) ); ?></span><strong>' + formatGbp(pricing.flatFee) + '</strong></div>' +
-											(offerPlatformDiscount ? '<div class="khm-qc-rfp-breakdown-row"><span class="khm-qc-rfp-tooltip"><?php echo esc_js( __( 'Estimated buyer discount', 'khm-membership' ) ); ?><button type="button" class="khm-qc-rfp-tooltip-btn" aria-label="<?php echo esc_js( __( 'Buyer discount help', 'khm-membership' ) ); ?>">i</button><span class="khm-qc-rfp-tooltip-bubble"><?php echo esc_js( __( 'Deductible from the buyer\'s first invoice with your company.', 'khm-membership' ) ); ?></span></span><strong>' + formatGbp(pricing.estimatedBuyerDiscount) + '</strong></div>' : '') +
-											(offerPlatformDiscount ? '<div class="khm-qc-rfp-breakdown-row"><span class="khm-qc-rfp-tooltip"><?php echo esc_js( __( 'Estimated platform commission', 'khm-membership' ) ); ?><button type="button" class="khm-qc-rfp-tooltip-btn" aria-label="<?php echo esc_js( __( 'Platform commission help', 'khm-membership' ) ); ?>">i</button><span class="khm-qc-rfp-tooltip-bubble"><?php echo esc_js( __( 'Debited from your account when the buyer confirms agreement so they can claim discount.', 'khm-membership' ) ); ?></span></span><strong>' + formatGbp(pricing.estimatedPlatformCommission) + '</strong></div>' : '') +
+											'<div class="khm-qc-rfq-breakdown-row"><span><?php echo esc_js( __( 'Cost per licence / month', 'khm-membership' ) ); ?></span><strong>' + formatGbp(cplValue) + '</strong></div>' +
+											'<div class="khm-qc-rfq-breakdown-row"><span><?php echo esc_js( __( '12-month estimate', 'khm-membership' ) ); ?></span><strong>' + formatGbp(pricing.discountedMin) + ' - ' + formatGbp(pricing.discountedMax) + '</strong></div>' +
+											'<div class="khm-qc-rfq-breakdown-row"><span><?php echo esc_js( __( 'Platform discount offered', 'khm-membership' ) ); ?></span><strong>' + (offerPlatformDiscount ? 'Yes (' + commissionRate + '%)' : 'No') + '</strong></div>' +
+											'<div class="khm-qc-rfq-breakdown-row"><span><?php echo esc_js( __( 'Payable today', 'khm-membership' ) ); ?></span><strong>' + formatGbp(pricing.flatFee) + '</strong></div>' +
+											(offerPlatformDiscount ? '<div class="khm-qc-rfq-breakdown-row"><span class="khm-qc-rfq-tooltip"><?php echo esc_js( __( 'Estimated buyer discount', 'khm-membership' ) ); ?><button type="button" class="khm-qc-rfq-tooltip-btn" aria-label="<?php echo esc_js( __( 'Buyer discount help', 'khm-membership' ) ); ?>">i</button><span class="khm-qc-rfq-tooltip-bubble"><?php echo esc_js( __( 'Deductible from the buyer\'s first invoice with your company.', 'khm-membership' ) ); ?></span></span><strong>' + formatGbp(pricing.estimatedBuyerDiscount) + '</strong></div>' : '') +
+											(offerPlatformDiscount ? '<div class="khm-qc-rfq-breakdown-row"><span class="khm-qc-rfq-tooltip"><?php echo esc_js( __( 'Estimated platform commission', 'khm-membership' ) ); ?><button type="button" class="khm-qc-rfq-tooltip-btn" aria-label="<?php echo esc_js( __( 'Platform commission help', 'khm-membership' ) ); ?>">i</button><span class="khm-qc-rfq-tooltip-bubble"><?php echo esc_js( __( 'Debited from your account when the buyer confirms agreement so they can claim discount.', 'khm-membership' ) ); ?></span></span><strong>' + formatGbp(pricing.estimatedPlatformCommission) + '</strong></div>' : '') +
 											(notesValue ? '<div><strong><?php echo esc_js( __( 'Note to buyer', 'khm-membership' ) ); ?>:</strong><p style="margin:6px 0 0;">' + safe(notesValue).replace(/\n/g, '<br>') + '</p></div>' : '') +
 										'</div>';
 
@@ -3510,9 +3510,9 @@ class QuoteClubPortalShortcode {
 										termsHtml += '<p><?php echo esc_js( __( 'If a deal is agreed with the buyer, accessing the platform discount requires proof of contract. Submitting proof will automatically trigger the platform commission payment.', 'khm-membership' ) ); ?></p>';
 									}
 
-									openRfpReviewModal(previewHtml, termsHtml, function() {
-										var rfpCard = btn.closest('.khm-qc-rfp-card');
-										if (rfpCard && rfpCard.dataset.demo === '1') {
+									openRfqReviewModal(previewHtml, termsHtml, function() {
+										var rfqCard = btn.closest('.khm-qc-rfq-card');
+										if (rfqCard && rfqCard.dataset.demo === '1') {
 											var actions = btn.closest('.khm-qc-lead-actions');
 											if (actions) {
 												actions.innerHTML = '<span class="khm-qc-lead-status" style="color:#1e8c45;">&#10003; <?php echo esc_js( __( 'Proposal sent', 'khm-membership' ) ); ?></span>';
@@ -3533,7 +3533,7 @@ class QuoteClubPortalShortcode {
 										}).then(function(r){ return r.json(); }).then(function(d) {
 											if (d.success) {
 												showNotice(<?php echo wp_json_encode( __( 'Proposal sent — intro thread will open shortly.', 'khm-membership' ) ); ?>, true);
-												loadRfps();
+												loadRfqs();
 											} else {
 												showNotice((d.message || <?php echo wp_json_encode( __( 'Request failed.', 'khm-membership' ) ); ?>), false);
 												btn.disabled = false;
@@ -3544,14 +3544,14 @@ class QuoteClubPortalShortcode {
 							});
 						}
 
-						function renderRfpCards(rfps, providers) {
-							bindRfpInputControls();
-							allRfps      = rfps;
+						function renderRfqCards(rfps, providers) {
+							bindRfqInputControls();
+							allRfqs      = rfps;
 							allProviders = providers;
 							currentPage  = 0;
 							if (!rfps.length) {
-								grid.innerHTML = '<p class="khm-qc-leads-empty"><?php echo esc_js( __( 'No RFP requests at this time.', 'khm-membership' ) ); ?></p>';
-								var nav = panel.querySelector('.khm-qc-rfp-nav');
+								grid.innerHTML = '<p class="khm-qc-leads-empty"><?php echo esc_js( __( 'No RFQ requests at this time.', 'khm-membership' ) ); ?></p>';
+								var nav = panel.querySelector('.khm-qc-rfq-nav');
 								if (nav) nav.innerHTML = '';
 								return;
 							}
@@ -3559,11 +3559,11 @@ class QuoteClubPortalShortcode {
 						}
 
 						function seedDemoClientSetup() {
-							// When on localhost/demo and no buyer rfp_setup exists yet, pre-populate
-							// with a realistic demo client profile matching the first RFP lead (id:8001 FSM evaluation).
+							// When on localhost/demo and no buyer rfq_setup exists yet, pre-populate
+							// with a realistic demo client profile matching the first RFQ lead (id:8001 FSM evaluation).
 							if (!allowDemoFallback) return;
-							if (localStorage.getItem('khm_connect_rfp_setup')) return;
-							localStorage.setItem('khm_connect_rfp_setup', JSON.stringify({
+							if (localStorage.getItem('khm_connect_rfq_setup')) return;
+							localStorage.setItem('khm_connect_rfq_setup', JSON.stringify({
 								scope:     'fsm_evaluation_poc',
 								seats:     '20_30',
 								timeframe: '3_months',
@@ -3572,14 +3572,14 @@ class QuoteClubPortalShortcode {
 							}));
 						}
 
-						function loadRfps() {
+						function loadRfqs() {
 							seedDemoClientSetup();
 							grid.innerHTML = '<p class="khm-qc-leads-empty"><?php echo esc_js( __( 'Loading…', 'khm-membership' ) ); ?></p>';
-							renderRfpCards(demoRfpLeads(), demoProviders());
+							renderRfqCards(demoRfqLeads(), demoProviders());
 						}
 
-						btn.addEventListener('click', loadRfps);
-						loadRfps();
+						btn.addEventListener('click', loadRfqs);
+						loadRfqs();
 					})();
 					</script>
 

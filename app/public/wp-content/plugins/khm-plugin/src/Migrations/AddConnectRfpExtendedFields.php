@@ -5,7 +5,7 @@ namespace KHM\Migrations;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Migration: Add extended buyer-wizard fields to connect_rfps.
+ * Migration: Add extended buyer-wizard fields to connect_rfqs.
  *
  * New columns:
  *   challenge          – selected problem slug/label (TEXT)
@@ -30,7 +30,7 @@ class AddConnectRfpExtendedFields {
 	public static function up(): void {
 		global $wpdb;
 
-		$table = AddConnectBuyerDirectoryColumns::rfps_table_name();
+		$table = AddConnectBuyerDirectoryColumns::rfqs_table_name();
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
 			return;
 		}

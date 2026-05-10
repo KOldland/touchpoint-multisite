@@ -2,7 +2,7 @@
 /**
  * Buyer Validation Service
  *
- * Handles buyer identity verification, RFP active-count cap (max 3),
+ * Handles buyer identity verification, RFQ active-count cap (max 3),
  * and validation badge visibility.
  *
  * Validation statuses:
@@ -20,7 +20,7 @@ defined( 'ABSPATH' ) || exit;
 
 class ConnectBuyerValidationService {
 
-	const MAX_ACTIVE_RFPS = 3;
+	const MAX_ACTIVE_RFQS = 3;
 
 	// ─── Validation status ─────────────────────────────────────────────────────
 
@@ -78,22 +78,22 @@ class ConnectBuyerValidationService {
 		return false !== $result;
 	}
 
-	// ─── RFP cap ───────────────────────────────────────────────────────────────
+	// ─── RFQ cap ───────────────────────────────────────────────────────────────
 
 	/**
-	 * How many active RFPs does this buyer currently have?
+	 * How many active RFQs does this buyer currently have?
 	 *
 	 * @param int $buyer_account_id
 	 * @return int
 	 */
-	public function count_active_rfps( int $buyer_account_id ): int {
+	public function count_active_rfqs( int $buyer_account_id ): int {
 		global $wpdb;
 
 		$table = ConnectWorkflowMigration::opportunities_table_name();
 
 		$count = (int) $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT COUNT(*) FROM `{$table}` WHERE buyer_account_id = %d AND request_type = 'rfp_request' AND opportunity_status NOT IN ('closed', 'archived', 'expired')",
+				"SELECT COUNT(*) FROM `{$table}` WHERE buyer_account_id = %d AND request_type = 'rfq_request' AND opportunity_status NOT IN ('closed', 'archived', 'expired')",
 				$buyer_account_id
 			)
 		);
@@ -102,55 +102,55 @@ class ConnectBuyerValidationService {
 	}
 
 	/**
-	 * Check whether the buyer can open another RFP (cap = 3).
+	 * Check whether the buyer can open another RFQ (cap = 3).
 	 *
 	 * @param int $buyer_account_id
 	 * @return bool
 	 */
-	public function can_open_rfp( int $buyer_account_id ): bool {
-		return $this->count_active_rfps( $buyer_account_id ) < self::MAX_ACTIVE_RFPS;
+	public function can_open_rfq( int $buyer_account_id ): bool {
+		return $this->count_active_rfqs( $buyer_account_id ) < self::MAX_ACTIVE_RFQS;
 	}
 
 	/**
-	 * Increment the buyer's active RFP count and stamp rfp_created_at on
+	 * Increment the buyer's active RFQ count and stamp rfq_created_at on
 	 * the newly created opportunity.
 	 *
 	 * @param int $opportunity_id
 	 * @param int $buyer_account_id
 	 * @return bool
 	 */
-	public function record_new_rfp( int $opportunity_id, int $buyer_account_id ): bool {
+	public function record_new_rfq( int $opportunity_id, int $buyer_account_id ): bool {
 		global $wpdb;
 
 		$table = ConnectWorkflowMigration::opportunities_table_name();
 
-		// Stamp this opportunity as RFP-owned by this buyer
+		// Stamp this opportunity as RFQ-owned by this buyer
 		$wpdb->update(
 			$table,
 			[
 				'buyer_account_id' => $buyer_account_id,
-				'rfp_created_at'   => current_time( 'mysql' ),
+				'rfq_created_at'   => current_time( 'mysql' ),
 			],
 			[ 'id' => $opportunity_id ],
 			[ '%d', '%s' ],
 			[ '%d' ]
 		);
 
-		// Sync the denormalised rfp_count_active on all of this buyer's rows
-		$this->sync_rfp_count( $buyer_account_id );
+		// Sync the denormalised rfq_count_active on all of this buyer's rows
+		$this->sync_rfq_count( $buyer_account_id );
 
 		return true;
 	}
 
 	/**
-	 * Decrement the active RFP count when an opportunity closes.
+	 * Decrement the active RFQ count when an opportunity closes.
 	 * Called after opportunity_status is updated to closed/archived/expired.
 	 *
 	 * @param int $buyer_account_id
 	 * @return void
 	 */
-	public function on_rfp_closed( int $buyer_account_id ): void {
-		$this->sync_rfp_count( $buyer_account_id );
+	public function on_rfq_closed( int $buyer_account_id ): void {
+		$this->sync_rfq_count( $buyer_account_id );
 	}
 
 	// ─── Admin approval queue ──────────────────────────────────────────────────
@@ -198,15 +198,15 @@ class ConnectBuyerValidationService {
 
 	// ─── Internal ──────────────────────────────────────────────────────────────
 
-	private function sync_rfp_count( int $buyer_account_id ): void {
+	private function sync_rfq_count( int $buyer_account_id ): void {
 		global $wpdb;
 
 		$table = ConnectWorkflowMigration::opportunities_table_name();
-		$count = $this->count_active_rfps( $buyer_account_id );
+		$count = $this->count_active_rfqs( $buyer_account_id );
 
 		$wpdb->update(
 			$table,
-			[ 'rfp_count_active' => $count ],
+			[ 'rfq_count_active' => $count ],
 			[ 'buyer_account_id' => $buyer_account_id ],
 			[ '%d' ],
 			[ '%d' ]

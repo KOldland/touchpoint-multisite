@@ -1,6 +1,6 @@
 <?php
 /**
- * Migration: Create RFP Support Tables
+ * Migration: Create RFQ Support Tables
  *
  * Creates three new tables:
  *
@@ -14,7 +14,7 @@
  *
  * 3. connect_seller_rejection_cooldown
  *    90-day buyer cap: a seller cannot be presented the same buyer again within 90 days
- *    of rejecting them. Prevents gaming via repeated cold RFPs.
+ *    of rejecting them. Prevents gaming via repeated cold RFQs.
  */
 
 namespace KHM\Migrations;

@@ -93,7 +93,7 @@ class ConnectEngagedSettingsPage {
 
 				<h2><?php esc_html_e( 'Option 2 Visibility', 'khm-membership' ); ?></h2>
 				<p class="description" style="margin-bottom:12px;">
-					<?php esc_html_e( 'When disabled, sponsors only see Option 1 (fixed fee) in both Active Matches and RFP Requests sections. Option 2 (commission-based) is hidden completely.', 'khm-membership' ); ?>
+					<?php esc_html_e( 'When disabled, sponsors only see Option 1 (fixed fee) in both Active Matches and RFQ Requests sections. Option 2 (commission-based) is hidden completely.', 'khm-membership' ); ?>
 				</p>
 				<table class="form-table" role="presentation">
 					<tr>

@@ -6,8 +6,8 @@
  * - Buyer account linkage (buyer_account_id → WordPress user)
  * - Buyer verification state (unverified / verified / rejected)
  * - Buyer validation badge visibility
- * - Active RFP count (enforces 3-RFP cap per buyer)
- * - RFP created_at (drives 30-day upsell trigger)
+ * - Active RFQ count (enforces 3-RFQ cap per buyer)
+ * - RFQ created_at (drives 30-day upsell trigger)
  */
 
 namespace KHM\Migrations;
@@ -29,8 +29,8 @@ class AddBuyerFieldsToOpportunities {
 			'buyer_account_id'             => "BIGINT(20) UNSIGNED NULL COMMENT 'WordPress user ID of the buyer'",
 			'buyer_validation_status'      => "VARCHAR(30) NOT NULL DEFAULT 'unverified' COMMENT 'unverified|verified|rejected'",
 			'buyer_validation_badge_visible' => "TINYINT(1) NOT NULL DEFAULT 0",
-			'rfp_count_active'             => "INT NOT NULL DEFAULT 0 COMMENT 'Live RFPs for this buyer (max 3)'",
-			'rfp_created_at'               => "DATETIME NULL COMMENT 'For 30-day upsell async trigger'",
+			'rfq_count_active'             => "INT NOT NULL DEFAULT 0 COMMENT 'Live RFQs for this buyer (max 3)'",
+			'rfq_created_at'               => "DATETIME NULL COMMENT 'For 30-day upsell async trigger'",
 		];
 
 		foreach ( $columns as $name => $definition ) {
@@ -45,8 +45,8 @@ class AddBuyerFieldsToOpportunities {
 		}
 
 		// Index for 30-day upsell async job
-		if ( ! self::index_exists( $table, 'rfp_created_at' ) ) {
-			$wpdb->query( "ALTER TABLE `{$table}` ADD KEY `rfp_created_at` (`rfp_created_at`)" );
+		if ( ! self::index_exists( $table, 'rfq_created_at' ) ) {
+			$wpdb->query( "ALTER TABLE `{$table}` ADD KEY `rfq_created_at` (`rfq_created_at`)" );
 		}
 
 		return true;
@@ -58,14 +58,14 @@ class AddBuyerFieldsToOpportunities {
 		$table = $wpdb->prefix . 'connect_opportunities';
 
 		$wpdb->query( "ALTER TABLE `{$table}` DROP KEY IF EXISTS `buyer_account_id`" );
-		$wpdb->query( "ALTER TABLE `{$table}` DROP KEY IF EXISTS `rfp_created_at`" );
+		$wpdb->query( "ALTER TABLE `{$table}` DROP KEY IF EXISTS `rfq_created_at`" );
 
 		$columns = [
 			'buyer_account_id',
 			'buyer_validation_status',
 			'buyer_validation_badge_visible',
-			'rfp_count_active',
-			'rfp_created_at',
+			'rfq_count_active',
+			'rfq_created_at',
 		];
 
 		foreach ( $columns as $col ) {

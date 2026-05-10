@@ -1,6 +1,6 @@
 <?php
 /**
- * Migration: Add RFP Response and Payment Fields to Intro Threads
+ * Migration: Add RFQ Response and Payment Fields to Intro Threads
  *
  * Adds columns to connect_intro_threads to support:
  * - Structured seller initial response (capability, cost, approach, timeline, lead contact)

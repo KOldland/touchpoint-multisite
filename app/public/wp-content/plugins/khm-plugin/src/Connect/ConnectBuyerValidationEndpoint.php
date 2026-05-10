@@ -2,13 +2,13 @@
 /**
  * Buyer Validation Endpoint
  *
- * REST routes for buyer identity verification and RFP cap enforcement:
+ * REST routes for buyer identity verification and RFQ cap enforcement:
  *   POST  /khm/v1/connect/buyer/request-verification  – buyer submits verification request
  *   GET   /khm/v1/connect/buyer/validation-status     – buyer checks their own status
  *   GET   /khm/v1/connect/admin/buyer-verifications   – admin: list pending approvals
  *   POST  /khm/v1/connect/admin/buyer-verifications/(?P<id>\d+)/approve – admin approves
  *   POST  /khm/v1/connect/admin/buyer-verifications/(?P<id>\d+)/reject  – admin rejects
- *   GET   /khm/v1/connect/buyer/rfp-cap               – buyer checks remaining RFP slots
+ *   GET   /khm/v1/connect/buyer/rfq-cap               – buyer checks remaining RFQ slots
  */
 
 namespace KHM\Connect;
@@ -46,10 +46,10 @@ class ConnectBuyerValidationEndpoint {
 			'permission_callback' => [ $this, 'require_login' ],
 		] );
 
-		// Buyer: how many RFP slots remain?
-		register_rest_route( 'khm/v1', '/connect/buyer/rfp-cap', [
+		// Buyer: how many RFQ slots remain?
+		register_rest_route( 'khm/v1', '/connect/buyer/rfq-cap', [
 			'methods'             => 'GET',
-			'callback'            => [ $this, 'get_rfp_cap' ],
+			'callback'            => [ $this, 'get_rfq_cap' ],
 			'permission_callback' => [ $this, 'require_login' ],
 		] );
 
@@ -89,7 +89,7 @@ class ConnectBuyerValidationEndpoint {
 
 		if ( ! $saved ) {
 			// No opportunities linked yet — store the pending status on the user meta
-			// as a fallback until their first RFP is created.
+			// as a fallback until their first RFQ is created.
 			update_user_meta( $buyer_id, 'khm_buyer_validation_status', 'pending' );
 		}
 
@@ -107,7 +107,7 @@ class ConnectBuyerValidationEndpoint {
 	public function get_buyer_status( WP_REST_Request $request ): WP_REST_Response {
 		$buyer_id = get_current_user_id();
 
-		// Prefer DB status; fall back to user meta for buyers without RFPs yet
+		// Prefer DB status; fall back to user meta for buyers without RFQs yet
 		$status = $this->validation->get_status( $buyer_id );
 		if ( 'unverified' === $status ) {
 			$meta = get_user_meta( $buyer_id, 'khm_buyer_validation_status', true );
@@ -122,15 +122,15 @@ class ConnectBuyerValidationEndpoint {
 		], 200 );
 	}
 
-	public function get_rfp_cap( WP_REST_Request $request ): WP_REST_Response {
+	public function get_rfq_cap( WP_REST_Request $request ): WP_REST_Response {
 		$buyer_id     = get_current_user_id();
-		$active_count = $this->validation->count_active_rfps( $buyer_id );
+		$active_count = $this->validation->count_active_rfqs( $buyer_id );
 
 		return new WP_REST_Response( [
-			'active_rfps'   => $active_count,
-			'max_rfps'      => ConnectBuyerValidationService::MAX_ACTIVE_RFPS,
-			'slots_remaining' => max( 0, ConnectBuyerValidationService::MAX_ACTIVE_RFPS - $active_count ),
-			'can_open_rfp'  => $this->validation->can_open_rfp( $buyer_id ),
+			'active_rfqs'   => $active_count,
+			'max_rfqs'      => ConnectBuyerValidationService::MAX_ACTIVE_RFQS,
+			'slots_remaining' => max( 0, ConnectBuyerValidationService::MAX_ACTIVE_RFQS - $active_count ),
+			'can_open_rfq'  => $this->validation->can_open_rfq( $buyer_id ),
 		], 200 );
 	}
 

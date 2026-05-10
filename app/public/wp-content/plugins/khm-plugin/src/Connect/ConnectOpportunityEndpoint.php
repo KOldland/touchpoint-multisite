@@ -192,8 +192,8 @@ class ConnectOpportunityEndpoint {
 		$existing_thread = $this->threads->get_thread_by_opportunity_id( $opportunity_id, (int) $sponsor_id );
 		$thread_id       = is_array( $existing_thread ) ? (int) ( $existing_thread['id'] ?? 0 ) : 0;
 
-		if ( 'rfp_request' === $request_type && $thread_id <= 0 && '' === $opening_message ) {
-			return new WP_Error( 'connect_opening_message_required', __( 'A light proposal note is required before moving this RFP to Inbox.', 'khm-membership' ), array( 'status' => 422 ) );
+		if ( 'rfq_request' === $request_type && $thread_id <= 0 && '' === $opening_message ) {
+			return new WP_Error( 'connect_opening_message_required', __( 'A light proposal note is required before moving this RFQ to Inbox.', 'khm-membership' ), array( 'status' => 422 ) );
 		}
 
 		if ( $thread_id <= 0 ) {
@@ -242,28 +242,28 @@ class ConnectOpportunityEndpoint {
 	}
 
 	private function format_anonymized_opportunity( array $row ): array {
-		$rfp_meta = $row['rfp_metadata'] ?? null;
-		if ( is_string( $rfp_meta ) ) {
-			$rfp_meta = json_decode( $rfp_meta, true );
+		$rfq_meta = $row['rfq_metadata'] ?? null;
+		if ( is_string( $rfq_meta ) ) {
+			$rfq_meta = json_decode( $rfq_meta, true );
 		}
 
-		// Build anonymised buyer profile from rfp_metadata signal fields (segment/region/intent)
+		// Build anonymised buyer profile from rfq_metadata signal fields (segment/region/intent)
 		// plus fallbacks derived from structured opportunity data.
 		$anon_profile = array(
-			'segment' => ( is_array( $rfp_meta ) && ! empty( $rfp_meta['segment'] ) )
-				? (string) $rfp_meta['segment']
+			'segment' => ( is_array( $rfq_meta ) && ! empty( $rfq_meta['segment'] ) )
+				? (string) $rfq_meta['segment']
 				: null,
-			'region'  => ( is_array( $rfp_meta ) && ! empty( $rfp_meta['region'] ) )
-				? (string) $rfp_meta['region']
+			'region'  => ( is_array( $rfq_meta ) && ! empty( $rfq_meta['region'] ) )
+				? (string) $rfq_meta['region']
 				: null,
-			'intent'  => ( is_array( $rfp_meta ) && ! empty( $rfp_meta['intent'] ) )
-				? (string) $rfp_meta['intent']
+			'intent'  => ( is_array( $rfq_meta ) && ! empty( $rfq_meta['intent'] ) )
+				? (string) $rfq_meta['intent']
 				: null,
 		);
 
-		// Strip signal fields from the public rfp_metadata payload so they aren't duplicated.
-		$public_rfp_meta = is_array( $rfp_meta )
-			? array_diff_key( $rfp_meta, array_flip( [ 'segment', 'region', 'intent' ] ) )
+		// Strip signal fields from the public rfq_metadata payload so they aren't duplicated.
+		$public_rfq_meta = is_array( $rfq_meta )
+			? array_diff_key( $rfq_meta, array_flip( [ 'segment', 'region', 'intent' ] ) )
 			: null;
 
 		$affinity_service = new SponsorAffinityService();
@@ -291,7 +291,7 @@ class ConnectOpportunityEndpoint {
 			'person_score'        => round( (float) ( $row['person_score'] ?? 0 ) / 100, 4 ),
 			'opportunity_status'  => (string) ( $row['opportunity_status'] ?? 'detected' ),
 			'request_type'        => (string) ( $row['request_type'] ?? 'direct_connection' ),
-			'rfp_metadata'        => $public_rfp_meta ?: null,
+			'rfq_metadata'        => $public_rfq_meta ?: null,
 			'anonymised_profile'  => $anon_profile,
 			'engaged_option'      => $row['engaged_option'] ? (string) $row['engaged_option'] : null,
 			'pricing_model'       => (string) ( $row['pricing_model'] ?? 'cpl' ),

@@ -1,8 +1,8 @@
 <?php
 /**
- * Connect RFP Reporting Page (Phase H)
+ * Connect RFQ Reporting Page (Phase H)
  *
- * Admin reporting dashboard for the mini-RFP commission system.
+ * Admin reporting dashboard for the mini-RFQ commission system.
  * Registered as a submenu under "Memberships" alongside existing Connect pages.
  *
  * Shows:
@@ -20,20 +20,20 @@ use KHM\Migrations\ConnectWorkflowMigration;
 
 defined( 'ABSPATH' ) || exit;
 
-class ConnectRFPReportingPage {
+class ConnectRFQReportingPage {
 
 	public function register(): void {
 		add_action( 'admin_menu', [ $this, 'add_menu' ] );
-		add_action( 'admin_post_khm_rfp_buyer_approve', [ $this, 'handle_buyer_approve' ] );
-		add_action( 'admin_post_khm_rfp_buyer_reject',  [ $this, 'handle_buyer_reject' ] );
-		add_action( 'admin_post_khm_rfp_invoice_cancel', [ $this, 'handle_invoice_cancel' ] );
+		add_action( 'admin_post_khm_rfq_buyer_approve', [ $this, 'handle_buyer_approve' ] );
+		add_action( 'admin_post_khm_rfq_buyer_reject',  [ $this, 'handle_buyer_reject' ] );
+		add_action( 'admin_post_khm_rfq_invoice_cancel', [ $this, 'handle_invoice_cancel' ] );
 	}
 
 	public function add_menu(): void {
 		add_submenu_page(
 			'khm-membership',
-			__( 'RFP Commission Report', 'khm-membership' ),
-			__( 'RFP Commission Report', 'khm-membership' ),
+			__( 'RFQ Commission Report', 'khm-membership' ),
+			__( 'RFQ Commission Report', 'khm-membership' ),
 			'manage_options',
 			'khm-rfp-commission-report',
 			[ $this, 'render_page' ]
@@ -49,7 +49,7 @@ class ConnectRFPReportingPage {
 
 		$from   = isset( $_GET['from'] ) ? sanitize_text_field( (string) $_GET['from'] ) : gmdate( 'Y-m-01' );
 		$to     = isset( $_GET['to'] )   ? sanitize_text_field( (string) $_GET['to'] )   : gmdate( 'Y-m-d' );
-		$notice = isset( $_GET['rfp_notice'] ) ? sanitize_key( (string) $_GET['rfp_notice'] ) : '';
+		$notice = isset( $_GET['rfq_notice'] ) ? sanitize_key( (string) $_GET['rfq_notice'] ) : '';
 
 		$invoice_stats   = $this->get_invoice_stats( $from, $to );
 		$invoice_rows    = $this->get_invoice_rows( $from, $to );
@@ -59,7 +59,7 @@ class ConnectRFPReportingPage {
 
 		?>
 		<div class="wrap">
-			<h1><?php esc_html_e( 'RFP Commission Report', 'khm-membership' ); ?></h1>
+			<h1><?php esc_html_e( 'RFQ Commission Report', 'khm-membership' ); ?></h1>
 			<p class="description" style="margin-bottom:16px;">
 				<?php esc_html_e( 'Track commission invoices, seller payment registrations, and buyer verification approvals.', 'khm-membership' ); ?>
 			</p>
@@ -125,15 +125,15 @@ class ConnectRFPReportingPage {
 								<td><span style="color:#d97706;font-weight:600;"><?php esc_html_e( 'Pending', 'khm-membership' ); ?></span></td>
 								<td>
 									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;">
-										<?php wp_nonce_field( 'khm_rfp_buyer_approve_' . $buyer['id'], 'khm_rfp_nonce' ); ?>
-										<input type="hidden" name="action" value="khm_rfp_buyer_approve" />
+										<?php wp_nonce_field( 'khm_rfq_buyer_approve_' . $buyer['id'], 'khm_rfq_nonce' ); ?>
+										<input type="hidden" name="action" value="khm_rfq_buyer_approve" />
 										<input type="hidden" name="buyer_id" value="<?php echo esc_attr( $buyer['id'] ); ?>" />
 										<button type="submit" class="button button-primary button-small"><?php esc_html_e( 'Approve', 'khm-membership' ); ?></button>
 									</form>
 									&nbsp;
 									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;">
-										<?php wp_nonce_field( 'khm_rfp_buyer_reject_' . $buyer['id'], 'khm_rfp_nonce' ); ?>
-										<input type="hidden" name="action" value="khm_rfp_buyer_reject" />
+										<?php wp_nonce_field( 'khm_rfq_buyer_reject_' . $buyer['id'], 'khm_rfq_nonce' ); ?>
+										<input type="hidden" name="action" value="khm_rfq_buyer_reject" />
 										<input type="hidden" name="buyer_id" value="<?php echo esc_attr( $buyer['id'] ); ?>" />
 										<button type="submit" class="button button-small" style="border-color:#c00;color:#c00;"><?php esc_html_e( 'Reject', 'khm-membership' ); ?></button>
 									</form>
@@ -186,8 +186,8 @@ class ConnectRFPReportingPage {
 								<td>
 									<?php if ( in_array( $inv->status, [ 'pending', 'disputed' ], true ) ) : ?>
 										<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;">
-											<?php wp_nonce_field( 'khm_rfp_invoice_cancel_' . $inv->id, 'khm_rfp_nonce' ); ?>
-											<input type="hidden" name="action" value="khm_rfp_invoice_cancel" />
+											<?php wp_nonce_field( 'khm_rfq_invoice_cancel_' . $inv->id, 'khm_rfq_nonce' ); ?>
+											<input type="hidden" name="action" value="khm_rfq_invoice_cancel" />
 											<input type="hidden" name="invoice_id" value="<?php echo esc_attr( $inv->id ); ?>" />
 											<input type="hidden" name="from" value="<?php echo esc_attr( $from ); ?>" />
 											<input type="hidden" name="to" value="<?php echo esc_attr( $to ); ?>" />
@@ -224,7 +224,7 @@ class ConnectRFPReportingPage {
 
 	public function handle_buyer_approve(): void {
 		$buyer_id = absint( $_POST['buyer_id'] ?? 0 );
-		check_admin_referer( 'khm_rfp_buyer_approve_' . $buyer_id, 'khm_rfp_nonce' );
+		check_admin_referer( 'khm_rfq_buyer_approve_' . $buyer_id, 'khm_rfq_nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) || ! $buyer_id ) {
 			wp_die( esc_html__( 'Access denied.', 'khm-membership' ) );
@@ -236,13 +236,13 @@ class ConnectRFPReportingPage {
 
 		do_action( 'khm_buyer_verification_approved', $buyer_id );
 
-		wp_safe_redirect( add_query_arg( [ 'page' => 'khm-rfp-commission-report', 'rfp_notice' => 'approved' ], admin_url( 'admin.php' ) ) );
+		wp_safe_redirect( add_query_arg( [ 'page' => 'khm-rfp-commission-report', 'rfq_notice' => 'approved' ], admin_url( 'admin.php' ) ) );
 		exit;
 	}
 
 	public function handle_buyer_reject(): void {
 		$buyer_id = absint( $_POST['buyer_id'] ?? 0 );
-		check_admin_referer( 'khm_rfp_buyer_reject_' . $buyer_id, 'khm_rfp_nonce' );
+		check_admin_referer( 'khm_rfq_buyer_reject_' . $buyer_id, 'khm_rfq_nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) || ! $buyer_id ) {
 			wp_die( esc_html__( 'Access denied.', 'khm-membership' ) );
@@ -254,7 +254,7 @@ class ConnectRFPReportingPage {
 
 		do_action( 'khm_buyer_verification_rejected', $buyer_id );
 
-		wp_safe_redirect( add_query_arg( [ 'page' => 'khm-rfp-commission-report', 'rfp_notice' => 'rejected' ], admin_url( 'admin.php' ) ) );
+		wp_safe_redirect( add_query_arg( [ 'page' => 'khm-rfp-commission-report', 'rfq_notice' => 'rejected' ], admin_url( 'admin.php' ) ) );
 		exit;
 	}
 
@@ -265,7 +265,7 @@ class ConnectRFPReportingPage {
 		$from       = sanitize_text_field( (string) ( $_POST['from'] ?? gmdate( 'Y-m-01' ) ) );
 		$to         = sanitize_text_field( (string) ( $_POST['to']   ?? gmdate( 'Y-m-d' ) ) );
 
-		check_admin_referer( 'khm_rfp_invoice_cancel_' . $invoice_id, 'khm_rfp_nonce' );
+		check_admin_referer( 'khm_rfq_invoice_cancel_' . $invoice_id, 'khm_rfq_nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) || ! $invoice_id ) {
 			wp_die( esc_html__( 'Access denied.', 'khm-membership' ) );
@@ -280,7 +280,7 @@ class ConnectRFPReportingPage {
 			[ '%d' ]
 		);
 
-		wp_safe_redirect( add_query_arg( [ 'page' => 'khm-rfp-commission-report', 'from' => $from, 'to' => $to, 'rfp_notice' => 'cancelled' ], admin_url( 'admin.php' ) ) );
+		wp_safe_redirect( add_query_arg( [ 'page' => 'khm-rfp-commission-report', 'from' => $from, 'to' => $to, 'rfq_notice' => 'cancelled' ], admin_url( 'admin.php' ) ) );
 		exit;
 	}
 

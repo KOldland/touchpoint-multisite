@@ -97,9 +97,9 @@ class ConnectIntroThreadRepository {
 				'provider_id'           => $provider_id,
 				'sponsor_id'            => $sponsor_id,
 				'opportunity_id'        => $opportunity_id > 0 ? $opportunity_id : null,
-				'session_id'            => 'rfp_request' === $request_type ? 'rfp_card_handover' : 'sponsor_initiated',
+				'session_id'            => 'rfq_request' === $request_type ? 'rfq_card_handover' : 'sponsor_initiated',
 				'request_type'          => $request_type,
-				'buyer_name'            => 'rfp_request' === $request_type ? 'RFP Contact' : 'Matched Contact',
+				'buyer_name'            => 'rfq_request' === $request_type ? 'RFQ Contact' : 'Matched Contact',
 				'buyer_company'         => null,
 				'buyer_email_encrypted' => '',
 				'buyer_phone_encrypted' => '',
@@ -127,7 +127,7 @@ class ConnectIntroThreadRepository {
 
 		$thread_id = (int) $wpdb->insert_id;
 
-		if ( 'rfp_request' === $request_type ) {
+		if ( 'rfq_request' === $request_type ) {
 			$wpdb->update(
 				$table,
 				array(

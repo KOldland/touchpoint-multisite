@@ -329,7 +329,7 @@ class ConnectIntroThreadEndpoint {
 			return $thread;
 		}
 
-		$is_inbound_connection = 'rfp_request' !== (string) ( $thread['request_type'] ?? 'direct_connection' )
+		$is_inbound_connection = 'rfq_request' !== (string) ( $thread['request_type'] ?? 'direct_connection' )
 			&& empty( $thread['engaged_option'] );
 		if ( $is_inbound_connection && empty( $thread['seller_commission_rate'] ) ) {
 			return new WP_Error( 'connect_commission_required', __( 'Set a platform commission rate before confirming handover for this inbound connection.', 'khm-membership' ), array( 'status' => 422 ) );
@@ -363,7 +363,7 @@ class ConnectIntroThreadEndpoint {
 			return $thread;
 		}
 
-		if ( 'rfp_request' === (string) ( $thread['request_type'] ?? 'direct_connection' ) || ! empty( $thread['engaged_option'] ) ) {
+		if ( 'rfq_request' === (string) ( $thread['request_type'] ?? 'direct_connection' ) || ! empty( $thread['engaged_option'] ) ) {
 			return new WP_Error( 'connect_commission_not_allowed', __( 'Commission can only be set here for inbound connection threads.', 'khm-membership' ), array( 'status' => 400 ) );
 		}
 
@@ -450,7 +450,7 @@ class ConnectIntroThreadEndpoint {
 					return $message;
 				}
 
-				$sanitized = preg_replace( '/https?:\/\/\S+(?:rfp-pack|\.local)\S*/i', '[RFP link available after handover acceptance]', (string) $message['message'] );
+				$sanitized = preg_replace( '/https?:\/\/\S+(?:rfq-pack|\.local)\S*/i', '[RFQ link available after handover acceptance]', (string) $message['message'] );
 				$message['message'] = trim( preg_replace( '/\s+/', ' ', (string) $sanitized ) );
 
 				return $message;

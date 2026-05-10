@@ -572,7 +572,7 @@
           '<div class="khm-connect-proposal-panel">' +
             '<p class="khm-connect-proposal-notice">' +
               '<strong>Proposal received.</strong> The seller has submitted a light proposal for your review. ' +
-              'Accepting proceeds to full RFP handover — the platform fee is charged at handover confirmation.' +
+              'Accepting proceeds to full RFQ handover — the platform fee is charged at handover confirmation.' +
             '</p>' +
             '<div class="khm-connect-proposal-actions">' +
               '<button type="button" class="button button-primary khm-connect-accept-seller-response"' +

@@ -5,7 +5,7 @@ namespace KHM\Migrations;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Migration: Add buyer-directory columns to connect_providers and create connect_rfps table.
+ * Migration: Add buyer-directory columns to connect_providers and create connect_rfqs table.
  *
  * New provider columns:
  *   hq_location            – free-text city/region
@@ -15,20 +15,20 @@ defined( 'ABSPATH' ) || exit;
  *   client_count_band      – enum-style string (1-50 | 50-250 | 250-1000 | 1000+)
  *   integrations           – JSON array of integration slugs
  *
- * New table: connect_rfps
+ * New table: connect_rfqs
  */
 class AddConnectBuyerDirectoryColumns {
 
-	const RFPS_TABLE = 'connect_rfps';
+	const RFQS_TABLE = 'connect_rfqs';
 
-	public static function rfps_table_name(): string {
+	public static function rfqs_table_name(): string {
 		global $wpdb;
-		return $wpdb->prefix . self::RFPS_TABLE;
+		return $wpdb->prefix . self::RFQS_TABLE;
 	}
 
 	public static function up(): void {
 		self::add_provider_columns();
-		self::create_rfps_table();
+		self::create_rfqs_table();
 	}
 
 	// ─── Provider columns ──────────────────────────────────────────────────────
@@ -57,12 +57,12 @@ class AddConnectBuyerDirectoryColumns {
 		}
 	}
 
-	// ─── connect_rfps table ────────────────────────────────────────────────────
+	// ─── connect_rfqs table ────────────────────────────────────────────────────
 
-	private static function create_rfps_table(): void {
+	private static function create_rfqs_table(): void {
 		global $wpdb;
 
-		$table = self::rfps_table_name();
+		$table = self::rfqs_table_name();
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) === $table ) {
 			return;
 		}
