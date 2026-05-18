@@ -11,6 +11,15 @@ defined( 'ABSPATH' ) || exit;
 
 class SponsorController {
     public function register_routes(): void {
+        // Sponsor profile endpoint for the Quote Club portal account form
+        register_rest_route( 'khm/v1/sponsor', '/profile', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'update_profile' ),
+            'permission_callback' => function() {
+                return is_user_logged_in();
+            },
+        ) );
+
         register_rest_route( 'khm-geo/v1', '/sponsors', array(
             'methods'             => 'GET',
             'callback'            => array( $this, 'list_sponsors' ),
@@ -813,5 +822,91 @@ class SponsorController {
         }
         $audit[] = $entry;
         return $audit;
+    }
+
+    /**
+     * Save/update the sponsor account profile from the Quote Club portal form.
+     *
+     * POST /wp-json/khm/v1/sponsor/profile
+     */
+    public function update_profile( \WP_REST_Request $request ): \WP_REST_Response {
+        $user_id = get_current_user_id();
+        if ( ! $user_id ) {
+            return new \WP_REST_Response( array( 'success' => false, 'message' => 'Not logged in.' ), 401 );
+        }
+
+        $body = $request->get_json_params();
+        $sponsor_id = absint( $body['sponsor_id'] ?? 0 );
+
+        if ( ! $sponsor_id ) {
+            return new \WP_REST_Response( array( 'success' => false, 'message' => 'Missing sponsor_id.' ), 400 );
+        }
+
+        // Verify the current user belongs to this sponsor
+        $sponsor = \KHM\Services\SponsorService::get_user_sponsor( $user_id );
+        if ( ! $sponsor || (int) ( $sponsor['id'] ?? 0 ) !== $sponsor_id ) {
+            return new \WP_REST_Response( array( 'success' => false, 'message' => 'Access denied.' ), 403 );
+        }
+
+        global $wpdb;
+        $sponsors_table = SponsorMigration::sponsors_table_name();
+
+        // Company profile fields
+        $company_name = sanitize_text_field( (string) ( $body['company_name'] ?? '' ) );
+        $company_url  = esc_url_raw( (string) ( $body['company_url'] ?? '' ) );
+        $hq_location  = sanitize_text_field( (string) ( $body['hq_location'] ?? '' ) );
+        $regions      = isset( $body['regions'] ) && is_array( $body['regions'] )
+            ? array_map( 'sanitize_text_field', $body['regions'] )
+            : array();
+        $deployment_mode = sanitize_text_field( (string) ( $body['deployment_mode'] ?? 'cloud' ) );
+        $impl_support    = ! empty( $body['implementation_support'] ) ? 1 : 0;
+        $support_hours   = sanitize_text_field( (string) ( $body['support_hours'] ?? 'business' ) );
+        $pilot_terms     = sanitize_textarea_field( (string) ( $body['pilot_terms'] ?? '' ) );
+
+        $updated = $wpdb->update(
+            $sponsors_table,
+            array(
+                'name'              => $company_name,
+                'url'               => $company_url,
+                'hq_location'       => $hq_location,
+                'regions'           => wp_json_encode( $regions ),
+                'deployment_modes'  => $deployment_mode,
+                'updated_at'        => current_time( 'mysql' ),
+            ),
+            array( 'id' => $sponsor_id ),
+            array( '%s', '%s', '%s', '%s', '%s', '%s' ),
+            array( '%d' )
+        );
+
+        if ( false === $updated ) {
+            return new \WP_REST_Response( array( 'success' => false, 'message' => 'Database update failed.' ), 500 );
+        }
+
+        // Sync solution mappings to tc_sponsor_solutions
+        $solutions = isset( $body['solutions'] ) && is_array( $body['solutions'] )
+            ? array_map( 'absint', $body['solutions'] )
+            : array();
+
+        $mapping_table = $wpdb->prefix . 'tc_sponsor_solutions';
+        if ( $wpdb->get_var( "SHOW TABLES LIKE '{$mapping_table}'" ) === $mapping_table ) {
+            // Remove existing mappings
+            $wpdb->delete( $mapping_table, array( 'sponsor_id' => $sponsor_id ), array( '%d' ) );
+
+            // Insert new mappings
+            foreach ( $solutions as $solution_id ) {
+                if ( $solution_id > 0 ) {
+                    $wpdb->insert(
+                        $mapping_table,
+                        array(
+                            'sponsor_id'  => $sponsor_id,
+                            'solution_id' => $solution_id,
+                        ),
+                        array( '%d', '%d' )
+                    );
+                }
+            }
+        }
+
+        return new \WP_REST_Response( array( 'success' => true, 'message' => 'Settings saved successfully.' ) );
     }
 }
