@@ -1,7 +1,33 @@
-(function ($) {
+it(function ($) {
   'use strict';
 
   var inviteRequestInFlight = false;
+
+  // Toast notification system
+  function showToast(message, type) {
+    var $toast = $('#khm-partner-toast');
+    
+    if (!$toast.length) {
+      // Create toast element if it doesn't exist
+      $toast = $('<div id="khm-partner-toast" class="khm-toast" role="status" aria-live="polite"></div>');
+      $('body').append($toast);
+    }
+
+    var toastClass = type === 'error' ? 'khm-toast-error' : type === 'success' ? 'khm-toast-success' : 'khm-toast-info';
+
+    $toast
+      .removeClass('khm-toast-error khm-toast-success khm-toast-info')
+      .addClass(toastClass)
+      .text(message);
+
+    // Show toast
+    $toast.addClass('is-visible');
+
+    // Auto-hide after 5 seconds
+    setTimeout(function () {
+      $toast.removeClass('is-visible');
+    }, 5000);
+  }
   var inviteRetryPayload = null;
   var knownTopicMap = {};
   var knownTopics = [];
@@ -329,13 +355,13 @@
 
   function api(path, method, data) {
     return $.ajax({
-      url: (window.khmQuoteClub && khmQuoteClub.restUrl ? khmQuoteClub.restUrl : '') + path,
+      url: (window.khmPartnerPortal && khmPartnerPortal.restUrl ? khmPartnerPortal.restUrl : '') + path,
       method: method,
       data: data || {},
       contentType: method === 'POST' || method === 'PATCH' ? 'application/json' : undefined,
       processData: method === 'GET',
       headers: {
-        'X-WP-Nonce': window.khmQuoteClub ? khmQuoteClub.nonce : ''
+        'X-WP-Nonce': window.khmPartnerPortal ? khmPartnerPortal.nonce : ''
       },
       dataType: 'json',
       data: method === 'GET' ? (data || {}) : JSON.stringify(data || {})
@@ -344,12 +370,12 @@
 
   function sponsorApi(path, method, data) {
     return $.ajax({
-      url: (window.khmQuoteClub && khmQuoteClub.sponsorRestUrl ? khmQuoteClub.sponsorRestUrl : '') + path,
+      url: (window.khmPartnerPortal && khmPartnerPortal.sponsorRestUrl ? khmPartnerPortal.sponsorRestUrl : '') + path,
       method: method,
       contentType: method === 'POST' || method === 'PATCH' ? 'application/json' : undefined,
       processData: method === 'GET',
       headers: {
-        'X-WP-Nonce': window.khmQuoteClub ? khmQuoteClub.nonce : ''
+        'X-WP-Nonce': window.khmPartnerPortal ? khmPartnerPortal.nonce : ''
       },
       dataType: 'json',
       data: method === 'GET' ? (data || {}) : JSON.stringify(data || {})
@@ -358,12 +384,12 @@
 
   function connectApi(path, method, data) {
     return $.ajax({
-      url: (window.khmQuoteClub && khmQuoteClub.connectRestUrl ? khmQuoteClub.connectRestUrl : '') + path,
+      url: (window.khmPartnerPortal && khmPartnerPortal.connectRestUrl ? khmPartnerPortal.connectRestUrl : '') + path,
       method: method,
       contentType: method === 'POST' || method === 'PATCH' ? 'application/json' : undefined,
       processData: method === 'GET',
       headers: {
-        'X-WP-Nonce': window.khmQuoteClub ? khmQuoteClub.nonce : ''
+        'X-WP-Nonce': window.khmPartnerPortal ? khmPartnerPortal.nonce : ''
       },
       dataType: 'json',
       data: method === 'GET' ? (data || {}) : JSON.stringify(data || {})
@@ -734,8 +760,8 @@
   function openIntroModal(provider) {
     var $modal = ensureIntroModal();
     var $form = $modal.find('form');
-    var buyerName = (window.khmQuoteClub && khmQuoteClub.currentUserName) ? khmQuoteClub.currentUserName : '';
-    var buyerEmail = (window.khmQuoteClub && khmQuoteClub.currentUserEmail) ? khmQuoteClub.currentUserEmail : '';
+    var buyerName = (window.khmPartnerPortal && khmPartnerPortal.currentUserName) ? khmPartnerPortal.currentUserName : '';
+    var buyerEmail = (window.khmPartnerPortal && khmPartnerPortal.currentUserEmail) ? khmPartnerPortal.currentUserEmail : '';
 
     activeIntroProvider = provider || null;
     $form.trigger('reset');
@@ -959,11 +985,11 @@
       email = params.get('khm_sponsor_invite_email') || '';
     }
 
-    if (!token && window.khmQuoteClub && khmQuoteClub.inviteToken) {
-      token = khmQuoteClub.inviteToken;
+    if (!token && window.khmPartnerPortal && khmPartnerPortal.inviteToken) {
+      token = khmPartnerPortal.inviteToken;
     }
-    if (!email && window.khmQuoteClub && khmQuoteClub.inviteEmail) {
-      email = khmQuoteClub.inviteEmail;
+    if (!email && window.khmPartnerPortal && khmPartnerPortal.inviteEmail) {
+      email = khmPartnerPortal.inviteEmail;
     }
 
     return {
@@ -1527,8 +1553,8 @@
     $('#khm-credit-modal').remove();
 
     var hasCredits = creditsAvailable >= creditsNeeded;
-    var bundleUrl  = window.khmQuoteClub && khmQuoteClub.bundleRestUrl
-      ? (window.khmQuoteClub.portalUrl || '') + '?qc_section=overview'
+    var bundleUrl  = window.khmPartnerPortal && khmPartnerPortal.bundleRestUrl
+      ? (window.khmPartnerPortal.portalUrl || '') + '?qc_section=overview'
       : '';
 
     var bodyHtml = hasCredits
@@ -1635,8 +1661,8 @@
 
     var words          = wordCount($question.find('textarea').val());
     var creditsNeeded  = creditsForWords(words);
-    var creditsAvail   = window.khmQuoteClub && khmQuoteClub.editorialCredits
-      ? parseInt(khmQuoteClub.editorialCredits, 10)
+    var creditsAvail   = window.khmPartnerPortal && khmPartnerPortal.editorialCredits
+      ? parseInt(khmPartnerPortal.editorialCredits, 10)
       : 0;
 
     showCreditModal(creditsNeeded, creditsAvail, function () {
@@ -1649,9 +1675,9 @@
             .text('Submitted for editorial review. Credits used: ' + res.credits_used)
             .addClass('khm-status-ok');
           // Update displayed balance.
-          if (res.new_editorial_balance !== undefined && window.khmQuoteClub) {
-            khmQuoteClub.editorialCredits = res.new_editorial_balance;
-            $('.khm-qc-editorial-credits').text(res.new_editorial_balance + ' editorial credits');
+          if (res.new_editorial_balance !== undefined && window.khmPartnerPortal) {
+            khmPartnerPortal.editorialCredits = res.new_editorial_balance;
+            $('.khm-partner-editorial-credits').text(res.new_editorial_balance + ' editorial credits');
           }
           $question.find('textarea').prop('disabled', true);
           $question.find('.khm-save-draft-btn').prop('disabled', true);
@@ -1680,18 +1706,8 @@
     acceptInvite(inviteRetryPayload);
   });
 
-  $(function () {
-    if (!$('.khm-quoteclub').length) {
-      return;
-    }
-
-    loadSavedSearches();
-    maybeAcceptInviteFromUrl();
-    warmTopicSuggestions();
-    updateCompareCount();
-
-    $('.khm-filter-date-range').val('all');
-
-    $('.khm-quoteclub-search-btn').trigger('click');
-  });
+  // NOTE: Account form handler was replaced by the inline handler in
+  // render_account_section() which sends correct region data and
+  // solution mappings. The legacy jQuery handler was removed to prevent
+  // a race condition with the inline fetch() call.
 })(jQuery);
