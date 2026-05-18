@@ -4562,11 +4562,13 @@ class QuoteClubPortalShortcode {
 							</select>
 						</label>
 						<div class="khm-partner-regions-container">
-							<button type="button" class="khm-partner-accordion-trigger" aria-expanded="false" aria-controls="khm-regions-panel">
-								<span class="dashicons dashicons-location"></span> <?php esc_html_e( 'Regions Served', 'khm-membership' ); ?>
-								<span class="khm-partner-regions-count-badge" style="font-size:0.75rem;background:#e0f2fe;color:#0369a1;border-radius:999px;padding:0.1rem 0.5rem;"><?php echo count( $regions ); ?></span>
-							</button>
-							<div id="khm-regions-panel" class="khm-partner-accordion-panel" hidden style="display:block;padding:0.75rem 0.75rem;max-height:none;overflow:visible;">
+							<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;">
+								<span style="font-size:0.875rem;font-weight:600;"><?php esc_html_e( 'Regions Served', 'khm-membership' ); ?></span>
+								<button type="button" class="khm-partner-regions-toggle" data-target="khm-regions-panel" aria-expanded="false" style="font-size:0.75rem;padding:0.1rem 0.5rem;background:#e0f2fe;color:#0369a1;border:none;border-radius:999px;cursor:pointer;">
+									<?php esc_html_e( 'Show', 'khm-membership' ); ?> (<?php echo count( $regions ); ?>)
+								</button>
+							</div>
+							<div id="khm-regions-panel" class="khm-partner-regions-panel" style="display:none;padding:0.5rem 0;">
 								<div class="khm-partner-regions-tags" id="khm-region-tags">
 									<?php foreach ( $regions as $region ) : ?>
 										<span class="khm-partner-region-tag" data-region="<?php echo esc_attr( $region ); ?>">
@@ -4681,6 +4683,18 @@ class QuoteClubPortalShortcode {
 		<script>
 		(function() {
 			'use strict';
+
+			// Regions dropdown toggle
+			document.addEventListener('click', function(e) {
+				var btn = e.target.closest('.khm-partner-regions-toggle');
+				if (!btn) return;
+				var panel = document.getElementById(btn.dataset.target);
+				if (!panel) return;
+				var isOpen = panel.style.display !== 'none';
+				panel.style.display = isOpen ? 'none' : 'block';
+				btn.textContent = isOpen ? '<?php echo esc_js( __( 'Show', 'khm-membership' ) ); ?>' : '<?php echo esc_js( __( 'Hide', 'khm-membership' ) ); ?>';
+				btn.setAttribute('aria-expanded', String(!isOpen));
+			});
 
 			// Accordion toggle for solutions groups
 			document.addEventListener('click', function(e) {
