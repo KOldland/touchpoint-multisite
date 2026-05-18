@@ -4285,8 +4285,6 @@ class QuoteClubPortalShortcode {
 		$deployment_mode = isset( $sponsor['deployment_modes'] ) ? sanitize_text_field( $sponsor['deployment_modes'] ) : 'cloud';
 		$support_hours   = isset( $sponsor['support_hours'] ) ? sanitize_text_field( $sponsor['support_hours'] ) : 'business';
 		$impl_support    = isset( $sponsor['implementation_support'] ) ? (bool) $sponsor['implementation_support'] : false;
-		$pilot_terms     = isset( $sponsor['pilot_terms'] ) ? sanitize_textarea_field( $sponsor['pilot_terms'] ) : '';
-
 		// Fetch solutions from Tech.Connect catalog
 		global $wpdb;
 		$solutions_table = $wpdb->prefix . 'tc_solutions';
