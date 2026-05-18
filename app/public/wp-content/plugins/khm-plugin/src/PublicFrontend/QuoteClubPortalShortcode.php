@@ -4402,11 +4402,17 @@ class QuoteClubPortalShortcode {
 									continue;
 								}
 								?>
+								<?php
+								// Count selected solutions in this group
+								$selected_in_group = count( array_filter( $group_solutions, function( $sol ) use ( $mapped_solutions ) {
+									return in_array( (int) $sol['id'], $mapped_solutions, true );
+								} ) );
+								?>
 								<div class="khm-partner-accordion">
 									<button type="button" class="khm-partner-accordion-trigger" aria-expanded="false" aria-controls="sol-panel-<?php echo esc_attr( $group_key ); ?>">
 										<span class="dashicons <?php echo esc_attr( $group_config['icon'] ); ?>"></span>
 										<?php echo esc_html( $group_config['label'] ); ?>
-										<span class="khm-partner-version-tag">(<?php echo count( $group_solutions ); ?>)</span>
+										<span class="khm-partner-version-tag khm-solutions-badge" data-group="<?php echo esc_attr( $group_key ); ?>"><?php echo esc_html( $selected_in_group . ' selected' ); ?></span>
 									</button>
 									<div class="khm-partner-accordion-panel" id="sol-panel-<?php echo esc_attr( $group_key ); ?>" hidden>
 										<?php foreach ( $group_solutions as $sol ) : ?>
@@ -4491,6 +4497,17 @@ class QuoteClubPortalShortcode {
 				var expanded = trigger.getAttribute('aria-expanded') === 'true';
 				trigger.setAttribute('aria-expanded', expanded ? 'false' : 'true');
 				panel.hidden = expanded;
+			});
+
+			// Live update selected count badges on checkbox change
+			document.getElementById('khm-solutions-accordion').addEventListener('change', function(e) {
+				if (!e.target.matches('input[type="checkbox"]')) return;
+				var accordion = e.target.closest('.khm-partner-accordion');
+				if (!accordion) return;
+				var badge = accordion.querySelector('.khm-solutions-badge');
+				if (!badge) return;
+				var checked = accordion.querySelectorAll('input[type="checkbox"]:checked').length;
+				badge.textContent = checked + ' selected';
 			});
 
 			var form     = document.getElementById('khm-partner-account-form');
