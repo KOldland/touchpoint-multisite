@@ -4564,19 +4564,19 @@ class QuoteClubPortalShortcode {
 						<div class="khm-partner-regions-container">
 							<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;">
 								<span style="font-size:0.875rem;font-weight:600;"><?php esc_html_e( 'Regions Served', 'khm-membership' ); ?></span>
-								<button type="button" class="khm-partner-regions-toggle" data-target="khm-regions-panel" aria-expanded="false" style="font-size:0.75rem;padding:0.1rem 0.5rem;background:#e0f2fe;color:#0369a1;border:none;border-radius:999px;cursor:pointer;">
-									<?php esc_html_e( 'Show', 'khm-membership' ); ?> (<?php echo count( $regions ); ?>)
-								</button>
 							</div>
-							<div id="khm-regions-panel" class="khm-partner-regions-panel" style="display:none;padding:0.5rem 0;">
-								<div class="khm-partner-regions-tags" id="khm-region-tags">
-									<?php foreach ( $regions as $region ) : ?>
-										<span class="khm-partner-region-tag" data-region="<?php echo esc_attr( $region ); ?>">
-											<span class="khm-partner-region-tag-text"><?php echo esc_html( $region ); ?></span>
-											<button type="button" class="khm-partner-region-tag-remove" data-region="<?php echo esc_attr( $region ); ?>">&times;</button>
-										</span>
-									<?php endforeach; ?>
-								</div>
+							<div class="khm-partner-regions-tags" id="khm-region-tags">
+								<?php foreach ( $regions as $region ) : ?>
+									<span class="khm-partner-region-tag" data-region="<?php echo esc_attr( $region ); ?>">
+										<span class="khm-partner-region-tag-text"><?php echo esc_html( $region ); ?></span>
+										<button type="button" class="khm-partner-region-tag-remove" data-region="<?php echo esc_attr( $region ); ?>">&times;</button>
+									</span>
+								<?php endforeach; ?>
+							</div>
+							<button type="button" class="khm-partner-regions-toggle" data-target="khm-regions-panel" aria-expanded="false" style="font-size:0.75rem;padding:0.1rem 0.5rem;background:#e0f2fe;color:#0369a1;border:none;border-radius:999px;cursor:pointer;margin-bottom:0.35rem;">
+								<?php esc_html_e( 'Show', 'khm-membership' ); ?> <?php esc_html_e( 'selector', 'khm-membership' ); ?>
+							</button>
+							<div id="khm-regions-panel" class="khm-partner-regions-panel" style="display:none;">
 								<select multiple class="khm-partner-regions-select" id="khm-regions-select">
 									<option value=""><?php esc_html_e( 'Select regions…', 'khm-membership' ); ?></option>
 									<?php
