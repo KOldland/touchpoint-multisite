@@ -63,9 +63,21 @@ class SponsorMigration {
             name VARCHAR(255) NOT NULL,
             url VARCHAR(255) NULL,
             contact_email VARCHAR(255) NULL,
+            hq_location VARCHAR(255) NULL,
+            regions VARCHAR(255) NULL,
+            company_size_band VARCHAR(64) NULL,
+            pilot_scheme_available TINYINT(1) DEFAULT 0,
+            free_trial_available TINYINT(1) DEFAULT 0,
+            software_expertise LONGTEXT NULL,
+            hardware_capabilities LONGTEXT NULL,
+            consultancy_areas LONGTEXT NULL,
+            deployment_modes LONGTEXT NULL,
+            support_tiers LONGTEXT NULL,
+            provider_type LONGTEXT NULL,
             publish_allowed TINYINT(1) DEFAULT 0,
             created_by BIGINT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY publish_allowed (publish_allowed),
             KEY created_at (created_at)
@@ -181,6 +193,33 @@ class SponsorMigration {
         if ( empty( $url_column ) ) {
             $wpdb->query( "ALTER TABLE {$sponsors_table} ADD COLUMN url VARCHAR(255) NULL" );
         }
+        $hq_location_column = $wpdb->get_row( $wpdb->prepare( "SHOW COLUMNS FROM {$sponsors_table} LIKE %s", 'hq_location' ), ARRAY_A );
+        if ( empty( $hq_location_column ) ) {
+            $wpdb->query( "ALTER TABLE {$sponsors_table} ADD COLUMN hq_location VARCHAR(255) NULL" );
+        }
+        $regions_column = $wpdb->get_row( $wpdb->prepare( "SHOW COLUMNS FROM {$sponsors_table} LIKE %s", 'regions' ), ARRAY_A );
+        if ( empty( $regions_column ) ) {
+            $wpdb->query( "ALTER TABLE {$sponsors_table} ADD COLUMN regions VARCHAR(255) NULL" );
+        }
+        $company_size_column = $wpdb->get_row( $wpdb->prepare( "SHOW COLUMNS FROM {$sponsors_table} LIKE %s", 'company_size_band' ), ARRAY_A );
+        if ( empty( $company_size_column ) ) {
+            $wpdb->query( "ALTER TABLE {$sponsors_table} ADD COLUMN company_size_band VARCHAR(64) NULL" );
+        }
+        $pilot_column = $wpdb->get_row( $wpdb->prepare( "SHOW COLUMNS FROM {$sponsors_table} LIKE %s", 'pilot_scheme_available' ), ARRAY_A );
+        if ( empty( $pilot_column ) ) {
+            $wpdb->query( "ALTER TABLE {$sponsors_table} ADD COLUMN pilot_scheme_available TINYINT(1) DEFAULT 0" );
+        }
+        $trial_column = $wpdb->get_row( $wpdb->prepare( "SHOW COLUMNS FROM {$sponsors_table} LIKE %s", 'free_trial_available' ), ARRAY_A );
+        if ( empty( $trial_column ) ) {
+            $wpdb->query( "ALTER TABLE {$sponsors_table} ADD COLUMN free_trial_available TINYINT(1) DEFAULT 0" );
+        }
+        $json_cols = ['software_expertise', 'hardware_capabilities', 'consultancy_areas', 'deployment_modes', 'support_tiers', 'provider_type'];
+        foreach ($json_cols as $col) {
+            $existing = $wpdb->get_row( $wpdb->prepare( "SHOW COLUMNS FROM {$sponsors_table} LIKE %s", $col ), ARRAY_A );
+            if ( empty( $existing ) ) {
+                $wpdb->query( "ALTER TABLE {$sponsors_table} ADD COLUMN {$col} LONGTEXT NULL" );
+            }
+        }
         $export_column = $wpdb->get_row( $wpdb->prepare( "SHOW COLUMNS FROM {$docs_table} LIKE %s", 'allowed_for_export' ), ARRAY_A );
         if ( empty( $export_column ) ) {
             $wpdb->query( "ALTER TABLE {$docs_table} ADD COLUMN allowed_for_export TINYINT(1) DEFAULT 1" );
@@ -241,6 +280,31 @@ class SponsorMigration {
         if ( empty( $source_library_column ) ) {
             $wpdb->query( "ALTER TABLE {$sources_table} ADD COLUMN library_id BIGINT UNSIGNED NULL" );
             $wpdb->query( "ALTER TABLE {$sources_table} ADD KEY library_id (library_id)" );
+        }
+
+        // New Account Details columns for sponsors
+        $new_sponsor_cols = [
+            'hq_location'            => 'VARCHAR(255) NULL',
+            'regions'                => 'VARCHAR(255) NULL',
+            'company_size_band'      => 'VARCHAR(64) NULL',
+            'pilot_scheme_available' => 'TINYINT(1) DEFAULT 0',
+            'free_trial_available'   => 'TINYINT(1) DEFAULT 0',
+            'software_expertise'     => 'LONGTEXT NULL',
+            'hardware_capabilities'  => 'LONGTEXT NULL',
+            'consultancy_areas'      => 'LONGTEXT NULL',
+            'deployment_modes'       => 'LONGTEXT NULL',
+            'support_tiers'          => 'LONGTEXT NULL',
+            'provider_type'          => 'LONGTEXT NULL',
+            'implementation_support' => 'TINYINT(1) DEFAULT 0',
+            'support_hours'          => 'VARCHAR(64) DEFAULT "business"',
+            'updated_at'             => 'DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+        ];
+
+        foreach ( $new_sponsor_cols as $col => $type ) {
+            $exists = $wpdb->get_row( $wpdb->prepare( "SHOW COLUMNS FROM {$sponsors_table} LIKE %s", $col ), ARRAY_A );
+            if ( empty( $exists ) ) {
+                $wpdb->query( "ALTER TABLE {$sponsors_table} ADD COLUMN {$col} {$type}" );
+            }
         }
 
         return self::table_exists();

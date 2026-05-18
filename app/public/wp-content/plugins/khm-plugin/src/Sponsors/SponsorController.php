@@ -870,15 +870,17 @@ class SponsorController {
         $updated = $wpdb->update(
             $sponsors_table,
             array(
-                'name'              => $company_name,
-                'url'               => $company_url,
-                'hq_location'       => $hq_location,
-                'regions'           => wp_json_encode( $regions ),
-                'deployment_modes'  => $deployment_mode,
-                'updated_at'        => current_time( 'mysql' ),
+                'name'                  => $company_name,
+                'url'                   => $company_url,
+                'hq_location'           => $hq_location,
+                'regions'               => wp_json_encode( $regions ),
+                'deployment_modes'      => $deployment_mode,
+                'implementation_support' => $impl_support,
+                'support_hours'         => $support_hours,
+                'updated_at'            => current_time( 'mysql' ),
             ),
             array( 'id' => $sponsor_id ),
-            array( '%s', '%s', '%s', '%s', '%s', '%s' ),
+            array( '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s' ),
             array( '%d' )
         );
 
