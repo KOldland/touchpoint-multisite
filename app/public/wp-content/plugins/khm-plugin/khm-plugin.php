@@ -186,9 +186,7 @@ require_once __DIR__ . '/src/Membership/DashboardShortcode.php';
 require_once __DIR__ . '/src/Membership/Admin/ReportsPage.php';
 require_once __DIR__ . '/src/Services/LevelPriceResolver.php';
 require_once __DIR__ . '/src/Migrations/CreateSponsorApplicationsTable.php';
-require_once __DIR__ . '/src/Migrations/CreateEditorialTaxonomyTable.php';
 require_once __DIR__ . '/src/Migrations/CreateTechConnectTables.php';
-require_once __DIR__ . '/src/Migrations/CreateSponsorSolutionMappingTable.php';
 
 
 // Register GEO Suggestion Endpoint at rest_api_init
