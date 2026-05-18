@@ -299,7 +299,7 @@ class QuoteClubPortalShortcode {
 		$sections = [
 			'overview'       => [ 'label' => __( 'Overview', 'khm-membership' ),       'icon' => 'dashicons-chart-bar' ],
 			'connect'        => [ 'label' => __( 'Connect', 'khm-membership' ),        'icon' => 'dashicons-networking' ],
-			'account'        => [ 'label' => __( 'Account', 'khm-membership' ),        'icon' => 'dashicons-admin-settings' ],
+			'account'        => [ 'label' => __( 'Company Details', 'khm-membership' ), 'icon' => 'dashicons-admin-settings' ],
 			'commentary'     => [ 'label' => __( 'Commentary', 'khm-membership' ),      'icon' => 'dashicons-format-quote' ],
 			'press-releases' => [ 'label' => __( 'Press Releases', 'khm-membership' ),  'icon' => 'dashicons-media-document' ],
 			'tracking'       => [ 'label' => __( 'Tracking', 'khm-membership' ),        'icon' => 'dashicons-chart-line' ],
