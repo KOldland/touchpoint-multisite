@@ -1,6 +1,33 @@
 (function ($) {
   'use strict';
 
+  // Toast notification system (local version for quote-club-connect.js)
+  // Uses global marker to check if global showToast exists (to avoid duplicates)
+  if (typeof window._khm_showToastUsed === 'undefined') {
+    window._khm_showToastUsed = true;
+    if (typeof window.khm_showToast === 'undefined') {
+      window.showToast = window.khm_showToast = function (message, type) {
+        var $toast = $('#khm-partner-toast');
+        
+        if (!$toast.length) {
+          $toast = $('<div id="khm-partner-toast" class="khm-toast" role="status" aria-live="polite"></div>');
+          $('body').append($toast);
+        }
+
+        var toastClass = type === 'error' ? 'khm-toast-error' : type === 'success' ? 'khm-toast-success' : 'khm-toast-info';
+        // Clear and reset toast class
+        $toast.empty().removeClass('khm-toast-error khm-toast-success khm-toast-info is-visible')
+          .addClass(toastClass + ' is-visible');
+        $toast.text(message || '');
+
+        setTimeout(function () {
+          $toast.removeClass('khm-toast-error khm-toast-success khm-toast-info is-visible')
+            .addClass('khm-toast');
+        }, 5000);
+      };
+    }
+  }
+
   function esc(value) {
     return String(value || '')
       .replace(/&/g, '&amp;')
@@ -30,12 +57,12 @@
 
   function request(path, method, payload) {
     return $.ajax({
-      url: (window.khmQuoteClub && khmQuoteClub.connectRestUrl ? khmQuoteClub.connectRestUrl : '') + path,
+      url: (window.khmPartnerPortal && khmPartnerPortal.connectRestUrl ? khmPartnerPortal.connectRestUrl : '') + path,
       method: method,
       contentType: method === 'GET' || method === 'DELETE' ? undefined : 'application/json',
       processData: method === 'GET',
       headers: {
-        'X-WP-Nonce': window.khmQuoteClub ? khmQuoteClub.nonce : ''
+        'X-WP-Nonce': window.khmPartnerPortal ? khmPartnerPortal.nonce : ''
       },
       dataType: 'json',
       data: method === 'GET' ? (payload || {}) : (payload ? JSON.stringify(payload) : undefined)
@@ -67,17 +94,20 @@
   }
 
   $(function () {
-    var $shell = $('.khm-qc-connect-shell');
+    console.log('Quote Club Connect JS v1.0.2 Loaded');
+    // Get the parent container with sponsor-id data attribute
+    var $accountShell = $('#khm-partner-account-form').closest('[data-sponsor-id]');
+    var $shell = $accountShell.length ? $accountShell : $('.khm-partner-connect-shell');
     if (!$shell.length) {
       return;
     }
 
-    var $form = $('#khm-qc-connect-form');
-    var $list = $shell.find('.khm-qc-connect-list');
-    var $status = $shell.find('.khm-qc-connect-status');
-    var $deleteButton = $shell.find('.khm-qc-connect-delete');
-    var $threadList = $shell.find('.khm-qc-connect-thread-list');
-    var $threadDetail = $shell.find('.khm-qc-connect-thread-detail');
+    var $form = $('#khm-partner-connect-form');
+    var $list = $shell.find('.khm-partner-connect-list');
+    var $status = $shell.find('.khm-partner-connect-status');
+    var $deleteButton = $shell.find('.khm-partner-connect-delete');
+    var $threadList = $shell.find('.khm-partner-connect-thread-list');
+    var $threadDetail = $shell.find('.khm-partner-connect-thread-detail');
     var providers = [];
     var threads = [];
     var activeId = 0;
@@ -133,18 +163,45 @@
     }
 
     function populateForm(provider) {
-      activeId = parseInt(provider && provider.id, 10) || 0;
       $form.find('[name="id"]').val(activeId ? String(activeId) : '');
-      $form.find('[name="name"]').val(provider.name || '');
-      $form.find('[name="slug"]').val(provider.slug || '');
+      $form.find('[name="company_name"]').val(provider.company_name || '');
+      $form.find('[name="offering_name"]').val(provider.offering_name || '');
       $form.find('[name="website_url"]').val(provider.website_url || '');
       $form.find('[name="provider_type"]').val(provider.provider_type || '');
+      // Handle multi-select checkboxes for provider_type
+      $form.find('input[name="provider_type[]"]').prop('checked', false);
+      if (Array.isArray(provider.provider_type)) {
+        provider.provider_type.forEach(function(type) {
+          $form.find('input[name="provider_type[]"][value="' + type + '"]').prop('checked', true);
+        });
+      }
       $form.find('[name="description"]').val(provider.description || '');
       $form.find('[name="sweet_spot_summary"]').val(provider.sweet_spot_summary || '');
+      // Populate sub-category checkbox fields
+      $form.find('input[name="software_expertise[]"]').prop('checked', false);
+      if (Array.isArray(provider.software_expertise)) {
+        provider.software_expertise.forEach(function(expertise) {
+          $form.find('input[name="software_expertise[]"][value="' + expertise + '"]').prop('checked', true);
+        });
+      }
+      $form.find('input[name="hardware_capabilities[]"]').prop('checked', false);
+      if (Array.isArray(provider.hardware_capabilities)) {
+        provider.hardware_capabilities.forEach(function(capability) {
+          $form.find('input[name="hardware_capabilities[]"][value="' + capability + '"]').prop('checked', true);
+        });
+      }
+      $form.find('input[name="consultancy_areas[]"]').prop('checked', false);
+      if (Array.isArray(provider.consultancy_areas)) {
+        provider.consultancy_areas.forEach(function(area) {
+          $form.find('input[name="consultancy_areas[]"][value="' + area + '"]').prop('checked', true);
+        });
+      }
       var rfqProfile = provider.comparison_fields && provider.comparison_fields.rfq_profile ? provider.comparison_fields.rfq_profile : {};
       $form.find('[name="titles"]').val(Array.isArray(provider.titles) ? provider.titles.join(', ') : '');
       $form.find('[name="regions"]').val(Array.isArray(provider.regions) ? provider.regions.join(', ') : '');
+      $form.find('[name="industries"]').val(Array.isArray(provider.industries) ? provider.industries.join(', ') : (provider.match_rules && provider.match_rules.industries ? provider.match_rules.industries.join(', ') : ''));
       $form.find('[name="deployment_modes"]').val(Array.isArray(provider.deployment_modes) ? provider.deployment_modes.join(', ') : '');
+      $form.find('[name="integrations"]').val(Array.isArray(provider.integrations) ? provider.integrations.join(', ') : '');
       $form.find('[name="support_tiers"]').val(Array.isArray(provider.support_tiers) ? provider.support_tiers.join(', ') : '');
       $form.find('[name="company_size_min"]').val(provider.company_size_min || '');
       $form.find('[name="company_size_max"]').val(provider.company_size_max || '');
@@ -159,6 +216,8 @@
       $form.find('[name="rfq_default_estimate_gbp"]').val(rfqProfile.default_estimate_gbp || 120000);
       $form.find('[name="rfq_max_discount_pct"]').val(rfqProfile.max_discount_pct || 10);
       $form.find('[name="status"]').val(provider.status || 'active');
+      $form.find('[name="pilot_scheme_available"]').prop('checked', !!provider.pilot_scheme_available);
+      $form.find('[name="free_trial_available"]').prop('checked', !!provider.free_trial_available);
       $form.find('[name="commentary_enabled"]').prop('checked', !!provider.commentary_enabled);
       $form.find('[name="ad_targeting_enabled"]').prop('checked', !!provider.ad_targeting_enabled);
       $form.find('[name="comparison_fields"]').val(JSON.stringify(provider.comparison_fields || {}, null, 2));
@@ -169,7 +228,7 @@
 
     function renderList() {
       if (!providers.length) {
-        $list.html('<div class="khm-qc-connect-empty">No Connect offerings yet. Create your first one to define how your sponsor appears in comparison and matching flows.</div>');
+        $list.html('<div class="khm-partner-connect-empty">No Connect offerings yet. Create your first one to define how your sponsor appears in comparison and matching flows.</div>');
         return;
       }
 
@@ -180,33 +239,33 @@
         var companyRange = formatRange(provider.company_size_min, provider.company_size_max, '');
 
         if (provider.provider_type) {
-          tags.push('<span class="khm-qc-connect-pill">' + esc(provider.provider_type) + '</span>');
+          tags.push('<span class="khm-partner-connect-pill">' + esc(provider.provider_type) + '</span>');
         }
         if (provider.status) {
-          tags.push('<span class="khm-qc-connect-pill">' + esc(provider.status) + '</span>');
+          tags.push('<span class="khm-partner-connect-pill">' + esc(provider.status) + '</span>');
         }
         if (provider.is_demo) {
-          tags.push('<span class="khm-qc-connect-pill">demo</span>');
+          tags.push('<span class="khm-partner-connect-pill">demo</span>');
         }
         if (provider.commentary_enabled) {
-          tags.push('<span class="khm-qc-connect-pill">commentary</span>');
+          tags.push('<span class="khm-partner-connect-pill">commentary</span>');
         }
         if (provider.ad_targeting_enabled) {
-          tags.push('<span class="khm-qc-connect-pill">ad targeting</span>');
+          tags.push('<span class="khm-partner-connect-pill">ad targeting</span>');
         }
 
         return '' +
-          '<article class="khm-qc-connect-card' + (isSelected ? ' is-selected' : '') + '" data-provider-id="' + esc(provider.id) + '">' +
-            '<div class="khm-qc-connect-card-head">' +
+          '<article class="khm-partner-connect-card' + (isSelected ? ' is-selected' : '') + '" data-provider-id="' + esc(provider.id) + '">' +
+            '<div class="khm-partner-connect-card-head">' +
               '<div>' +
                 '<h4>' + esc(provider.name) + '</h4>' +
-                '<div class="khm-qc-connect-card-meta">' + esc(provider.slug || '') + (provider.website_url ? ' · ' + esc(provider.website_url) : '') + '</div>' +
+                '<div class="khm-partner-connect-card-meta">' + esc(provider.slug || '') + (provider.website_url ? ' · ' + esc(provider.website_url) : '') + '</div>' +
               '</div>' +
-              '<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-connect-edit" data-provider-id="' + esc(provider.id) + '">Edit</button>' +
+              '<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-edit" data-provider-id="' + esc(provider.id) + '">Edit</button>' +
             '</div>' +
-            (tags.length ? '<div class="khm-qc-connect-card-tags">' + tags.join('') + '</div>' : '') +
-            (provider.sweet_spot_summary ? '<p class="khm-qc-connect-card-summary">' + esc(provider.sweet_spot_summary) + '</p>' : '') +
-            ((budgetRange || companyRange || provider.onboarding_days) ? '<p class="khm-qc-connect-card-meta">' +
+            (tags.length ? '<div class="khm-partner-connect-card-tags">' + tags.join('') + '</div>' : '') +
+            (provider.sweet_spot_summary ? '<p class="khm-partner-connect-card-summary">' + esc(provider.sweet_spot_summary) + '</p>' : '') +
+            ((budgetRange || companyRange || provider.onboarding_days) ? '<p class="khm-partner-connect-card-meta">' +
               (budgetRange ? 'Budget ' + esc(budgetRange) : '') +
               (budgetRange && companyRange ? ' · ' : '') +
               (companyRange ? 'Company size ' + esc(companyRange) : '') +
@@ -225,7 +284,7 @@
       }
 
       if (!threads.length) {
-        $threadList.html('<div class="khm-qc-connect-empty">No intro requests yet. New prospect requests will appear here.</div>');
+        $threadList.html('<div class="khm-partner-connect-empty">No intro requests yet. New prospect requests will appear here.</div>');
         return;
       }
 
@@ -236,6 +295,7 @@
         // Build compact at-a-glance tags (channel, handover state, commercial, messages)
         var sellerResponseStatus = thread.seller_response_status || 'not_requested';
         var isRfq = thread.request_type === 'rfq_request';
+        var isDiscoveryCall = thread.request_type === 'discovery_call';
         var cardBtnLabel = (isRfq && (sellerResponseStatus === 'awaiting_response' || sellerResponseStatus === 'not_requested'))
           ? 'Move to Inbox after reply'
           : 'Open';
@@ -251,8 +311,8 @@
           engaged: 'Engaged'
         };
         var commercialTier = String(thread.commercial_tier || '').toLowerCase();
-        var isActiveMatch = !isRfq && (!!thread.engaged_option || !!commercialTier);
-        var channelLabel = isRfq ? 'RFQ' : (isActiveMatch ? 'Active Match' : 'Inbound Connection');
+        var isActiveMatch = !isRfq && !isDiscoveryCall && (!!thread.engaged_option || !!commercialTier);
+        var channelLabel = isRfq ? 'RFQ' : (isDiscoveryCall ? 'Discovery Call' : (isActiveMatch ? 'Active Match' : 'Inbound Connection'));
         var handoverLabel = handoverLabelMap[thread.handover_status || 'not_started'] || 'Handover Not Started';
 
         var commercialLabel = '';
@@ -265,14 +325,14 @@
         }
 
         var engagementTags = '' +
-          '<span class="khm-qc-connect-pill khm-qc-connect-pill-engaged">' + esc(channelLabel) + '</span>' +
-          '<span class="khm-qc-connect-pill">' + esc(handoverLabel) + '</span>' +
-          '<span class="khm-qc-connect-pill">' + esc(commercialLabel) + '</span>' +
-          '<span class="khm-qc-connect-pill">' + esc(thread.message_count || 0) + ' messages</span>';
+          '<span class="khm-partner-connect-pill khm-partner-connect-pill-engaged">' + esc(channelLabel) + '</span>' +
+          '<span class="khm-partner-connect-pill">' + esc(handoverLabel) + '</span>' +
+          '<span class="khm-partner-connect-pill">' + esc(commercialLabel) + '</span>' +
+          '<span class="khm-partner-connect-pill">' + esc(thread.message_count || 0) + ' messages</span>';
 
         // Hint shown on RFQ cards before the seller submits a response
         var rfqHint = (isRfq && (sellerResponseStatus === 'awaiting_response' || sellerResponseStatus === 'not_requested'))
-          ? '<p class="khm-qc-connect-card-hint">Open this thread, write your light proposal reply, and submit it — the prospect will then be able to accept or reject it to proceed to full handover.</p>'
+          ? '<p class="khm-partner-connect-card-hint">Open this thread, write your light proposal reply, and submit it — the prospect will then be able to accept or reject it to proceed to full handover.</p>'
           : '';
 
         var cardTitle = thread.handover_status === 'confirmed'
@@ -280,18 +340,18 @@
           : ([thread.buyer_job_title, thread.buyer_sector].filter(Boolean).join(', ') || 'Contact');
 
         return '' +
-          '<article class="khm-qc-connect-card khm-qc-connect-thread-card' + (isSelected ? ' is-selected' : '') + '" data-thread-id="' + esc(thread.id) + '">' +
-            '<div class="khm-qc-connect-card-head">' +
+          '<article class="khm-partner-connect-card khm-partner-connect-thread-card' + (isSelected ? ' is-selected' : '') + '" data-thread-id="' + esc(thread.id) + '">' +
+            '<div class="khm-partner-connect-card-head">' +
               '<div>' +
                 '<h4>' + esc(cardTitle) + '</h4>' +
-                '<div class="khm-qc-connect-card-meta">' + esc(meta) + '</div>' +
+                '<div class="khm-partner-connect-card-meta">' + esc(meta) + '</div>' +
               '</div>' +
-              '<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-connect-open-thread" data-thread-id="' + esc(thread.id) + '">' + cardBtnLabel + '</button>' +
+              '<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-open-thread" data-thread-id="' + esc(thread.id) + '">' + cardBtnLabel + '</button>' +
             '</div>' +
-            '<div class="khm-qc-connect-card-tags">' +
+            '<div class="khm-partner-connect-card-tags">' +
               engagementTags +
             '</div>' +
-            (thread.last_message_excerpt ? '<p class="khm-qc-connect-card-summary">' + esc(stripUrlsFromText(thread.last_message_excerpt)) + '</p>' : '') +
+            (thread.last_message_excerpt ? '<p class="khm-partner-connect-card-summary">' + esc(stripUrlsFromText(thread.last_message_excerpt)) + '</p>' : '') +
             rfqHint +
           '</article>';
       }).join(''));
@@ -352,7 +412,7 @@
 
     function renderThreadMessages(thread, messages, handoverStatus) {
       if (!Array.isArray(messages) || !messages.length) {
-        return '<div class="khm-qc-connect-empty">No messages yet.</div>';
+        return '<div class="khm-partner-connect-empty">No messages yet.</div>';
       }
 
       return messages.map(function (message) {
@@ -362,9 +422,9 @@
         var cleanMessage = extracted.text;
 
         return '' +
-          '<article class="khm-qc-connect-message khm-qc-connect-message-' + esc(message.sender_role || 'buyer') + '">' +
-            '<div class="khm-qc-connect-message-meta">' + esc(role) + ' · ' + esc(formatDate(message.created_at)) + '</div>' +
-            '<div class="khm-qc-connect-message-body">' + esc(cleanMessage) + '</div>' +
+          '<article class="khm-partner-connect-message khm-partner-connect-message-' + esc(message.sender_role || 'buyer') + '">' +
+            '<div class="khm-partner-connect-message-meta">' + esc(role) + ' · ' + esc(formatDate(message.created_at)) + '</div>' +
+            '<div class="khm-partner-connect-message-body">' + esc(cleanMessage) + '</div>' +
           '</article>';
       }).join('');
     }
@@ -378,12 +438,12 @@
 
       if (handoverStatus !== 'confirmed') {
         return '' +
-          '<div class="khm-qc-connect-prospect-details">' +
+          '<div class="khm-partner-connect-prospect-details">' +
             '<h5>Prospect details</h5>' +
-            '<div class="khm-qc-connect-resp-row"><strong>Sector:</strong> ' + esc(sector || 'Not provided') + '</div>' +
-            '<div class="khm-qc-connect-resp-row"><strong>Company size:</strong> ' + esc(companySize || 'Not provided') + '</div>' +
-            '<div class="khm-qc-connect-resp-row"><strong>Country:</strong> ' + esc(country || 'Not provided') + '</div>' +
-            '<div class="khm-qc-connect-resp-row"><strong>Position:</strong> ' + esc(jobTitle || 'Not provided') + '</div>' +
+            '<div class="khm-partner-connect-resp-row"><strong>Sector:</strong> ' + esc(sector || 'Not provided') + '</div>' +
+            '<div class="khm-partner-connect-resp-row"><strong>Company size:</strong> ' + esc(companySize || 'Not provided') + '</div>' +
+            '<div class="khm-partner-connect-resp-row"><strong>Country:</strong> ' + esc(country || 'Not provided') + '</div>' +
+            '<div class="khm-partner-connect-resp-row"><strong>Position:</strong> ' + esc(jobTitle || 'Not provided') + '</div>' +
           '</div>';
       }
 
@@ -398,26 +458,47 @@
         ? '<a href="mailto:' + esc(email) + '">' + esc(email) + '</a>'
         : 'Not submitted yet';
       var phoneRow = phone
-        ? '<div class="khm-qc-connect-resp-row"><strong>Phone:</strong> <a href="tel:' + esc(phone) + '">' + esc(phone) + '</a></div>'
+        ? '<div class="khm-partner-connect-resp-row"><strong>Phone:</strong> <a href="tel:' + esc(phone) + '">' + esc(phone) + '</a></div>'
         : '';
       var linkedinRow = linkedin
-        ? '<div class="khm-qc-connect-resp-row"><strong>LinkedIn:</strong> <a href="' + esc(linkedin) + '" target="_blank" rel="noopener noreferrer">View profile</a></div>'
+        ? '<div class="khm-partner-connect-resp-row"><strong>LinkedIn:</strong> <a href="' + esc(linkedin) + '" target="_blank" rel="noopener noreferrer">View profile</a></div>'
         : '';
 
       return '' +
-        '<div class="khm-qc-connect-prospect-details khm-qc-connect-prospect-details-live">' +
+        '<div class="khm-partner-connect-prospect-details khm-partner-connect-prospect-details-live">' +
           '<h5>Contact information</h5>' +
-          '<div class="khm-qc-connect-resp-row"><strong>Name:</strong> ' + esc(name) + '</div>' +
-          '<div class="khm-qc-connect-resp-row"><strong>Job title:</strong> ' + esc(jobTitle || 'Not provided') + '</div>' +
-          '<div class="khm-qc-connect-resp-row"><strong>Email:</strong> ' + emailHtml + '</div>' +
+          '<div class="khm-partner-connect-resp-row"><strong>Name:</strong> ' + esc(name) + '</div>' +
+          '<div class="khm-partner-connect-resp-row"><strong>Job title:</strong> ' + esc(jobTitle || 'Not provided') + '</div>' +
+          '<div class="khm-partner-connect-resp-row"><strong>Email:</strong> ' + emailHtml + '</div>' +
           phoneRow +
           linkedinRow +
-          '<h5 class="khm-qc-connect-sub-heading">Company information</h5>' +
-          '<div class="khm-qc-connect-resp-row"><strong>Company name:</strong> ' + esc(company) + '</div>' +
-          '<div class="khm-qc-connect-resp-row"><strong>Sector:</strong> ' + esc(sector || 'Not provided') + '</div>' +
-          '<div class="khm-qc-connect-resp-row"><strong>Total employees:</strong> ' + esc(companySize || 'Not provided') + '</div>' +
-          '<div class="khm-qc-connect-resp-row"><strong>Location:</strong> ' + esc(location || 'Not provided') + '</div>' +
+          '<h5 class="khm-partner-connect-sub-heading">Company information</h5>' +
+          '<div class="khm-partner-connect-resp-row"><strong>Company name:</strong> ' + esc(company) + '</div>' +
+          '<div class="khm-partner-connect-resp-row"><strong>Sector:</strong> ' + esc(sector || 'Not provided') + '</div>' +
+          '<div class="khm-partner-connect-resp-row"><strong>Total employees:</strong> ' + esc(companySize || 'Not provided') + '</div>' +
+          '<div class="khm-partner-connect-resp-row"><strong>Location:</strong> ' + esc(location || 'Not provided') + '</div>' +
         '</div>';
+    }
+
+    function renderDiscoveryCallPanel(thread) {
+      var status = thread.seller_response_status || 'not_requested';
+
+      if (status === 'accepted') {
+        var schedulingLink = thread.scheduling_link || '';
+        return '<div class="khm-partner-connect-seller-response khm-partner-connect-seller-response-submitted">' +
+          '<h5>Discovery Call Accepted</h5>' +
+          '<p class="khm-partner-connect-thread-meta">You accepted this discovery call request. The prospect can now book a time.</p>' +
+          (schedulingLink ? '<div class="khm-partner-connect-resp-row"><a href="' + esc(schedulingLink) + '" target="_blank" class="khm-partner-btn khm-partner-btn-secondary">View Booking Link</a></div>' : '') +
+        '</div>';
+      }
+
+      return '<div class="khm-partner-connect-seller-response">' +
+        '<h5>Accept Discovery Call</h5>' +
+        '<p class="khm-partner-connect-thread-meta">Accept this discovery call request to charge the prospect and reveal their scheduling link.</p>' +
+        '<div class="khm-partner-connect-actions">' +
+          '<button type="button" class="khm-partner-btn khm-partner-btn-primary khm-partner-accept-discovery-call" data-thread-id="' + esc(thread.id) + '">Accept & Charge</button>' +
+        '</div>' +
+      '</div>';
     }
 
     function renderSellerResponsePanel(thread) {
@@ -440,20 +521,20 @@
         ].filter(function (f) { return f.value; });
         var leadContact = resp.lead_contact || {};
 
-        return '<div class="khm-qc-connect-seller-response khm-qc-connect-seller-response-submitted">' +
+        return '<div class="khm-partner-connect-seller-response khm-partner-connect-seller-response-submitted">' +
           '<h5>RFQ Response submitted</h5>' +
           fields.map(function (f) {
-            return '<div class="khm-qc-connect-resp-row"><strong>' + esc(f.label) + ':</strong> ' + esc(f.value) + '</div>';
+            return '<div class="khm-partner-connect-resp-row"><strong>' + esc(f.label) + ':</strong> ' + esc(f.value) + '</div>';
           }).join('') +
-          (leadContact.name ? '<div class="khm-qc-connect-resp-row"><strong>Lead contact:</strong> ' + esc(leadContact.name) + (leadContact.title ? ', ' + esc(leadContact.title) : '') + '</div>' : '') +
+          (leadContact.name ? '<div class="khm-partner-connect-resp-row"><strong>Lead contact:</strong> ' + esc(leadContact.name) + (leadContact.title ? ', ' + esc(leadContact.title) : '') + '</div>' : '') +
         '</div>';
       }
 
       // Show response form if not yet submitted
-      return '<div class="khm-qc-connect-seller-response">' +
+      return '<div class="khm-partner-connect-seller-response">' +
         '<h5>Submit your RFQ response</h5>' +
-        '<p class="khm-qc-connect-thread-meta">Provide a structured response to this prospect\'s RFQ. Once submitted the prospect can accept or reject it.</p>' +
-        '<form class="khm-qc-connect-seller-response-form" data-thread-id="' + esc(thread.id) + '">' +
+        '<p class="khm-partner-connect-thread-meta">Provide a structured response to this prospect\'s RFQ. Once submitted the prospect can accept or reject it.</p>' +
+        '<form class="khm-partner-connect-seller-response-form" data-thread-id="' + esc(thread.id) + '">' +
           '<label>Capability summary<textarea name="capability" rows="3" required placeholder="Describe how your offering meets the prospect\'s requirements."></textarea></label>' +
           '<label>Cost range<input type="text" name="cost_range" placeholder="e.g. £50K\u2013£80K implementation + £30K annual"></label>' +
           '<label>Approach / methodology<textarea name="approach" rows="3" placeholder="How would you deliver this engagement?"></textarea></label>' +
@@ -462,8 +543,8 @@
           '<label>Lead contact email<input type="email" name="lead_email"></label>' +
           '<label>Lead contact title<input type="text" name="lead_title"></label>' +
           '<label>Platform Discount Offered (5\u201325%)<input type="number" name="commission_rate" min="5" max="25" step="1" required placeholder="e.g. 10"></label>' +
-          '<div class="khm-qc-connect-actions">' +
-            '<button type="submit" class="khm-qc-btn khm-qc-btn-primary">Submit RFQ response</button>' +
+          '<div class="khm-partner-connect-actions">' +
+            '<button type="submit" class="khm-partner-btn khm-partner-btn-primary">Submit RFQ response</button>' +
           '</div>' +
         '</form>' +
       '</div>';
@@ -478,13 +559,13 @@
       }
 
       var currentRate = parseInt(thread.seller_commission_rate || 0, 10);
-      return '<div class="khm-qc-connect-seller-response">' +
+      return '<div class="khm-partner-connect-seller-response">' +
         '<h5>Set inbound commission before handover</h5>' +
-        '<p class="khm-qc-connect-thread-meta">Choose your platform commission now. The payment moment becomes explicit at handover confirmation.</p>' +
-        '<form class="khm-qc-connect-inbound-commission-form" data-thread-id="' + esc(thread.id) + '">' +
+        '<p class="khm-partner-connect-thread-meta">Choose your platform commission now. The payment moment becomes explicit at handover confirmation.</p>' +
+        '<form class="khm-partner-connect-inbound-commission-form" data-thread-id="' + esc(thread.id) + '">' +
           '<label>Commission rate (5-25%)<input type="number" name="commission_rate" min="5" max="25" step="1" required value="' + esc(currentRate > 0 ? currentRate : 10) + '"></label>' +
-          '<div class="khm-qc-connect-actions">' +
-            '<button type="submit" class="khm-qc-btn khm-qc-btn-primary">Save commission rate</button>' +
+          '<div class="khm-partner-connect-actions">' +
+            '<button type="submit" class="khm-partner-btn khm-partner-btn-primary">Save commission rate</button>' +
           '</div>' +
         '</form>' +
       '</div>';
@@ -496,7 +577,7 @@
       }
 
       if (!thread) {
-        $threadDetail.html('<div class="khm-qc-connect-empty">Select an intro thread to review messages, reply, and manage handover.</div>');
+        $threadDetail.html('<div class="khm-partner-connect-empty">Select an intro thread to review messages, reply, and manage handover.</div>');
         return;
       }
 
@@ -507,26 +588,26 @@
       var currentCommRate = parseInt(thread.seller_commission_rate || 0, 10) || 10;
       var hasDiscount = !!(thread.seller_commission_rate);
       var inlineCommissionHtml = showInlineCommission
-        ? '<div class="khm-qc-connect-discount-panel">' +
-            '<div class="khm-qc-rfq-response-field">' +
+        ? '<div class="khm-partner-connect-discount-panel">' +
+            '<div class="khm-partner-rfq-response-field">' +
               '<label>Commercial breakdown</label>' +
-              '<div class="khm-qc-rfq-calc-card">' +
-                '<div class="khm-qc-rfq-breakdown-row"><span>Payable today</span><strong class="khm-qc-connect-flat-fee">' + (hasDiscount ? '£375.00' : '£1,500.00') + '</strong></div>' +
-                '<div class="khm-qc-rfq-breakdown-row">' +
-                  '<label class="khm-qc-rfq-toggle">' +
-                    '<input type="checkbox" class="khm-qc-connect-discount-toggle"' + (hasDiscount ? ' checked' : '') + ' />' +
+              '<div class="khm-partner-rfq-calc-card">' +
+                '<div class="khm-partner-rfq-breakdown-row"><span>Payable today</span><strong class="khm-partner-connect-flat-fee">' + (hasDiscount ? '£375.00' : '£1,500.00') + '</strong></div>' +
+                '<div class="khm-partner-rfq-breakdown-row">' +
+                  '<label class="khm-partner-rfq-toggle">' +
+                    '<input type="checkbox" class="khm-partner-connect-discount-toggle"' + (hasDiscount ? ' checked' : '') + ' />' +
                     '<span>Offer platform discount</span>' +
                   '</label>' +
                 '</div>' +
-                '<div class="khm-qc-connect-discount-controls"' + (hasDiscount ? '' : ' hidden') + '>' +
-                  '<div class="khm-qc-rfq-response-field" style="padding:8px 0 0;">' +
+                '<div class="khm-partner-connect-discount-controls"' + (hasDiscount ? '' : ' hidden') + '>' +
+                  '<div class="khm-partner-rfq-response-field" style="padding:8px 0 0;">' +
                     '<label>Discount / commission rate (%)</label>' +
-                    '<input type="range" min="5" max="25" step="1" value="' + currentCommRate + '" class="khm-qc-rfq-commission-rate" name="commission_rate" />' +
-                    '<div class="khm-qc-rfq-discount-readout"><span>Selected rate: <strong class="khm-qc-rfq-rate-value">' + currentCommRate + '%</strong></span><span>This total rate is split 50/50 between estimated buyer discount and estimated platform commission.</span></div>' +
+                    '<input type="range" min="5" max="25" step="1" value="' + currentCommRate + '" class="khm-partner-rfq-commission-rate" name="commission_rate" />' +
+                    '<div class="khm-partner-rfq-discount-readout"><span>Selected rate: <strong class="khm-partner-rfq-rate-value">' + currentCommRate + '%</strong></span><span>This total rate is split 50/50 between estimated buyer discount and estimated platform commission.</span></div>' +
                   '</div>' +
-                  '<div class="khm-qc-connect-commission-breakdown">' +
-                    '<div class="khm-qc-rfq-breakdown-row"><span>Buyer discount</span><span class="khm-qc-connect-buyer-discount-readout">' + (currentCommRate / 2) + '% of contract value</span></div>' +
-                    '<div class="khm-qc-rfq-breakdown-row"><span>Platform commission</span><span class="khm-qc-connect-commission-rate-readout">' + (currentCommRate / 2) + '% of contract value</span></div>' +
+                  '<div class="khm-partner-connect-commission-breakdown">' +
+                    '<div class="khm-partner-rfq-breakdown-row"><span>Buyer discount</span><span class="khm-partner-connect-buyer-discount-readout">' + (currentCommRate / 2) + '% of contract value</span></div>' +
+                    '<div class="khm-partner-rfq-breakdown-row"><span>Platform commission</span><span class="khm-partner-connect-commission-rate-readout">' + (currentCommRate / 2) + '% of contract value</span></div>' +
                   '</div>' +
                 '</div>' +
               '</div>' +
@@ -544,9 +625,9 @@
       var handoverActionButton = '';
 
       if (handoverStatus === 'buyer_requested') {
-        handoverActionButton = '<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-connect-confirm-handover" data-thread-id="' + esc(thread.id) + '"' + confirmDisabled + '>Accept handover</button>';
+        handoverActionButton = '<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-confirm-handover" data-thread-id="' + esc(thread.id) + '"' + confirmDisabled + '>Accept handover</button>';
       } else if (handoverStatus === 'confirmed' && postHandoverCta && postHandoverCta.linkId) {
-        handoverActionButton = '<button type="button" class="khm-qc-btn khm-qc-btn-secondary khm-qc-rfq-link-btn" data-link-id="' + esc(postHandoverCta.linkId) + '">' + esc(postHandoverCta.label) + '</button>';
+        handoverActionButton = '<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-rfq-link-btn" data-link-id="' + esc(postHandoverCta.linkId) + '">' + esc(postHandoverCta.label) + '</button>';
       }
 
       if (handover && handover.requested_at) {
@@ -557,25 +638,25 @@
       }
 
       $threadDetail.html(
-        '<div class="khm-qc-connect-thread-head">' +
+        '<div class="khm-partner-connect-thread-head">' +
           '<div>' +
             '<h4>' + esc(thread.buyer_name || 'Contact') + '</h4>' +
             '<p>' + esc(thread.provider_name || '') + (thread.buyer_company ? ' · ' + esc(thread.buyer_company) : '') + '</p>' +
           '</div>' +
-          '<div class="khm-qc-connect-card-tags">' +
-            '<span class="khm-qc-connect-pill">' + esc(thread.status || 'open') + '</span>' +
-            '<span class="khm-qc-connect-pill">' + esc(handoverLabelMap[handoverStatus] || ('Handover ' + handoverStatus)) + '</span>' +
+          '<div class="khm-partner-connect-card-tags">' +
+            '<span class="khm-partner-connect-pill">' + esc(thread.status || 'open') + '</span>' +
+            '<span class="khm-partner-connect-pill">' + esc(handoverLabelMap[handoverStatus] || ('Handover ' + handoverStatus)) + '</span>' +
           '</div>' +
         '</div>' +
-        '<div class="khm-qc-connect-thread-meta">' + esc(handoverMeta.join(' · ')) + '</div>' +
+        '<div class="khm-partner-connect-thread-meta">' + esc(handoverMeta.join(' · ')) + '</div>' +
         renderProspectDetailsPanel(thread, handoverStatus) +
-        '<div class="khm-qc-connect-thread-messages">' + renderThreadMessages(thread, messages, handoverStatus) + '</div>' +
-        '<form class="khm-qc-connect-thread-reply" data-thread-id="' + esc(thread.id) + '">' +
-          '<label for="khm-qc-connect-thread-reply-message">Reply</label>' +
-          '<textarea id="khm-qc-connect-thread-reply-message" name="message" rows="4" placeholder="Reply to the prospect. This message will be relayed through the platform." required></textarea>' +
+        '<div class="khm-partner-connect-thread-messages">' + renderThreadMessages(thread, messages, handoverStatus) + '</div>' +
+        '<form class="khm-partner-connect-thread-reply" data-thread-id="' + esc(thread.id) + '">' +
+          '<label for="khm-partner-connect-thread-reply-message">Reply</label>' +
+          '<textarea id="khm-partner-connect-thread-reply-message" name="message" rows="4" placeholder="Reply to the prospect. This message will be relayed through the platform." required></textarea>' +
           inlineCommissionHtml +
-          '<div class="khm-qc-connect-actions">' +
-            '<button type="submit" class="khm-qc-btn khm-qc-btn-primary">Send reply</button>' +
+          '<div class="khm-partner-connect-actions">' +
+            '<button type="submit" class="khm-partner-btn khm-partner-btn-primary">Send reply</button>' +
             handoverActionButton +
           '</div>' +
         '</form>' +
@@ -595,16 +676,16 @@
         max_discount_pct: Number($form.find('[name="rfq_max_discount_pct"]').val() || 0)
       };
 
-      return {
-        name: $form.find('[name="name"]').val().trim(),
-        slug: $form.find('[name="slug"]').val().trim(),
+      var payload = {
+        offering_name: $form.find('[name="offering_name"]').val().trim(),
         website_url: $form.find('[name="website_url"]').val().trim(),
-        provider_type: $form.find('[name="provider_type"]').val(),
         description: $form.find('[name="description"]').val().trim(),
         sweet_spot_summary: $form.find('[name="sweet_spot_summary"]').val().trim(),
         titles: splitList($form.find('[name="titles"]').val()),
-        regions: splitList($form.find('[name="regions"]').val()),
+        regions: $form.find('[name="regions"]').val(), // Directly get array of selected values
+        industries: splitList($form.find('[name="industries"]').val()),
         deployment_modes: splitList($form.find('[name="deployment_modes"]').val()),
+        integrations: splitList($form.find('[name="integrations"]').val()),
         support_tiers: splitList($form.find('[name="support_tiers"]').val()),
         company_size_min: $form.find('[name="company_size_min"]').val(),
         company_size_max: $form.find('[name="company_size_max"]').val(),
@@ -612,11 +693,26 @@
         budget_max: $form.find('[name="budget_max"]').val(),
         onboarding_days: $form.find('[name="onboarding_days"]').val(),
         status: $form.find('[name="status"]').val() || 'active',
+        pilot_scheme_available: $form.find('[name="pilot_scheme_available"]').is(':checked'),
+        free_trial_available: $form.find('[name="free_trial_available"]').is(':checked'),
         commentary_enabled: $form.find('[name="commentary_enabled"]').is(':checked'),
         ad_targeting_enabled: $form.find('[name="ad_targeting_enabled"]').is(':checked'),
         comparison_fields: comparisonFields,
         match_rules: parseJsonField($form.find('[name="match_rules"]').val())
       };
+
+      // Conditionally add sub-category fields based on selected provider types
+      if (payload.provider_type.includes('software-expertise')) {
+        payload.software_expertise = $form.find('input[name="software_expertise[]"]:checked').map(function() { return $(this).val(); }).get();
+      }
+      if (payload.provider_type.includes('hardware-capabilities')) {
+        payload.hardware_capabilities = $form.find('input[name="hardware_capabilities[]"]:checked').map(function() { return $(this).val(); }).get();
+      }
+      if (payload.provider_type.includes('consultancy-areas')) {
+        payload.consultancy_areas = $form.find('input[name="consultancy_areas[]"]:checked').map(function() { return $(this).val(); }).get();
+      }
+
+      return payload;
     }
 
     function loadProviders() {
@@ -644,7 +740,7 @@
           openThread(activeThreadId);
         }
       }).fail(function () {
-        $threadList.html('<div class="khm-qc-connect-empty">Unable to load intro threads right now.</div>');
+        $threadList.html('<div class="khm-partner-connect-empty">Unable to load intro threads right now.</div>');
       });
     }
 
@@ -657,20 +753,20 @@
       activeThreadId = threadId;
       renderThreads();
 
-      $threadDetail.html('<div class="khm-qc-connect-empty">Loading intro thread...</div>');
+      $threadDetail.html('<div class="khm-partner-connect-empty">Loading intro thread...</div>');
 
       request('intro-threads/mine/' + threadId, 'GET').done(function (res) {
         renderThreadDetail(res && res.thread, res && res.messages, res && res.handover);
       }).fail(function () {
-        $threadDetail.html('<div class="khm-qc-connect-empty">Unable to load this intro thread.</div>');
+        $threadDetail.html('<div class="khm-partner-connect-empty">Unable to load this intro thread.</div>');
       });
     }
 
-    $shell.on('click', '.khm-qc-connect-new, .khm-qc-connect-reset', function () {
+    $shell.on('click', '.khm-partner-connect-new, .khm-partner-connect-reset', function () {
       resetForm();
     });
 
-    $shell.on('click', '.khm-qc-connect-edit', function () {
+    $shell.on('click', '.khm-partner-connect-edit', function () {
       var providerId = parseInt($(this).data('provider-id'), 10);
       var provider = providers.find(function (item) {
         return parseInt(item && item.id, 10) === providerId;
@@ -681,7 +777,7 @@
       }
     });
 
-    $shell.on('click', '.khm-qc-connect-open-thread', function () {
+    $shell.on('click', '.khm-partner-connect-open-thread', function () {
       openThread($(this).data('thread-id'));
     });
 
@@ -737,7 +833,7 @@
       });
     });
 
-    $shell.on('submit', '.khm-qc-connect-thread-reply', function (event) {
+    $shell.on('submit', '.khm-partner-connect-thread-reply', function (event) {
       var threadId = parseInt($(this).data('thread-id'), 10) || 0;
       var $textarea = $(this).find('[name="message"]');
       var $submit = $(this).find('[type="submit"]');
@@ -763,7 +859,7 @@
       });
     });
 
-    $shell.on('submit', '.khm-qc-connect-seller-response-form', function (event) {
+    $shell.on('submit', '.khm-partner-connect-seller-response-form', function (event) {
       var $form = $(this);
       var threadId = parseInt($form.data('thread-id'), 10) || 0;
       var $submit = $form.find('[type="submit"]');
@@ -803,9 +899,9 @@
         return;
       }
 
-      var $panel = $button.closest('.khm-qc-connect-thread-detail, .khm-qc-connect-thread-reply').closest('.khm-qc-connect-thread-detail');
-      var $toggle = $panel.find('.khm-qc-connect-discount-toggle');
-      var $rateInput = $panel.find('.khm-qc-rfq-commission-rate');
+      var $panel = $button.closest('.khm-partner-connect-thread-detail, .khm-partner-connect-thread-reply').closest('.khm-partner-connect-thread-detail');
+      var $toggle = $panel.find('.khm-partner-connect-discount-toggle');
+      var $rateInput = $panel.find('.khm-partner-rfq-commission-rate');
       var offerDiscount = $toggle.length && $toggle.is(':checked');
       var commissionRate = offerDiscount ? (parseInt($rateInput.val(), 10) || 0) : null;
 
@@ -835,38 +931,38 @@
       doConfirm();
     }
 
-    $shell.on('click', '.khm-qc-connect-confirm-handover', function () {
+    $shell.on('click', '.khm-partner-connect-confirm-handover', function () {
       var threadId = parseInt($(this).data('thread-id'), 10) || 0;
       var $button = $(this);
       submitHandoverAcceptance(threadId, $button);
     });
 
-    $shell.on('click', '.khm-qc-connect-accept-handover', function () {
+    $shell.on('click', '.khm-partner-connect-accept-handover', function () {
       var threadId = parseInt($(this).data('thread-id'), 10) || 0;
       var $button = $(this);
       submitHandoverAcceptance(threadId, $button);
     });
 
-    $shell.on('change input', '.khm-qc-connect-discount-toggle, .khm-qc-rfq-commission-rate', function () {
-      var $panel = $(this).closest('.khm-qc-connect-discount-panel');
-      var $toggle = $panel.find('.khm-qc-connect-discount-toggle');
-      var $controls = $panel.find('.khm-qc-connect-discount-controls');
-      var $rateValue = $panel.find('.khm-qc-rfq-rate-value');
-      var $flatFee = $panel.find('.khm-qc-connect-flat-fee');
+    $shell.on('change input', '.khm-partner-connect-discount-toggle, .khm-partner-rfq-commission-rate', function () {
+      var $panel = $(this).closest('.khm-partner-connect-discount-panel');
+      var $toggle = $panel.find('.khm-partner-connect-discount-toggle');
+      var $controls = $panel.find('.khm-partner-connect-discount-controls');
+      var $rateValue = $panel.find('.khm-partner-rfq-rate-value');
+      var $flatFee = $panel.find('.khm-partner-connect-flat-fee');
       var isOn = $toggle.is(':checked');
-      var rate = parseInt($panel.find('.khm-qc-rfq-commission-rate').val(), 10) || 10;
+      var rate = parseInt($panel.find('.khm-partner-rfq-commission-rate').val(), 10) || 10;
       var halfRate = rate / 2;
       $controls.prop('hidden', !isOn);
       $flatFee.text(isOn ? '£375.00' : '£1,500.00');
       if (isOn) {
         var halfRateDisplay = halfRate + '% of contract value';
-        $panel.find('.khm-qc-connect-buyer-discount-readout').text(halfRateDisplay);
-        $panel.find('.khm-qc-connect-commission-rate-readout').text(halfRateDisplay);
+        $panel.find('.khm-partner-connect-buyer-discount-readout').text(halfRateDisplay);
+        $panel.find('.khm-partner-connect-commission-rate-readout').text(halfRateDisplay);
         $rateValue.text(rate + '%');
       }
     });
 
-    $shell.on('click', '.khm-qc-rfq-link-btn', function () {
+    $shell.on('click', '.khm-partner-rfq-link-btn', function () {
       var linkId = $(this).data('link-id');
       var link = rfqLinkStore[linkId];
       if (link) {
@@ -874,8 +970,340 @@
       }
     });
 
-    resetForm();
+    // Dynamic show/hide for provider type sub-sections
+    function toggleProviderTypeSubsections() {
+      var selectedTypes = $form.find('input[name="provider_type[]"]:checked').map(function() {
+        return $(this).val();
+      }).get();
+
+      $shell.find('.khm-partner-connect-subsection').hide(); // Hide all by default
+
+      selectedTypes.forEach(function(type) {
+        $shell.find('.khm-partner-connect-subsection[data-provider-type*="' + type + '"]').show();
+      });
+    }
+
+    // Event listener for provider type checkboxes
+    $form.on('change', 'input[name="provider_type[]"]', toggleProviderTypeSubsections);
+
+    // Initial state setup for provider type sub-sections on load and form reset
+    $form.on('reset', function() {
+      // Defer to allow the form to actually reset before re-evaluating
+      setTimeout(toggleProviderTypeSubsections, 0);
+    });
+
+    // Override populateForm to also toggle subsections after populating
+    var originalPopulateForm = populateForm;
+    populateForm = function(provider) {
+      originalPopulateForm(provider);
+      toggleProviderTypeSubsections();
+    };
+
+    // Function to update accordion counter display
+    function updateAccordionCounter($solutionCard) {
+      var $checkboxes = $solutionCard.find("input[type='checkbox']");
+      var checkedCount = $checkboxes.filter(":checked").length;
+      var $countStrong = $solutionCard.find(".khm-accordion-count");
+      
+      if ($countStrong.length) {
+        $countStrong.text(checkedCount); // Update just the number
+      }
+    }
+
+    // Event listeners for solution card checkbox changes
+    $form.on("change", "input[name='software_expertise[]']", function() {
+      var $card = $(this).closest('.khm-partner-solution-card');
+      if ($card.length) {
+        updateAccordionCounter($card);
+      }
+    });
+
+    // Initialize counters after form is loaded with data
+    var originalPopulateFormWithCounters = populateForm;
+    populateForm = function(provider) {
+      originalPopulateFormWithCounters(provider);
+      initializeAccordionCounters($form);
+    };
+
+    // Initialize counters on form reset
+    $form.on('reset', function() {
+      setTimeout(function() { initializeAccordionCounters($form); }, 0);
+    });
+
     loadProviders();
-    loadThreads();
+
+    // --- Account Details Logic ---
+    var $accountForm = $('#khm-partner-account-form');
+
+    function loadAccountData() {
+      if (!$accountForm.length) {
+        return;
+      }
+
+      showStatus('Loading account details...', 'info');
+
+      $.ajax({
+        url: (window.khmPartnerPortal && khmPartnerPortal.restUrl ? khmPartnerPortal.restUrl : '') + 'sponsor',
+        method: 'GET',
+        contentType: undefined,
+        processData: true,
+        headers: {
+          'X-WP-Nonce': window.khmPartnerPortal ? khmPartnerPortal.nonce : ''
+        },
+        dataType: 'json'
+      })
+        .done(function (sponsor) {
+          populateAccountForm(sponsor);
+          clearStatus();
+        })
+        .fail(function (xhr) {
+          showStatus('Could not load account details.', 'error');
+        });
+    }
+
+    function populateAccountForm(sponsor) {
+      if (!$accountForm.length) {
+        return;
+      }
+
+      $accountForm.find('[name="company_name"]').val(sponsor.name || '');
+      $accountForm.find('[name="website_url"]').val(sponsor.website_url || '');
+      $accountForm.find('[name="hq_location"]').val(sponsor.hq_location || '');
+      $accountForm.find('[name="regions"]').val(sponsor.regions || '');
+      $accountForm.find('[name="company_size_band"]').val(sponsor.company_size_band || '1-50');
+
+      // Checkboxes
+      var checkboxFields = [
+        'provider_type',
+        'software_expertise',
+        'hardware_capabilities',
+        'consultancy_areas',
+        'deployment_modes',
+        'support_tiers'
+      ];
+
+      checkboxFields.forEach(function (field) {
+        $accountForm.find('input[name="' + field + '[]"]').prop('checked', false);
+        var values = sponsor[field];
+        if (Array.isArray(values)) {
+          values.forEach(function (val) {
+            $accountForm.find('input[name="' + field + '[]"][value="' + val + '"]').prop('checked', true);
+          });
+        }
+      });
+
+      $accountForm.find('[name="pilot_scheme_available"]').prop('checked', !!sponsor.pilot_scheme_available);
+      $accountForm.find('[name="free_trial_available"]').prop('checked', !!sponsor.free_trial_available);
+
+      // Handle regions multi-select initialization after data is loaded
+      var initialRegions = Array.isArray(sponsor.regions) ? sponsor.regions : [];
+      initializeRegionsMultiSelect($accountForm, initialRegions);
+
+      initializeAccountAccordionCounters($accountForm);
+    }
+
+    function initializeRegionsMultiSelect($form, initialSelection) {
+      var $select = $form.find(".khm-partner-regions-primary-select");
+      if (!$select.length) {
+        return;
+      }
+
+      var $container = $select.closest(".khm-partner-regions-container");
+      var $tagsContainer = $container.find(".khm-partner-regions-tags");
+      if (!$tagsContainer.length) {
+        return;
+      }
+
+      var regionsData = window.khmAccountRegionsData || {};
+      var primaryLabels = regionsData.primary || {};
+      var countryLabels = regionsData.countries || {};
+
+      var selected = initialSelection.map(function(val) {
+        return { value: val, label: primaryLabels[val] || countryLabels[val] || val };
+      });
+      var allOptions = [];
+
+      // Build list of all options (primary regions + countries)
+      $select.find("option").each(function () {
+        var val = $(this).val();
+        if (!val) return;
+        allOptions.push({
+          value: val,
+          label: primaryLabels[val] || countryLabels[val] || val
+        });
+      });
+
+      function renderTags() {
+        $tagsContainer.empty();
+        selected.forEach(function (item) {
+          var $tag = $("<span class=\"khm-partner-region-tag\" data-value=\"" + esc(item.value) + "\">")
+            .text(item.label)
+            .append(" <button type=\"button\" class=\"khm-partner-region-tag-remove\" aria-label=\"Remove " + esc(item.label) + "\">&times;</button>");
+          $tagsContainer.append($tag);
+        });
+      }
+
+      function updateSelect() {
+        $select.empty();
+        $select.append("<option value=\"\">Select regions</option>");
+        allOptions.forEach(function (opt) {
+          var isSelected = selected.some(function (s) { return s.value === opt.value; });
+          $select.append("<option value=\"" + esc(opt.value) + "\"" + (isSelected ? " selected" : "") + ">" + esc(opt.label) + "</option>");
+        });
+      }
+
+      function toggleSelect() {
+        if (selected.length >= allOptions.length) {
+          $select.prop("disabled", true).attr("aria-disabled", "true");
+          // Disable all options except the empty one for reset
+          $select.find("option").not("[value=\"\"]").prop("disabled", true);
+          $select.find("option[value=\"\"]").prop("disabled", false).attr("selected", true); // Select empty option
+        } else {
+          $select.prop("disabled", false).attr("aria-disabled", "false");
+          $select.find("option").prop("disabled", false);
+          // If no options are selected, ensure "Select regions" is visible
+          if (selected.length === 0) {
+            $select.find("option[value=\"\"]").attr("selected", true);
+          } else {
+            $select.find("option[value=\"\"]").removeAttr("selected");
+          }
+        }
+      }
+
+      function addSelection(value) {
+        if (selected.some(function (s) { return s.value === value; })) {
+          return false;
+        }
+        var opt = allOptions.find(function (o) { return o.value === value; });
+        if (!opt) return false;
+        selected.push(opt);
+        renderTags();
+        updateSelect();
+        toggleSelect();
+        $select.trigger("change");
+        return true;
+      }
+
+      function removeSelection(value) {
+        var idx = selected.findIndex(function (s) { return s.value === value; });
+        if (idx >= 0) {
+          selected.splice(idx, 1);
+          renderTags();
+          updateSelect();
+          toggleSelect();
+          $select.trigger("change");
+        }
+      }
+
+      // Click on tag removes it
+      $tagsContainer.on("click", ".khm-partner-region-tag-remove", function (e) {
+        e.stopPropagation(); // Prevent click from bubbling to the select
+        var $tag = $(this).closest(".khm-partner-region-tag");
+        var value = $tag.data("value");
+        removeSelection(value);
+      });
+
+      // Click on select opens menu
+      $select.on("click", function (e) {
+        e.stopPropagation();
+        if ($(e.target).is(".khm-partner-region-tag, .khm-partner-region-tag-remove")) {
+          return; // Do nothing if a tag or remove button within the select is clicked
+        }
+        $container.toggleClass("is-open");
+      });
+
+      // Click outside closes menu
+      $(document).on("click", function (e) {
+        if (!$container.has(e.target).length) {
+          $container.removeClass("is-open");
+        }
+      });
+
+      // Select option click
+      $container.on("click", ".khm-partner-region-option", function (e) {
+        e.stopPropagation();
+        var $item = $(this);
+        var value = $item.data("value");
+
+        if ($item.hasClass("is-selected")) {
+          removeSelection(value);
+        } else {
+          addSelection(value);
+        }
+
+        // After adding/removing, ensure the actual <select> element's options reflect the state
+        $select.find("option[value=\"" + esc(value) + "\"]").prop("selected", $item.hasClass("is-selected"));
+        toggleSelect(); // Re-evaluate toggle state for disabled options
+      });
+
+      // Initial render
+      renderTags();
+      updateSelect();
+      toggleSelect();
+
+      // Initial selections from the underlying <select>
+      $select.find("option:selected").each(function() {
+        var val = $(this).val();
+        if (val && !selected.some(function(s) { return s.value === val; })) {
+          selected.push({ value: val, label: primaryLabels[val] || countryLabels[val] || val });
+        }
+      });
+      renderTags();
+      updateSelect();
+      toggleSelect();
+    }
+
+    // submitAccountDetails was removed in favour of the inline fetch() handler
+    // in render_account_section() which sends correct region data and solution
+    // mappings. The legacy jQuery submit binding was removed to prevent a
+    // parallel request that serializes empty regions (serializeArray doesn't
+    // capture the tag-based multi-select UI).
+
+    function initializeAccountAccordionCounters() {
+      $accountForm.find(".khm-partner-solution-card").each(function () {
+        updateAccordionCounter($(this));
+      });
+    }
+
+    if ($accountForm.length) {
+
+      $accountForm.on('change', 'input[type="checkbox"]', function () {
+        var $accordion = $(this).closest('.khm-accordion');
+        if ($accordion.length) {
+          updateAccordionCounter($accordion);
+        }
+        // Also handle the new collapsible solution cards
+        var $solutionCard = $(this).closest('.khm-partner-solution-card');
+        if ($solutionCard.length) {
+          updateAccordionCounter($solutionCard);
+          updateTotalCounter();
+        }
+      });
+
+      // Make solution card headers clickable to toggle collapse state
+      $accountForm.on('click', '.khm-partner-solution-card-header', function (e) {
+        e.stopPropagation();
+        var $card = $(this).closest('.khm-partner-solution-card');
+        if ($card.hasClass('is-collapsible')) {
+          $card.toggleClass('is-collapsed');
+        }
+      });
+
+      // Function to update the total counter at the top
+      function updateTotalCounter() {
+        var totalCount = 0;
+        $accountForm.find('.khm-partner-solution-card .khm-accordion-count').each(function () {
+          totalCount += parseInt($(this).text() || 0);
+        });
+        var totalText = totalCount > 0 ? totalCount : 'none';
+        $accountForm.find('.khm-solutions-total-counter strong').text(totalText);
+      }
+
+      // Keep accordions collapsed on page load
+      // $accountForm.find('.khm-partner-solution-card.is-collapsed').removeClass('is-collapsed');
+
+      loadAccountData();
+    }
   });
+
 })(jQuery);
