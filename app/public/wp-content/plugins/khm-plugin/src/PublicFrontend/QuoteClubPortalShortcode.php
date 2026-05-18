@@ -4299,6 +4299,26 @@ class QuoteClubPortalShortcode {
 			);
 		}
 
+		// Group solutions by simple keyword matching for accordion display
+		$grouped_solutions = [ 'software' => [], 'hardware' => [], 'consultancy' => [] ];
+		foreach ( $all_solutions as $sol ) {
+			$name = strtolower( $sol['solution_name'] );
+			if ( preg_match( '/\b(consulting|consultancy|advisory|strategy)\b/i', $name ) ) {
+				$grouped_solutions['consultancy'][] = $sol;
+			} elseif ( preg_match( '/\b(hardware|device|equipment|sensor|iot|appliance)\b/i', $name ) ) {
+				$grouped_solutions['hardware'][] = $sol;
+			} else {
+				$grouped_solutions['software'][] = $sol;
+			}
+		}
+
+		// Accordion group config
+		$accordion_groups = [
+			'software'    => [ 'label' => __( 'Software', 'khm-membership' ),    'icon' => 'dashicons-desktop' ],
+			'hardware'    => [ 'label' => __( 'Hardware', 'khm-membership' ),    'icon' => 'dashicons-admin-generic' ],
+			'consultancy' => [ 'label' => __( 'Consultancy', 'khm-membership' ), 'icon' => 'dashicons-groups' ],
+		];
+
 		// Fetch the current sponsor's mapped solution IDs
 		$mapped_solutions = [];
 		if ( $sponsor_id > 0 ) {
@@ -4314,7 +4334,7 @@ class QuoteClubPortalShortcode {
 				$mapped_solutions = array_map( 'intval', $mapped_rows );
 			}
 		}
-		$mapped_solutions_json = wp_json_encode( $mapped_solutions );
+
 		?>
 		<div class="khm-partner-section khm-partner-account-form" data-sponsor-id="<?php echo esc_attr( $sponsor_id ); ?>">
 			<h2><?php esc_html_e( 'Account & Offering Details', 'khm-membership' ); ?></h2>
@@ -4370,21 +4390,37 @@ class QuoteClubPortalShortcode {
 					<div class="khm-partner-block-header">
 						<h3><span class="dashicons dashicons-grid-view"></span> <?php esc_html_e( 'Solutions Offered', 'khm-membership' ); ?></h3>
 					</div>
-					<p class="khm-partner-field-helper"><?php esc_html_e( 'Select the Tech.Connect solution categories your company offers. These map your business to buyer discovery queries on the portal.', 'khm-membership' ); ?></p>
-					<div class="khm-partner-solutions-grid" id="khm-solutions-grid">
+					<p class="khm-partner-field-helper"><?php esc_html_e( 'Select the Tech.Connect solution categories your company offers, grouped by type (Software, Hardware, Consultancy). These map your business to buyer discovery queries on the portal.', 'khm-membership' ); ?></p>
+					<div class="khm-partner-solutions-accordion" id="khm-solutions-accordion">
 						<?php if ( empty( $all_solutions ) ) : ?>
 							<p class="khm-partner-field-helper"><?php esc_html_e( 'No solutions catalog available yet. Please run the Tech.Connect migration.', 'khm-membership' ); ?></p>
 						<?php else : ?>
-							<?php foreach ( $all_solutions as $sol ) : ?>
+							<?php foreach ( $accordion_groups as $group_key => $group_config ) : ?>
 								<?php
-								$sol_id    = (int) $sol['id'];
-								$checked   = in_array( $sol_id, $mapped_solutions, true );
-								$card_slug = preg_replace( '/[^a-z0-9-]/', '', sanitize_title( $sol['solution_name'] ) );
+								$group_solutions = $grouped_solutions[ $group_key ] ?? [];
+								if ( empty( $group_solutions ) ) {
+									continue;
+								}
 								?>
-								<label class="khm-partner-solution-card" for="sol-<?php echo esc_attr( $sol_id ); ?>">
-									<input type="checkbox" id="sol-<?php echo esc_attr( $sol_id ); ?>" name="solutions[]" value="<?php echo esc_attr( $sol_id ); ?>" <?php checked( $checked ); ?> />
-									<span class="khm-partner-solution-card-label"><?php echo esc_html( $sol['solution_name'] ); ?></span>
-								</label>
+								<div class="khm-partner-accordion">
+									<button type="button" class="khm-partner-accordion-trigger" aria-expanded="false" aria-controls="sol-panel-<?php echo esc_attr( $group_key ); ?>">
+										<span class="dashicons <?php echo esc_attr( $group_config['icon'] ); ?>"></span>
+										<?php echo esc_html( $group_config['label'] ); ?>
+										<span class="khm-partner-version-tag">(<?php echo count( $group_solutions ); ?>)</span>
+									</button>
+									<div class="khm-partner-accordion-panel" id="sol-panel-<?php echo esc_attr( $group_key ); ?>" hidden>
+										<?php foreach ( $group_solutions as $sol ) : ?>
+											<?php
+											$sol_id  = (int) $sol['id'];
+											$checked = in_array( $sol_id, $mapped_solutions, true );
+											?>
+											<label class="khm-partner-solution-row" for="sol-<?php echo esc_attr( $sol_id ); ?>">
+												<input type="checkbox" id="sol-<?php echo esc_attr( $sol_id ); ?>" name="solutions[]" value="<?php echo esc_attr( $sol_id ); ?>" <?php checked( $checked ); ?> />
+												<span><?php echo esc_html( $sol['solution_name'] ); ?></span>
+											</label>
+										<?php endforeach; ?>
+									</div>
+								</div>
 							<?php endforeach; ?>
 						<?php endif; ?>
 					</div>
@@ -4445,6 +4481,18 @@ class QuoteClubPortalShortcode {
 		<script>
 		(function() {
 			'use strict';
+
+			// Accordion toggle for solutions groups
+			document.addEventListener('click', function(e) {
+				var trigger = e.target.closest('.khm-partner-accordion-trigger');
+				if (!trigger) return;
+				var panel = document.getElementById(trigger.getAttribute('aria-controls'));
+				if (!panel) return;
+				var expanded = trigger.getAttribute('aria-expanded') === 'true';
+				trigger.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+				panel.hidden = expanded;
+			});
+
 			var form     = document.getElementById('khm-partner-account-form');
 			var msgEl    = form ? form.querySelector('.khm-partner-form-message') : null;
 			var regionsSelect = document.getElementById('khm-regions-select');

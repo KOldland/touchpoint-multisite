@@ -186,6 +186,10 @@ require_once __DIR__ . '/src/Membership/DashboardShortcode.php';
 require_once __DIR__ . '/src/Membership/Admin/ReportsPage.php';
 require_once __DIR__ . '/src/Services/LevelPriceResolver.php';
 require_once __DIR__ . '/src/Migrations/CreateSponsorApplicationsTable.php';
+require_once __DIR__ . '/src/Migrations/CreateEditorialTaxonomyTable.php';
+require_once __DIR__ . '/src/Migrations/CreateTechConnectTables.php';
+require_once __DIR__ . '/src/Migrations/CreateSponsorSolutionMappingTable.php';
+
 
 // Register GEO Suggestion Endpoint at rest_api_init
 add_action( 'rest_api_init', function() {
@@ -1580,87 +1584,121 @@ register_activation_hook(__FILE__, function () {
         } catch (\Exception $e) {
             error_log('Failed to create credit download system tables: ' . $e->getMessage());
             $activation_errors[] = 'Credit download system tables failed: ' . $e->getMessage();
-            // Initialize Quote Club tables (sponsor commentary, saved searches)
-            if ( class_exists('KHM\\Migrations\\CreateQuoteClubTables') ) {
-                try {
-                    KHM\Migrations\CreateQuoteClubTables::create_tables();
-                    error_log('KHM Quote Club tables created successfully');
-                } catch (\Exception $e) {
-                    error_log('Failed to create Quote Club tables: ' . $e->getMessage());
-                    $activation_errors[] = 'Quote Club tables failed: ' . $e->getMessage();
                 }
-            }
 
-            // Initialize Quote Club credit bundle tables
-            if ( class_exists('KHM\\Migrations\\CreateQuoteClubBundlesTable') ) {
-                try {
-                    KHM\Migrations\CreateQuoteClubBundlesTable::create_tables();
-                    error_log('KHM Quote Club bundle tables created successfully');
-                } catch (\Exception $e) {
-                    error_log('Failed to create Quote Club bundle tables: ' . $e->getMessage());
-                    $activation_errors[] = 'Quote Club bundle tables failed: ' . $e->getMessage();
-                }
+        // Initialize Quote Club tables (sponsor commentary, saved searches)
+        if ( class_exists('KHM\\Migrations\\CreateQuoteClubTables') ) {
+            try {
+                KHM\Migrations\CreateQuoteClubTables::create_tables();
+                error_log('KHM Quote Club tables created successfully');
+            } catch (\Exception $e) {
+                error_log('Failed to create Quote Club tables: ' . $e->getMessage());
+                $activation_errors[] = 'Quote Club tables failed: ' . $e->getMessage();
             }
-
-            // Add editorial credits columns to user credits table
-            if ( class_exists('KHM\\Migrations\\AddEditorialCredits') ) {
-                try {
-                    KHM\Migrations\AddEditorialCredits::add_columns();
-                    error_log('KHM editorial credits columns added successfully');
-                } catch (\Exception $e) {
-                    error_log('Failed to add editorial credits columns: ' . $e->getMessage());
-                    $activation_errors[] = 'Editorial credits columns failed: ' . $e->getMessage();
-                }
-            }
-
-            // Initialize press releases table
-            if ( class_exists('KHM\\Migrations\\CreatePressReleasesTable') ) {
-                try {
-                    KHM\Migrations\CreatePressReleasesTable::create_tables();
-                    error_log('KHM press releases table created successfully');
-                } catch (\Exception $e) {
-                    error_log('Failed to create press releases table: ' . $e->getMessage());
-                    $activation_errors[] = 'Press releases table failed: ' . $e->getMessage();
-                }
-            }
-
-            // Seed readership subscription tier slugs into the tier registry.
-            if ( class_exists('KHM\\Migrations\\SeedReadershipTiers') ) {
-                try {
-                    KHM\Migrations\SeedReadershipTiers::seed();
-                } catch (\Exception $e) {
-                    error_log('SeedReadershipTiers failed: ' . $e->getMessage());
-                }
-            }
-
-            // Add distribution_site_ids to press releases table (S7 – portfolio distribution).
-            if ( class_exists('KHM\\Migrations\\AddPressReleaseDistribution') ) {
-                try {
-                    KHM\Migrations\AddPressReleaseDistribution::add_columns();
-                } catch (\Exception $e) {
-                    error_log('AddPressReleaseDistribution failed: ' . $e->getMessage());
-                }
-            }
-
-            // Create sponsor adverts table (S16 – advert creative portal).
-            if ( class_exists('KHM\\Migrations\\CreateSponsorAdvertsTable') ) {
-                try {
-                    KHM\Migrations\CreateSponsorAdvertsTable::create_tables();
-                } catch (\Exception $e) {
-                    error_log('CreateSponsorAdvertsTable failed: ' . $e->getMessage());
-                }
-            }
-
-            // Add start_date / end_date scheduling columns (S20 – advert expiry).
-            if ( class_exists('KHM\\Migrations\\AddAdvertScheduleColumns') ) {
-                try {
-                    KHM\Migrations\AddAdvertScheduleColumns::run();
-                } catch (\Exception $e) {
-                    error_log('AddAdvertScheduleColumns failed: ' . $e->getMessage());
-                }
-            }
-
         }
+
+        // Initialize Quote Club credit bundle tables
+        if ( class_exists('KHM\\Migrations\\CreateQuoteClubBundlesTable') ) {
+            try {
+                KHM\Migrations\CreateQuoteClubBundlesTable::create_tables();
+                error_log('KHM Quote Club bundle tables created successfully');
+            } catch (\Exception $e) {
+                error_log('Failed to create Quote Club bundle tables: ' . $e->getMessage());
+                $activation_errors[] = 'Quote Club bundle tables failed: ' . $e->getMessage();
+            }
+        }
+
+        // Add editorial credits columns to user credits table
+        if ( class_exists('KHM\\Migrations\\AddEditorialCredits') ) {
+            try {
+                KHM\Migrations\AddEditorialCredits::add_columns();
+                error_log('KHM editorial credits columns added successfully');
+            } catch (\Exception $e) {
+                error_log('Failed to add editorial credits columns: ' . $e->getMessage());
+                $activation_errors[] = 'Editorial credits columns failed: ' . $e->getMessage();
+            }
+        }
+
+        // Initialize press releases table
+        if ( class_exists('KHM\\Migrations\\CreatePressReleasesTable') ) {
+            try {
+                KHM\Migrations\CreatePressReleasesTable::create_tables();
+                error_log('KHM press releases table created successfully');
+            } catch (\Exception $e) {
+                error_log('Failed to create press releases table: ' . $e->getMessage());
+                $activation_errors[] = 'Press releases table failed: ' . $e->getMessage();
+            }
+        }
+
+        // Seed readership subscription tier slugs into the tier registry.
+        if ( class_exists('KHM\\Migrations\\SeedReadershipTiers') ) {
+            try {
+                KHM\Migrations\SeedReadershipTiers::seed();
+            } catch (\Exception $e) {
+                error_log('SeedReadershipTiers failed: ' . $e->getMessage());
+            }
+        }
+
+        // Add distribution_site_ids to press releases table (S7 – portfolio distribution).
+        if ( class_exists('KHM\\Migrations\\AddPressReleaseDistribution') ) {
+            try {
+                KHM\Migrations\AddPressReleaseDistribution::add_columns();
+            } catch (\Exception $e) {
+                error_log('AddPressReleaseDistribution failed: ' . $e->getMessage());
+            }
+        }
+
+        // Create sponsor adverts table (S16 – advert creative portal).
+        if ( class_exists('KHM\\Migrations\\CreateSponsorAdvertsTable') ) {
+            try {
+                KHM\Migrations\CreateSponsorAdvertsTable::create_tables();
+            } catch (\Exception $e) {
+                error_log('CreateSponsorAdvertsTable failed: ' . $e->getMessage());
+            }
+        }
+
+        // Phase 1: Editorial Taxonomy Table (Content Anchor)
+        if ( class_exists('KHM\\Migrations\\CreateEditorialTaxonomyTable') ) {
+            try {
+                KHM\Migrations\CreateEditorialTaxonomyTable::up();
+                error_log('KHM Editorial Taxonomy Table created successfully');
+            } catch ( \Exception $e ) {
+                error_log('Failed to create Editorial Taxonomy Table: ' . $e->getMessage());
+                $activation_errors[] = 'Editorial Taxonomy Table failed: ' . $e->getMessage();
+            }
+        }
+
+        // Phase 5: Tech.Connect Relational Tables
+        if ( class_exists('KHM\\Migrations\\CreateTechConnectTables') ) {
+            try {
+                KHM\Migrations\CreateTechConnectTables::create_tables();
+                error_log('KHM Tech.Connect Relational Tables created successfully');
+            } catch (\Exception $e) {
+                error_log('Failed to create Tech.Connect Tables: ' . $e->getMessage());
+                $activation_errors[] = 'Tech.Connect Tables failed: ' . $e->getMessage();
+            }
+        }
+
+        // Phase 6: Sponsor to Solution Mapping (NEW BRIDGE)
+        if ( class_exists('KHM\\Migrations\\CreateSponsorSolutionMappingTable') ) {
+            try {
+                KHM\Migrations\CreateSponsorSolutionMappingTable::create_table();
+                error_log('KHM Sponsor Solution Mapping Table created successfully');
+            } catch ( \Exception $e ) {
+                error_log('Failed to create Sponsor Solution Mapping Table: ' . $e->getMessage());
+                $activation_errors[] = 'Sponsor Solution Mapping Table failed: ' . $e->getMessage();
+            }
+        }
+
+        // Add start_date / end_date scheduling columns (S20 – advert expiry).
+        if ( class_exists('KHM\\Migrations\\AddAdvertScheduleColumns') ) {
+            try {
+                KHM\Migrations\AddAdvertScheduleColumns::run();
+            } catch (\Exception $e) {
+                error_log('AddAdvertScheduleColumns failed: ' . $e->getMessage());
+            }
+        }
+
     }
 
     // Initialize credit system
@@ -1885,8 +1923,10 @@ if ( defined('WP_CLI') && WP_CLI ) {
     require_once __DIR__ . $cli_dir . 'RetentionRunCommand.php';
     require_once __DIR__ . $cli_dir . 'MembershipEmailControlCommand.php';
     require_once __DIR__ . $cli_dir . 'ConnectDemoSeedCommand.php';
+    require_once __DIR__ . $cli_dir . 'SeedTaxonomyFromCsvCommand.php';
 
     // Register CLI commands
+    WP_CLI::add_command( 'khm seed-csv', 'KHM\\CLI\\SeedTaxonomyFromCsvCommand' );
     WP_CLI::add_command( 'khm membership:dlq', 'KHM\\CLI\\MembershipWebhookDeadLettersCommand' );
     WP_CLI::add_command( 'khm membership:dlq:replay', 'KHM\\CLI\\MembershipWebhookDeadLettersReplayCommand' );
     WP_CLI::add_command( 'khm anonymize_attribution', 'KHM\\CLI\\AnonymizeAttributionCommand' );
@@ -2457,281 +2497,3 @@ add_action('admin_menu', function() {
 
     ksort($menu);
 }, 999);
-
-function render_editorial_planner_page() {
-    echo '<div id="editorial-planner-app"></div>';
-    $planner_path = plugin_dir_path(__FILE__) . 'assets/js/editorial-planner.js';
-    $planner_version = file_exists($planner_path) ? filemtime($planner_path) : '1.0';
-    // Force cache-bust on Local recovery builds where browser cache can stick to stale planner JS.
-    if (defined('WP_ENVIRONMENT_TYPE') && WP_ENVIRONMENT_TYPE === 'local') {
-        $planner_version = $planner_version . '-recovery-synopses-fix-1';
-    }
-    wp_enqueue_script(
-        'editorial-planner',
-        plugins_url('assets/js/editorial-planner.js', __FILE__),
-        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
-        $planner_version,
-        true
-    );
-    wp_localize_script(
-        'editorial-planner',
-        'dualGptData',
-        array(
-            'nonce' => wp_create_nonce('wp_rest'),
-            'restUrl' => rest_url('dual-gpt/v1/'),
-        )
-    );
-}
-
-function render_frameworks_page() {
-    echo '<div id="editorial-frameworks-app"></div>';
-    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-frameworks.js';
-    $version = file_exists($path) ? filemtime($path) : '1.0';
-    wp_enqueue_script(
-        'editorial-frameworks',
-        plugins_url('assets/js/editorial-frameworks.js', __FILE__),
-        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
-        $version,
-        true
-    );
-    wp_localize_script(
-        'editorial-frameworks',
-        'dualGptData',
-        array(
-            'nonce' => wp_create_nonce('wp_rest'),
-            'restUrl' => rest_url('dual-gpt/v1/'),
-        )
-    );
-}
-
-function render_new_session_page() {
-    echo '<div id="editorial-new-session-app"></div>';
-    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-new-session.js';
-    $version = file_exists($path) ? filemtime($path) : '1.0';
-    wp_enqueue_script(
-        'editorial-new-session',
-        plugins_url('assets/js/editorial-new-session.js', __FILE__),
-        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
-        $version,
-        true
-    );
-    wp_localize_script(
-        'editorial-new-session',
-        'dualGptData',
-        array(
-            'nonce' => wp_create_nonce('wp_rest'),
-            'restUrl' => rest_url('dual-gpt/v1/'),
-        )
-    );
-    wp_localize_script(
-        'editorial-new-session',
-        'admin_url',
-        admin_url()
-    );
-}
-
-function render_top_line_categories_page() {
-    echo '<div id="editorial-top-line-categories-app"></div>';
-    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-top-line-categories.js';
-    $version = file_exists($path) ? filemtime($path) : '1.0';
-    wp_enqueue_script(
-        'editorial-top-line-categories',
-        plugins_url('assets/js/editorial-top-line-categories.js', __FILE__),
-        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
-        $version,
-        true
-    );
-    wp_localize_script(
-        'editorial-top-line-categories',
-        'dualGptData',
-        array(
-            'nonce' => wp_create_nonce('wp_rest'),
-            'restUrl' => rest_url('dual-gpt/v1/'),
-        )
-    );
-}
-
-function render_sessions_page() {
-    echo '<div id="editorial-sessions-app"></div>';
-
-    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-sessions.js';
-    $version = file_exists($path) ? filemtime($path) : '1.0';
-    wp_enqueue_script(
-        'editorial-sessions',
-        plugins_url('assets/js/editorial-sessions.js', __FILE__),
-        array('wp-element', 'wp-api-fetch', 'wp-components', 'wp-data'),
-        $version,
-        true
-    );
-    wp_localize_script(
-        'editorial-sessions',
-        'dualGptData',
-        array(
-            'nonce' => wp_create_nonce('wp_rest'),
-            'restUrl' => rest_url('dual-gpt/v1/'),
-        )
-    );
-}
-
-function render_exports_page() {
-    echo '<div id="editorial-exports-app"></div>';
-    wp_enqueue_script('editorial-exports', plugins_url('assets/js/editorial-exports.js', __FILE__), ['wp-element', 'wp-api-fetch'], '1.0', true);
-}
-
-function render_editorial_calendar_page() {
-    echo '<div id="editorial-calendar-app"></div>';
-    $path = plugin_dir_path(__FILE__) . 'assets/js/editorial-calendar.js';
-    $version = file_exists($path) ? filemtime($path) : '1.0';
-    wp_enqueue_script(
-        'editorial-calendar',
-        plugins_url('assets/js/editorial-calendar.js', __FILE__),
-        array('wp-element', 'wp-components'),
-        $version,
-        true
-    );
-}
-
-// Dashboard Widgets
-add_action('wp_dashboard_setup', function() {
-    wp_add_dashboard_widget('plnr_quick_create','Quick Create Planner','render_planner_quick_create_widget');
-    wp_add_dashboard_widget('plnr_recent_sessions','Recent Planner Sessions','render_planner_recent_sessions_widget');
-});
-
-function render_planner_quick_create_widget() {
-    echo '<div id="plnr-quick-create" data-nonce="' . wp_create_nonce('wp_rest') . '"></div>';
-}
-
-function render_planner_recent_sessions_widget() {
-    echo '<div id="plnr-recent-sessions" data-nonce="' . wp_create_nonce('wp_rest') . '"></div>';
-}
-
-// Enqueue dashboard JS
-add_action('admin_enqueue_scripts', function($hook) {
-    if ($hook !== 'index.php') {
-        return;
-    }
-
-    wp_enqueue_script(
-        'editorial-dashboard',
-        plugins_url('assets/js/editorial-dashboard.js', __FILE__),
-        array( 'wp-api-fetch' ),
-        '1.0.0',
-        true
-    );
-
-    wp_localize_script(
-        'editorial-dashboard',
-        'editorialData',
-        array(
-            'restBase' => rest_url( 'editorial/v1/' ),
-            'nonce'    => wp_create_nonce( 'wp_rest' )
-        )
-    );
-});
-
-// REST Endpoints
-add_action('rest_api_init', function() {
-    register_rest_route('editorial/v1','/sessions',[
-        'methods' => 'GET',
-        'callback' => 'ed_get_sessions',
-        'permission_callback' => function(){ return current_user_can('edit_posts'); }
-    ]);
-    register_rest_route('editorial/v1','/sessions',[
-        'methods' => 'POST',
-        'callback' => 'ed_create_session',
-        'permission_callback' => function(){ return current_user_can('edit_posts'); },
-        'args' => [ 'title' => ['required' => true] ]
-    ]);
-    register_rest_route('editorial/v1','/frameworks',[
-        'methods' => 'GET',
-        'callback' => 'ed_get_frameworks',
-        'permission_callback' => function(){ return current_user_can('edit_posts'); }
-    ]);
-    register_rest_route('editorial/v1','/pipeline',[
-        'methods' => 'GET',
-        'callback' => 'ed_get_pipeline',
-        'permission_callback' => function(){ return current_user_can('edit_posts'); }
-    ]);
-});
-
-function ed_get_sessions($request){
-    $limit = intval($request->get_param('limit') ?: 6);
-    $args = ['post_type'=>'planner_session','posts_per_page'=>$limit,'post_status'=>'any'];
-    $q = get_posts($args);
-    $out = array_map(function($p){ return ['id'=>$p->ID,'title'=>$p->post_title,'status'=>get_post_meta($p->ID,'status',true),'link'=>admin_url("admin.php?page=editorial_planner&session_id={$p->ID}")]; }, $q);
-    return rest_ensure_response($out);
-}
-
-function ed_create_session( WP_REST_Request $request ) {
-    $params = $request->get_json_params();
-    $title  = isset($params['title']) ? sanitize_text_field($params['title']) : '';
-
-    if ( empty( $title ) ) {
-        return new WP_Error( 'missing_title', 'Title is required', array( 'status' => 400 ) );
-    }
-
-    // prepare post array
-    $postarr = array(
-        'post_type'    => 'planner_session',
-        'post_title'   => $title,
-        'post_status'  => 'draft',
-        'post_author'  => get_current_user_id(),
-    );
-
-    // attempt insert with WP_Error return allowed
-    $post_id = wp_insert_post( $postarr, true );
-
-    if ( is_wp_error( $post_id ) ) {
-        // explicit log for debugging — include user id and request data (careful with secrets)
-        error_log( '[PLANNER] wp_insert_post failed: ' . $post_id->get_error_message() . ' | user:' . get_current_user_id() . ' | title:' . $title );
-        return new WP_Error( 'insert_failed', 'Failed to insert session: ' . $post_id->get_error_message(), array( 'status' => 500 ) );
-    }
-
-    if ( empty( $post_id ) || intval( $post_id ) === 0 ) {
-        global $wpdb;
-        error_log( '[PLANNER] wp_insert_post returned 0. DB error: ' . $wpdb->last_error . ' | user:' . get_current_user_id() );
-        return new WP_Error( 'insert_failed', 'Failed to insert session (DB error).', array( 'status' => 500, 'db_error' => $wpdb->last_error ) );
-    }
-
-    // set default meta and return
-    update_post_meta( $post_id, 'status', 'draft' );
-    update_post_meta( $post_id, 'created_by', get_current_user_id() );
-    return rest_ensure_response( array(
-        'id'   => (int) $post_id,
-        'link' => admin_url( 'admin.php?page=editorial_planner&session_id=' . $post_id ),
-    ));
-}
-
-function ed_get_frameworks($request){
-    // Placeholder - implement based on your frameworks
-    return rest_ensure_response([]);
-}
-
-// Block editor: AI Image Generator sidebar
-add_action('enqueue_block_editor_assets', function () {
-    if (!current_user_can('edit_posts')) {
-        return;
-    }
-    $path    = plugin_dir_path(__FILE__) . 'assets/js/editor-image-sidebar.js';
-    $version = file_exists($path) ? filemtime($path) : '1.0';
-    wp_enqueue_script(
-        'khm-editor-image-sidebar',
-        plugins_url('assets/js/editor-image-sidebar.js', __FILE__),
-        array('wp-plugins', 'wp-edit-post', 'wp-editor', 'wp-element', 'wp-components', 'wp-data', 'wp-api-fetch'),
-        $version,
-        true
-    );
-    wp_localize_script(
-        'khm-editor-image-sidebar',
-        'khmEditorData',
-        array(
-            'nonce'   => wp_create_nonce('wp_rest'),
-            'restUrl' => rest_url('dual-gpt/v1/'),
-        )
-    );
-});
-
-function ed_get_pipeline($request){
-    // Placeholder - implement based on your pipeline
-    return rest_ensure_response([]);
-}
