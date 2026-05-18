@@ -280,8 +280,11 @@
   box-shadow: none;
 }
 
-.khm-partner-regions-tags { /* This container is now redundant or can be used for hidden select */
-  display: contents; /* Effectively removes the container without affecting its children in the DOM flow */
+.khm-partner-regions-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .khm-partner-region-tag {

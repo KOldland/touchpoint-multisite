@@ -4562,25 +4562,30 @@ class QuoteClubPortalShortcode {
 							</select>
 						</label>
 						<div class="khm-partner-regions-container">
-							<span style="display:block;font-size:0.875rem;font-weight:600;margin-bottom:0.35rem;"><?php esc_html_e( 'Regions Served', 'khm-membership' ); ?></span>
-			<div class="khm-partner-regions-tags" id="khm-region-tags">
-				<?php foreach ( $regions as $region ) : ?>
-					<span class="khm-partner-region-tag" data-region="<?php echo esc_attr( $region ); ?>">
-						<span class="khm-partner-region-tag-text"><?php echo esc_html( $region ); ?></span>
-						<button type="button" class="khm-partner-region-tag-remove" data-region="<?php echo esc_attr( $region ); ?>">&times;</button>
-					</span>
-				<?php endforeach; ?>
-			</div>
-							<select multiple class="khm-partner-regions-select" id="khm-regions-select">
-								<option value=""><?php esc_html_e( 'Select regions…', 'khm-membership' ); ?></option>
-								<?php
-								$region_options = [ 'UK & Ireland', 'Western Europe', 'DACH', 'Nordics', 'Southern Europe', 'Eastern Europe', 'North America', 'Central America', 'South America', 'Middle East & Africa', 'Asia Pacific', 'Oceania', 'Global' ];
-								foreach ( $region_options as $r ) :
-									$selected = in_array( $r, $regions, true ) ? 'selected' : '';
-								?>
-									<option value="<?php echo esc_attr( $r ); ?>" <?php echo $selected; ?>><?php echo esc_html( $r ); ?></option>
-								<?php endforeach; ?>
-							</select>
+							<button type="button" class="khm-partner-accordion-trigger" aria-expanded="false" aria-controls="khm-regions-panel">
+								<span class="dashicons dashicons-location"></span> <?php esc_html_e( 'Regions Served', 'khm-membership' ); ?>
+								<span class="khm-partner-regions-count-badge" style="font-size:0.75rem;background:#e0f2fe;color:#0369a1;border-radius:999px;padding:0.1rem 0.5rem;"><?php echo count( $regions ); ?></span>
+							</button>
+							<div id="khm-regions-panel" class="khm-partner-accordion-panel" hidden style="display:block;padding:0.75rem 0.75rem;max-height:none;overflow:visible;">
+								<div class="khm-partner-regions-tags" id="khm-region-tags">
+									<?php foreach ( $regions as $region ) : ?>
+										<span class="khm-partner-region-tag" data-region="<?php echo esc_attr( $region ); ?>">
+											<span class="khm-partner-region-tag-text"><?php echo esc_html( $region ); ?></span>
+											<button type="button" class="khm-partner-region-tag-remove" data-region="<?php echo esc_attr( $region ); ?>">&times;</button>
+										</span>
+									<?php endforeach; ?>
+								</div>
+								<select multiple class="khm-partner-regions-select" id="khm-regions-select">
+									<option value=""><?php esc_html_e( 'Select regions…', 'khm-membership' ); ?></option>
+									<?php
+									$region_options = [ 'UK & Ireland', 'Western Europe', 'DACH', 'Nordics', 'Southern Europe', 'Eastern Europe', 'North America', 'Central America', 'South America', 'Middle East & Africa', 'Asia Pacific', 'Oceania', 'Global' ];
+									foreach ( $region_options as $r ) :
+										$selected = in_array( $r, $regions, true ) ? 'selected' : '';
+									?>
+										<option value="<?php echo esc_attr( $r ); ?>" <?php echo $selected; ?>><?php echo esc_html( $r ); ?></option>
+									<?php endforeach; ?>
+								</select>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -4666,7 +4671,7 @@ class QuoteClubPortalShortcode {
 				</div>
 
 				<!-- ── Save Button ──────────────────────────────────────── -->
-				<div class="khm-partner-account-block" style="border:none;box-shadow:none;background:transparent;padding:1rem 0;">
+				<div class="khm-partner-account-block" style="border:none;box-shadow:none;background:transparent;padding:1rem 0;text-align:right;">
 					<button type="submit" class="khm-partner-btn khm-partner-btn-primary"><?php esc_html_e( 'Save Account Settings', 'khm-membership' ); ?></button>
 					<span class="khm-partner-form-message" style="margin-left:1rem;font-size:0.875rem;"></span>
 				</div>
