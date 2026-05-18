@@ -4770,7 +4770,7 @@ class QuoteClubPortalShortcode {
 					sponsor_id:             parseInt(form.querySelector('input[name="sponsor_id"]').value, 10) || 0,
 					company_name:           form.querySelector('input[name="company_name"]').value.trim(),
 					company_url:            companyUrl,
-					hq_location:            form.querySelector('input[name="hq_location"]').value.trim(),
+					hq_location:            (form.querySelector('select[name="hq_location"]') || {}).value || '',
 					regions:                regions,
 					solutions:              solutions,
 					deployment_mode:        (form.querySelector('input[name="deployment_mode"]:checked') || {}).value || 'cloud',
