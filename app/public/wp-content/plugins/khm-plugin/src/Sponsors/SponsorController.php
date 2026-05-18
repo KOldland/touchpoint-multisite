@@ -853,7 +853,11 @@ class SponsorController {
 
         // Company profile fields
         $company_name = sanitize_text_field( (string) ( $body['company_name'] ?? '' ) );
-        $company_url  = esc_url_raw( (string) ( $body['company_url'] ?? '' ) );
+        $raw_url      = trim( (string) ( $body['company_url'] ?? '' ) );
+        if ( $raw_url && ! preg_match( '/^https?:\/\//', $raw_url ) ) {
+            $raw_url = 'https://' . $raw_url;
+        }
+        $company_url  = esc_url_raw( $raw_url );
         $hq_location  = sanitize_text_field( (string) ( $body['hq_location'] ?? '' ) );
         $regions      = isset( $body['regions'] ) && is_array( $body['regions'] )
             ? array_map( 'sanitize_text_field', $body['regions'] )

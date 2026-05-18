@@ -4279,10 +4279,10 @@ class QuoteClubPortalShortcode {
 	private function render_account_section( int $user_id, ?array $sponsor ): void {
 		$sponsor_id      = (int) ( $sponsor['id'] ?? 0 );
 		$sponsor_name    = isset( $sponsor['name'] ) ? sanitize_text_field( $sponsor['name'] ) : '';
-		$sponsor_company_url = isset( $sponsor['company_url'] ) ? esc_url( $sponsor['company_url'] ) : '';
+		$sponsor_company_url = isset( $sponsor['url'] ) ? esc_url( $sponsor['url'] ) : '';
 		$sponsor_hq      = isset( $sponsor['hq_location'] ) ? sanitize_text_field( $sponsor['hq_location'] ) : '';
 		$regions         = isset( $sponsor['regions'] ) ? (array) json_decode( $sponsor['regions'], true ) : [];
-		$deployment_mode = isset( $sponsor['deployment_mode'] ) ? sanitize_text_field( $sponsor['deployment_mode'] ) : 'cloud';
+		$deployment_mode = isset( $sponsor['deployment_modes'] ) ? sanitize_text_field( $sponsor['deployment_modes'] ) : 'cloud';
 		$support_hours   = isset( $sponsor['support_hours'] ) ? sanitize_text_field( $sponsor['support_hours'] ) : 'business';
 		$impl_support    = isset( $sponsor['implementation_support'] ) ? (bool) $sponsor['implementation_support'] : false;
 		$pilot_terms     = isset( $sponsor['pilot_terms'] ) ? sanitize_textarea_field( $sponsor['pilot_terms'] ) : '';
@@ -4569,10 +4569,15 @@ class QuoteClubPortalShortcode {
 					solutions.push(parseInt(cb.value, 10));
 				});
 
+				var companyUrl = form.querySelector('input[name="company_url"]').value.trim();
+				if (companyUrl && !companyUrl.match(/^https?:\/\//)) {
+					companyUrl = 'https://' + companyUrl;
+				}
+
 				var data = {
 					sponsor_id:             parseInt(form.querySelector('input[name="sponsor_id"]').value, 10) || 0,
 					company_name:           form.querySelector('input[name="company_name"]').value.trim(),
-					company_url:            form.querySelector('input[name="company_url"]').value.trim(),
+					company_url:            companyUrl,
 					hq_location:            form.querySelector('input[name="hq_location"]').value.trim(),
 					regions:                regions,
 					solutions:              solutions,
