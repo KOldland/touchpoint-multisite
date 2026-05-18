@@ -4465,17 +4465,6 @@ class QuoteClubPortalShortcode {
 					</div>
 				</div>
 
-				<!-- ── Pilot Terms Block ────────────────────────────────── -->
-				<div class="khm-partner-account-block">
-					<div class="khm-partner-block-header">
-						<h3><span class="dashicons dashicons-clipboard"></span> <?php esc_html_e( 'Pilot Terms', 'khm-membership' ); ?></h3>
-					</div>
-					<label>
-						<span class="khm-partner-field-helper"><?php esc_html_e( 'Describe your standard pilot or proof-of-concept terms (duration, scope, pricing, success criteria).', 'khm-membership' ); ?></span>
-						<textarea name="pilot_terms" rows="4" class="khm-partner-block-grid-2col" style="grid-column:1/-1;width:100%;padding:0.65rem 0.75rem;border:1px solid var(--partner-border);border-radius:6px;font:inherit;"><?php echo esc_textarea( $pilot_terms ); ?></textarea>
-					</label>
-				</div>
-
 				<!-- ── Save Button ──────────────────────────────────────── -->
 				<div class="khm-partner-account-block" style="border:none;box-shadow:none;background:transparent;padding:1rem 0;">
 					<button type="submit" class="khm-partner-btn khm-partner-btn-primary"><?php esc_html_e( 'Save Account Settings', 'khm-membership' ); ?></button>
@@ -4587,7 +4576,6 @@ class QuoteClubPortalShortcode {
 					deployment_mode:        (form.querySelector('input[name="deployment_mode"]:checked') || {}).value || 'cloud',
 					implementation_support: form.querySelector('input[name="implementation_support"]').checked ? 1 : 0,
 					support_hours:          (form.querySelector('input[name="support_hours"]:checked') || {}).value || 'business',
-					pilot_terms:            form.querySelector('textarea[name="pilot_terms"]').value.trim()
 				};
 
 				fetch( khmQuoteClub.sponsorRestUrl + 'profile', {
