@@ -4559,9 +4559,11 @@ class QuoteClubPortalShortcode {
 				if (submitBtn) submitBtn.disabled = true;
 
 				// Gather regions from tags
+				// The jQuery initializeRegionsMultiSelect creates tags with data-value;
+				// the PHP inline handler creates them with data-region. Handle both.
 				var regions = [];
 				regionsTags.querySelectorAll('.khm-partner-region-tag').forEach(function(tag) {
-					regions.push(tag.dataset.region);
+					regions.push(tag.dataset.region || tag.dataset.value);
 				});
 
 				// Gather selected solutions
