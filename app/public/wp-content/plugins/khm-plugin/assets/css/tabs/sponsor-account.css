@@ -1,0 +1,472 @@
+/**
+ * Partner Portal — Account Details tab
+ *
+ * Account-specific styles for the company profile form, solution selection,
+ * regions multi-select, and country picker.
+ *
+ * NOTE: Shared component styles (buttons, modals, forms, solution cards,
+ * accordions, service grids, inline checks) live in partner-portal-components.css.
+ *
+ * @package KHM\PublicFrontend
+ */
+
+/* ── Section block layout — each block is a distinct visual container ── */
+
+.khm-partner-account-block {
+  background: var(--partner-surface);
+  border: 1px solid var(--partner-border);
+  border-radius: var(--partner-radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+
+.khm-partner-account-block:last-child {
+  margin-bottom: 0;
+}
+
+/* Block headers — full-width horizontal rule */
+.khm-partner-block-header {
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.khm-partner-block-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.khm-partner-block-header h3::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--partner-border);
+}
+
+/* 2-column mini-grid for form fields within a block */
+.khm-partner-block-grid-2col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .khm-partner-block-grid-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Labels within the 2-column grid */
+.khm-partner-block-grid-2col label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--partner-text);
+}
+
+.khm-partner-block-grid-2col label span {
+  display: block;
+  font-size: 0.875rem;
+}
+
+/* Inputs within the 2-column grid */
+.khm-partner-block-grid-2col input,
+.khm-partner-block-grid-2col select,
+.khm-partner-block-grid-2col textarea,
+.khm-partner-block-grid-2col .khm-partner-country-select {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--partner-border);
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  color: var(--partner-text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.khm-partner-block-grid-2col input:focus,
+.khm-partner-block-grid-2col select:focus,
+.khm-partner-block-grid-2col textarea:focus {
+  outline: none;
+  border-color: var(--partner-primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+/* Solutions grid — 3-column card layout */
+.khm-partner-solutions-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.8rem;
+  margin-bottom: 0.8rem;
+  padding: 0 0.1rem;
+}
+
+@media (max-width: 768px) {
+  .khm-partner-solutions-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .khm-partner-solutions-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.khm-partner-solutions-grid .khm-partner-solution-card {
+  margin-bottom: 0;
+}
+
+/* ── Solutions Accordion ──────────────────────────────────────────── */
+
+.khm-partner-solutions-accordion {
+  margin-bottom: 0.8rem;
+}
+
+.khm-partner-accordion {
+  border: 1px solid var(--partner-border);
+  border-radius: var(--partner-radius);
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+}
+
+.khm-partner-accordion-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+  border: none;
+  border-bottom: 1px solid var(--partner-border);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--partner-text);
+  text-align: left;
+  transition: background-color 0.15s;
+}
+
+.khm-partner-accordion-trigger:hover {
+  background: #f1f5f9;
+}
+
+.khm-partner-accordion-trigger::after {
+  content: '\25BC';
+  margin-left: auto;
+  font-size: 0.65rem;
+  transition: transform 0.2s;
+}
+
+.khm-partner-accordion-trigger[aria-expanded="true"]::after {
+  transform: rotate(180deg);
+}
+
+.khm-partner-accordion-panel {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  padding: 0.25rem 0;
+  background: #fff;
+}
+
+.khm-partner-accordion-panel[hidden] {
+  display: none;
+}
+
+/* Toggle-style checkbox rows (matching RFQ toggle pattern) */
+.khm-partner-solution-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #1f2937;
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+
+.khm-partner-solution-row:hover {
+  background-color: #f9fafb;
+}
+
+.khm-partner-solution-row input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.khm-partner-solution-row input[type="checkbox"]:checked + span {
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+/* Section title with horizontal rule */
+.khm-partner-form-section-title {
+  margin: 0 0 0.85rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--partner-text);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.khm-partner-form-section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--partner-border);
+}
+
+.khm-partner-version-tag {
+  font-size: 0.8rem;
+  color: var(--partner-muted);
+}
+
+/* ── Regions Multi-Select with Bubbles/Tags ──────────────────────── */
+
+.khm-partner-regions-container {
+  position: relative;
+  width: 100%;
+}
+
+.khm-partner-regions-container.is-open {
+  z-index: 1000;
+}
+
+.khm-partner-regions-select {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--partner-border);
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  color: var(--partner-text);
+  min-height: 38px;
+  cursor: pointer;
+  display: flex; /* Make it a flex container */
+  flex-wrap: wrap; /* Allow tags to wrap */
+  align-items: center;
+  gap: 0.5rem; /* Space between tags and text */
+}
+
+.khm-partner-regions-select:focus-within { /* Use focus-within for the container */
+  outline: none;
+  border-color: var(--partner-primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+.khm-partner-regions-select select[multiple] {
+  flex-grow: 1; /* Allow the select to take available space */
+  min-width: 100px; /* Ensure select is visible */
+  border: none; /* Remove border from inner select */
+  padding: 0; /* Remove padding from inner select */
+  background: transparent; /* Transparent background */
+  height: auto; /* Adjust height as needed */
+}
+
+.khm-partner-regions-select select[multiple]:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.khm-partner-regions-tags { /* This container is now redundant or can be used for hidden select */
+  display: contents; /* Effectively removes the container without affecting its children in the DOM flow */
+}
+
+.khm-partner-region-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  background: #e0f2fe;
+  color: #0369a1;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.khm-partner-region-tag-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease;
+}
+
+.khm-partner-region-tag-remove:hover {
+  background: rgba(3, 105, 161, 0.2);
+}
+
+/* Dropdown menu for regions */
+.khm-partner-regions-container.is-open .khm-partner-region-option {
+  display: block;
+}
+
+.khm-partner-region-option {
+  display: none;
+  position: relative;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--partner-text);
+  border-bottom: 1px solid var(--partner-border);
+  white-space: nowrap;
+}
+
+.khm-partner-region-option:hover {
+  background: #f8fafc;
+}
+
+.khm-partner-region-option.is-selected {
+  background: #e0f2fe;
+  color: #0369a1;
+  font-weight: 500;
+}
+
+.khm-partner-region-option.is-active {
+  background: #f1f5f9;
+}
+
+/* Field helper text - positioned above inputs */
+.khm-partner-field-helper {
+  font-size: 0.75rem;
+  font-weight: 300;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+  margin-top: 0;
+}
+
+/* Country select styling */
+.khm-partner-country-select {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--partner-border);
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  color: var(--partner-text);
+  min-height: 38px;
+}
+
+.khm-partner-country-select:focus {
+  outline: none;
+  border-color: var(--partner-primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+/* Responsive adjustments for regions */
+@media (max-width: 640px) {
+  .khm-partner-regions-tags {
+    gap: 0.35rem;
+  }
+
+  .khm-partner-region-tag {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .khm-partner-region-tag-remove {
+    width: 14px;
+    height: 14px;
+    font-size: 12px;
+  }
+}
+
+/* Account form overrides */
+.khm-partner-account-form {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin-top: 0.8rem !important;
+  max-width: 100% !important;
+  font-family: 'Lato', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.khm-partner-account-form > div {
+  margin-bottom: 1.25rem;
+}
+
+.khm-partner-account-form > div:last-of-type {
+  margin-bottom: 0;
+}
+
+.khm-partner-account-form p {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #4b5563;
+  margin-bottom: 1rem;
+}
+
+.khm-partner-account-form p:last-child {
+  margin-bottom: 0;
+}
+
+.khm-partner-account-form h3 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.8rem;
+  font-size: 1.05rem;
+}
+
+.khm-partner-account-form h3:first-child {
+  margin-top: 0;
+}
+
+/* ── Service and Deployment — 3 column layout ───────────────────── */
+
+.khm-partner-sub-sections-container {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+.khm-partner-sub-section {
+  margin-bottom: 0;
+}
+
+.khm-partner-sub-section h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem 0;
+  color: var(--partner-text);
+}
+
+.khm-partner-sub-section-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.khm-partner-service-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+@media (max-width: 768px) {
+  .khm-partner-sub-sections-container {
+    grid-template-columns: 1fr;
+  }
+}
