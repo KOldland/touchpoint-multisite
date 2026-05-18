@@ -4366,7 +4366,7 @@ class QuoteClubPortalShortcode {
 							<div class="khm-partner-regions-tags" id="khm-region-tags">
 								<?php foreach ( $regions as $region ) : ?>
 									<span class="khm-partner-region-tag">
-										<?php echo esc_html( $region ); ?>
+										<span class="khm-partner-region-tag-text"><?php echo esc_html( $region ); ?></span>
 										<button type="button" class="khm-partner-region-tag-remove" data-region="<?php echo esc_attr( $region ); ?>">&times;</button>
 									</span>
 								<?php endforeach; ?>
@@ -4529,7 +4529,7 @@ class QuoteClubPortalShortcode {
 							var tag = document.createElement('span');
 							tag.className = 'khm-partner-region-tag';
 							tag.dataset.region = region;
-							tag.innerHTML = region + ' <button type="button" class="khm-partner-region-tag-remove" data-region="' + region + '">&times;</button>';
+							tag.innerHTML = '<span class="khm-partner-region-tag-text">' + region + '</span> <button type="button" class="khm-partner-region-tag-remove" data-region="' + region + '">&times;</button>';
 							regionsTags.appendChild(tag);
 							tag.querySelector('.khm-partner-region-tag-remove').addEventListener('click', function() {
 								tag.remove();
@@ -4552,6 +4552,7 @@ class QuoteClubPortalShortcode {
 
 			// Form submit
 			form.addEventListener('submit', function(e) {
+				e.stopImmediatePropagation();
 				e.preventDefault();
 				if (msgEl) { msgEl.textContent = '<?php echo esc_js( __( 'Saving…', 'khm-membership' ) ); ?>'; msgEl.style.color = '#374151'; }
 				var submitBtn = form.querySelector('button[type="submit"]');
