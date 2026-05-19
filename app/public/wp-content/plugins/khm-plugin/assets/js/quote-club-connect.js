@@ -762,11 +762,37 @@
       });
     }
 
-    $shell.on('click', '.khm-partner-connect-new, .khm-partner-connect-reset', function () {
+    
+    // Modal logic for Offerings
+    var $offeringModal = $('#khm-offering-modal');
+    
+    $('body').on('click', '.khm-partner-connect-new', function(e) {
+        e.preventDefault();
+        $offeringModal.css('display', 'flex');
+    });
+
+    $('body').on('click', '.khm-partner-connect-edit', function(e) {
+        e.preventDefault();
+        $offeringModal.css('display', 'flex');
+    });
+
+    $('.khm-offering-modal-close, .khm-partner-connect-reset').on('click', function(e) {
+        e.preventDefault();
+        $offeringModal.hide();
+    });
+
+    // Close on click outside
+    $offeringModal.on('click', function(e) {
+        if (e.target === this) {
+            $offeringModal.hide();
+        }
+    });
+
+    $('body').on('click', '.khm-partner-connect-new, .khm-partner-connect-reset', function () {
       resetForm();
     });
 
-    $shell.on('click', '.khm-partner-connect-edit', function () {
+    $('body').on('click', '.khm-partner-connect-edit', function () {
       var providerId = parseInt($(this).data('provider-id'), 10);
       var provider = providers.find(function (item) {
         return parseInt(item && item.id, 10) === providerId;

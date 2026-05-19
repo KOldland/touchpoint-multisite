@@ -1496,6 +1496,8 @@ class QuoteClubPortalShortcode {
 						</div>
 					</div>
 					<!-- /Connect Subscription Modal -->
+
+					
 					<script>
 					(function(){
 						var sponsorId = <?php echo (int) ( $sponsor['id'] ?? 0 ); ?>;
@@ -4175,7 +4177,7 @@ class QuoteClubPortalShortcode {
 					<div class="khm-partner-block-header">
 						<h3><span class="dashicons dashicons-building"></span> <?php esc_html_e( 'Company Profile', 'khm-membership' ); ?></h3>
 					</div>
-					<div class="khm-partner-block-grid-2col">
+					<div class="khm-partner-connect-form-grid">
 						<label>
 							<span><?php esc_html_e( 'Company Name', 'khm-membership' ); ?></span>
 							<input type="text" name="company_name" value="<?php echo esc_attr( $sponsor_name ); ?>" placeholder="<?php esc_attr_e( 'Your company name', 'khm-membership' ); ?>" />
@@ -4504,17 +4506,25 @@ class QuoteClubPortalShortcode {
 				<!-- ── Save Button ──────────────────────────────────────── -->
 				<div class="khm-partner-account-block" style="border:none;box-shadow:none;background:transparent;padding:1rem 0;text-align:right;">
 					<button type="submit" class="khm-partner-btn khm-partner-btn-primary"><?php esc_html_e( 'Save Account Settings', 'khm-membership' ); ?></button>
+					<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-new" style="margin-left: 0.5rem;"><?php esc_html_e( 'New Offering', 'khm-membership' ); ?></button>
 					<span class="khm-partner-form-message" style="margin-left:1rem;font-size:0.875rem;"></span>
 				</div>
 			</form>
 
 			<!-- ── Solution Offerings (Moved from Connect) ──────────────── -->
-			<section class="khm-partner-connect-panel khm-partner-connect-form-panel">
-						<div class="khm-partner-connect-panel-head">
-							<div>
-								<h3><?php esc_html_e( 'Offering Details', 'khm-membership' ); ?></h3>
-								<p><?php esc_html_e( 'Use typed fields for fit and delivery, then keep advanced comparison and matching metadata in JSON until the guided workflow expands.', 'khm-membership' ); ?></p>
+
+			<!-- ── Connect Offering Modal ─────────────────────────────── -->
+					<div id="khm-offering-modal" class="khm-partner-modal" style="display:none; position:fixed; inset:0; z-index:100000; background:rgba(15,23,42,.45); align-items:center; justify-content:center; padding:16px;">
+						<div class="khm-partner-modal-dialog" style="background:#fff; border-radius:12px; box-shadow:0 20px 50px rgba(15,23,42,.18); width:min(700px,100%); max-height:90vh; overflow-y:auto; position:relative;">
+							<div class="khm-partner-modal-header" style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid #e5e7eb; position:sticky; top:0; background:#fff; z-index:10;">
+								<h3 style="margin:0; font-size:18px; color:#111827;"><?php esc_html_e( 'Offering Details', 'khm-membership' ); ?></h3>
+								<button type="button" class="khm-partner-modal-close khm-offering-modal-close" aria-label="<?php esc_attr_e( 'Close', 'khm-membership' ); ?>" style="border:none; background:transparent; font-size:24px; cursor:pointer; color:#6b7280; padding:0;">&times;</button>
 							</div>
+							<div class="khm-partner-modal-body" style="padding:3%;">
+								<p style="margin-top:0; margin-bottom:16px; font-size:13px; color:#4b5563;"><?php esc_html_e( 'Use typed fields for fit and delivery, then keep advanced comparison and matching metadata in JSON until the guided workflow expands.', 'khm-membership' ); ?></p>
+								
+
+						
 						</div>
 						<form class="khm-partner-connect-form" id="khm-partner-connect-form">
 							<input type="hidden" name="id" value="" />
@@ -4652,7 +4662,12 @@ class QuoteClubPortalShortcode {
 								<option value="<?php echo esc_attr( sanitize_title( $category ) ); ?>"></option>
 							<?php endforeach; ?>
 						</datalist>
-					</section>
+					
+							</div>
+						</div>
+					</div>
+					<!-- /Connect Offering Modal -->
+			
 					
 		</div>
 
