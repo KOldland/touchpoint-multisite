@@ -1613,21 +1613,8 @@ class QuoteClubPortalShortcode {
 									<span><?php esc_html_e( 'Slug', 'khm-membership' ); ?></span>
 									<input type="text" name="slug" placeholder="auto-from-name" />
 								</label>
-								<label>
-									<span><?php esc_html_e( 'Website URL', 'khm-membership' ); ?></span>
-									<input type="url" name="website_url" placeholder="https://example.com" />
-								</label>
-								<label>
-									<span><?php esc_html_e( 'Provider Type', 'khm-membership' ); ?></span>
-									<select name="provider_type">
-										<option value=""><?php esc_html_e( 'Select type', 'khm-membership' ); ?></option>
-										<option value="agency"><?php esc_html_e( 'Agency', 'khm-membership' ); ?></option>
-										<option value="platform"><?php esc_html_e( 'Platform', 'khm-membership' ); ?></option>
-										<option value="consultancy"><?php esc_html_e( 'Consultancy', 'khm-membership' ); ?></option>
-										<option value="data-provider"><?php esc_html_e( 'Data Provider', 'khm-membership' ); ?></option>
-										<option value="other"><?php esc_html_e( 'Other', 'khm-membership' ); ?></option>
-									</select>
-								</label>
+								
+								
 								<label class="khm-partner-connect-span-2">
 									<span><?php esc_html_e( 'Description', 'khm-membership' ); ?></span>
 									<textarea name="description" rows="3"></textarea>
@@ -1719,18 +1706,9 @@ class QuoteClubPortalShortcode {
 									<span><?php esc_html_e( 'Title Contexts', 'khm-membership' ); ?></span>
 									<input type="text" name="titles" placeholder="finance, saas, cybersecurity" list="khm-partner-connect-title-contexts" />
 								</label>
-								<label>
-									<span><?php esc_html_e( 'Regions', 'khm-membership' ); ?></span>
-									<input type="text" name="regions" placeholder="uk, europe, north-america" />
-								</label>
-								<label>
-									<span><?php esc_html_e( 'Deployment Modes', 'khm-membership' ); ?></span>
-									<input type="text" name="deployment_modes" placeholder="self-serve, managed-service" />
-								</label>
-								<label>
-									<span><?php esc_html_e( 'Support Tiers', 'khm-membership' ); ?></span>
-									<input type="text" name="support_tiers" placeholder="email, dedicated-csm" />
-								</label>
+								
+								
+								
 								<label>
 									<span><?php esc_html_e( 'Status', 'khm-membership' ); ?></span>
 									<select name="status">
@@ -1746,14 +1724,8 @@ class QuoteClubPortalShortcode {
 									<input type="checkbox" name="ad_targeting_enabled" value="1" />
 									<span><?php esc_html_e( 'Eligible for ad targeting', 'khm-membership' ); ?></span>
 								</label>
-								<label class="khm-partner-connect-span-2">
-									<span><?php esc_html_e( 'Comparison Fields JSON', 'khm-membership' ); ?></span>
-									<textarea name="comparison_fields" rows="6" spellcheck="false">{}</textarea>
-								</label>
-								<label class="khm-partner-connect-span-2">
-									<span><?php esc_html_e( 'Match Rules JSON', 'khm-membership' ); ?></span>
-									<textarea name="match_rules" rows="6" spellcheck="false">{}</textarea>
-								</label>
+								
+								
 							</div>
 							<div class="khm-partner-connect-actions">
 								<button type="submit" class="khm-partner-btn khm-partner-btn-primary khm-partner-connect-save"><?php esc_html_e( 'Save Offering', 'khm-membership' ); ?></button>
