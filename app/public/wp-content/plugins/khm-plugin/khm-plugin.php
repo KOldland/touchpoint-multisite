@@ -487,6 +487,12 @@ if ( class_exists( 'KHM\\PublicFrontend\\QuoteClubPortalShortcode' ) ) {
     ( new KHM\PublicFrontend\QuoteClubPortalShortcode() )->register();
 }
 
+// Load Connect directory shortcode (enqueues connect-directory.css + js)
+require_once __DIR__ . '/src/PublicFrontend/ConnectDirectoryShortcode.php';
+if ( class_exists( 'KHM\\PublicFrontend\\ConnectDirectoryShortcode' ) ) {
+    ( new KHM\PublicFrontend\ConnectDirectoryShortcode() )->register();
+}
+
 // Backward-compatible Connect shortcodes used by existing published pages.
 if ( class_exists( 'KHM\\PublicFrontend\\ConnectLegacyShortcodes' ) ) {
 	( new KHM\PublicFrontend\ConnectLegacyShortcodes() )->register();
