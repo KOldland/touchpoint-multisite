@@ -739,15 +739,20 @@
 .khm-partner-connect-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.9rem;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
 }
 
 .khm-partner-connect-form-grid label {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.5rem;
   font-size: 0.875rem;
   font-weight: 600;
+}
+
+.khm-partner-connect-form-grid label > span {
+  margin-bottom: 0.25rem;
 }
 
 .khm-partner-connect-form-grid input,
@@ -1408,4 +1413,31 @@
 
 .khm-partner-alert strong {
   font-weight: 600;
+}
+
+.khm-partner-modal-dialog {
+    padding: 1.5rem;
+}
+
+fieldset {
+    margin: 1.5rem 0 !important;
+    padding: 1.25rem !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+}
+
+fieldset legend {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #4b5563;
+    letter-spacing: 0.05em;
+    padding: 0 0.5rem;
+}
+
+.khm-partner-connect-actions {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+    text-align: right;
 }
