@@ -1384,6 +1384,17 @@ class QuoteClubPortalShortcode {
 							</button>
 						</div>
 					</section>
+					<section class="khm-partner-connect-panel khm-partner-connect-list-panel">
+						<div class="khm-partner-connect-panel-head">
+							<div>
+								<h3><?php esc_html_e( 'Your Live Offerings', 'khm-membership' ); ?></h3>
+								<p><?php esc_html_e( 'These records are owned by your sponsor account and scoped to this site.', 'khm-membership' ); ?></p>
+							</div>
+							<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-new"><?php esc_html_e( 'New Offering', 'khm-membership' ); ?></button>
+						</div>
+						<div class="khm-partner-connect-list"></div>
+					</section>
+					
 					<?php
 						// ── Inject window.khmSubData for the modal ──────────────────
 						$_user_id_for_sub = get_current_user_id();
@@ -4498,17 +4509,7 @@ class QuoteClubPortalShortcode {
 			</form>
 
 			<!-- ── Solution Offerings (Moved from Connect) ──────────────── -->
-			<section class="khm-partner-connect-panel khm-partner-connect-list-panel">
-						<div class="khm-partner-connect-panel-head">
-							<div>
-								<h3><?php esc_html_e( 'Your Live Offerings', 'khm-membership' ); ?></h3>
-								<p><?php esc_html_e( 'These records are owned by your sponsor account and scoped to this site.', 'khm-membership' ); ?></p>
-							</div>
-							<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-new"><?php esc_html_e( 'New Offering', 'khm-membership' ); ?></button>
-						</div>
-						<div class="khm-partner-connect-list"></div>
-					</section>
-					<section class="khm-partner-connect-panel khm-partner-connect-form-panel">
+			<section class="khm-partner-connect-panel khm-partner-connect-form-panel">
 						<div class="khm-partner-connect-panel-head">
 							<div>
 								<h3><?php esc_html_e( 'Offering Details', 'khm-membership' ); ?></h3>
