@@ -1585,160 +1585,6 @@ class QuoteClubPortalShortcode {
 						updateNav();
 					})();
 					</script>
-					<section class="khm-partner-connect-panel khm-partner-connect-list-panel">
-						<div class="khm-partner-connect-panel-head">
-							<div>
-								<h3><?php esc_html_e( 'Your Live Offerings', 'khm-membership' ); ?></h3>
-								<p><?php esc_html_e( 'These records are owned by your sponsor account and scoped to this site.', 'khm-membership' ); ?></p>
-							</div>
-							<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-new"><?php esc_html_e( 'New Offering', 'khm-membership' ); ?></button>
-						</div>
-						<div class="khm-partner-connect-list"></div>
-					</section>
-					<section class="khm-partner-connect-panel khm-partner-connect-form-panel">
-						<div class="khm-partner-connect-panel-head">
-							<div>
-								<h3><?php esc_html_e( 'Offering Details', 'khm-membership' ); ?></h3>
-								<p><?php esc_html_e( 'Use typed fields for fit and delivery, then keep advanced comparison and matching metadata in JSON until the guided workflow expands.', 'khm-membership' ); ?></p>
-							</div>
-						</div>
-						<form class="khm-partner-connect-form" id="khm-partner-connect-form">
-							<input type="hidden" name="id" value="" />
-							<div class="khm-partner-connect-form-grid">
-								<label>
-									<span><?php esc_html_e( 'Name', 'khm-membership' ); ?></span>
-									<input type="text" name="name" required />
-								</label>
-								<label>
-									<span><?php esc_html_e( 'Slug', 'khm-membership' ); ?></span>
-									<input type="text" name="slug" placeholder="auto-from-name" />
-								</label>
-								
-								
-								<label class="khm-partner-connect-span-2">
-									<span><?php esc_html_e( 'Description', 'khm-membership' ); ?></span>
-									<textarea name="description" rows="3"></textarea>
-								</label>
-								<label class="khm-partner-connect-span-2">
-									<span><?php esc_html_e( 'Sweet Spot Summary', 'khm-membership' ); ?></span>
-									<textarea name="sweet_spot_summary" rows="3" placeholder="Who you are best for, typical use cases, and what makes the fit strong."></textarea>
-								</label>
-								
-								<fieldset style="grid-column: 1 / -1; border: 1px solid #dcdcde; border-radius: 6px; padding: 14px; background: #fafbfc; margin: 8px 0;">
-									<legend style="padding: 0 8px; font-weight: 600; font-size: 13px; color: #3c434a; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'Ideal Customer Profile (ICP)', 'khm-membership' ); ?></legend>
-									<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 8px;">
-										<label>
-											<span><?php esc_html_e( 'Company Size - Min (employees)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" name="company_size_min" placeholder="e.g., 10" />
-											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum company headcount in your ideal segment', 'khm-membership' ); ?></p>
-										</label>
-										<label>
-											<span><?php esc_html_e( 'Company Size - Max (employees)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" name="company_size_max" placeholder="e.g., 500" />
-											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Maximum company headcount in your ideal segment', 'khm-membership' ); ?></p>
-										</label>
-										<label>
-											<span><?php esc_html_e( 'Budget - Min (annual, in £)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" name="budget_min" placeholder="e.g., 50000" />
-											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum annual budget for typical deal', 'khm-membership' ); ?></p>
-										</label>
-										<label>
-											<span><?php esc_html_e( 'Budget - Max (annual, in £)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" name="budget_max" placeholder="e.g., 500000" />
-											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Maximum annual budget for typical deal', 'khm-membership' ); ?></p>
-										</label>
-										<label style="grid-column: 1 / -1;">
-											<span><?php esc_html_e( 'Typical Onboarding Timeline (days)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" name="onboarding_days" placeholder="e.g., 30" />
-											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Average time to activate a new customer', 'khm-membership' ); ?></p>
-										</label>
-									</div>
-								</fieldset>
-								<fieldset style="grid-column: 1 / -1; border: 1px solid #dcdcde; border-radius: 6px; padding: 14px; background: #fafbfc; margin: 8px 0;">
-									<legend style="padding: 0 8px; font-weight: 600; font-size: 13px; color: #3c434a; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'RFQ Response Defaults', 'khm-membership' ); ?></legend>
-									<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 8px;">
-										<label>
-											<span><?php esc_html_e( 'Default Scope', 'khm-membership' ); ?></span>
-											<select name="rfq_default_scope">
-												<option value="pilot_scheme"><?php esc_html_e( 'Structured pilot scheme (time-boxed, defined success criteria)', 'khm-membership' ); ?></option>
-												<option value="fsm_evaluation_poc"><?php esc_html_e( 'Complete FSM platform evaluation and POC', 'khm-membership' ); ?></option>
-												<option value="mobile_iot_optimisation"><?php esc_html_e( 'Mobile-first FSM with IoT optimisation', 'khm-membership' ); ?></option>
-												<option value="workforce_scheduling_upgrade"><?php esc_html_e( 'Workforce scheduling and dispatch modernisation', 'khm-membership' ); ?></option>
-											</select>
-										</label>
-										<label>
-											<span><?php esc_html_e( 'Default Seat Band', 'khm-membership' ); ?></span>
-											<select name="rfq_default_seats">
-												<option value="20_30"><?php esc_html_e( '20-30 seats', 'khm-membership' ); ?></option>
-												<option value="50_100"><?php esc_html_e( '50-100 seats', 'khm-membership' ); ?></option>
-												<option value="100_250"><?php esc_html_e( '100-250 seats', 'khm-membership' ); ?></option>
-												<option value="500_plus"><?php esc_html_e( '500+ seats', 'khm-membership' ); ?></option>
-											</select>
-										</label>
-										<label>
-											<span><?php esc_html_e( 'Default Timeframe', 'khm-membership' ); ?></span>
-											<select name="rfq_default_timeframe">
-												<option value="3_months"><?php esc_html_e( '3 months', 'khm-membership' ); ?></option>
-												<option value="6_months"><?php esc_html_e( '6 months', 'khm-membership' ); ?></option>
-												<option value="12_months"><?php esc_html_e( '12 months', 'khm-membership' ); ?></option>
-											</select>
-										</label>
-										<label>
-											<span><?php esc_html_e( 'Default Cost Per Licence / Month (£)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" step="0.01" name="rfq_default_cpl_gbp" placeholder="e.g., 325" />
-										</label>
-										<label>
-											<span><?php esc_html_e( 'Default Buyer Estimate (£)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" step="500" name="rfq_default_estimate_gbp" placeholder="e.g., 120000" />
-										</label>
-										<label>
-											<span><?php esc_html_e( 'Max Discount You Will Offer (%)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" max="30" step="1" name="rfq_max_discount_pct" placeholder="e.g., 10" />
-										</label>
-										<label style="grid-column: 1 / -1;">
-											<span><?php esc_html_e( 'Supported Features (comma-separated keys)', 'khm-membership' ); ?></span>
-											<input type="text" name="rfq_supported_features" placeholder="mobile_app,offline_capabilities,real_time_reporting,erp_integration" />
-										</label>
-									</div>
-								</fieldset>
-								
-								<label>
-									<span><?php esc_html_e( 'Title Contexts', 'khm-membership' ); ?></span>
-									<input type="text" name="titles" placeholder="finance, saas, cybersecurity" list="khm-partner-connect-title-contexts" />
-								</label>
-								
-								
-								
-								<label>
-									<span><?php esc_html_e( 'Status', 'khm-membership' ); ?></span>
-									<select name="status">
-										<option value="active"><?php esc_html_e( 'Active', 'khm-membership' ); ?></option>
-										<option value="inactive"><?php esc_html_e( 'Inactive', 'khm-membership' ); ?></option>
-									</select>
-								</label>
-								<label class="khm-partner-connect-check">
-									<input type="checkbox" name="commentary_enabled" value="1" />
-									<span><?php esc_html_e( 'Eligible for commentary contexts', 'khm-membership' ); ?></span>
-								</label>
-								<label class="khm-partner-connect-check">
-									<input type="checkbox" name="ad_targeting_enabled" value="1" />
-									<span><?php esc_html_e( 'Eligible for ad targeting', 'khm-membership' ); ?></span>
-								</label>
-								
-								
-							</div>
-							<div class="khm-partner-connect-actions">
-								<button type="submit" class="khm-partner-btn khm-partner-btn-primary khm-partner-connect-save"><?php esc_html_e( 'Save Offering', 'khm-membership' ); ?></button>
-								<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-reset"><?php esc_html_e( 'Reset', 'khm-membership' ); ?></button>
-								<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-delete" style="display:none"><?php esc_html_e( 'Delete', 'khm-membership' ); ?></button>
-							</div>
-						</form>
-						<datalist id="khm-partner-connect-title-contexts">
-							<?php foreach ( $categories as $category ) : ?>
-								<option value="<?php echo esc_attr( sanitize_title( $category ) ); ?>"></option>
-							<?php endforeach; ?>
-						</datalist>
-					</section>
 					<section class="khm-partner-connect-panel khm-partner-connect-leads-panel khm-partner-connect-span-full" id="khm-partner-leads-panel-<?php echo esc_attr( (string) (int) ( $sponsor['id'] ?? 0 ) ); ?>">
 						<style>
 							.khm-partner-leads-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
@@ -4650,6 +4496,163 @@ class QuoteClubPortalShortcode {
 					<span class="khm-partner-form-message" style="margin-left:1rem;font-size:0.875rem;"></span>
 				</div>
 			</form>
+
+			<!-- ── Solution Offerings (Moved from Connect) ──────────────── -->
+			<section class="khm-partner-connect-panel khm-partner-connect-list-panel">
+						<div class="khm-partner-connect-panel-head">
+							<div>
+								<h3><?php esc_html_e( 'Your Live Offerings', 'khm-membership' ); ?></h3>
+								<p><?php esc_html_e( 'These records are owned by your sponsor account and scoped to this site.', 'khm-membership' ); ?></p>
+							</div>
+							<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-new"><?php esc_html_e( 'New Offering', 'khm-membership' ); ?></button>
+						</div>
+						<div class="khm-partner-connect-list"></div>
+					</section>
+					<section class="khm-partner-connect-panel khm-partner-connect-form-panel">
+						<div class="khm-partner-connect-panel-head">
+							<div>
+								<h3><?php esc_html_e( 'Offering Details', 'khm-membership' ); ?></h3>
+								<p><?php esc_html_e( 'Use typed fields for fit and delivery, then keep advanced comparison and matching metadata in JSON until the guided workflow expands.', 'khm-membership' ); ?></p>
+							</div>
+						</div>
+						<form class="khm-partner-connect-form" id="khm-partner-connect-form">
+							<input type="hidden" name="id" value="" />
+							<div class="khm-partner-connect-form-grid">
+								<label>
+									<span><?php esc_html_e( 'Name', 'khm-membership' ); ?></span>
+									<input type="text" name="name" required />
+								</label>
+								<label>
+									<span><?php esc_html_e( 'Slug', 'khm-membership' ); ?></span>
+									<input type="text" name="slug" placeholder="auto-from-name" />
+								</label>
+								
+								
+								<label class="khm-partner-connect-span-2">
+									<span><?php esc_html_e( 'Description', 'khm-membership' ); ?></span>
+									<textarea name="description" rows="3"></textarea>
+								</label>
+								<label class="khm-partner-connect-span-2">
+									<span><?php esc_html_e( 'Sweet Spot Summary', 'khm-membership' ); ?></span>
+									<textarea name="sweet_spot_summary" rows="3" placeholder="Who you are best for, typical use cases, and what makes the fit strong."></textarea>
+								</label>
+								
+								<fieldset style="grid-column: 1 / -1; border: 1px solid #dcdcde; border-radius: 6px; padding: 14px; background: #fafbfc; margin: 8px 0;">
+									<legend style="padding: 0 8px; font-weight: 600; font-size: 13px; color: #3c434a; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'Ideal Customer Profile (ICP)', 'khm-membership' ); ?></legend>
+									<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 8px;">
+										<label>
+											<span><?php esc_html_e( 'Company Size - Min (employees)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" name="company_size_min" placeholder="e.g., 10" />
+											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum company headcount in your ideal segment', 'khm-membership' ); ?></p>
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Company Size - Max (employees)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" name="company_size_max" placeholder="e.g., 500" />
+											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Maximum company headcount in your ideal segment', 'khm-membership' ); ?></p>
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Budget - Min (annual, in £)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" name="budget_min" placeholder="e.g., 50000" />
+											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum annual budget for typical deal', 'khm-membership' ); ?></p>
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Budget - Max (annual, in £)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" name="budget_max" placeholder="e.g., 500000" />
+											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Maximum annual budget for typical deal', 'khm-membership' ); ?></p>
+										</label>
+										<label style="grid-column: 1 / -1;">
+											<span><?php esc_html_e( 'Typical Onboarding Timeline (days)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" name="onboarding_days" placeholder="e.g., 30" />
+											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Average time to activate a new customer', 'khm-membership' ); ?></p>
+										</label>
+									</div>
+								</fieldset>
+								<fieldset style="grid-column: 1 / -1; border: 1px solid #dcdcde; border-radius: 6px; padding: 14px; background: #fafbfc; margin: 8px 0;">
+									<legend style="padding: 0 8px; font-weight: 600; font-size: 13px; color: #3c434a; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'RFQ Response Defaults', 'khm-membership' ); ?></legend>
+									<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 8px;">
+										<label>
+											<span><?php esc_html_e( 'Default Scope', 'khm-membership' ); ?></span>
+											<select name="rfq_default_scope">
+												<option value="pilot_scheme"><?php esc_html_e( 'Structured pilot scheme (time-boxed, defined success criteria)', 'khm-membership' ); ?></option>
+												<option value="fsm_evaluation_poc"><?php esc_html_e( 'Complete FSM platform evaluation and POC', 'khm-membership' ); ?></option>
+												<option value="mobile_iot_optimisation"><?php esc_html_e( 'Mobile-first FSM with IoT optimisation', 'khm-membership' ); ?></option>
+												<option value="workforce_scheduling_upgrade"><?php esc_html_e( 'Workforce scheduling and dispatch modernisation', 'khm-membership' ); ?></option>
+											</select>
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Default Seat Band', 'khm-membership' ); ?></span>
+											<select name="rfq_default_seats">
+												<option value="20_30"><?php esc_html_e( '20-30 seats', 'khm-membership' ); ?></option>
+												<option value="50_100"><?php esc_html_e( '50-100 seats', 'khm-membership' ); ?></option>
+												<option value="100_250"><?php esc_html_e( '100-250 seats', 'khm-membership' ); ?></option>
+												<option value="500_plus"><?php esc_html_e( '500+ seats', 'khm-membership' ); ?></option>
+											</select>
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Default Timeframe', 'khm-membership' ); ?></span>
+											<select name="rfq_default_timeframe">
+												<option value="3_months"><?php esc_html_e( '3 months', 'khm-membership' ); ?></option>
+												<option value="6_months"><?php esc_html_e( '6 months', 'khm-membership' ); ?></option>
+												<option value="12_months"><?php esc_html_e( '12 months', 'khm-membership' ); ?></option>
+											</select>
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Default Cost Per Licence / Month (£)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" step="0.01" name="rfq_default_cpl_gbp" placeholder="e.g., 325" />
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Default Buyer Estimate (£)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" step="500" name="rfq_default_estimate_gbp" placeholder="e.g., 120000" />
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Max Discount You Will Offer (%)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" max="30" step="1" name="rfq_max_discount_pct" placeholder="e.g., 10" />
+										</label>
+										<label style="grid-column: 1 / -1;">
+											<span><?php esc_html_e( 'Supported Features (comma-separated keys)', 'khm-membership' ); ?></span>
+											<input type="text" name="rfq_supported_features" placeholder="mobile_app,offline_capabilities,real_time_reporting,erp_integration" />
+										</label>
+									</div>
+								</fieldset>
+								
+								<label>
+									<span><?php esc_html_e( 'Title Contexts', 'khm-membership' ); ?></span>
+									<input type="text" name="titles" placeholder="finance, saas, cybersecurity" list="khm-partner-connect-title-contexts" />
+								</label>
+								
+								
+								
+								<label>
+									<span><?php esc_html_e( 'Status', 'khm-membership' ); ?></span>
+									<select name="status">
+										<option value="active"><?php esc_html_e( 'Active', 'khm-membership' ); ?></option>
+										<option value="inactive"><?php esc_html_e( 'Inactive', 'khm-membership' ); ?></option>
+									</select>
+								</label>
+								<label class="khm-partner-connect-check">
+									<input type="checkbox" name="commentary_enabled" value="1" />
+									<span><?php esc_html_e( 'Eligible for commentary contexts', 'khm-membership' ); ?></span>
+								</label>
+								<label class="khm-partner-connect-check">
+									<input type="checkbox" name="ad_targeting_enabled" value="1" />
+									<span><?php esc_html_e( 'Eligible for ad targeting', 'khm-membership' ); ?></span>
+								</label>
+								
+								
+							</div>
+							<div class="khm-partner-connect-actions">
+								<button type="submit" class="khm-partner-btn khm-partner-btn-primary khm-partner-connect-save"><?php esc_html_e( 'Save Offering', 'khm-membership' ); ?></button>
+								<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-reset"><?php esc_html_e( 'Reset', 'khm-membership' ); ?></button>
+								<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-delete" style="display:none"><?php esc_html_e( 'Delete', 'khm-membership' ); ?></button>
+							</div>
+						</form>
+						<datalist id="khm-partner-connect-title-contexts">
+							<?php foreach ( $categories as $category ) : ?>
+								<option value="<?php echo esc_attr( sanitize_title( $category ) ); ?>"></option>
+							<?php endforeach; ?>
+						</datalist>
+					</section>
+					
 		</div>
 
 		<script>
