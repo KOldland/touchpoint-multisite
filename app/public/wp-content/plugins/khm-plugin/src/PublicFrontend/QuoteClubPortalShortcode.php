@@ -4523,11 +4523,7 @@ class QuoteClubPortalShortcode {
 							</div>
 							<div class="khm-partner-modal-body" style="padding:3%;">
 								<p style="margin-top:0; margin-bottom:16px; font-size:13px; color:#4b5563;"><?php esc_html_e( 'Use typed fields for fit and delivery, then keep advanced comparison and matching metadata in JSON until the guided workflow expands.', 'khm-membership' ); ?></p>
-								
-
-						
-						</div>
-						<form class="khm-partner-connect-form" id="khm-partner-connect-form">
+								<form class="khm-partner-connect-form" id="khm-partner-connect-form">
 							<input type="hidden" name="id" value="" />
 							<div class="khm-partner-connect-form-grid">
 								<label>
