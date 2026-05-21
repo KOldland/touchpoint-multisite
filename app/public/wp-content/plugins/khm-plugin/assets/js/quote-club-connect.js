@@ -165,7 +165,7 @@
     function populateForm(provider) {
       $form.find('[name="id"]').val(activeId ? String(activeId) : '');
       $form.find('[name="company_name"]').val(provider.company_name || '');
-      $form.find('[name="offering_name"]').val(provider.offering_name || '');
+      $form.find('[name="name"]').val(provider.name || '');
       $form.find('[name="website_url"]').val(provider.website_url || '');
       $form.find('[name="provider_type"]').val(provider.provider_type || '');
       // Handle multi-select checkboxes for provider_type
@@ -215,6 +215,12 @@
       $form.find('[name="rfq_supported_features"]').val(Array.isArray(rfqProfile.supported_features) ? rfqProfile.supported_features.join(', ') : 'mobile_app,offline_capabilities,real_time_reporting');
       $form.find('[name="rfq_default_estimate_gbp"]').val(rfqProfile.default_estimate_gbp || 120000);
       $form.find('[name="rfq_max_discount_pct"]').val(rfqProfile.max_discount_pct || 10);
+      
+      // Update Supported Features combobox UI
+      if (typeof window.populateComboboxFeatures === 'function') {
+        window.populateComboboxFeatures(rfqProfile.supported_features);
+      }
+
       $form.find('[name="status"]').val(provider.status || 'active');
       $form.find('[name="pilot_scheme_available"]').prop('checked', !!provider.pilot_scheme_available);
       $form.find('[name="free_trial_available"]').prop('checked', !!provider.free_trial_available);
@@ -228,7 +234,7 @@
 
     function renderList() {
       if (!providers.length) {
-        $list.html('<div class="khm-partner-connect-empty">No Connect offerings yet. Create your first one to define how your sponsor appears in comparison and matching flows.</div>');
+        $list.html('<div class="khm-partner-connect-empty">No listings live yet! Add your first listing now to start getting connected to prospects!</div>');
         return;
       }
 
@@ -677,7 +683,7 @@
       };
 
       var payload = {
-        offering_name: $form.find('[name="offering_name"]').val().trim(),
+        name: $form.find('[name="name"]').val().trim(),
         website_url: $form.find('[name="website_url"]').val().trim(),
         description: $form.find('[name="description"]').val().trim(),
         sweet_spot_summary: $form.find('[name="sweet_spot_summary"]').val().trim(),

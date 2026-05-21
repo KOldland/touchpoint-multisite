@@ -272,7 +272,7 @@
 .khm-partner-btn-primary {
   background: var(--partner-primary);
   color: #fff;
-  border-color: var(--partner-primary);
+  border: none;
 }
 
 .khm-partner-btn-primary:hover {

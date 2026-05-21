@@ -299,7 +299,7 @@ class QuoteClubPortalShortcode {
 		$sections = [
 			'overview'       => [ 'label' => __( 'Overview', 'khm-membership' ),       'icon' => 'dashicons-chart-bar' ],
 			'connect'        => [ 'label' => __( 'Connect', 'khm-membership' ),        'icon' => 'dashicons-networking' ],
-			'account'        => [ 'label' => __( 'Company Details', 'khm-membership' ), 'icon' => 'dashicons-admin-settings' ],
+			'account'        => [ 'label' => __( 'Listings', 'khm-membership' ), 'icon' => 'dashicons-admin-settings' ],
 			'commentary'     => [ 'label' => __( 'Commentary', 'khm-membership' ),      'icon' => 'dashicons-format-quote' ],
 			'press-releases' => [ 'label' => __( 'Press Releases', 'khm-membership' ),  'icon' => 'dashicons-media-document' ],
 			'tracking'       => [ 'label' => __( 'Tracking', 'khm-membership' ),        'icon' => 'dashicons-chart-line' ],
@@ -4157,9 +4157,16 @@ class QuoteClubPortalShortcode {
 
 		?>
 		<div class="khm-partner-section khm-partner-account-form" data-sponsor-id="<?php echo esc_attr( $sponsor_id ); ?>">
-			<h2><?php esc_html_e( 'Account & Offering Details', 'khm-membership' ); ?></h2>
-			<p><?php esc_html_e( 'Manage your company profile, map your solutions to the Tech.Connect catalog, and configure deployment and support preferences. These fields feed your public seller listing on the buyer portal.', 'khm-membership' ); ?></p>
 
+			<!-- ── Listings Panel (first) ─────────────────────────────── -->
+			<section class="khm-partner-connect-panel khm-partner-connect-list-panel">
+						<div class="khm-partner-connect-panel-head">
+							<div>
+								<h3><?php esc_html_e( 'Live Listings', 'khm-membership' ); ?></h3>
+							</div>
+						</div>
+						<div class="khm-partner-connect-list"></div>
+					</section>
 			<form id="khm-partner-account-form" class="khm-partner-account-form">
 				<input type="hidden" name="sponsor_id" value="<?php echo esc_attr( $sponsor_id ); ?>" />
 
@@ -4496,23 +4503,11 @@ class QuoteClubPortalShortcode {
 
 				<!-- ── Save Button ──────────────────────────────────────── -->
 				<div class="khm-partner-account-block" style="border:none;box-shadow:none;background:transparent;padding:1rem 0;text-align:right;">
-					<button type="submit" class="khm-partner-btn khm-partner-btn-primary"><?php esc_html_e( 'Save Account Settings', 'khm-membership' ); ?></button>
-					<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-new" style="margin-left: 0.5rem;"><?php esc_html_e( 'New Offering', 'khm-membership' ); ?></button>
+					<button type="submit" class="khm-partner-btn khm-partner-btn-primary"><?php esc_html_e( 'Save Global Settings', 'khm-membership' ); ?></button>
+					<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-new" style="margin-left: 0.5rem;"><?php esc_html_e( 'New Listing', 'khm-membership' ); ?></button>
 					<span class="khm-partner-form-message" style="margin-left:1rem;font-size:0.875rem;"></span>
 				</div>
 			</form>
-
-			<!-- ── Solution Offerings (Moved from Connect) ──────────────── -->
-			<section class="khm-partner-connect-panel khm-partner-connect-list-panel">
-						<div class="khm-partner-connect-panel-head">
-							<div>
-								<h3><?php esc_html_e( 'Company Offerings', 'khm-membership' ); ?></h3>
-								<p><?php esc_html_e( 'These records are owned by your sponsor account and scoped to this site.', 'khm-membership' ); ?></p>
-							</div>
-							<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-new"><?php esc_html_e( 'New Offering', 'khm-membership' ); ?></button>
-						</div>
-						<div class="khm-partner-connect-list"></div>
-					</section>
 
 			<!-- ── Connect Offering Modal ─────────────────────────────── -->
 					<div id="khm-offering-modal" class="khm-partner-modal" style="display:none; position:fixed; inset:0; z-index:100000; background:rgba(15,23,42,.45); align-items:center; justify-content:center; padding:16px;">
@@ -4527,12 +4522,8 @@ class QuoteClubPortalShortcode {
 							<input type="hidden" name="id" value="" />
 							<div class="khm-partner-connect-form-grid">
 								<label>
-									<span><?php esc_html_e( 'Name', 'khm-membership' ); ?></span>
+									<span><?php esc_html_e( 'Solution Name', 'khm-membership' ); ?></span>
 									<input type="text" name="name" required />
-								</label>
-								<label>
-									<span><?php esc_html_e( 'Slug', 'khm-membership' ); ?></span>
-									<input type="text" name="slug" placeholder="auto-from-name" />
 								</label>
 								
 								
