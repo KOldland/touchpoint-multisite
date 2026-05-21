@@ -4512,12 +4512,11 @@ class QuoteClubPortalShortcode {
 			<!-- ── Connect Offering Modal ─────────────────────────────── -->
 					<div id="khm-offering-modal" class="khm-partner-modal" style="display:none; position:fixed; inset:0; z-index:100000; background:rgba(15,23,42,.45); align-items:center; justify-content:center; padding:16px;">
 						<div class="khm-partner-modal-dialog" style="background:#fff; border-radius:12px; box-shadow:0 20px 50px rgba(15,23,42,.18); width:min(700px,100%); max-height:90vh; overflow-y:auto; position:relative;">
-							<div class="khm-partner-modal-header" style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid #e5e7eb; position:sticky; top:0; background:#fff; z-index:10;">
-								<h3 style="margin:0; font-size:18px; color:#111827;"><?php esc_html_e( 'Offering Details', 'khm-membership' ); ?></h3>
+							<div class="khm-partner-modal-header" style="display:flex; justify-content:space-between; align-items:center; padding:8px 20px; border-bottom:1px solid #e5e7eb; position:sticky; top:0; background:#fff; z-index:10;">
+								<h3 style="margin:0; font-size:18px; color:#111827;"><?php esc_html_e( 'Listing Details', 'khm-membership' ); ?></h3>
 								<button type="button" class="khm-partner-modal-close khm-offering-modal-close" aria-label="<?php esc_attr_e( 'Close', 'khm-membership' ); ?>" style="border:none; background:transparent; font-size:24px; cursor:pointer; color:#6b7280; padding:0;">&times;</button>
 							</div>
-							<div class="khm-partner-modal-body" style="padding:3%;">
-								<p style="margin-top:0; margin-bottom:16px; font-size:13px; color:#4b5563;"><?php esc_html_e( 'Use typed fields for fit and delivery, then keep advanced comparison and matching metadata in JSON until the guided workflow expands.', 'khm-membership' ); ?></p>
+							<div class="khm-partner-modal-body" style="padding:8px 3% 3%;">
 								<form class="khm-partner-connect-form" id="khm-partner-connect-form">
 							<input type="hidden" name="id" value="" />
 							<div class="khm-partner-connect-form-grid">
@@ -4529,40 +4528,25 @@ class QuoteClubPortalShortcode {
 								
 								<label class="khm-partner-connect-span-2">
 									<span><?php esc_html_e( 'Description', 'khm-membership' ); ?></span>
-									<textarea name="description" rows="3"></textarea>
+									<textarea name="description" rows="3" placeholder="Tell us about your solution — what are your strengths and USPs?"></textarea>
 								</label>
 								<label class="khm-partner-connect-span-2">
 									<span><?php esc_html_e( 'Sweet Spot Summary', 'khm-membership' ); ?></span>
 									<textarea name="sweet_spot_summary" rows="3" placeholder="Who you are best for, typical use cases, and what makes the fit strong."></textarea>
 								</label>
 								
-								<fieldset style="grid-column: 1 / -1; border: 1px solid #dcdcde; border-radius: 6px; padding: 14px; background: #fafbfc; margin: 8px 0;">
+									<fieldset style="grid-column: 1 / -1; border: 1px solid #dcdcde; border-radius: 6px; padding: 14px; background: #fafbfc; margin: 8px 0;">
 									<legend style="padding: 0 8px; font-weight: 600; font-size: 13px; color: #3c434a; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'Ideal Customer Profile (ICP)', 'khm-membership' ); ?></legend>
 									<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 8px;">
 										<label>
-											<span><?php esc_html_e( 'Company Size - Min (employees)', 'khm-membership' ); ?></span>
+											<span><?php esc_html_e( 'Minimum Company Size (employees)', 'khm-membership' ); ?></span>
 											<input type="number" min="0" name="company_size_min" placeholder="e.g., 10" />
 											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum company headcount in your ideal segment', 'khm-membership' ); ?></p>
 										</label>
 										<label>
-											<span><?php esc_html_e( 'Company Size - Max (employees)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" name="company_size_max" placeholder="e.g., 500" />
-											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Maximum company headcount in your ideal segment', 'khm-membership' ); ?></p>
-										</label>
-										<label>
-											<span><?php esc_html_e( 'Budget - Min (annual, in £)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" name="budget_min" placeholder="e.g., 50000" />
-											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum annual budget for typical deal', 'khm-membership' ); ?></p>
-										</label>
-										<label>
-											<span><?php esc_html_e( 'Budget - Max (annual, in £)', 'khm-membership' ); ?></span>
+											<span><?php esc_html_e( 'Maximum Annual Budget (£)', 'khm-membership' ); ?></span>
 											<input type="number" min="0" name="budget_max" placeholder="e.g., 500000" />
 											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Maximum annual budget for typical deal', 'khm-membership' ); ?></p>
-										</label>
-										<label style="grid-column: 1 / -1;">
-											<span><?php esc_html_e( 'Typical Onboarding Timeline (days)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" name="onboarding_days" placeholder="e.g., 30" />
-											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Average time to activate a new customer', 'khm-membership' ); ?></p>
 										</label>
 									</div>
 								</fieldset>
@@ -4606,6 +4590,11 @@ class QuoteClubPortalShortcode {
 										<label>
 											<span><?php esc_html_e( 'Max Discount You Will Offer (%)', 'khm-membership' ); ?></span>
 											<input type="number" min="0" max="30" step="1" name="rfq_max_discount_pct" placeholder="e.g., 10" />
+										</label>
+										<label style="grid-column: 1 / -1;">
+											<span><?php esc_html_e( 'Typical Onboarding Timeline (days)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" name="onboarding_days" placeholder="e.g., 30" />
+											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Average time to activate a new customer', 'khm-membership' ); ?></p>
 										</label>
 										<label style="grid-column: 1 / -1;">
 											<span><?php esc_html_e( 'Supported Features (comma-separated keys)', 'khm-membership' ); ?></span>
