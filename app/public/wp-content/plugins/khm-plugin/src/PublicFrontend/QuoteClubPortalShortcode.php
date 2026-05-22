@@ -4169,6 +4169,7 @@ class QuoteClubPortalShortcode {
 					</section>
 			<form id="khm-partner-account-form" class="khm-partner-account-form">
 				<input type="hidden" name="sponsor_id" value="<?php echo esc_attr( $sponsor_id ); ?>" />
+				<input type="hidden" name="form_version" value="390221b2-2026-05-22" />
 
 				<!-- ── Company Profile Block ─────────────────────────────── -->
 				<div class="khm-partner-account-block">
@@ -4558,15 +4559,6 @@ class QuoteClubPortalShortcode {
 								<fieldset style="grid-column: 1 / -1; border: 1px solid #dcdcde; border-radius: 6px; padding: 14px; background: #fafbfc; margin: 8px 0;">
 									<legend style="padding: 0 8px; font-weight: 600; font-size: 13px; color: #3c434a; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'RFQ Response Defaults', 'khm-membership' ); ?></legend>
 									<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 8px;">
-										<label>
-											<span><?php esc_html_e( 'Default Scope', 'khm-membership' ); ?></span>
-											<select name="rfq_default_scope">
-												<option value="pilot_scheme"><?php esc_html_e( 'Structured pilot scheme (time-boxed, defined success criteria)', 'khm-membership' ); ?></option>
-												<option value="fsm_evaluation_poc"><?php esc_html_e( 'Complete FSM platform evaluation and POC', 'khm-membership' ); ?></option>
-												<option value="mobile_iot_optimisation"><?php esc_html_e( 'Mobile-first FSM with IoT optimisation', 'khm-membership' ); ?></option>
-												<option value="workforce_scheduling_upgrade"><?php esc_html_e( 'Workforce scheduling and dispatch modernisation', 'khm-membership' ); ?></option>
-											</select>
-										</label>
 										<label>
 											<span><?php esc_html_e( 'Average number of licences per client', 'khm-membership' ); ?></span>
 											<select name="rfq_default_seats">
