@@ -1088,16 +1088,30 @@
       }
     });
 
+    // ICP Target Sectors badge counter
+    function updateIcpSectorsBadge() {
+      var $badge = $form.find('.khm-icp-sectors-badge');
+      if (!$badge.length) return;
+      var count = $form.find('input.khm-icp-sector-cb:checked').length;
+      $badge.text(count + ' sectors selected');
+    }
+
+    $form.on('change', 'input.khm-icp-sector-cb', updateIcpSectorsBadge);
+
     // Initialize counters after form is loaded with data
     var originalPopulateFormWithCounters = populateForm;
     populateForm = function(provider) {
       originalPopulateFormWithCounters(provider);
       initializeAccordionCounters($form);
+      setTimeout(updateIcpSectorsBadge, 0);
     };
 
     // Initialize counters on form reset
     $form.on('reset', function() {
-      setTimeout(function() { initializeAccordionCounters($form); }, 0);
+      setTimeout(function() {
+        initializeAccordionCounters($form);
+        updateIcpSectorsBadge();
+      }, 0);
     });
 
     loadProviders();
