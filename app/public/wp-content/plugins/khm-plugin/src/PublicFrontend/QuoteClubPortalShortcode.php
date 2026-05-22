@@ -4403,20 +4403,24 @@ class QuoteClubPortalShortcode {
 									</span>
 								<?php endforeach; ?>
 							</div>
-							<button type="button" class="khm-partner-regions-toggle" data-target="khm-regions-panel" aria-expanded="false" style="font-size:0.75rem;padding:0.1rem 0.5rem;background:#e0f2fe;color:#0369a1;border:none;border-radius:999px;cursor:pointer;margin-bottom:0.35rem;">
-								<?php esc_html_e( 'Show', 'khm-membership' ); ?> <?php esc_html_e( 'selector', 'khm-membership' ); ?>
-							</button>
-							<div id="khm-regions-panel" class="khm-partner-regions-panel" style="display:none;">
-								<select multiple class="khm-partner-regions-select" id="khm-regions-select">
-									<option value=""><?php esc_html_e( 'Select regions…', 'khm-membership' ); ?></option>
+							<div class="khm-partner-accordion">
+								<button type="button" class="khm-partner-accordion-trigger" aria-expanded="false" aria-controls="khm-regions-accordion-panel">
+									<span class="dashicons dashicons-admin-site"></span>
+									<?php esc_html_e( 'Regions Served', 'khm-membership' ); ?>
+									<span class="khm-partner-version-tag khm-regions-badge"><?php echo count( $regions ); ?> regions selected</span>
+								</button>
+								<div class="khm-partner-accordion-panel" id="khm-regions-accordion-panel" hidden>
 									<?php
 									$region_options = [ 'UK & Ireland', 'Western Europe', 'DACH', 'Nordics', 'Southern Europe', 'Eastern Europe', 'North America', 'Central America', 'South America', 'Middle East & Africa', 'Asia Pacific', 'Oceania', 'Global' ];
 									foreach ( $region_options as $r ) :
-										$selected = in_array( $r, $regions, true ) ? 'selected' : '';
+										$checked = in_array( $r, $regions, true );
 									?>
-										<option value="<?php echo esc_attr( $r ); ?>" <?php echo $selected; ?>><?php echo esc_html( $r ); ?></option>
+										<label class="khm-partner-solution-row">
+											<input type="checkbox" name="regions[]" value="<?php echo esc_attr( $r ); ?>" class="khm-region-cb" <?php checked( $checked ); ?> />
+											<span><?php echo esc_html( $r ); ?></span>
+										</label>
 									<?php endforeach; ?>
-								</select>
+								</div>
 							</div>
 						</div>
 					</div>
@@ -4576,27 +4580,34 @@ class QuoteClubPortalShortcode {
 										</div>
 										<div class="khm-partner-regions-tags" id="khm-icp-sector-tags">
 										</div>
-										<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:10px;">
-											<label class="khm-partner-icp-sector-row" style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:0.85rem;font-weight:500;color:#1f2937;cursor:pointer;border-radius:4px;transition:background-color 0.12s;">
-												<input type="checkbox" name="sectors[]" value="aerospace_aviation" style="width:auto;margin:0;flex-shrink:0;" />
-												<span><?php esc_html_e( 'Aerospace & Aviation', 'khm-membership' ); ?></span>
-											</label>
-											<label class="khm-partner-icp-sector-row" style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:0.85rem;font-weight:500;color:#1f2937;cursor:pointer;border-radius:4px;transition:background-color 0.12s;">
-												<input type="checkbox" name="sectors[]" value="infrastructure_construction" style="width:auto;margin:0;flex-shrink:0;" />
-												<span><?php esc_html_e( 'Infrastructure, Construction and Asset Management', 'khm-membership' ); ?></span>
-											</label>
-											<label class="khm-partner-icp-sector-row" style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:0.85rem;font-weight:500;color:#1f2937;cursor:pointer;border-radius:4px;transition:background-color 0.12s;">
-												<input type="checkbox" name="sectors[]" value="industrial_engineering" style="width:auto;margin:0;flex-shrink:0;" />
-												<span><?php esc_html_e( 'Industrial Engineering and Heavy Manufacturing', 'khm-membership' ); ?></span>
-											</label>
-											<label class="khm-partner-icp-sector-row" style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:0.85rem;font-weight:500;color:#1f2937;cursor:pointer;border-radius:4px;transition:background-color 0.12s;">
-												<input type="checkbox" name="sectors[]" value="energy_utilities" style="width:auto;margin:0;flex-shrink:0;" />
-												<span><?php esc_html_e( 'Energy & Utilities', 'khm-membership' ); ?></span>
-											</label>
-											<label class="khm-partner-icp-sector-row" style="grid-column:1 / -1;display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:0.85rem;font-weight:500;color:#1f2937;cursor:pointer;border-radius:4px;transition:background-color 0.12s;">
-												<input type="checkbox" name="sectors[]" value="manufacturing_other" style="width:auto;margin:0;flex-shrink:0;" />
-												<span><?php esc_html_e( 'Manufacturing (Other)', 'khm-membership' ); ?></span>
-											</label>
+										<div class="khm-partner-accordion">
+											<button type="button" class="khm-partner-accordion-trigger" aria-expanded="false" aria-controls="khm-icp-sectors-accordion-panel">
+												<span class="dashicons dashicons-category"></span>
+												<?php esc_html_e( 'Target Sectors', 'khm-membership' ); ?>
+												<span class="khm-partner-version-tag khm-icp-sectors-badge">0 sectors selected</span>
+											</button>
+											<div class="khm-partner-accordion-panel" id="khm-icp-sectors-accordion-panel" hidden>
+												<label class="khm-partner-solution-row">
+													<input type="checkbox" name="sectors[]" value="aerospace_aviation" class="khm-icp-sector-cb" />
+													<span><?php esc_html_e( 'Aerospace & Aviation', 'khm-membership' ); ?></span>
+												</label>
+												<label class="khm-partner-solution-row">
+													<input type="checkbox" name="sectors[]" value="infrastructure_construction" class="khm-icp-sector-cb" />
+													<span><?php esc_html_e( 'Infrastructure, Construction and Asset Management', 'khm-membership' ); ?></span>
+												</label>
+												<label class="khm-partner-solution-row">
+													<input type="checkbox" name="sectors[]" value="industrial_engineering" class="khm-icp-sector-cb" />
+													<span><?php esc_html_e( 'Industrial Engineering and Heavy Manufacturing', 'khm-membership' ); ?></span>
+												</label>
+												<label class="khm-partner-solution-row">
+													<input type="checkbox" name="sectors[]" value="energy_utilities" class="khm-icp-sector-cb" />
+													<span><?php esc_html_e( 'Energy & Utilities', 'khm-membership' ); ?></span>
+												</label>
+												<label class="khm-partner-solution-row">
+													<input type="checkbox" name="sectors[]" value="manufacturing_other" class="khm-icp-sector-cb" />
+													<span><?php esc_html_e( 'Manufacturing (Other)', 'khm-membership' ); ?></span>
+												</label>
+											</div>
 										</div>
 									</div>
 							</fieldset>
