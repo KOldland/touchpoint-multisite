@@ -4546,13 +4546,28 @@ class QuoteClubPortalShortcode {
 									<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 8px;">
 										<label>
 											<span><?php esc_html_e( 'Minimum Company Size (employees)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" name="company_size_min" placeholder="e.g., 10" />
+											<select name="company_size_min">
+												<option value=""><?php esc_html_e( 'Select minimum company size…', 'khm-membership' ); ?></option>
+												<option value="10"><?php esc_html_e( '10 employees', 'khm-membership' ); ?></option>
+												<option value="50"><?php esc_html_e( '50 employees', 'khm-membership' ); ?></option>
+												<option value="200"><?php esc_html_e( '200 employees', 'khm-membership' ); ?></option>
+												<option value="500"><?php esc_html_e( '500 employees', 'khm-membership' ); ?></option>
+												<option value="1_000"><?php esc_html_e( '1,000 employees', 'khm-membership' ); ?></option>
+												<option value="5_000"><?php esc_html_e( '5,000 employees', 'khm-membership' ); ?></option>
+												<option value="10_000"><?php esc_html_e( '10,000 employees', 'khm-membership' ); ?></option>
+											</select>
 											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum company headcount in your ideal segment', 'khm-membership' ); ?></p>
 										</label>
 										<label>
-											<span><?php esc_html_e( 'Maximum Annual Budget (£)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" name="budget_max" placeholder="e.g., 500000" />
-											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Maximum annual budget for typical deal', 'khm-membership' ); ?></p>
+											<span><?php esc_html_e( 'Minimum Annual Budget ($)', 'khm-membership' ); ?></span>
+											<select name="budget_min">
+												<option value=""><?php esc_html_e( 'Select minimum budget…', 'khm-membership' ); ?></option>
+												<option value="15_000"><?php esc_html_e( '$15,000 / year', 'khm-membership' ); ?></option>
+												<option value="35_000"><?php esc_html_e( '$35,000 / year', 'khm-membership' ); ?></option>
+												<option value="150_000"><?php esc_html_e( '$150,000 / year', 'khm-membership' ); ?></option>
+												<option value="350_000"><?php esc_html_e( '$350,000 / year', 'khm-membership' ); ?></option>
+											</select>
+											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum annual budget threshold for your ideal client', 'khm-membership' ); ?></p>
 										</label>
 									</div>
 								</fieldset>
