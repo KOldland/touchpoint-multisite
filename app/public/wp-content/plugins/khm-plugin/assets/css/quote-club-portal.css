@@ -765,6 +765,7 @@
   background: #fff;
   font: inherit;
   color: var(--partner-text);
+  min-height: 44px;
 }
 
 .khm-partner-connect-form-grid textarea {
@@ -1420,10 +1421,10 @@
 }
 
 fieldset {
-    margin: 1.5rem 0 !important;
-    padding: 1.25rem !important;
-    border: 1px solid #e5e7eb !important;
-    border-radius: 8px !important;
+    margin: 1.5rem 0;
+    padding: 1.25rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
 }
 
 fieldset legend {
@@ -1433,6 +1434,15 @@ fieldset legend {
     color: #4b5563;
     letter-spacing: 0.05em;
     padding: 0 0.5rem;
+}
+
+#khm-offering-modal select,
+#khm-offering-modal input[type="text"],
+#khm-offering-modal input[type="number"] {
+    height: 44px;
+    padding: 0.65rem 0.75rem;
+    box-sizing: border-box;
+    font-size: 0.875rem;
 }
 
 .khm-partner-connect-actions {
