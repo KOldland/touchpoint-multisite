@@ -229,6 +229,8 @@
       $form.find('[name="match_rules"]').val(JSON.stringify(provider.match_rules || {}, null, 2));
       $deleteButton.show();
       renderList();
+      // Recalculate estimated cost immediately after populating
+      setTimeout(updateEstimatedCost, 0);
     }
 
     function renderList() {
@@ -1031,7 +1033,12 @@
     }
 
     $form.on('change', '[name="rfq_default_seats"]', updateEstimatedCost);
-    $form.on('input change', '[name="rfq_default_cpl_gbp"]', updateEstimatedCost);
+    $form.on('input change keyup', '[name="rfq_default_cpl_gbp"]', updateEstimatedCost);
+
+    // Also recalculate whenever the offering modal opens and on form reset
+    $offeringModal.on('transitionend', function () {
+      setTimeout(updateEstimatedCost, 50);
+    });
 
     // Dynamic show/hide for provider type sub-sections
     function toggleProviderTypeSubsections() {
