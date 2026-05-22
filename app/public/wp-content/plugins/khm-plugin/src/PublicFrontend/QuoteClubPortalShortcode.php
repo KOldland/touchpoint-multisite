@@ -4558,19 +4558,39 @@ class QuoteClubPortalShortcode {
 											</select>
 											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum company headcount in your ideal segment', 'khm-membership' ); ?></p>
 										</label>
-										<label>
-											<span><?php esc_html_e( 'Minimum Annual Budget ($)', 'khm-membership' ); ?></span>
-											<select name="budget_min">
-												<option value=""><?php esc_html_e( 'Select minimum budget…', 'khm-membership' ); ?></option>
-												<option value="15_000"><?php esc_html_e( '$15,000 / year', 'khm-membership' ); ?></option>
-												<option value="35_000"><?php esc_html_e( '$35,000 / year', 'khm-membership' ); ?></option>
-												<option value="150_000"><?php esc_html_e( '$150,000 / year', 'khm-membership' ); ?></option>
-												<option value="350_000"><?php esc_html_e( '$350,000 / year', 'khm-membership' ); ?></option>
-											</select>
-											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum annual budget threshold for your ideal client', 'khm-membership' ); ?></p>
-										</label>
+									<label>
+										<span><?php esc_html_e( 'Minimum Annual Budget ($)', 'khm-membership' ); ?></span>
+										<select name="budget_min">
+											<option value=""><?php esc_html_e( 'Select minimum budget…', 'khm-membership' ); ?></option>
+											<option value="15_000"><?php esc_html_e( '$15,000 / year', 'khm-membership' ); ?></option>
+											<option value="35_000"><?php esc_html_e( '$35,000 / year', 'khm-membership' ); ?></option>
+											<option value="150_000"><?php esc_html_e( '$150,000 / year', 'khm-membership' ); ?></option>
+											<option value="350_000"><?php esc_html_e( '$350,000 / year', 'khm-membership' ); ?></option>
+										</select>
+										<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum annual budget threshold for your ideal client', 'khm-membership' ); ?></p>
+									</label>
+								</div>
+								<div style="margin-top: 14px;">
+									<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;">
+										<span style="font-size:0.875rem;font-weight:600;"><?php esc_html_e( 'Target Sectors', 'khm-membership' ); ?></span>
 									</div>
-								</fieldset>
+									<div class="khm-partner-regions-tags" id="khm-icp-sector-tags">
+									</div>
+									<button type="button" class="khm-partner-regions-toggle" data-target="khm-icp-sectors-panel" aria-expanded="false" style="font-size:0.75rem;padding:0.1rem 0.5rem;background:#e0f2fe;color:#0369a1;border:none;border-radius:999px;cursor:pointer;margin-bottom:0.35rem;">
+										<?php esc_html_e( 'Show', 'khm-membership' ); ?> <?php esc_html_e( 'selector', 'khm-membership' ); ?>
+									</button>
+									<div id="khm-icp-sectors-panel" class="khm-partner-regions-panel" style="display:none;">
+										<select multiple class="khm-partner-regions-select" id="khm-icp-sectors-select">
+											<option value=""><?php esc_html_e( 'Select sectors…', 'khm-membership' ); ?></option>
+											<option value="aerospace_aviation"><?php esc_html_e( 'Aerospace & Aviation', 'khm-membership' ); ?></option>
+											<option value="infrastructure_construction"><?php esc_html_e( 'Infrastructure, Construction and Asset Management', 'khm-membership' ); ?></option>
+											<option value="industrial_engineering"><?php esc_html_e( 'Industrial Engineering and Heavy Manufacturing', 'khm-membership' ); ?></option>
+											<option value="energy_utilities"><?php esc_html_e( 'Energy & Utilities', 'khm-membership' ); ?></option>
+											<option value="manufacturing_other"><?php esc_html_e( 'Manufacturing (Other)', 'khm-membership' ); ?></option>
+										</select>
+									</div>
+								</div>
+							</fieldset>
 								<fieldset style="grid-column: 1 / -1; border: 1px solid #dcdcde; border-radius: 6px; padding: 14px; background: #fafbfc; margin: 8px 0;">
 									<legend style="padding: 0 8px; font-weight: 600; font-size: 13px; color: #3c434a; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'RFQ Response Defaults', 'khm-membership' ); ?></legend>
 									<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 8px;">
