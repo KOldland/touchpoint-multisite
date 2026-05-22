@@ -4568,12 +4568,14 @@ class QuoteClubPortalShortcode {
 											</select>
 										</label>
 										<label>
-											<span><?php esc_html_e( 'Default Seat Band', 'khm-membership' ); ?></span>
+											<span><?php esc_html_e( 'Average number of licences per client', 'khm-membership' ); ?></span>
 											<select name="rfq_default_seats">
-												<option value="20_30"><?php esc_html_e( '20-30 seats', 'khm-membership' ); ?></option>
-												<option value="50_100"><?php esc_html_e( '50-100 seats', 'khm-membership' ); ?></option>
-												<option value="100_250"><?php esc_html_e( '100-250 seats', 'khm-membership' ); ?></option>
-												<option value="500_plus"><?php esc_html_e( '500+ seats', 'khm-membership' ); ?></option>
+												<option value="1_50"><?php esc_html_e( '1-50', 'khm-membership' ); ?></option>
+												<option value="51_150"><?php esc_html_e( '51-150', 'khm-membership' ); ?></option>
+												<option value="151_300"><?php esc_html_e( '151-300', 'khm-membership' ); ?></option>
+												<option value="301_500"><?php esc_html_e( '301-500', 'khm-membership' ); ?></option>
+												<option value="501_1000"><?php esc_html_e( '501-1000', 'khm-membership' ); ?></option>
+												<option value="1000_plus"><?php esc_html_e( '1000+', 'khm-membership' ); ?></option>
 											</select>
 										</label>
 										<label>
