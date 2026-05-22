@@ -149,7 +149,7 @@
       $form.trigger('reset');
       $form.find('[name="id"]').val('');
       $form.find('[name="rfq_default_scope"]').val('fsm_evaluation_poc');
-      $form.find('[name="rfq_default_seats"]').val('20_30');
+      $form.find('[name="rfq_default_seats"]').val('');
       $form.find('[name="rfq_default_timeframe"]').val('3_months');
       $form.find('[name="rfq_default_cpl_gbp"]').val('325');
       $form.find('[name="rfq_supported_features"]').val('mobile_app,offline_capabilities,real_time_reporting');
@@ -209,7 +209,7 @@
       $form.find('[name="budget_max"]').val(provider.budget_max || '');
       $form.find('[name="onboarding_days"]').val(provider.onboarding_days || '');
       $form.find('[name="rfq_default_scope"]').val(rfqProfile.default_scope || 'fsm_evaluation_poc');
-      $form.find('[name="rfq_default_seats"]').val(rfqProfile.default_seats || '20_30');
+      $form.find('[name="rfq_default_seats"]').val(rfqProfile.default_seats || '');
       $form.find('[name="rfq_default_timeframe"]').val(rfqProfile.default_timeframe || '3_months');
       $form.find('[name="rfq_default_cpl_gbp"]').val(rfqProfile.default_cpl_gbp || 325);
       $form.find('[name="rfq_supported_features"]').val(Array.isArray(rfqProfile.supported_features) ? rfqProfile.supported_features.join(', ') : 'mobile_app,offline_capabilities,real_time_reporting');
@@ -674,8 +674,8 @@
       var comparisonFields = parseJsonField($form.find('[name="comparison_fields"]').val());
       comparisonFields.rfq_profile = {
         default_scope: $form.find('[name="rfq_default_scope"]').val() || 'fsm_evaluation_poc',
-        default_seats: $form.find('[name="rfq_default_seats"]').val() || '20_30',
-        default_timeframe: $form.find('[name="rfq_default_timeframe"]').val() || '3_months',
+        default_seats: $form.find('[name="rfq_default_seats"]').val() || '',
+        default_timeframe: $form.find('[name="rfq_default_timeframe"]').val() || '',
         default_cpl_gbp: Number($form.find('[name="rfq_default_cpl_gbp"]').val() || 0),
         supported_features: splitList($form.find('[name="rfq_supported_features"]').val()),
         default_estimate_gbp: Number($form.find('[name="rfq_default_estimate_gbp"]').val() || 0),
