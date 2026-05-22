@@ -150,11 +150,11 @@
       $form.find('[name="id"]').val('');
       $form.find('[name="rfq_default_scope"]').val('fsm_evaluation_poc');
       $form.find('[name="rfq_default_seats"]').val('');
-      $form.find('[name="rfq_default_timeframe"]').val('3_months');
-      $form.find('[name="rfq_default_cpl_gbp"]').val('325');
+      $form.find('[name="rfq_default_timeframe"]').val('');
+      $form.find('[name="rfq_default_cpl_gbp"]').val('');
+      $form.find('[name="rfq_default_onboarding_time"]').val('');
       $form.find('[name="rfq_supported_features"]').val('mobile_app,offline_capabilities,real_time_reporting');
-      $form.find('[name="rfq_default_estimate_gbp"]').val('120000');
-      $form.find('[name="rfq_max_discount_pct"]').val('10');
+      $form.find('[name="rfq_max_discount_pct"]').val('');
       $form.find('[name="comparison_fields"]').val('{}');
       $form.find('[name="match_rules"]').val('{}');
       $deleteButton.hide();
@@ -207,14 +207,13 @@
       $form.find('[name="company_size_max"]').val(provider.company_size_max || '');
       $form.find('[name="budget_min"]').val(provider.budget_min || '');
       $form.find('[name="budget_max"]').val(provider.budget_max || '');
-      $form.find('[name="onboarding_days"]').val(provider.onboarding_days || '');
       $form.find('[name="rfq_default_scope"]').val(rfqProfile.default_scope || 'fsm_evaluation_poc');
       $form.find('[name="rfq_default_seats"]').val(rfqProfile.default_seats || '');
-      $form.find('[name="rfq_default_timeframe"]').val(rfqProfile.default_timeframe || '3_months');
-      $form.find('[name="rfq_default_cpl_gbp"]').val(rfqProfile.default_cpl_gbp || 325);
+      $form.find('[name="rfq_default_timeframe"]').val(rfqProfile.default_timeframe || '');
+      $form.find('[name="rfq_default_cpl_gbp"]').val(rfqProfile.default_cpl_gbp || '');
+      $form.find('[name="rfq_default_onboarding_time"]').val(rfqProfile.default_onboarding_time || '');
       $form.find('[name="rfq_supported_features"]').val(Array.isArray(rfqProfile.supported_features) ? rfqProfile.supported_features.join(', ') : 'mobile_app,offline_capabilities,real_time_reporting');
-      $form.find('[name="rfq_default_estimate_gbp"]').val(rfqProfile.default_estimate_gbp || 120000);
-      $form.find('[name="rfq_max_discount_pct"]').val(rfqProfile.max_discount_pct || 10);
+      $form.find('[name="rfq_max_discount_pct"]').val(rfqProfile.max_discount_pct || '');
       
       // Update Supported Features combobox UI
       if (typeof window.populateComboboxFeatures === 'function') {
@@ -677,8 +676,8 @@
         default_seats: $form.find('[name="rfq_default_seats"]').val() || '',
         default_timeframe: $form.find('[name="rfq_default_timeframe"]').val() || '',
         default_cpl_gbp: Number($form.find('[name="rfq_default_cpl_gbp"]').val() || 0),
+        default_onboarding_time: $form.find('[name="rfq_default_onboarding_time"]').val() || '',
         supported_features: splitList($form.find('[name="rfq_supported_features"]').val()),
-        default_estimate_gbp: Number($form.find('[name="rfq_default_estimate_gbp"]').val() || 0),
         max_discount_pct: Number($form.find('[name="rfq_max_discount_pct"]').val() || 0)
       };
 
@@ -1001,6 +1000,38 @@
         window.open(link, '_blank', 'noopener,noreferrer');
       }
     });
+
+    // Live Estimated Annual Cost recalculation
+    function updateEstimatedCost() {
+      var $seats = $form.find('[name="rfq_default_seats"]');
+      var $cpl   = $form.find('[name="rfq_default_cpl_gbp"]');
+      var $cost  = $('#khm-rfq-estimated-cost');
+      var seatsVal = $seats.val() || '';
+      var cpl      = parseFloat($cpl.val()) || 0;
+
+      if (!seatsVal || cpl <= 0) {
+        $cost.text('\u2014');
+        return;
+      }
+
+      // Map seat range to midpoint
+      var midpoint = 0;
+      switch (seatsVal) {
+        case '1_50':     midpoint = 25; break;
+        case '51_150':   midpoint = 100; break;
+        case '151_300':  midpoint = 225; break;
+        case '301_500':  midpoint = 400; break;
+        case '501_1000': midpoint = 750; break;
+        case '1000_plus': midpoint = 1500; break;
+        default:         midpoint = 0;
+      }
+
+      var annual = midpoint * cpl * 12;
+      $cost.text(formatGbp(annual));
+    }
+
+    $form.on('change', '[name="rfq_default_seats"]', updateEstimatedCost);
+    $form.on('input change', '[name="rfq_default_cpl_gbp"]', updateEstimatedCost);
 
     // Dynamic show/hide for provider type sub-sections
     function toggleProviderTypeSubsections() {

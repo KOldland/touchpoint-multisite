@@ -4622,30 +4622,39 @@ class QuoteClubPortalShortcode {
 											</select>
 										</label>
 										<label>
-											<span><?php esc_html_e( 'Average Time for Deployment', 'khm-membership' ); ?></span>
+											<span><?php esc_html_e( 'Default Cost Per Licence / Month (£)', 'khm-membership' ); ?></span>
+											<input type="number" min="0" step="0.01" name="rfq_default_cpl_gbp" placeholder="e.g., 325" class="khm-rfq-estimate-input" />
+										</label>
+										<div style="grid-column: 1 / -1; background: #f0f6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 12px;">
+											<span style="display: block; font-size: 12px; font-weight: 600; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'Estimated Annual Cost', 'khm-membership' ); ?></span>
+											<span id="khm-rfq-estimated-cost" style="display: block; font-size: 22px; font-weight: 700; color: #111827; margin-top: 2px;"><?php esc_html_e( '—', 'khm-membership' ); ?></span>
+											<p style="margin: 4px 0 0; font-size: 11px; color: #6b7280;"><?php esc_html_e( 'Calculated as licence midpoint × cost per licence × 12 months.', 'khm-membership' ); ?></p>
+										</div>
+										<label>
+											<span><?php esc_html_e( 'Average Deployment Time', 'khm-membership' ); ?></span>
 											<select name="rfq_default_timeframe">
 												<option value=""><?php esc_html_e( 'Select average deployment time…', 'khm-membership' ); ?></option>
-												<option value="3_months"><?php esc_html_e( '3 months', 'khm-membership' ); ?></option>
-												<option value="6_months"><?php esc_html_e( '6 months', 'khm-membership' ); ?></option>
-												<option value="12_months"><?php esc_html_e( '12 months', 'khm-membership' ); ?></option>
+												<option value="under_1_week"><?php esc_html_e( 'Immediate / Under 1 week', 'khm-membership' ); ?></option>
+												<option value="1_2_weeks"><?php esc_html_e( '1 – 2 weeks', 'khm-membership' ); ?></option>
+												<option value="2_4_weeks"><?php esc_html_e( '2 – 4 weeks', 'khm-membership' ); ?></option>
+												<option value="1_2_months"><?php esc_html_e( '1 – 2 months', 'khm-membership' ); ?></option>
+												<option value="2_plus_months"><?php esc_html_e( '2+ months', 'khm-membership' ); ?></option>
 											</select>
 										</label>
 										<label>
-											<span><?php esc_html_e( 'Default Cost Per Licence / Month (£)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" step="0.01" name="rfq_default_cpl_gbp" placeholder="e.g., 325" />
-										</label>
-										<label>
-											<span><?php esc_html_e( 'Default Buyer Estimate (£)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" step="500" name="rfq_default_estimate_gbp" placeholder="e.g., 120000" />
+											<span><?php esc_html_e( 'Average Onboarding Time', 'khm-membership' ); ?></span>
+											<select name="rfq_default_onboarding_time">
+												<option value=""><?php esc_html_e( 'Select average onboarding time…', 'khm-membership' ); ?></option>
+												<option value="under_1_week"><?php esc_html_e( 'Under 1 week', 'khm-membership' ); ?></option>
+												<option value="1_2_weeks"><?php esc_html_e( '1 – 2 weeks', 'khm-membership' ); ?></option>
+												<option value="2_4_weeks"><?php esc_html_e( '2 – 4 weeks', 'khm-membership' ); ?></option>
+												<option value="1_2_months"><?php esc_html_e( '1 – 2 months', 'khm-membership' ); ?></option>
+												<option value="2_plus_months"><?php esc_html_e( '2+ months', 'khm-membership' ); ?></option>
+											</select>
 										</label>
 										<label>
 											<span><?php esc_html_e( 'Max Discount You Will Offer (%)', 'khm-membership' ); ?></span>
 											<input type="number" min="0" max="30" step="1" name="rfq_max_discount_pct" placeholder="e.g., 10" />
-										</label>
-										<label style="grid-column: 1 / -1;">
-											<span><?php esc_html_e( 'Typical Onboarding Timeline (days)', 'khm-membership' ); ?></span>
-											<input type="number" min="0" name="onboarding_days" placeholder="e.g., 30" />
-											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Average time to activate a new customer', 'khm-membership' ); ?></p>
 										</label>
 										<label style="grid-column: 1 / -1;">
 											<span><?php esc_html_e( 'Supported Features (comma-separated keys)', 'khm-membership' ); ?></span>
