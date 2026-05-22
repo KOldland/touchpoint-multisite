@@ -4395,14 +4395,6 @@ class QuoteClubPortalShortcode {
 							<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;">
 								<span style="font-size:0.875rem;font-weight:600;"><?php esc_html_e( 'Regions Served', 'khm-membership' ); ?></span>
 							</div>
-							<div class="khm-partner-regions-tags" id="khm-region-tags">
-								<?php foreach ( $regions as $region ) : ?>
-									<span class="khm-partner-region-tag" data-region="<?php echo esc_attr( $region ); ?>">
-										<span class="khm-partner-region-tag-text"><?php echo esc_html( $region ); ?></span>
-										<button type="button" class="khm-partner-region-tag-remove" data-region="<?php echo esc_attr( $region ); ?>">&times;</button>
-									</span>
-								<?php endforeach; ?>
-							</div>
 							<div class="khm-partner-accordion">
 								<button type="button" class="khm-partner-accordion-trigger" aria-expanded="false" aria-controls="khm-regions-accordion-panel">
 									<span class="dashicons dashicons-admin-site"></span>
@@ -4748,43 +4740,16 @@ class QuoteClubPortalShortcode {
 
 			var form     = document.getElementById('khm-partner-account-form');
 			var msgEl    = form ? form.querySelector('.khm-partner-form-message') : null;
-			var regionsSelect = document.getElementById('khm-regions-select');
-			var regionsTags   = document.getElementById('khm-region-tags');
 			if (!form) return;
 
-			// Regions multi-select
-			if (regionsSelect) {
-				regionsSelect.addEventListener('change', function() {
-					var selected = Array.prototype.map.call(this.selectedOptions, function(opt) { return opt.value; }).filter(Boolean);
-					// Remove any current tags not in selection
-					var currentTags = Array.prototype.map.call(regionsTags.querySelectorAll('.khm-partner-region-tag'), function(tag) {
-						return tag.dataset.region;
-					});
-					selected.forEach(function(region) {
-						if (currentTags.indexOf(region) === -1) {
-							var tag = document.createElement('span');
-							tag.className = 'khm-partner-region-tag';
-							tag.dataset.region = region;
-							tag.innerHTML = '<span class="khm-partner-region-tag-text">' + region + '</span> <button type="button" class="khm-partner-region-tag-remove" data-region="' + region + '">&times;</button>';
-							regionsTags.appendChild(tag);
-							tag.querySelector('.khm-partner-region-tag-remove').addEventListener('click', function() {
-								tag.remove();
-								var opt = regionsSelect.querySelector('option[value="' + region + '"]');
-								if (opt) opt.selected = false;
-							});
-						}
-					});
-				});
-				// Bind initial remove buttons
-				regionsTags.querySelectorAll('.khm-partner-region-tag-remove').forEach(function(btn) {
-					btn.addEventListener('click', function() {
-						var region = btn.dataset.region;
-						btn.closest('.khm-partner-region-tag').remove();
-						var opt = regionsSelect.querySelector('option[value="' + region + '"]');
-						if (opt) opt.selected = false;
-					});
-				});
-			}
+			// Live update regions badge
+			document.getElementById('khm-regions-accordion-panel').addEventListener('change', function(e) {
+				if (!e.target.matches('input.khm-region-cb')) return;
+				var badge = document.querySelector('.khm-regions-badge');
+				if (!badge) return;
+				var checked = document.querySelectorAll('input.khm-region-cb:checked').length;
+				badge.textContent = checked + ' regions selected';
+			});
 
 			// Form submit
 			form.addEventListener('submit', function(e) {
@@ -4794,12 +4759,10 @@ class QuoteClubPortalShortcode {
 				var submitBtn = form.querySelector('button[type="submit"]');
 				if (submitBtn) submitBtn.disabled = true;
 
-				// Gather regions from tags
-				// The jQuery initializeRegionsMultiSelect creates tags with data-value;
-				// the PHP inline handler creates them with data-region. Handle both.
+				// Gather regions from accordion checkboxes
 				var regions = [];
-				regionsTags.querySelectorAll('.khm-partner-region-tag').forEach(function(tag) {
-					regions.push(tag.dataset.region || tag.dataset.value);
+				form.querySelectorAll('input.khm-region-cb:checked').forEach(function(cb) {
+					regions.push(cb.value);
 				});
 
 				// Gather selected solutions
