@@ -228,6 +228,23 @@
   display: inline !important;
 }
 
+/* Ensure checkboxes render left-of-text inside the account form (regions, solutions) */
+#khm-partner-account-form .khm-partner-solution-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  padding: 0.4rem 1rem !important;
+}
+#khm-partner-account-form .khm-partner-solution-row input[type="checkbox"] {
+  width: auto !important;
+  margin: 0 !important;
+  flex-shrink: 0 !important;
+}
+#khm-partner-account-form .khm-partner-solution-row span {
+  display: inline !important;
+}
+
 /* Section title with horizontal rule */
 .khm-partner-form-section-title {
   margin: 0 0 0.85rem;
