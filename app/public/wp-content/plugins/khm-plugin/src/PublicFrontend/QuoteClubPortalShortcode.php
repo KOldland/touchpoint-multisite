@@ -4476,10 +4476,15 @@ class QuoteClubPortalShortcode {
 					<div class="khm-partner-sub-sections-container">
 						<div class="khm-partner-sub-section">
 							<h4><?php esc_html_e( 'Deployment Mode', 'khm-membership' ); ?></h4>
+							<p style="margin:0 0 0.5rem; font-size:0.8rem; color:var(--partner-muted);"><?php esc_html_e( 'Select all that apply', 'khm-membership' ); ?></p>
 							<div class="khm-partner-sub-section-content">
-								<label><input type="radio" name="deployment_mode" value="on-premise" <?php checked( $deployment_mode, 'on-premise' ); ?> /> <?php esc_html_e( 'On-Premise', 'khm-membership' ); ?></label>
-								<label><input type="radio" name="deployment_mode" value="cloud" <?php checked( $deployment_mode, 'cloud' ); ?> /> <?php esc_html_e( 'Cloud / SaaS', 'khm-membership' ); ?></label>
-								<label><input type="radio" name="deployment_mode" value="hybrid" <?php checked( $deployment_mode, 'hybrid' ); ?> /> <?php esc_html_e( 'Hybrid', 'khm-membership' ); ?></label>
+								<?php
+								$deployment_modes = $deployment_mode ? (array) json_decode( $deployment_mode, true ) : [];
+								?>
+								<label><input type="checkbox" name="deployment_mode[]" value="cloud" <?php echo in_array( 'cloud', $deployment_modes, true ) ? 'checked' : ''; ?> /> <?php esc_html_e( 'Cloud / SaaS', 'khm-membership' ); ?></label>
+								<label><input type="checkbox" name="deployment_mode[]" value="on-premise" <?php echo in_array( 'on-premise', $deployment_modes, true ) ? 'checked' : ''; ?> /> <?php esc_html_e( 'On-Premise', 'khm-membership' ); ?></label>
+								<label><input type="checkbox" name="deployment_mode[]" value="hybrid" <?php echo in_array( 'hybrid', $deployment_modes, true ) ? 'checked' : ''; ?> /> <?php esc_html_e( 'Hybrid', 'khm-membership' ); ?></label>
+								<label><input type="checkbox" name="deployment_mode[]" value="private-cloud" <?php echo in_array( 'private-cloud', $deployment_modes, true ) ? 'checked' : ''; ?> /> <?php esc_html_e( 'Private Cloud', 'khm-membership' ); ?></label>
 							</div>
 						</div>
 						<div class="khm-partner-sub-section">
@@ -4753,6 +4758,11 @@ class QuoteClubPortalShortcode {
 					companyUrl = 'https://' + companyUrl;
 				}
 
+				var deploymentModes = [];
+				form.querySelectorAll('input[name="deployment_mode[]"]:checked').forEach(function(cb) {
+					deploymentModes.push(cb.value);
+				});
+
 				var data = {
 					sponsor_id:             parseInt(form.querySelector('input[name="sponsor_id"]').value, 10) || 0,
 					company_name:           form.querySelector('input[name="company_name"]').value.trim(),
@@ -4760,7 +4770,7 @@ class QuoteClubPortalShortcode {
 					hq_location:            (form.querySelector('select[name="hq_location"]') || {}).value || '',
 					regions:                regions,
 					solutions:              solutions,
-					deployment_mode:        (form.querySelector('input[name="deployment_mode"]:checked') || {}).value || 'cloud',
+					deployment_modes:       deploymentModes,
 					implementation_support: form.querySelector('input[name="implementation_support"]').checked ? 1 : 0,
 					support_hours:          (form.querySelector('input[name="support_hours"]:checked') || {}).value || 'business',
 				};
