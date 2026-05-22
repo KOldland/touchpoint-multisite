@@ -4576,11 +4576,12 @@ class QuoteClubPortalShortcode {
 									</div>
 									<div class="khm-partner-regions-tags" id="khm-icp-sector-tags">
 									</div>
-									<button type="button" class="khm-partner-regions-toggle" data-target="khm-icp-sectors-panel" aria-expanded="false" style="font-size:0.75rem;padding:0.1rem 0.5rem;background:#e0f2fe;color:#0369a1;border:none;border-radius:999px;cursor:pointer;margin-bottom:0.35rem;">
-										<?php esc_html_e( 'Show', 'khm-membership' ); ?> <?php esc_html_e( 'selector', 'khm-membership' ); ?>
-									</button>
-									<div id="khm-icp-sectors-panel" class="khm-partner-regions-panel" style="display:none;">
-										<select multiple class="khm-partner-regions-select" id="khm-icp-sectors-select">
+										<button type="button" class="khm-partner-accordion-trigger" aria-controls="khm-icp-sectors-panel" aria-expanded="false">
+											<span class="dashicons dashicons-category"></span>
+											<?php esc_html_e( 'Target Sectors', 'khm-membership' ); ?>
+										</button>
+										<div id="khm-icp-sectors-panel" class="khm-partner-accordion-panel" hidden>
+										<select multiple class="khm-partner-regions-select" id="khm-icp-sectors-select" size="5">
 											<option value=""><?php esc_html_e( 'Select sectors…', 'khm-membership' ); ?></option>
 											<option value="aerospace_aviation"><?php esc_html_e( 'Aerospace & Aviation', 'khm-membership' ); ?></option>
 											<option value="infrastructure_construction"><?php esc_html_e( 'Infrastructure, Construction and Asset Management', 'khm-membership' ); ?></option>
