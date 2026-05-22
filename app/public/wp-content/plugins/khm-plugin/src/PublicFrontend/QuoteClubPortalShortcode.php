@@ -4612,6 +4612,7 @@ class QuoteClubPortalShortcode {
 										<label>
 											<span><?php esc_html_e( 'Average number of licences per client', 'khm-membership' ); ?></span>
 											<select name="rfq_default_seats">
+												<option value=""><?php esc_html_e( 'Select average licence count…', 'khm-membership' ); ?></option>
 												<option value="1_50"><?php esc_html_e( '1-50', 'khm-membership' ); ?></option>
 												<option value="51_150"><?php esc_html_e( '51-150', 'khm-membership' ); ?></option>
 												<option value="151_300"><?php esc_html_e( '151-300', 'khm-membership' ); ?></option>
@@ -4621,8 +4622,9 @@ class QuoteClubPortalShortcode {
 											</select>
 										</label>
 										<label>
-											<span><?php esc_html_e( 'Default Timeframe', 'khm-membership' ); ?></span>
+											<span><?php esc_html_e( 'Average Time for Deployment', 'khm-membership' ); ?></span>
 											<select name="rfq_default_timeframe">
+												<option value=""><?php esc_html_e( 'Select average deployment time…', 'khm-membership' ); ?></option>
 												<option value="3_months"><?php esc_html_e( '3 months', 'khm-membership' ); ?></option>
 												<option value="6_months"><?php esc_html_e( '6 months', 'khm-membership' ); ?></option>
 												<option value="12_months"><?php esc_html_e( '12 months', 'khm-membership' ); ?></option>
