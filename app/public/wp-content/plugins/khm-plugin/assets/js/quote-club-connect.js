@@ -154,7 +154,7 @@
       $form.find('[name="rfq_default_cpl_gbp"]').val('');
       $form.find('[name="rfq_default_onboarding_time"]').val('');
       $form.find('[name="rfq_supported_features"]').val('mobile_app,offline_capabilities,real_time_reporting');
-      $form.find('[name="rfq_max_discount_pct"]').val('');
+      $form.find('[name="rfq_discount_pct"]').val('0');
       $form.find('[name="comparison_fields"]').val('{}');
       $form.find('[name="match_rules"]').val('{}');
       $deleteButton.hide();
@@ -213,7 +213,16 @@
       $form.find('[name="rfq_default_cpl_gbp"]').val(rfqProfile.default_cpl_gbp || '');
       $form.find('[name="rfq_default_onboarding_time"]').val(rfqProfile.default_onboarding_time || '');
       $form.find('[name="rfq_supported_features"]').val(Array.isArray(rfqProfile.supported_features) ? rfqProfile.supported_features.join(', ') : 'mobile_app,offline_capabilities,real_time_reporting');
-      $form.find('[name="rfq_max_discount_pct"]').val(rfqProfile.max_discount_pct || '');
+      // Populate discount dropdown: map stored pct to closest match in dropdown options
+      var discountPct = rfqProfile.max_discount_pct || 0;
+      var $discountSel = $form.find('[name="rfq_discount_pct"]');
+      if (discountPct > 0 && !$discountSel.find('option[value="' + discountPct + '"]').length) {
+        // Clamp to nearest available option
+        discountPct = [0, 5, 10, 15, 20, 25].reduce(function(prev, curr) {
+          return (Math.abs(curr - discountPct) < Math.abs(prev - discountPct) ? curr : prev);
+        });
+      }
+      $discountSel.val(discountPct);
       
       // Update Supported Features combobox UI
       if (typeof window.populateComboboxFeatures === 'function') {
@@ -680,7 +689,7 @@
         default_cpl_gbp: Number($form.find('[name="rfq_default_cpl_gbp"]').val() || 0),
         default_onboarding_time: $form.find('[name="rfq_default_onboarding_time"]').val() || '',
         supported_features: splitList($form.find('[name="rfq_supported_features"]').val()),
-        max_discount_pct: Number($form.find('[name="rfq_max_discount_pct"]').val() || 0)
+        max_discount_pct: Number($form.find('[name="rfq_discount_pct"]').val() || 0)
       };
 
       var payload = {
@@ -1030,10 +1039,28 @@
 
       var annual = midpoint * cpl * 12;
       $cost.text(formatGbp(annual));
+
+      // Calculate discount and fee breakdown
+      var $discountFeeCard = $('#khm-rfq-discount-fee-card');
+      var $clientDiscount  = $('#khm-rfq-client-discount');
+      var $platformFee     = $('#khm-rfq-platform-fee');
+      var $discountSel     = $form.find('[name="rfq_discount_pct"]');
+      var discountPct      = parseInt($discountSel.val(), 10) || 0;
+
+      if (discountPct > 0 && annual > 0) {
+        var totalDiscount = annual * (discountPct / 100);
+        var split = totalDiscount / 2;
+        $clientDiscount.text(formatGbp(split));
+        $platformFee.text(formatGbp(split));
+        $discountFeeCard.show();
+      } else {
+        $discountFeeCard.hide();
+      }
     }
 
     $form.on('change', '[name="rfq_default_seats"]', updateEstimatedCost);
     $form.on('input change keyup', '[name="rfq_default_cpl_gbp"]', updateEstimatedCost);
+    $form.on('change', '[name="rfq_discount_pct"]', updateEstimatedCost);
 
     // Also recalculate whenever the offering modal opens and on form reset
     $offeringModal.on('transitionend', function () {
