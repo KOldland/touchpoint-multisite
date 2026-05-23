@@ -4622,21 +4622,26 @@ class QuoteClubPortalShortcode {
 											<span id="khm-rfq-estimated-cost" style="display: block; font-size: 22px; font-weight: 700; color: #111827; margin-top: 2px;"><?php esc_html_e( '—', 'khm-membership' ); ?></span>
 											<p style="margin: 4px 0 0; font-size: 11px; color: #6b7280;"><?php esc_html_e( 'Calculated as licence midpoint × cost per licence × 12 months.', 'khm-membership' ); ?></p>
 										</div>
+										<label>
+											<span><?php esc_html_e( 'Max Discount You Will Offer (%)', 'khm-membership' ); ?></span>
+											<select name="rfq_discount_pct">
+												<option value="0">0% — No discount</option>
+												<option value="5">5%</option>
+												<option value="10" selected>10%</option>
+												<option value="15">15%</option>
+												<option value="20">20%</option>
+												<option value="25">25%</option>
+											</select>
+										</label>
 										<div id="khm-rfq-discount-fee-card" style="grid-column: 1 / -1; display:none; background:#f8fafc; border:1px solid #dbe4ea; border-radius:8px; padding:12px;">
 											<span style="display:block; font-size:12px; font-weight:600; color:#3c434a; text-transform:uppercase; letter-spacing:.04em;"><?php esc_html_e( 'Estimated Discount and Fees', 'khm-membership' ); ?></span>
 											<div style="display:flex; justify-content:space-between; gap:12px; font-size:13px; margin-top:8px;">
 												<span style="color:#3c434a;">
-													<span class="khm-partner-rfq-tooltip"><?php esc_html_e( 'Platform discount (client receives)', 'khm-membership' ); ?>
-														<button type="button" class="khm-partner-rfq-tooltip-btn" aria-label="<?php esc_attr_e( 'Discount help', 'khm-membership' ); ?>">i</button>
-														<span class="khm-partner-rfq-tooltip-bubble"><?php esc_html_e( 'Deductible from the buyer\'s first invoice with your company. 50% of the post-discount annual cost.', 'khm-membership' ); ?></span>
-													</span>
+													<?php esc_html_e( 'Platform discount (client receives)', 'khm-membership' ); ?>
 													<strong id="khm-rfq-client-discount" style="display:block; font-size:18px; color:#111827; margin-top:2px;"><?php esc_html_e( '—', 'khm-membership' ); ?></strong>
 												</span>
 												<span style="color:#3c434a;">
-													<span class="khm-partner-rfq-tooltip"><?php esc_html_e( 'Platform fee', 'khm-membership' ); ?>
-														<button type="button" class="khm-partner-rfq-tooltip-btn" aria-label="<?php esc_attr_e( 'Fee help', 'khm-membership' ); ?>">i</button>
-														<span class="khm-partner-rfq-tooltip-bubble"><?php esc_html_e( 'Debited from your account when the buyer confirms agreement so they can claim discount. 50% of the post-discount annual cost.', 'khm-membership' ); ?></span>
-													</span>
+													<?php esc_html_e( 'Platform fee', 'khm-membership' ); ?>
 													<strong id="khm-rfq-platform-fee" style="display:block; font-size:18px; color:#111827; margin-top:2px;"><?php esc_html_e( '—', 'khm-membership' ); ?></strong>
 												</span>
 											</div>
@@ -4661,17 +4666,6 @@ class QuoteClubPortalShortcode {
 												<option value="2_4_weeks"><?php esc_html_e( '2 – 4 weeks', 'khm-membership' ); ?></option>
 												<option value="1_2_months"><?php esc_html_e( '1 – 2 months', 'khm-membership' ); ?></option>
 												<option value="2_plus_months"><?php esc_html_e( '2+ months', 'khm-membership' ); ?></option>
-											</select>
-										</label>
-										<label>
-											<span><?php esc_html_e( 'Max Discount You Will Offer (%)', 'khm-membership' ); ?></span>
-											<select name="rfq_discount_pct">
-												<option value="0">0% — No discount</option>
-												<option value="5">5%</option>
-												<option value="10" selected>10%</option>
-												<option value="15">15%</option>
-												<option value="20">20%</option>
-												<option value="25">25%</option>
 											</select>
 										</label>
 										<label style="grid-column: 1 / -1;">
