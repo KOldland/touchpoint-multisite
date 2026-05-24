@@ -4668,10 +4668,17 @@ class QuoteClubPortalShortcode {
 												<option value="2_plus_months"><?php esc_html_e( '2+ months', 'khm-membership' ); ?></option>
 											</select>
 										</label>
-										<label style="grid-column: 1 / -1;">
-											<span><?php esc_html_e( 'Supported Features (comma-separated keys)', 'khm-membership' ); ?></span>
-											<input type="text" name="rfq_supported_features" placeholder="mobile_app,offline_capabilities,real_time_reporting,erp_integration" />
-										</label>
+											<div class="khm-form-group khm-partner-connect-span-2" style="grid-column: 1 / -1;">
+												<label>
+													<span><?php esc_html_e( 'Supported Features', 'khm-membership' ); ?></span>
+													<span class="khm-global-selection-hint" style="font-weight: 400; font-size: 12px; color: #6b7280;">
+														<?php esc_html_e( '(derived from your active solution domains)', 'khm-membership' ); ?>
+													</span>
+												</label>
+												<div id="khm-modal-features-shortlist" class="khm-partner-connect-span-2">
+													<!-- Dynamically populated by JS from #khm-solutions-accordion parent checkboxes -->
+												</div>
+											</div>
 									</div>
 								</fieldset>
 								
