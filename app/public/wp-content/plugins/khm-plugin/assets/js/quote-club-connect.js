@@ -212,7 +212,12 @@
       $form.find('[name="rfq_default_timeframe"]').val(rfqProfile.default_timeframe || '');
       $form.find('[name="rfq_default_cpl_gbp"]').val(rfqProfile.default_cpl_gbp || '');
       $form.find('[name="rfq_default_onboarding_time"]').val(rfqProfile.default_onboarding_time || '');
-      $form.find('[name="rfq_supported_features"]').val(Array.isArray(rfqProfile.supported_features) ? rfqProfile.supported_features.join(', ') : 'mobile_app,offline_capabilities,real_time_reporting');
+      var savedFeatures = rfqProfile.supported_features || {};
+      $form.find('[name="rfq_supported_features"]').val(
+        typeof savedFeatures === 'object' && !Array.isArray(savedFeatures)
+          ? JSON.stringify(savedFeatures)
+          : '{}'
+      );
       // Populate discount dropdown: map stored pct to closest match in dropdown options
       var discountPct = rfqProfile.max_discount_pct || 0;
       var $discountSel = $form.find('[name="rfq_discount_pct"]');

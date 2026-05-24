@@ -4906,10 +4906,15 @@ class QuoteClubPortalShortcode {
 						khmPopulateFeatureShortlist(null);
 					}, 100);
 				}
-				// Edit Listing button (C6 will pass preselected data)
+				// Edit Listing button — read hidden input that populateForm just set
 				if (e.target.closest('.khm-partner-connect-edit')) {
 					setTimeout(function() {
-						khmPopulateFeatureShortlist(null);
+						var hidden = document.querySelector('input[name="rfq_supported_features"]');
+						var savedData = null;
+						if (hidden && hidden.value) {
+							try { savedData = JSON.parse(hidden.value); } catch(e) {}
+						}
+						khmPopulateFeatureShortlist(savedData);
 					}, 100);
 				}
 			});
