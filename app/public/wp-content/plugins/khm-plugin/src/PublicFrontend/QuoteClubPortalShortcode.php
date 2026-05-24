@@ -4898,6 +4898,22 @@ class QuoteClubPortalShortcode {
 				return JSON.stringify(result);
 			}
 
+			// ─── C3: Auto-populate shortlist when listing modal opens ─────────
+			document.addEventListener('click', function(e) {
+				// New Listing button
+				if (e.target.closest('.khm-partner-connect-new')) {
+					setTimeout(function() {
+						khmPopulateFeatureShortlist(null);
+					}, 100);
+				}
+				// Edit Listing button (C6 will pass preselected data)
+				if (e.target.closest('.khm-partner-connect-edit')) {
+					setTimeout(function() {
+						khmPopulateFeatureShortlist(null);
+					}, 100);
+				}
+			});
+
 			var form     = document.getElementById('khm-partner-account-form');
 			var msgEl    = form ? form.querySelector('.khm-partner-form-message') : null;
 			if (!form) return;
