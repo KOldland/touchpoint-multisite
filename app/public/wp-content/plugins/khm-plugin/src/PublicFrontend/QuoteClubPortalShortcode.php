@@ -4914,6 +4914,21 @@ class QuoteClubPortalShortcode {
 				}
 			});
 
+			// ─── C4: Intercept listing modal submit, attach shortlist JSON ─────────
+			document.addEventListener('submit', function(e) {
+				if (e.target.id === 'khm-partner-connect-form') {
+					var json = khmCollectFeatureShortlistAsJSON();
+					var hidden = e.target.querySelector('input[name="rfq_supported_features"]');
+					if (!hidden) {
+						hidden = document.createElement('input');
+						hidden.type = 'hidden';
+						hidden.name = 'rfq_supported_features';
+						e.target.appendChild(hidden);
+					}
+					hidden.value = json;
+				}
+			}, true); // capturing phase: runs before jQuery's bubble-phase submit handler
+
 			var form     = document.getElementById('khm-partner-account-form');
 			var msgEl    = form ? form.querySelector('.khm-partner-form-message') : null;
 			if (!form) return;

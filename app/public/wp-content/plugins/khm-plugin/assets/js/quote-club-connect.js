@@ -688,7 +688,7 @@
         default_timeframe: $form.find('[name="rfq_default_timeframe"]').val() || '',
         default_cpl_gbp: Number($form.find('[name="rfq_default_cpl_gbp"]').val() || 0),
         default_onboarding_time: $form.find('[name="rfq_default_onboarding_time"]').val() || '',
-        supported_features: splitList($form.find('[name="rfq_supported_features"]').val()),
+        supported_features: parseJsonField($form.find('[name="rfq_supported_features"]').val() || '{}'),
         max_discount_pct: Number($form.find('[name="rfq_discount_pct"]').val() || 0)
       };
 
