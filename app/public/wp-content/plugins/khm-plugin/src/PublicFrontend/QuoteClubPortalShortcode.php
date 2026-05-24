@@ -4765,6 +4765,139 @@ class QuoteClubPortalShortcode {
 				badge.textContent = checked + ' solutions selected';
 			});
 
+			// ─── Feature Shortlist Helpers (C2) ────────────────────────────
+			// Scrapes #khm-solutions-accordion for checked solutions and renders
+			// them as filterable checkboxes inside #khm-modal-features-shortlist.
+			// Called when the listing modal opens (C3) and read on submit (C4).
+
+			/**
+			 * Populate the modal feature shortlist from the Solutions Offered accordion.
+			 *
+			 * @param {Object|null} preselectedMap  e.g. {"software":[1,2],"consultancy":[5]}
+			 *   Pass saved features when editing an existing listing; null for new listings.
+			 */
+			function khmPopulateFeatureShortlist(preselectedMap) {
+				var container = document.getElementById('khm-modal-features-shortlist');
+				if (!container) return;
+
+				var accordion = document.getElementById('khm-solutions-accordion');
+				if (!accordion) {
+					container.innerHTML = '<p class="khm-muted-note">Solutions accordion not found.</p>';
+					return;
+				}
+
+				var sections = accordion.querySelectorAll('.khm-partner-accordion');
+				if (!sections.length) {
+					container.innerHTML = '<p class="khm-muted-note">No solution domains available.</p>';
+					return;
+				}
+
+				container.innerHTML = '';
+				var fragment = document.createDocumentFragment();
+				var hasAny = false;
+
+				// Normalize preselected IDs into a flat set for O(1) lookup
+				var preselectedIds = {};
+				if (preselectedMap && typeof preselectedMap === 'object') {
+					Object.keys(preselectedMap).forEach(function(groupKey) {
+						var ids = preselectedMap[groupKey];
+						if (Array.isArray(ids)) {
+							ids.forEach(function(id) { preselectedIds[Number(id)] = true; });
+						}
+					});
+				}
+
+				sections.forEach(function(section) {
+					var trigger = section.querySelector('.khm-partner-accordion-trigger');
+					var panel   = section.querySelector('.khm-partner-accordion-panel');
+					if (!trigger || !panel) return;
+
+					// Get parent label text, stripping the "X solutions selected" badge
+					var parentLabel = (trigger.textContent || '').trim();
+					parentLabel = parentLabel.replace(/\d+\s*solutions?\s*selected.*$/i, '').trim();
+
+					// Derive group key from panel ID, e.g. "sol-panel-software" → "software"
+					var groupKey = (panel.id || '').replace('sol-panel-', '');
+
+					var checkedCbs = panel.querySelectorAll('input[type="checkbox"]:checked');
+					if (!checkedCbs.length) return;
+
+					hasAny = true;
+
+					// Parent heading
+					var heading = document.createElement('h4');
+					heading.className = 'khm-feature-parent-heading';
+					heading.textContent = parentLabel;
+					fragment.appendChild(heading);
+
+					// Feature grid
+					var grid = document.createElement('div');
+					grid.className = 'khm-feature-grid';
+
+					checkedCbs.forEach(function(cb) {
+						var solId = parseInt(cb.value, 10);
+
+						// Extract human-readable label from the parent label.khm-partner-solution-row
+						var rowLabel = cb.closest('label');
+						var featureName;
+						if (rowLabel) {
+							var span = rowLabel.querySelector('span');
+							featureName = span ? span.textContent.trim() : rowLabel.textContent.trim();
+						} else {
+							featureName = cb.value;
+						}
+
+						var label = document.createElement('label');
+						label.className = 'khm-feature-checkbox-label';
+
+						var input = document.createElement('input');
+						input.type = 'checkbox';
+						input.name = 'rfq_supported_features[]';
+						input.value = solId;
+						input.className = 'khm-feature-checkbox';
+						input.setAttribute('data-parent-group', groupKey);
+
+						if (preselectedIds[solId]) {
+							input.checked = true;
+						}
+
+						label.appendChild(input);
+						label.appendChild(document.createTextNode(' ' + featureName));
+						grid.appendChild(label);
+					});
+
+					fragment.appendChild(grid);
+				});
+
+				if (!hasAny) {
+					container.innerHTML = '<p class="khm-muted-note">Select solutions in the &ldquo;Solutions Offered&rdquo; section above &mdash; they will appear here for you to shortlist per listing.</p>';
+					return;
+				}
+
+				container.appendChild(fragment);
+			}
+
+			/**
+			 * Collect checked features from the shortlist and return as a JSON string.
+			 *
+			 * @returns {string} JSON — {"software":[1,2],"consultancy":[5]}
+			 */
+			function khmCollectFeatureShortlistAsJSON() {
+				var container = document.getElementById('khm-modal-features-shortlist');
+				if (!container) return '{}';
+
+				var cbs = container.querySelectorAll('input.khm-feature-checkbox:checked');
+				var result = {};
+
+				cbs.forEach(function(cb) {
+					var groupKey = cb.getAttribute('data-parent-group') || 'software';
+					if (!result[groupKey]) result[groupKey] = [];
+					result[groupKey].push(parseInt(cb.value, 10));
+				});
+
+				return JSON.stringify(result);
+			}
+
 			var form     = document.getElementById('khm-partner-account-form');
 			var msgEl    = form ? form.querySelector('.khm-partner-form-message') : null;
 			if (!form) return;
