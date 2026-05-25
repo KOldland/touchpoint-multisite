@@ -510,3 +510,75 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Feature Shortlist (inside offering modal) ─────────────────── */
+
+/* Empty state message */
+#khm-offering-modal .khm-muted-note {
+    color: var(--partner-muted);
+    font-size: 0.875rem;
+    font-style: italic;
+    padding: 0.5rem 0;
+}
+
+/* Parent heading — matches accordion trigger weight/size */
+#khm-offering-modal .khm-feature-parent-heading {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--partner-text);
+    margin: 0.75rem 0 0.5rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--partner-border);
+}
+
+/* Feature grid — 3 columns matching accordion panel */
+#khm-offering-modal .khm-feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    margin-bottom: 0.5rem;
+}
+
+/* Checkbox row — matches .khm-partner-solution-row exactly */
+#khm-offering-modal .khm-feature-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #1f2937;
+    cursor: pointer;
+    transition: background-color 0.12s;
+}
+
+#khm-offering-modal .khm-feature-checkbox-label:hover {
+    background-color: #f9fafb;
+}
+
+/* Checkbox input — matches solution row checkbox */
+#khm-offering-modal .khm-feature-checkbox {
+    width: auto;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+/* Checked state — blue text like solution rows */
+#khm-offering-modal .khm-feature-checkbox:checked + * {
+    color: #1d4ed8;
+    font-weight: 600;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+    #khm-offering-modal .khm-feature-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    #khm-offering-modal .khm-feature-grid {
+        grid-template-columns: 1fr;
+    }
+}
