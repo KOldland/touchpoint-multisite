@@ -4682,27 +4682,14 @@ class QuoteClubPortalShortcode {
 									</div>
 								</fieldset>
 								
-								<label>
-									<span><?php esc_html_e( 'Title Contexts', 'khm-membership' ); ?></span>
-									<input type="text" name="titles" placeholder="finance, saas, cybersecurity" list="khm-partner-connect-title-contexts" />
-								</label>
-								
 								
 								
 								<label>
 									<span><?php esc_html_e( 'Status', 'khm-membership' ); ?></span>
 									<select name="status">
-										<option value="active"><?php esc_html_e( 'Active', 'khm-membership' ); ?></option>
-										<option value="inactive"><?php esc_html_e( 'Inactive', 'khm-membership' ); ?></option>
+										<option value="active"><?php esc_html_e( 'Live', 'khm-membership' ); ?></option>
+										<option value="inactive"><?php esc_html_e( 'Paused', 'khm-membership' ); ?></option>
 									</select>
-								</label>
-								<label class="khm-partner-connect-check">
-									<input type="checkbox" name="commentary_enabled" value="1" />
-									<span><?php esc_html_e( 'Eligible for commentary contexts', 'khm-membership' ); ?></span>
-								</label>
-								<label class="khm-partner-connect-check">
-									<input type="checkbox" name="ad_targeting_enabled" value="1" />
-									<span><?php esc_html_e( 'Eligible for ad targeting', 'khm-membership' ); ?></span>
 								</label>
 								
 								
@@ -4743,10 +4730,11 @@ class QuoteClubPortalShortcode {
 				btn.setAttribute('aria-expanded', String(!isOpen));
 			});
 
-			// Accordion toggle for solutions groups
+			// Accordion toggle for solutions groups (skip modal — modal has its own handler)
 			document.addEventListener('click', function(e) {
 				var trigger = e.target.closest('.khm-partner-accordion-trigger');
 				if (!trigger) return;
+				if (trigger.closest('#khm-offering-modal')) return; // Modal has its own toggle
 				var panel = document.getElementById(trigger.getAttribute('aria-controls'));
 				if (!panel) return;
 				var expanded = trigger.getAttribute('aria-expanded') === 'true';
@@ -4824,49 +4812,63 @@ class QuoteClubPortalShortcode {
 
 					hasAny = true;
 
-					// Parent heading
-					var heading = document.createElement('h4');
-					heading.className = 'khm-feature-parent-heading';
-					heading.textContent = parentLabel;
-					fragment.appendChild(heading);
+						// Accordion wrapper (matching main page pattern)
+						var accordion = document.createElement('div');
+						accordion.className = 'khm-partner-accordion';
 
-					// Feature grid
-					var grid = document.createElement('div');
-					grid.className = 'khm-feature-grid';
+						var btn = document.createElement('button');
+						btn.type = 'button';
+						btn.className = 'khm-partner-accordion-trigger';
+						btn.setAttribute('aria-expanded', 'false');
+						btn.setAttribute('aria-controls', 'feat-panel-' + groupKey);
+						btn.textContent = parentLabel;
 
-					checkedCbs.forEach(function(cb) {
-						var solId = parseInt(cb.value, 10);
+						var badge = document.createElement('span');
+						badge.className = 'khm-partner-version-tag khm-solutions-badge';
+						badge.setAttribute('data-group', groupKey);
+						badge.textContent = '0 features selected'; // Updated by JS on modal open
+						btn.appendChild(badge);
 
-						// Extract human-readable label from the parent label.khm-partner-solution-row
-						var rowLabel = cb.closest('label');
-						var featureName;
-						if (rowLabel) {
-							var span = rowLabel.querySelector('span');
-							featureName = span ? span.textContent.trim() : rowLabel.textContent.trim();
-						} else {
-							featureName = cb.value;
-						}
+						var accPanel = document.createElement('div');
+						accPanel.className = 'khm-partner-accordion-panel';
+						accPanel.id = 'feat-panel-' + groupKey;
+						// Closed by default via CSS; .khm-accordion-open toggles visibility
 
-						var label = document.createElement('label');
-						label.className = 'khm-feature-checkbox-label';
+						checkedCbs.forEach(function(cb) {
+							var solId = parseInt(cb.value, 10);
 
-						var input = document.createElement('input');
-						input.type = 'checkbox';
-						input.name = 'rfq_supported_features[]';
-						input.value = solId;
-						input.className = 'khm-feature-checkbox';
-						input.setAttribute('data-parent-group', groupKey);
+							// Extract human-readable label from the parent label.khm-partner-solution-row
+							var rowLabel = cb.closest('label');
+							var featureName;
+							if (rowLabel) {
+								var span = rowLabel.querySelector('span');
+								featureName = span ? span.textContent.trim() : rowLabel.textContent.trim();
+							} else {
+								featureName = cb.value;
+							}
 
-						if (preselectedIds[solId]) {
-							input.checked = true;
-						}
+							var label = document.createElement('label');
+							label.className = 'khm-feature-checkbox-label';
 
-						label.appendChild(input);
-						label.appendChild(document.createTextNode(' ' + featureName));
-						grid.appendChild(label);
-					});
+							var input = document.createElement('input');
+							input.type = 'checkbox';
+							input.name = 'rfq_supported_features[]';
+							input.value = solId;
+							input.className = 'khm-feature-checkbox';
+							input.setAttribute('data-parent-group', groupKey);
 
-					fragment.appendChild(grid);
+							if (preselectedIds[solId]) {
+								input.checked = true;
+							}
+
+							label.appendChild(input);
+							label.appendChild(document.createTextNode(' ' + featureName));
+							accPanel.appendChild(label);
+						});
+
+						accordion.appendChild(btn);
+						accordion.appendChild(accPanel);
+						fragment.appendChild(accordion);
 				});
 
 				if (!hasAny) {
@@ -4875,6 +4877,17 @@ class QuoteClubPortalShortcode {
 				}
 
 				container.appendChild(fragment);
+
+				// Initialize badge counts after populating
+				container.querySelectorAll('.khm-partner-accordion-panel').forEach(function(panel) {
+					var panelId = panel.id || '';
+					var groupKey = panelId.replace('feat-panel-', '');
+					var checkedCount = panel.querySelectorAll('input[type="checkbox"]:checked').length;
+					var badge = container.querySelector('.khm-solutions-badge[data-group="' + groupKey + '"]');
+					if (badge) {
+						badge.textContent = checkedCount + ' features selected';
+					}
+				});
 			}
 
 			/**

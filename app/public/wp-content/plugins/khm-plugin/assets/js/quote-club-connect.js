@@ -237,8 +237,7 @@
       $form.find('[name="status"]').val(provider.status || 'active');
       $form.find('[name="pilot_scheme_available"]').prop('checked', !!provider.pilot_scheme_available);
       $form.find('[name="free_trial_available"]').prop('checked', !!provider.free_trial_available);
-      $form.find('[name="commentary_enabled"]').prop('checked', !!provider.commentary_enabled);
-      $form.find('[name="ad_targeting_enabled"]').prop('checked', !!provider.ad_targeting_enabled);
+      
       $form.find('[name="comparison_fields"]').val(JSON.stringify(provider.comparison_fields || {}, null, 2));
       $form.find('[name="match_rules"]').val(JSON.stringify(provider.match_rules || {}, null, 2));
       $deleteButton.show();
@@ -702,7 +701,7 @@
         website_url: $form.find('[name="website_url"]').val().trim(),
         description: $form.find('[name="description"]').val().trim(),
         sweet_spot_summary: $form.find('[name="sweet_spot_summary"]').val().trim(),
-        titles: splitList($form.find('[name="titles"]').val()),
+        titles: [],
         regions: $form.find('[name="regions"]').val(), // Directly get array of selected values
         industries: splitList($form.find('[name="industries"]').val()),
         deployment_modes: splitList($form.find('[name="deployment_modes"]').val()),
@@ -716,8 +715,8 @@
         status: $form.find('[name="status"]').val() || 'active',
         pilot_scheme_available: $form.find('[name="pilot_scheme_available"]').is(':checked'),
         free_trial_available: $form.find('[name="free_trial_available"]').is(':checked'),
-        commentary_enabled: $form.find('[name="commentary_enabled"]').is(':checked'),
-        ad_targeting_enabled: $form.find('[name="ad_targeting_enabled"]').is(':checked'),
+        commentary_enabled: true,
+        				ad_targeting_enabled: true,
         comparison_fields: comparisonFields,
         match_rules: parseJsonField($form.find('[name="match_rules"]').val())
       };
@@ -806,6 +805,41 @@
     $offeringModal.on('click', function(e) {
         if (e.target === this) {
             $offeringModal.hide();
+        }
+    });
+
+    // Feature shortlist accordion toggle (inside offering modal)
+    $(document).on('click', '#khm-offering-modal .khm-partner-accordion-trigger', function() {
+        var $trigger = $(this);
+        var panelId = $trigger.attr('aria-controls');
+        var $panel = $('#' + panelId);
+        if (!$panel.length) return;
+        var isExpanded = $trigger.attr('aria-expanded') === 'true';
+        $trigger.attr('aria-expanded', !isExpanded);
+        $panel.toggleClass('khm-accordion-open', !isExpanded);
+    });
+
+    // Update badge count when checkboxes change inside feature shortlist
+    $(document).on('change', '#khm-offering-modal .khm-partner-accordion-panel input[type="checkbox"]', function() {
+        var $panel = $(this).closest('.khm-partner-accordion-panel');
+        var panelId = $panel.attr('id');
+        var groupKey = panelId ? panelId.replace('feat-panel-', '') : '';
+        var checkedCount = $panel.find('input[type="checkbox"]:checked').length;
+        var $badge = $panel.closest('.khm-partner-accordion').find('.khm-solutions-badge[data-group="' + groupKey + '"]');
+        if ($badge.length) {
+            $badge.text(checkedCount + ' features selected');
+        }
+    });
+
+    // Initialize badge counts when modal opens
+    $('#khm-offering-modal .khm-partner-accordion-panel').each(function() {
+        var $panel = $(this);
+        var panelId = $panel.attr('id');
+        var groupKey = panelId ? panelId.replace('feat-panel-', '') : '';
+        var checkedCount = $panel.find('input[type="checkbox"]:checked').length;
+        var $badge = $panel.closest('.khm-partner-accordion').find('.khm-solutions-badge[data-group="' + groupKey + '"]');
+        if ($badge.length) {
+            $badge.text(checkedCount + ' features selected');
         }
     });
 
