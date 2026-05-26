@@ -141,6 +141,8 @@ function khm_register_cron_schedules( $schedules ) {
 
 // add_filter( 'cron_schedules', 'khm_register_cron_schedules' );
 require_once __DIR__ . '/src/Bootstrap/CronBootstrap.php';
+require_once __DIR__ . '/src/Bootstrap/AdminBootstrap.php';
+\KHM\Bootstrap\AdminBootstrap::init();
 \KHM\Bootstrap\CronBootstrap::init();
 
 // Load marketing suite integration functions
@@ -579,30 +581,13 @@ register_activation_hook( __FILE__, function() {
 } );
 
 // Create main admin menu if it doesn't exist
-add_action('admin_menu', 'khm_create_main_admin_menu');
+// add_action('admin_menu', 'khm_create_main_admin_menu');
 
 // Register LevelsPage and AddMemberPage admin_post handlers early via admin_init
-add_action('admin_init', function() {
-    // Register LevelsPage
-    if ( class_exists('KHM\\Admin\\LevelsPage') ) {
-        $levels_page = new KHM\Admin\LevelsPage();
-        $levels_page->register();
-        $GLOBALS['khm_levels_page'] = $levels_page;
-    }
-    
-    // Register AddMemberPage
-    if ( class_exists('KHM\\Admin\\AddMemberPage') ) {
-        $add_member_page = new KHM\Admin\AddMemberPage();
-        $add_member_page->register();
-        $GLOBALS['khm_add_member_page'] = $add_member_page;
-    }
-
-    // Register Membership Reports Page
-    if ( class_exists('KHM\\Membership\\Admin\\ReportsPage') ) {
-        new KHM\Membership\Admin\ReportsPage();
-    }
-}, 1); // Priority 1 = very early
-
+// add_action('admin_init', function() {
+//     // Register LevelsPage and AddMemberPage admin_post handlers early via admin_init
+//     // ... moved to AdminBootstrap ...
+// }, 1); // Priority 1 = very early
 // Redirect pretty admin slug to correct page param to avoid 404s.
 add_action('admin_init', function () {
     if (!is_admin()) {
