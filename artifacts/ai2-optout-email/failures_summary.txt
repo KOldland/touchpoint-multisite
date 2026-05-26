@@ -1,2 +1,0 @@
-No failing tests in this run.
-Result: green full membership suite.

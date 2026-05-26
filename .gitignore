@@ -91,3 +91,4 @@ wp-cli.yml
 *secret*
 *password*
 *token*
+app/public/logs/

@@ -168,8 +168,8 @@
   transform: rotate(180deg);
 }
 
-.khm-partner-accordion-panel {
-  display: grid;
+#khm-offering-modal .khm-partner-accordion-panel {
+  display: none;
   grid-template-columns: repeat(3, 1fr);
   gap: 0;
   padding: 0.25rem 0;
@@ -178,8 +178,8 @@
   overflow-y: auto;
 }
 
-.khm-partner-accordion-panel[hidden] {
-  display: none;
+#khm-offering-modal .khm-partner-accordion-panel.khm-accordion-open {
+  display: grid;
 }
 
 /* Toggle-style checkbox rows (matching RFQ toggle pattern) */
@@ -582,3 +582,10 @@
         grid-template-columns: 1fr;
     }
 }
+/* ── Feature shortlist: force checkbox labels left-aligned ─────── */
+
+#khm-offering-modal .khm-feature-checkbox-label {
+    flex-direction: row;
+    justify-content: flex-start;
+}
+
