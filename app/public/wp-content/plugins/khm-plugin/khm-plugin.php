@@ -139,7 +139,9 @@ function khm_register_cron_schedules( $schedules ) {
     return $schedules;
 }
 
-add_filter( 'cron_schedules', 'khm_register_cron_schedules' );
+// add_filter( 'cron_schedules', 'khm_register_cron_schedules' );
+require_once __DIR__ . '/src/Bootstrap/CronBootstrap.php';
+\KHM\Bootstrap\CronBootstrap::init();
 
 // Load marketing suite integration functions
 require_once __DIR__ . '/includes/marketing-suite-functions.php';
@@ -433,6 +435,7 @@ add_action('init', function() {
 }, 0);
 
 // Load GEO Migration (for table creation)
+
 require_once __DIR__ . '/src/Migrations/GeoAnswerCardMigration.php';
 
 // Load Advanced Attribution System
