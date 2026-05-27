@@ -1,0 +1,9 @@
+{
+    "name": "kh/attribution",
+    "description": "Affiliate Attribution and ROI Tracking Engine",
+    "autoload": {
+        "psr-4": {
+            "KH\\Attribution\\": "src/"
+        }
+    }
+}
