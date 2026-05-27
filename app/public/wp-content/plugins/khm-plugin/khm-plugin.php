@@ -173,7 +173,6 @@ require_once __DIR__ . '/src/Sponsors/SponsorApplicationShortcode.php';
 require_once __DIR__ . '/src/Sponsors/SponsorApplicationAdminUI.php';
 require_once __DIR__ . '/src/Admin/PriceValidationAjax.php';
 require_once __DIR__ . '/src/Membership/MembershipMigration.php';
-require_once __DIR__ . '/src/Membership/AttributionEndpoint.php';
 require_once __DIR__ . '/src/Membership/TierRegistry.php';
 require_once __DIR__ . '/src/Membership/ReadershiptTierConfig.php';
 require_once __DIR__ . '/src/Migrations/SeedReadershipTiers.php';
@@ -216,10 +215,6 @@ add_action( 'rest_api_init', function() {
     if ( class_exists( 'KHM\\Sponsors\\SponsorController' ) ) {
         $controller = new KHM\Sponsors\SponsorController();
         $controller->register_routes();
-    }
-    if ( class_exists( 'KHM\\Membership\\AttributionEndpoint' ) ) {
-        $endpoint = new KHM\Membership\AttributionEndpoint();
-        $endpoint->register_routes();
     }
     if ( class_exists( 'KHM\\Membership\\SignupEndpoint' ) ) {
         $endpoint = new KHM\Membership\SignupEndpoint();
@@ -440,12 +435,8 @@ add_action('init', function() {
 
 require_once __DIR__ . '/src/Migrations/GeoAnswerCardMigration.php';
 
-// Load Advanced Attribution System
-require_once plugin_dir_path(__FILE__) . 'src/Attribution/AttributionManager.php';
-
 // Load Attribution Admin Interface
 if (is_admin()) {
-    require_once plugin_dir_path(__FILE__) . 'admin/attribution-admin.php';
     if ( class_exists( 'KHM\\Admin\\QuoteClubBundleAdminPage' ) ) {
         $qc_credits  = new KHM\Services\CreditService(new KHM\Services\MembershipRepository(), new KHM\Services\LevelRepository());
         $qc_bundles  = new KHM\Services\QuoteClubCreditBundleService($qc_credits);
@@ -503,48 +494,6 @@ if ( class_exists( 'KHM\\PublicFrontend\\ConnectLegacyShortcodes' ) ) {
 	( new KHM\PublicFrontend\ConnectLegacyShortcodes() )->register();
 }
 
-// Initialize Attribution System
-add_action('plugins_loaded', 'khm_init_attribution_system');
-
-function khm_init_attribution_system() {
-    // Create attribution manager instance
-    if (class_exists('KHM_Advanced_Attribution_Manager')) {
-        global $khm_attribution_manager;
-        $khm_attribution_manager = new KHM_Advanced_Attribution_Manager();
-        
-        // Create database tables if they don't exist
-        $khm_attribution_manager->maybe_create_attribution_tables();
-    }
-}
-
-// Enqueue frontend attribution tracking script
-add_action('wp_enqueue_scripts', 'khm_enqueue_attribution_scripts');
-
-function khm_enqueue_attribution_scripts() {
-    // Only load on frontend
-    if (!is_admin()) {
-        wp_enqueue_script('jquery');
-        wp_enqueue_script(
-            'khm-attribution-tracker',
-            plugin_dir_url(__FILE__) . 'assets/js/attribution-tracker.js',
-            array('jquery'),
-            '1.0.0',
-            true
-        );
-        
-        // Localize script with REST API endpoints
-        wp_localize_script('khm-attribution-tracker', 'khmAttribution', array(
-            'restUrl' => rest_url('khm/v1/'),
-            'nonce' => wp_create_nonce('wp_rest'),
-            'debug' => defined('WP_DEBUG') && WP_DEBUG,
-            'settings' => array(
-                'attribution_window' => get_option('khm_attribution_options', array())['attribution_window'] ?? 30,
-                'enable_fingerprinting' => get_option('khm_attribution_options', array())['enable_fingerprinting'] ?? false
-            )
-        ));
-    }
-}
-
 /**
  * Create SuggestionAuditLogger table on plugin activation.
  */
@@ -592,11 +541,6 @@ register_activation_hook( __FILE__, function() {
 add_action('admin_init', function () {
     if (!is_admin()) {
         return;
-    }
-    $request_uri = $_SERVER['REQUEST_URI'] ?? '';
-    if (strpos($request_uri, '/wp-admin/khm-attribution') !== false) {
-        wp_redirect(admin_url('admin.php?page=khm-attribution'));
-        exit;
     }
 });
 
@@ -2445,47 +2389,4 @@ add_action('admin_menu', function() {
     add_submenu_page('editorial_planner', __('Top-Line Categories','khm-membership'), __('Top-Line Categories','khm-membership'), 'edit_posts', 'editorial_top_line_categories', 'render_top_line_categories_page');
     add_submenu_page('editorial_planner', __('Past Sessions','khm-membership'), __('Past Sessions','khm-membership'), 'edit_posts', 'editorial_sessions', 'render_sessions_page');
     add_submenu_page('editorial_planner', __('Article Frameworks','khm-membership'), __('Article Frameworks','khm-membership'), 'edit_posts', 'editorial_frameworks', 'render_frameworks_page');
-    add_submenu_page('editorial_planner', __('Editorial Calendar','khm-membership'), __('Editorial Calendar','khm-membership'), 'edit_posts', 'editorial_calendar', 'render_editorial_calendar_page');
-});
-
-add_action('admin_menu', function() {
-    remove_submenu_page('editorial_planner', 'editorial_planner');
-}, 999);
-
-add_action('admin_menu', function() {
-    global $menu;
-
-    if (!is_array($menu) || empty($menu)) {
-        return;
-    }
-
-    $elementor_slugs = array('elementor', 'elementor-app');
-
-    foreach ($elementor_slugs as $target_slug) {
-        $found_index = null;
-        $found_item = null;
-
-        foreach ($menu as $index => $item) {
-            if (!empty($item[2]) && $item[2] === $target_slug) {
-                $found_index = $index;
-                $found_item = $item;
-                break;
-            }
-        }
-
-        if (null === $found_index || null === $found_item) {
-            continue;
-        }
-
-        unset($menu[$found_index]);
-
-        $new_index = 200;
-        while (isset($menu[$new_index])) {
-            $new_index++;
-        }
-
-        $menu[$new_index] = $found_item;
-    }
-
-    ksort($menu);
-}, 999);
+    add_submenu_page('editorial_planner', __('Editorial Calendar','khm-membership'), __('Editorial Calendar','khm-membership'), 'edit_posts', 'editorial_calendar', 'render_ed

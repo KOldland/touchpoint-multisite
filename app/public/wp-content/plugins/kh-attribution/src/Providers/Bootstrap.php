@@ -7,6 +7,7 @@ use KH\Attribution\Assets\AttributionAssets;
 use KH\Attribution\Services\Attribution\AttributionStorage;
 use KH\Attribution\Services\Attribution\CommissionCalculator;
 use KH\Attribution\Services\Attribution\KHM_Advanced_Attribution_Manager;
+use KH\Attribution\Admin\AttributionAdmin;
 
 /**
  * Bootstrap Provider
@@ -40,6 +41,12 @@ class Bootstrap {
         // 5. Register Assets
         $assets = new AttributionAssets($manager);
         $assets->register();
+
+        // 6. Register Admin UI
+        if (is_admin()) {
+            $admin = new AttributionAdmin($manager);
+            $admin->register();
+        }
     }
 
     public static function get_manager() {
