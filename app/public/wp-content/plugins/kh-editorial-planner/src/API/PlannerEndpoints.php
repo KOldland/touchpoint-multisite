@@ -1,10 +1,12 @@
 <?php
 
-namespace KH\Planner\API;
+namespace KH\Editorial\Planner\API;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
+
+use KH\Editorial\Planner\Agents\PlannerOrchestrator;
 
 class PlannerEndpoints {
 
@@ -37,6 +39,18 @@ class PlannerEndpoints {
         register_rest_route( 'editorial/v1', '/pipeline', [
             'methods'             => 'GET',
             'callback'            => [ $this, 'get_pipeline' ],
+            'permission_callback' => [ $this, 'check_permission' ]
+        ] );
+
+        register_rest_route( 'editorial/v1', '/sessions/(?P<id>\d+)/run', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'run_session' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/sessions/(?P<id>\d+)', [
+            'methods'             => 'GET',
+            'callback'            => [ $this, 'get_session_detail' ],
             'permission_callback' => [ $this, 'check_permission' ]
         ] );
     }
@@ -102,5 +116,39 @@ class PlannerEndpoints {
 
     public function get_pipeline() {
         return rest_ensure_response( [] );
+    }
+
+    public function run_session( $request ) {
+        $id = $request['id'];
+        $orchestrator = new PlannerOrchestrator();
+        $result = $orchestrator->run( $id );
+        
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        return rest_ensure_response( $result );
+    }
+
+    public function get_session_detail( $request ) {
+        $id = $request['id'];
+        $post = get_post( $id );
+        
+        if ( ! $post || $post->post_type !== 'planner_session' ) {
+            return new \WP_Error( 'not_found', 'Session not found', [ 'status' => 404 ] );
+        }
+
+        return rest_ensure_response( [
+            'id'      => $post->ID,
+            'title'   => $post->post_title,
+            'status'  => get_post_meta( $id, 'kh_planner_status', true ) ?: 'draft',
+            'results' => [
+                'phase1' => get_post_meta( $id, 'kh_planner_phase1_result', true ),
+                'phase2' => get_post_meta( $id, 'kh_planner_phase2_result', true ),
+                'phase3' => get_post_meta( $id, 'kh_planner_phase3_result', true ),
+                'phase4' => get_post_meta( $id, 'kh_planner_phase4_result', true ),
+                'synopses' => get_post_meta( $id, 'kh_planner_final_synopses', true ),
+            ]
+        ] );
     }
 }

@@ -106,16 +106,26 @@ class EditorialAdmin {
     public function render_settings_page() {
         if ( isset( $_POST['kh_editorial_save_settings'] ) && check_admin_referer( 'kh_editorial_settings', 'kh_editorial_nonce' ) ) {
             $settings = [
-                'openai_api_key' => sanitize_text_field( $_POST['openai_api_key'] ),
-                'openai_model'   => sanitize_text_field( $_POST['openai_model'] ),
+                'openai_api_key'     => sanitize_text_field( $_POST['openai_api_key'] ),
+                'openai_model'       => sanitize_text_field( $_POST['openai_model'] ),
+                'dataforseo_login'    => sanitize_text_field( $_POST['dataforseo_login'] ),
+                'dataforseo_password' => sanitize_text_field( $_POST['dataforseo_password'] ),
+                'serpapi_key'        => sanitize_text_field( $_POST['serpapi_key'] ),
+                'tavily_key'         => sanitize_text_field( $_POST['tavily_key'] ),
+                'search_primary'     => sanitize_text_field( $_POST['search_primary'] ),
             ];
             update_option( 'kh_editorial_settings', $settings );
             echo '<div class="notice notice-success"><p>Settings saved.</p></div>';
         }
 
         $settings = get_option( 'kh_editorial_settings', [
-            'openai_api_key' => '',
-            'openai_model'   => 'gpt-4o-mini',
+            'openai_api_key'     => '',
+            'openai_model'       => 'gpt-4o-mini',
+            'dataforseo_login'    => '',
+            'dataforseo_password' => '',
+            'serpapi_key'        => '',
+            'tavily_key'         => '',
+            'search_primary'     => 'serpapi',
         ] );
 
         ?>
@@ -123,6 +133,8 @@ class EditorialAdmin {
             <h1>Suite API Settings</h1>
             <form method="post">
                 <?php wp_nonce_field( 'kh_editorial_settings', 'kh_editorial_nonce' ); ?>
+                
+                <h2>LLM Configuration</h2>
                 <table class="form-table">
                     <tr>
                         <th scope="row"><label for="openai_api_key">OpenAI API Key</label></th>
@@ -142,6 +154,41 @@ class EditorialAdmin {
                         </td>
                     </tr>
                 </table>
+
+                <h2>DataForSEO (Keywords)</h2>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="dataforseo_login">Login</label></th>
+                        <td><input name="dataforseo_login" type="text" id="dataforseo_login" value="<?php echo esc_attr( $settings['dataforseo_login'] ); ?>" class="regular-text"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="dataforseo_password">Password</label></th>
+                        <td><input name="dataforseo_password" type="password" id="dataforseo_password" value="<?php echo esc_attr( $settings['dataforseo_password'] ); ?>" class="regular-text"></td>
+                    </tr>
+                </table>
+
+                <h2>Search Providers (SERP)</h2>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="search_primary">Primary Search Provider</label></th>
+                        <td>
+                            <select name="search_primary" id="search_primary">
+                                <option value="serpapi" <?php selected( $settings['search_primary'], 'serpapi' ); ?>>SerpAPI (Google)</option>
+                                <option value="tavily" <?php selected( $settings['search_primary'], 'tavily' ); ?>>Tavily (AI Search)</option>
+                                <option value="dataforseo" <?php selected( $settings['search_primary'], 'dataforseo' ); ?>>DataForSEO</option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="serpapi_key">SerpAPI Key</label></th>
+                        <td><input name="serpapi_key" type="password" id="serpapi_key" value="<?php echo esc_attr( $settings['serpapi_key'] ); ?>" class="regular-text"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="tavily_key">Tavily Key</label></th>
+                        <td><input name="tavily_key" type="password" id="tavily_key" value="<?php echo esc_attr( $settings['tavily_key'] ); ?>" class="regular-text"></td>
+                    </tr>
+                </table>
+
                 <p class="submit">
                     <input type="submit" name="kh_editorial_save_settings" id="submit" class="button button-primary" value="Save Credentials">
                 </p>
