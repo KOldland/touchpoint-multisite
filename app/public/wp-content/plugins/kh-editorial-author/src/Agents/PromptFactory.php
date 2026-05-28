@@ -111,4 +111,32 @@ class PromptFactory {
 
         return implode("\n", $prompt);
     }
+
+    public static function build_abstract_system_prompt() {
+        return implode("\n", [
+            'You are the Author Agent (Phase 2). This is extractive and analytical, not creative.',
+            'No em dashes. No rhetorical binaries. No listicle framing.',
+            'No additional insight beyond the provided draft.',
+            'Use formal business/academic language only.',
+            'Output JSON only, following the schema exactly.',
+        ]);
+    }
+
+    public static function build_abstract_user_prompt($draft_content) {
+        $prompt = [];
+        $prompt[] = 'Draft Article:';
+        $prompt[] = wp_strip_all_tags($draft_content);
+        $prompt[] = '';
+        $prompt[] = 'Abstract Constraints:';
+        $prompt[] = '- Overview: 2-3 sentences.';
+        $prompt[] = '- Key Points: 3-6 bullets.';
+        $prompt[] = '- Context: 3 sentences or fewer.';
+        $prompt[] = '- Application: 3 sentences or fewer.';
+        $prompt[] = '- Editorial Summary: 100-200 words.';
+        $prompt[] = '- Meta Summary: 160 characters or fewer.';
+        $prompt[] = 'Output JSON schema:';
+        $prompt[] = '{"overview":"","key_points":[""],"context":"","application":"","keywords":[""],"editorial_summary":"","meta_summary":""}';
+
+        return implode("\n", $prompt);
+    }
 }
