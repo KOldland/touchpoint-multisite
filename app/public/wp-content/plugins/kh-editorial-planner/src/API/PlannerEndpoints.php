@@ -71,10 +71,10 @@ class PlannerEndpoints {
         
         $out = array_map( function( $p ) {
             return [
-                'id'     => $p->ID,
-                'title'  => $p->post_title,
-                'status' => get_post_meta( $p->ID, 'status', true ),
-                'link'   => admin_url( "admin.php?page=editorial_planner&session_id={$p->ID}" )
+                'id'         => $p->ID,
+                'title'      => $p->post_title,
+                'status'     => get_post_meta( $p->ID, 'kh_planner_status', true ) ?: 'draft',
+                'link'       => admin_url( "admin.php?page=editorial_planner&session_id={$p->ID}" )
             ];
         }, $posts );
 
@@ -101,7 +101,7 @@ class PlannerEndpoints {
             return new \WP_Error( 'insert_failed', $post_id->get_error_message(), [ 'status' => 500 ] );
         }
 
-        update_post_meta( $post_id, 'status', 'draft' );
+        update_post_meta( $post_id, 'kh_planner_status', 'draft' );
         update_post_meta( $post_id, 'created_by', get_current_user_id() );
 
         return rest_ensure_response( [

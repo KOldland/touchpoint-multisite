@@ -269,9 +269,9 @@ class EditorialAdmin {
     private function enqueue_script( $handle, $rel_path, $deps = [ 'wp-element', 'wp-api-fetch', 'wp-components', 'wp-data' ] ) {
         $url = $this->get_asset_url( $rel_path );
         wp_enqueue_script( $handle, $url, $deps, KH_EDITORIAL_VERSION, true );
-        wp_localize_script( $handle, 'dualGptData', [
+        wp_localize_script( $handle, 'editorialData', [
             'nonce' => wp_create_nonce( 'wp_rest' ),
-            'restUrl' => rest_url( 'dual-gpt/v1/' ),
+            'restUrl' => rest_url( 'editorial/v1/' ),
         ] );
     }
 
