@@ -132,6 +132,22 @@ class ResearchAgent {
     }
 
     /**
+     * Verify a citation via the Intelligence service.
+     */
+    public function verify_citation( $url, $title = '', $doi = '' ) {
+        if ( class_exists( '\KH\Editorial\Services\CitationVerifier' ) ) {
+            $verifier = new \KH\Editorial\Services\CitationVerifier();
+            return $verifier->verify_citation( [
+                'url'   => $url,
+                'title' => $title,
+                'doi'   => $doi
+            ] );
+        }
+
+        return new \WP_Error( 'intelligence_missing', 'Citation verification service is not available.' );
+    }
+
+    /**
      * Placeholder for internal coverage logic (to be expanded later).
      */
     private function get_internal_coverage_placeholder( $topic ) {

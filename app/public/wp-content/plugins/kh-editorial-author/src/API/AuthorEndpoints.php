@@ -34,6 +34,12 @@ class AuthorEndpoints {
                 ],
             ],
         ]);
+
+        register_rest_route('editorial/v1', '/author/job/(?P<id>[a-f0-9\-]+)', [
+            'methods' => 'GET',
+            'callback' => [$this, 'get_job_status'],
+            'permission_callback' => [$this, 'check_permissions'],
+        ]);
     }
 
     public function check_permissions() {
@@ -51,5 +57,29 @@ class AuthorEndpoints {
         }
 
         return new WP_REST_Response($result, 200);
+    }
+
+    public function get_job_status(WP_REST_Request $request) {
+        $job_id = $request->get_param('id');
+        $orchestrator = new AuthorOrchestrator();
+        
+        // We'll need a way to get job status through orchestrator or bridge
+        $bridge = new \KH\EditorialAuthor\Integration\IntelligenceBridge();
+        $job = $bridge->get_job($job_id);
+
+        if (is_wp_error($job)) {
+            return $job;
+        }
+
+        if (!$job) {
+            return new WP_Error('job_not_found', 'Job not found.', ['status' => 404]);
+        }
+
+        // Parse response if it exists
+        if (!empty($job['response'])) {
+            $job['response'] = json_decode($job['response'], true);
+        }
+
+        return new WP_REST_Response($job, 200);
     }
 }

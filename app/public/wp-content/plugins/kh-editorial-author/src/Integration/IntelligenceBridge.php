@@ -21,6 +21,28 @@ class IntelligenceBridge {
     }
 
     /**
+     * Create a new AI job via Intelligence service
+     */
+    public function create_job($data) {
+        if (class_exists('\KH\Editorial\Services\AI\AIStorage')) {
+            $storage = new \KH\Editorial\Services\AI\AIStorage();
+            return $storage->insert_job($data);
+        }
+        return new \WP_Error('intelligence_missing', 'KH Editorial Intelligence storage is not available.');
+    }
+
+    /**
+     * Get job status/result
+     */
+    public function get_job($job_id) {
+        if (class_exists('\KH\Editorial\Services\AI\AIStorage')) {
+            $storage = new \KH\Editorial\Services\AI\AIStorage();
+            return $storage->get_job($job_id);
+        }
+        return new \WP_Error('intelligence_missing', 'KH Editorial Intelligence storage is not available.');
+    }
+
+    /**
      * Call LLM via centralized Intelligence service
      */
     public function call_llm($system_prompt, $user_prompt, $options = []) {

@@ -32,7 +32,7 @@ class AuthorWorkspace {
 
         wp_enqueue_script(
             'kh-author-react',
-            plugin_dir_url(dirname(__DIR__, 1)) . 'assets/js/editorial-frameworks.js',
+            plugin_dir_url(dirname(__DIR__, 2)) . 'assets/js/editorial-frameworks.js',
             ['wp-element', 'wp-components', 'wp-api-fetch', 'wp-data', 'wp-i18n'],
             '1.0.0',
             true

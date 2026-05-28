@@ -55,7 +55,32 @@ class AuthorOrchestrator {
             return $context;
         }
 
-        return $this->draft_agent->execute($context, $params['instructions'] ?? '', $user_id);
+        // Prepare job data for async processing
+        $job_data = [
+            'session_id' => $session_id,
+            'status'     => 'queued',
+            'model'      => \KH\Editorial\Core\LLMService::get_model(),
+            'prompt'     => wp_json_encode([
+                'context'      => $context,
+                'instructions' => $params['instructions'] ?? '',
+                'mode'         => 'draft'
+            ]),
+            'created_by' => $user_id,
+        ];
+
+        $job_id = $this->intelligence->create_job($job_data);
+
+        if (is_wp_error($job_id)) {
+            return $job_id;
+        }
+
+        // Trigger background processing (can be hooked by a worker)
+        do_action('kh_editorial_job_created', $job_id, 'draft');
+
+        return [
+            'status' => 'queued',
+            'job_id' => $job_id
+        ];
     }
 
     private function handle_abstract($params, $user_id) {
