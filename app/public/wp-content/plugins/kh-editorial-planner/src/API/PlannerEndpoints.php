@@ -1,12 +1,12 @@
 <?php
 
-namespace KH\Editorial\Planner\API;
+namespace KH\Planner\API;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-use KH\Editorial\Planner\Agents\PlannerOrchestrator;
+use KH\Planner\Agents\PlannerOrchestrator;
 
 class PlannerEndpoints {
 

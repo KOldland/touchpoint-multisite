@@ -20,6 +20,14 @@ class AuthorPlugin {
 
     private function init_hooks() {
         add_action('rest_api_init', [$this, 'register_endpoints']);
+        add_action('admin_menu', [$this, 'init_admin']);
+    }
+
+    public function init_admin() {
+        if (is_admin() && class_exists('\KH\EditorialAuthor\Admin\AuthorWorkspace')) {
+            $workspace = new \KH\EditorialAuthor\Admin\AuthorWorkspace();
+            $workspace->init();
+        }
     }
 
     public function register_endpoints() {

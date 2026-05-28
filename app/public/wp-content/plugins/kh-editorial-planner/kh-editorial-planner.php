@@ -54,7 +54,7 @@ add_action( 'plugins_loaded', function() {
     }
     
     // 4. Initialize Agentic Orchestrator (The Brain)
-    if ( class_exists( 'KH\\Planner\\Agents\\Orchestrator' ) ) {
-        KH\Planner\Agents\Orchestrator::init();
+    if ( class_exists( 'KH\\Planner\\Agents\\PlannerOrchestrator' ) ) {
+        KH\Planner\Agents\PlannerOrchestrator::init();
     }
 } );

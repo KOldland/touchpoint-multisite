@@ -2373,20 +2373,20 @@ add_filter('cron_schedules', function($schedules) {
     return $schedules;
 });
 
-// Editorial Admin Menu and Subpages
-add_action('admin_menu', function() {
-    add_menu_page(
-        __('Editorial Assistant','khm-membership'),
-        __('Editorial Assistant','khm-membership'),
-        'edit_posts',
-        'editorial_planner',
-        'render_editorial_planner_page',
-        'dashicons-welcome-write-blog',
-        3
-    );
-
-    add_submenu_page('editorial_planner', __('New Session','khm-membership'), __('New Session','khm-membership'), 'edit_posts', 'editorial_new_session', 'render_new_session_page');
-    add_submenu_page('editorial_planner', __('Top-Line Categories','khm-membership'), __('Top-Line Categories','khm-membership'), 'edit_posts', 'editorial_top_line_categories', 'render_top_line_categories_page');
-    add_submenu_page('editorial_planner', __('Past Sessions','khm-membership'), __('Past Sessions','khm-membership'), 'edit_posts', 'editorial_sessions', 'render_sessions_page');
-    add_submenu_page('editorial_planner', __('Article Frameworks','khm-membership'), __('Article Frameworks','khm-membership'), 'edit_posts', 'editorial_frameworks', 'render_frameworks_page');
-    add_submenu_page('editorial_planner', __('Editorial Calendar','khm-membership'), __('Editorial Calendar','khm-membership'), 'edit_posts', 'editorial_calendar', 'render_ed
+// // Editorial Admin Menu and Subpages
+// add_action('admin_menu', function() {
+//     add_menu_page(
+//         __('Editorial Assistant','khm-membership'),
+//         __('Editorial Assistant','khm-membership'),
+//         'edit_posts',
+//         'editorial_planner',
+//         'render_editorial_planner_page',
+//         'dashicons-welcome-write-blog',
+//         3
+//     );
+// 
+//     add_submenu_page('editorial_planner', __('New Session','khm-membership'), __('New Session','khm-membership'), 'edit_posts', 'editorial_new_session', 'render_new_session_page');
+//     add_submenu_page('editorial_planner', __('Top-Line Categories','khm-membership'), __('Top-Line Categories','khm-membership'), 'edit_posts', 'editorial_top_line_categories', 'render_top_line_categories_page');
+//     add_submenu_page('editorial_planner', __('Past Sessions','khm-membership'), __('Past Sessions','khm-membership'), 'edit_posts', 'editorial_sessions', 'render_sessions_page');
+//     add_submenu_page('editorial_planner', __('Article Frameworks','khm-membership'), __('Article Frameworks','khm-membership'), 'edit_posts', 'editorial_frameworks', 'render_frameworks_page');
+//     add_submenu_page('editorial_planner', __('Editorial Calendar','khm-membership'), __('Editorial Calendar','khm-membership'), 'edit_posts', 'editorial_calendar', 'render_ed

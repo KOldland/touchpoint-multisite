@@ -1,6 +1,6 @@
 <?php
 
-namespace KH\Editorial\Planner\Agents;
+namespace KH\Planner\Agents;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;

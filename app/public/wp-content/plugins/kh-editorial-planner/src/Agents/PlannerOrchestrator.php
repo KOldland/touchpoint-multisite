@@ -1,6 +1,6 @@
 <?php
 
-namespace KH\Editorial\Planner\Agents;
+namespace KH\Planner\Agents;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -13,6 +13,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Manages the flow from Discovery to Validation and Synopsis generation.
  */
 class PlannerOrchestrator {
+
+    /**
+     * Static init for the orchestrator hooks.
+     */
+    public static function init() {
+        // Reserved for background job hooks or specialized initialization
+    }
 
     /**
      * Run the planner workflow for a session.
