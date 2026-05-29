@@ -89,6 +89,7 @@ class Framework_Generator_API {
             ),
         ));
 
+        /*
         register_rest_route('fg/v1', '/pass-to-author/(?P<fg_brief_id>[a-zA-Z0-9-]+)', array(
             'methods' => 'POST',
             'callback' => array($this, 'pass_to_author'),
@@ -109,6 +110,7 @@ class Framework_Generator_API {
                 ),
             ),
         ));
+        */
 
         register_rest_route('fg/v1', '/citation-qa/(?P<session_id>[a-zA-Z0-9-]+)', array(
             'methods' => 'POST',

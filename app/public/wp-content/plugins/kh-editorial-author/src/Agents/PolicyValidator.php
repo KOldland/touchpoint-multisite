@@ -80,6 +80,70 @@ class PolicyValidator {
             $warnings[] = 'Draft may include a tidy conclusion (avoid definitive wrap-ups).';
         }
 
+        // Citation parity checks
+        $citations = $policy['citations'] ?? [];
+        $citation_validation = $this->validate_citations_in_text($text, $citations);
+        $warnings = array_merge($warnings, $citation_validation['warnings']);
+        $errors = array_merge($errors, $citation_validation['errors']);
+
+        // Footnote readiness
+        $footnote_warnings = $this->validate_footnotes($citations);
+        $warnings = array_merge($warnings, $footnote_warnings);
+
+        return [
+            'warnings' => $warnings,
+            'errors'   => $errors,
+        ];
+    }
+
+    /**
+     * Validate citation details for footnote readiness
+     */
+    public function validate_footnotes($citations) {
+        $warnings = [];
+        $missing_apa = 0;
+        $missing_url = 0;
+
+        foreach ($citations as $citation) {
+            $apa = $citation['apa_string'] ?? ($citation['apa'] ?? '');
+            if (empty($apa) || $apa === 'details_unavailable') {
+                $missing_apa++;
+            }
+            if (empty($citation['url'])) {
+                $missing_url++;
+            }
+        }
+
+        if ($missing_apa > 0) {
+            $warnings[] = sprintf('APA details missing for %d citation(s).', $missing_apa);
+        }
+        if ($missing_url > 0) {
+            $warnings[] = sprintf('Source URL missing for %d citation(s).', $missing_url);
+        }
+
+        return $warnings;
+    }
+
+    public function validate_citations_in_text($text, $citations) {
+        $warnings = [];
+        $errors = [];
+
+        preg_match_all('/\[(\d+)\]/', $text, $matches);
+        $markers = array_map('intval', $matches[1] ?? []);
+        $markers = array_values(array_unique($markers));
+        
+        $max_ref = count($citations);
+
+        if (empty($markers) && !empty($citations)) {
+            $warnings[] = 'No citation markers found in draft output despite verified sources being available.';
+        }
+
+        foreach ($markers as $marker) {
+            if ($marker < 1 || $marker > $max_ref) {
+                $errors[] = 'Citation marker [' . $marker . '] does not match any verified citation.';
+            }
+        }
+
         return [
             'warnings' => $warnings,
             'errors'   => $errors,
@@ -119,7 +183,7 @@ class PolicyValidator {
     }
 
     private function count_contradictions($text) {
-        $markers = ['however', 'but', 'yet', 'although', 'though', 'still', 'nevertheless', 'on the other hand', 'that said', 'to be fair'];
+        $markers = AuthorPolicy::get_contradiction_markers();
         $count = 0;
         $lower = strtolower($text);
         foreach ($markers as $marker) {

@@ -24,12 +24,24 @@ class AuthorEndpoints {
                     'type' => 'integer',
                     'required' => false,
                 ],
+                'article_id' => [
+                    'type' => ['string', 'integer'],
+                    'required' => false,
+                ],
                 'draft_content' => [
                     'type' => 'string',
                     'required' => false,
                 ],
                 'instructions' => [
                     'type' => 'string',
+                    'required' => false,
+                ],
+                'core_settings' => [
+                    'type' => 'object',
+                    'required' => false,
+                ],
+                'author_policy' => [
+                    'type' => 'object',
                     'required' => false,
                 ],
             ],

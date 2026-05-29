@@ -41,6 +41,13 @@ class AuthorWorkspace {
         wp_localize_script('kh-author-react', 'authorData', [
             'apiRoot' => esc_url_raw(rest_url('editorial/v1')),
             'nonce'   => wp_create_nonce('wp_rest'),
+            'defaults' => \KH\EditorialAuthor\Core\AuthorPolicy::get_defaults(),
+            'options' => [
+                'industry_focus' => ['General', 'FSI', 'Healthcare', 'Technology', 'Public Sector', 'Energy'],
+                'audience_tier'  => ['General', 'C-Suite', 'Technical', 'Strategic', 'Operational'],
+                'risk_tolerance' => ['Conservative', 'Moderate', 'Aggressive'],
+                'brand_profiles' => ['Brand A (FSI)', 'Brand B (Generic)', 'Brand C (High Friction)'],
+            ]
         ]);
     }
 

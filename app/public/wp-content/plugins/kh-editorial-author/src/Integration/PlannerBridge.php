@@ -7,9 +7,10 @@ use WP_Error;
 class PlannerBridge {
 
     /**
-     * Fetch the planning context (dossier, briefs, policy) from the Planner Session CPT
+     * Fetch the planning context (dossier, briefs, policy) from the Planner Session CPT.
+     * Supports filtering by a specific article_id if provided.
      */
-    public function get_session_context($session_id) {
+    public function get_session_context($session_id, $article_id = null) {
         $post = get_post($session_id);
         if (!$post || $post->post_type !== 'planner_session') {
             return new WP_Error('invalid_session', 'Invalid planner session ID.');
@@ -18,16 +19,42 @@ class PlannerBridge {
         // New standard: context is stored in namespaced meta
         $meta = get_post_meta($session_id, '_kh_planner_data', true);
         $author_policy = get_post_meta($session_id, '_kh_author_policy', true);
-        $citations = $this->get_verified_citations($session_id);
+        $session_citations = $this->get_verified_citations($session_id);
 
-        return [
+        $context = [
             'session_id'    => $session_id,
             'title'         => $post->post_title,
             'planner_data'  => $meta,
             'author_policy' => $author_policy,
             'dossier'       => get_post_meta($session_id, '_kh_research_dossier', true),
-            'citations'     => $citations,
+            'citations'     => $session_citations,
+            'article_id'    => $article_id,
         ];
+
+        // If a specific article is requested, isolate it and prune irrelevant session data
+        if ($article_id && !empty($meta['articles']) && is_array($meta['articles'])) {
+            $found = false;
+            foreach ($meta['articles'] as $article) {
+                if (($article['id'] ?? '') == $article_id) {
+                    $context['target_article'] = $article;
+                    
+                    // Prioritize article-specific citations if they exist
+                    if (!empty($article['citations']) && is_array($article['citations'])) {
+                        $context['citations'] = $article['citations'];
+                    }
+
+                    $found = true;
+                    break;
+                }
+            }
+
+            // Critical: Remove the full articles list from planner_data to prevent LLM context bleed
+            if ($found) {
+                unset($context['planner_data']['articles']);
+            }
+        }
+
+        return $context;
     }
 
     /**

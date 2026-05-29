@@ -32,6 +32,17 @@ class AuthorPolicy {
     }
 
     /**
+     * Contradiction markers for validation and prompt building
+     */
+    public static function get_contradiction_markers() {
+        return [
+            'however', 'but', 'yet', 'although', 'though', 'still', 'nevertheless', 
+            'on the other hand', 'that said', 'to be fair', 'on second thought', 
+            'i might be wrong', 'i should'
+        ];
+    }
+
+    /**
      * Sanitize and merge policy with defaults
      */
     public static function sanitize($policy) {
@@ -66,6 +77,7 @@ class AuthorPolicy {
             'audience_tier'                => sanitize_text_field($policy['audience_tier'] ?? $defaults['audience_tier']),
             'risk_tolerance'               => sanitize_text_field($policy['risk_tolerance'] ?? $defaults['risk_tolerance']),
             'brand_profile'                => sanitize_text_field($policy['brand_profile'] ?? $defaults['brand_profile']),
+            'citations'                    => $policy['citations'] ?? [],
         ];
     }
 

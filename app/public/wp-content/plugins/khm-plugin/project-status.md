@@ -19,6 +19,13 @@ The project objective is the systematic decomposition of the legacy WordPress "G
 *   **API Evolution**: Added `/author/job/{id}` REST endpoint for tracking background job status.
 *   **Asset Correction**: Resolved script pathing issues in `AuthorWorkspace`.
 
+### Phase 4: Suite Finalization (WAVE 3 COMPLETE):
+*   **Writing Studio Evolution**: Transformed `editorial-frameworks.js` into a full Writing Studio with a multi-level drill-down (Sessions → Articles → Workspace).
+*   **Async UX Implementation**: Implemented real-time polling and status updates (Queued → Processing → Completed) with a visual progress bar.
+*   **Article-Level Isolation**: Updated `PlannerBridge` and `AuthorOrchestrator` to support precision drafting of specific article IDs, including "Context Bleed" protection by pruning session-wide data.
+*   **Enrichment Integration**: Added Sidebar controls for Editorial Image Generation (DALL-E/Imagen) and Reference Verification to the modern React UI.
+*   **Legacy Hollowing**: Redundant Author Agent REST routes and menu registrations in `dual-gpt-wordpress-plugin` have been commented out.
+
 ### Phase 4: Suite Finalization (WAVE 2 COMPLETE):
 *   **Job Execution (Worker)**: Implemented `AIWorker` in the Intelligence Tier. It now successfully consumes async jobs from the `wp_ai_jobs` table and dispatches them to the appropriate Agent.
 *   **Image Service Migration**: 100% parity migration of DALL-E and Google Imagen logic from the legacy plugin to the modern `ImageService`. Supports house style presets and automated media library persistence.

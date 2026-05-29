@@ -91,6 +91,7 @@ class PromptFactory {
 
         $prompt[] = '- Every paragraph: at least one sentence >20 words and one sentence <8 words.';
         $prompt[] = '- At least one contradiction or self-correction per 500 words.';
+        $prompt[] = '- Markers: ' . implode(', ', AuthorPolicy::get_contradiction_markers()) . '.';
         $prompt[] = '- Paragraphs broken by thought, not template.';
         $prompt[] = '- Preserve ambiguity, temporal drift, unresolved tension.';
         $prompt[] = '- Observational, reported, investigative stance.';

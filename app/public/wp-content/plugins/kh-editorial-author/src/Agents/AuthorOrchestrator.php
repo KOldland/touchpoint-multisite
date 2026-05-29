@@ -37,8 +37,15 @@ class AuthorOrchestrator {
             return new WP_Error('invalid_job_prompt', 'Job prompt is missing context.');
         }
 
+        // Unpack the policy and context
+        $context = $prompt_data['context'];
+        $policy = $prompt_data['author_policy'] ?? [];
+        
+        // Ensure context has the specific policy for prompt building
+        $context['author_policy'] = $policy;
+
         return $this->draft_agent->execute(
-            $prompt_data['context'], 
+            $context, 
             $prompt_data['instructions'] ?? '', 
             $job['created_by']
         );
@@ -54,6 +61,13 @@ class AuthorOrchestrator {
             return $budget_check;
         }
 
+        // Merge incoming overrides with defaults/session logic
+        $policy_params = $params['author_policy'] ?? [];
+        if (isset($params['core_settings']) && is_array($params['core_settings'])) {
+            $policy_params = array_merge($policy_params, $params['core_settings']);
+        }
+        $params['merged_policy'] = \KH\EditorialAuthor\Core\AuthorPolicy::sanitize($policy_params);
+
         switch ($mode) {
             case 'draft':
                 return $this->handle_draft($params, $user_id);
@@ -68,14 +82,29 @@ class AuthorOrchestrator {
 
     private function handle_draft($params, $user_id) {
         $session_id = $params['planner_session_id'];
+        $article_id = $params['article_id'] ?? null;
+        
         if (!$session_id) {
             return new WP_Error('missing_session', 'Planner session ID is required for draft mode.');
         }
 
-        $context = $this->planner->get_session_context($session_id);
+        $context = $this->planner->get_session_context($session_id, $article_id);
         if (is_wp_error($context)) {
             return $context;
         }
+
+        // If a specific article was requested but not isolated, return an error
+        if ($article_id && empty($context['target_article'])) {
+            return new WP_Error('article_not_found', 'The requested article was not found in this planning session.');
+        }
+
+        // Merge session-level policy with user overrides from UI
+        $final_policy = \KH\EditorialAuthor\Core\AuthorPolicy::sanitize(
+            array_merge($context['author_policy'] ?? [], $params['merged_policy'] ?? [])
+        );
+
+        // Ensure citations are in a list for the prompt factory
+        $context['citations'] = array_values($context['citations'] ?? []);
 
         // Prepare job data for async processing
         $job_data = [
@@ -83,9 +112,12 @@ class AuthorOrchestrator {
             'status'     => 'queued',
             'model'      => \KH\Editorial\Core\LLMService::get_model(),
             'prompt'     => wp_json_encode([
-                'context'      => $context,
-                'instructions' => $params['instructions'] ?? '',
-                'mode'         => 'draft'
+                'context'       => $context,
+                'instructions'  => $params['instructions'] ?? '',
+                'author_policy' => $final_policy,
+                'article_id'    => $article_id,
+                'enrichment'    => $params['enrichment'] ?? [],
+                'mode'          => 'draft'
             ]),
             'created_by' => $user_id,
         ];

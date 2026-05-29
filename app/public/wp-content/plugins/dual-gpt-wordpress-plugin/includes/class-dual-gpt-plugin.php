@@ -343,11 +343,11 @@ class Dual_GPT_Plugin {
             'permission_callback' => array($this, 'check_admin_permissions'),
         ));
 
-        register_rest_route('dual-gpt/v1', '/planner/run-author', array(
+        /* register_rest_route('dual-gpt/v1', '/planner/run-author', array(
             'methods' => 'POST',
             'callback' => array($this, 'run_planner_author'),
             'permission_callback' => array($this, 'check_permissions'),
-        ));
+        )); */
 
         register_rest_route('dual-gpt/v1', '/planner/phase2', array(
             'methods' => 'POST',
@@ -510,8 +510,8 @@ class Dual_GPT_Plugin {
         $fg_api->register_routes();
 
         // Author Agent endpoints
-        $author_api = new Dual_GPT_Author_Agent_API();
-        $author_api->register_routes();
+        // $author_api = new Dual_GPT_Author_Agent_API();
+        // $author_api->register_routes();
     }
 
     /**
