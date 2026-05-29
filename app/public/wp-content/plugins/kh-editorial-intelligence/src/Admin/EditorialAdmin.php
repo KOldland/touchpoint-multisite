@@ -14,20 +14,42 @@ class EditorialAdmin {
     }
 
     public function register_menu() {
+        // Parent: Editorial Studio
         add_menu_page(
-            __( 'Editorial Admin', 'kh-editorial-intelligence' ),
-            __( 'Editorial Admin', 'kh-editorial-intelligence' ),
-            'manage_options',
-            'kh-editorial-admin',
+            __( 'Editorial Studio', 'kh-editorial-intelligence' ),
+            __( 'Editorial Studio', 'kh-editorial-intelligence' ),
+            'edit_posts',
+            'kh-editorial-studio',
             [ $this, 'render_dashboard_page' ],
-            'dashicons-admin-generic',
-            3
+            'dashicons-edit-page',
+            25
         );
 
+        // Sub: Planner (from kh-editorial-planner)
         add_submenu_page(
-            'kh-editorial-admin',
-            __( 'Status Dashboard', 'kh-editorial-intelligence' ),
-            __( 'Status Dashboard', 'kh-editorial-intelligence' ),
+            'kh-editorial-studio',
+            __( 'Editorial Planner', 'kh-editorial-intelligence' ),
+            __( 'Planner', 'kh-editorial-intelligence' ),
+            'edit_posts',
+            'kh-editorial-planner',
+            [ $this, 'render_planner_redirect' ]
+        );
+
+        // Sub: Writing Studio (from kh-editorial-author)
+        add_submenu_page(
+            'kh-editorial-studio',
+            __( 'Writing Studio', 'kh-editorial-author' ),
+            __( 'Author', 'kh-editorial-author' ),
+            'edit_posts',
+            'kh-editorial-author',
+            [ $this, 'render_author_redirect' ]
+        );
+
+        // Sub: Intelligence Admin
+        add_submenu_page(
+            'kh-editorial-studio',
+            __( 'Intelligence Admin', 'kh-editorial-intelligence' ),
+            __( 'Settings', 'kh-editorial-intelligence' ),
             'manage_options',
             'kh-editorial-admin',
             [ $this, 'render_dashboard_page' ]
@@ -59,22 +81,29 @@ class EditorialAdmin {
             'kh-editorial-db',
             [ $this, 'render_db_init_page' ]
         );
+    }
 
-        // Planner Bridge (Temporary sub-menu items until Workspace is created)
-        add_submenu_page(
-            'kh-editorial-admin',
-            __( 'Editorial Planner', 'kh-editorial-intelligence' ),
-            __( '--- Workspace ---', 'kh-editorial-intelligence' ),
-            'edit_posts',
-            'editorial_planner',
-            [ $this, 'render_planner_page' ]
-        );
+    public function render_planner_redirect() {
+        echo '<script>window.location.href="' . admin_url('admin.php?page=kh-editorial-planner') . '";</script>';
+    }
+
+    public function render_author_redirect() {
+        echo '<script>window.location.href="' . admin_url('admin.php?page=kh-editorial-author') . '";</script>';
     }
 
     public function render_dashboard_page() {
+        global $wpdb;
         $llm_configured = \KH\Editorial\Core\LLMService::is_configured();
         $seo_active = function_exists('khm_seo');
         $geo_active = class_exists('\KHM\GEO\SuggestAnswerCardsEndpoint');
+
+        // Fetch recent jobs
+        $table_jobs = $wpdb->prefix . 'ai_jobs';
+        $recent_jobs = [];
+        if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_jobs'" ) ) {
+            $recent_jobs = $wpdb->get_results( "SELECT * FROM $table_jobs ORDER BY created_at DESC LIMIT 10" );
+        }
+
         ?>
         <div class="wrap">
             <h1>Editorial Suite Status</h1>
@@ -97,8 +126,44 @@ class EditorialAdmin {
                             </li>
                         </ul>
                     </div>
+                    <div class="welcome-panel-column welcome-panel-last">
+                        <h3>Recent AI Jobs</h3>
+                        <?php if ( ! empty( $recent_jobs ) ) : ?>
+                            <table class="wp-list-table widefat fixed striped">
+                                <thead>
+                                    <tr>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Created</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ( $recent_jobs as $job ) : ?>
+                                        <tr>
+                                            <td><code><?php echo esc_html( $job->model ?: 'N/A' ); ?></code></td>
+                                            <td>
+                                                <span class="status-tag status-<?php echo esc_attr( $job->status ); ?>">
+                                                    <?php echo esc_html( ucfirst( $job->status ) ); ?>
+                                                </span>
+                                            </td>
+                                            <td><?php echo esc_html( human_time_diff( strtotime( $job->created_at ), current_time( 'timestamp' ) ) ); ?> ago</td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        <?php else : ?>
+                            <p>No recent jobs found.</p>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
+            <style>
+                .status-tag { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
+                .status-queued { background: #eee; color: #666; }
+                .status-processing { background: #d9edf7; color: #31708f; }
+                .status-completed { background: #dff0d8; color: #3c763d; }
+                .status-failed { background: #f2dede; color: #a94442; }
+            </style>
         </div>
         <?php
     }
@@ -108,6 +173,7 @@ class EditorialAdmin {
             $settings = [
                 'openai_api_key'     => sanitize_text_field( $_POST['openai_api_key'] ),
                 'openai_model'       => sanitize_text_field( $_POST['openai_model'] ),
+                'google_ai_key'      => sanitize_text_field( $_POST['google_ai_key'] ),
                 'dataforseo_login'    => sanitize_text_field( $_POST['dataforseo_login'] ),
                 'dataforseo_password' => sanitize_text_field( $_POST['dataforseo_password'] ),
                 'serpapi_key'        => sanitize_text_field( $_POST['serpapi_key'] ),
@@ -121,6 +187,7 @@ class EditorialAdmin {
         $settings = get_option( 'kh_editorial_settings', [
             'openai_api_key'     => '',
             'openai_model'       => 'gpt-4o-mini',
+            'google_ai_key'      => '',
             'dataforseo_login'    => '',
             'dataforseo_password' => '',
             'serpapi_key'        => '',
@@ -151,6 +218,13 @@ class EditorialAdmin {
                                 <option value="gpt-4o-mini" <?php selected( $settings['openai_model'], 'gpt-4o-mini' ); ?>>GPT-4o-mini</option>
                                 <option value="o1-preview" <?php selected( $settings['openai_model'], 'o1-preview' ); ?>>o1-preview</option>
                             </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="google_ai_key">Google AI API Key</label></th>
+                        <td>
+                            <input name="google_ai_key" type="password" id="google_ai_key" value="<?php echo esc_attr( $settings['google_ai_key'] ); ?>" class="regular-text">
+                            <p class="description">Used for Gemini models and Imagen image generation.</p>
                         </td>
                     </tr>
                 </table>

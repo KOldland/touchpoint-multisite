@@ -19,7 +19,29 @@ class AuthorOrchestrator {
         $this->planner = new PlannerBridge();
         $this->draft_agent = new DraftAgent($this->intelligence);
         $this->abstract_agent = new AbstractAgent($this->intelligence);
-        $this->enrichment_agent = new EnrichmentAgent();
+        $this->enrichment_agent = new EnrichmentAgent($this->intelligence);
+
+        $this->init_hooks();
+    }
+
+    private function init_hooks() {
+        add_filter('kh_editorial_execute_job_draft', [$this, 'execute_draft_job'], 10, 2);
+    }
+
+    /**
+     * Internal handler for the AI Worker to execute a draft job.
+     */
+    public function execute_draft_job($null, $job) {
+        $prompt_data = json_decode($job['prompt'], true);
+        if (empty($prompt_data) || empty($prompt_data['context'])) {
+            return new WP_Error('invalid_job_prompt', 'Job prompt is missing context.');
+        }
+
+        return $this->draft_agent->execute(
+            $prompt_data['context'], 
+            $prompt_data['instructions'] ?? '', 
+            $job['created_by']
+        );
     }
 
     public function run($params, $user_id) {
@@ -101,6 +123,12 @@ class AuthorOrchestrator {
             $citations = $this->planner->get_verified_citations($session_id);
         }
 
-        return $this->enrichment_agent->execute($content, $citations);
+        $options = [
+            'generate_images' => !empty($params['generate_images']),
+            'image_provider'  => $params['image_provider'] ?? 'openai',
+            'title'           => $params['title'] ?? '',
+        ];
+
+        return $this->enrichment_agent->execute($content, $citations, $options);
     }
 }

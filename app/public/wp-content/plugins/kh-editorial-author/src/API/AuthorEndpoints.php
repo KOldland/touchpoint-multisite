@@ -48,7 +48,7 @@ class AuthorEndpoints {
 
     public function run_author_agent(WP_REST_Request $request) {
         $params = $request->get_params();
-        $orchestrator = new AuthorOrchestrator();
+        $orchestrator = \KH\EditorialAuthor\Core\AuthorPlugin::get_instance()->get_orchestrator();
         
         $result = $orchestrator->run($params, get_current_user_id());
 
@@ -61,7 +61,7 @@ class AuthorEndpoints {
 
     public function get_job_status(WP_REST_Request $request) {
         $job_id = $request->get_param('id');
-        $orchestrator = new AuthorOrchestrator();
+        $orchestrator = \KH\EditorialAuthor\Core\AuthorPlugin::get_instance()->get_orchestrator();
         
         // We'll need a way to get job status through orchestrator or bridge
         $bridge = new \KH\EditorialAuthor\Integration\IntelligenceBridge();

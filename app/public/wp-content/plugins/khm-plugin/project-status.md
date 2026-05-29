@@ -10,12 +10,21 @@ The project objective is the systematic decomposition of the legacy WordPress "G
 
 ---
 
-## 2. Achievements (Current Session)
+## 2. Achievements (Recent Waves)
 
-### Modular Infrastructure Established:
-*   **Intelligence Tier (`kh-editorial-intelligence`)**: Central switchboard for API keys and centralized LLM access verified.
-*   **Workspace Tier (`kh-editorial-planner`)**: Foundation repaired (namespaces standardized) and logic fully modularized.
-*   **Author Tier (`kh-editorial-author`)**: PSR-4 agentic architecture established with high-parity drafting, enrichment, and abstracting logic.
+### Phase 4: Suite Finalization (WAVE 1 COMPLETE):
+*   **Async Authoring**: `AuthorOrchestrator` refactored to utilize the `wp_ai_jobs` table. Drafting is now non-blocking, returning a `job_id` for frontend polling.
+*   **Intelligence Services**: Established `CitationVerifier` in the Intelligence Tier with full parity to legacy logic (CrossRef, OpenAlex, JSON-LD, APA).
+*   **Agent Integration**: `ResearchAgent` (Planner) and `AuthorOrchestrator` (Author) successfully integrated with the Intelligence Tier via the `IntelligenceBridge`.
+*   **API Evolution**: Added `/author/job/{id}` REST endpoint for tracking background job status.
+*   **Asset Correction**: Resolved script pathing issues in `AuthorWorkspace`.
+
+### Phase 4: Suite Finalization (WAVE 2 COMPLETE):
+*   **Job Execution (Worker)**: Implemented `AIWorker` in the Intelligence Tier. It now successfully consumes async jobs from the `wp_ai_jobs` table and dispatches them to the appropriate Agent.
+*   **Image Service Migration**: 100% parity migration of DALL-E and Google Imagen logic from the legacy plugin to the modern `ImageService`. Supports house style presets and automated media library persistence.
+*   **Unified "Editorial Studio" Menu**: Consistently re-parented Planner and Author workspaces under a new top-level "Editorial Studio" menu.
+*   **Budget Resilience**: Hardened `AIStorage` with an UPSERT pattern to ensure token usage is tracked even for new users.
+*   **Enrichment Automation**: Connected `EnrichmentAgent` to the new `ImageService` for automated editorial image injection.
 
 ### Phase 3: Asset Migration & UI Decoupling (COMPLETE):
 *   **Asset Migration**: React dashboards and sub-components moved from the God Plugin into their respective modular plugins.
@@ -61,11 +70,10 @@ The project objective is the systematic decomposition of the legacy WordPress "G
 ## 5. Remaining Work (Roadmap)
 
 ### Phase 4: Suite Finalization
-*   **Async Integration**: Tie Author agents into the `wp_ai_jobs` queue for background processing.
-*   **Consolidation**: Move the remaining Framework tools and Image Generation into the modular agents.
-*   **Unified Menu**: Merge all suite tools into a single "KH Suite" top-level admin menu.
+*   **UI Polling (Wave 3)**: Update the React `Authoring` frontend to handle async job responses, polling, and real-time status updates.
+*   **Legacy Hollowing**: Remove or disable redundant logic in `dual-gpt-wordpress-plugin` and `khm-plugin` once Wave 3 testing is confirmed.
 
 ---
 
-**Last Sync:** 2024-05-21  
-**Status**: Asset Migration Complete; Editorial Suite now independent and modularized.
+**Last Sync:** 2024-05-28  
+**Status**: Phase 4 Wave 2 Complete; Infrastructure modernized & Image Service migrated.

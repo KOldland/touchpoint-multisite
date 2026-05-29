@@ -6,6 +6,7 @@ use KH\EditorialAuthor\API\AuthorEndpoints;
 
 class AuthorPlugin {
     private static $instance = null;
+    private $orchestrator = null;
 
     public static function get_instance() {
         if (null === self::$instance) {
@@ -18,7 +19,15 @@ class AuthorPlugin {
         $this->init_hooks();
     }
 
+    public function get_orchestrator() {
+        if (null === $this->orchestrator) {
+            $this->orchestrator = new \KH\EditorialAuthor\Agents\AuthorOrchestrator();
+        }
+        return $this->orchestrator;
+    }
+
     private function init_hooks() {
+        add_action('plugins_loaded', [$this, 'get_orchestrator']);
         add_action('rest_api_init', [$this, 'register_endpoints']);
         add_action('admin_menu', [$this, 'init_admin']);
     }

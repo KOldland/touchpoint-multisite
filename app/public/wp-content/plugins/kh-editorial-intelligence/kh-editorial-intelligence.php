@@ -46,4 +46,10 @@ add_action( 'plugins_loaded', function() {
         $editorial_admin = new KH\Editorial\Admin\EditorialAdmin();
         $editorial_admin->init();
     }
+
+    // AI Worker
+    if ( class_exists( 'KH\\Editorial\\Services\\AI\\AIWorker' ) ) {
+        $ai_worker = new KH\Editorial\Services\AI\AIWorker();
+        $ai_worker->init();
+    }
 } );

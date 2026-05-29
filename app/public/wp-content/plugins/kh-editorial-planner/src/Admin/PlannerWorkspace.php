@@ -16,14 +16,13 @@ class PlannerWorkspace {
     }
 
     public function register_menu() {
-        add_menu_page(
+        add_submenu_page(
+            'kh-editorial-studio',
             __('Editorial Planner', 'kh-editorial-planner'),
             __('Planner', 'kh-editorial-planner'),
             'edit_posts',
             'kh-editorial-planner',
-            [$this, 'render_planner_page'],
-            'dashicons-media-document',
-            25
+            [$this, 'render_planner_page']
         );
 
         add_submenu_page(

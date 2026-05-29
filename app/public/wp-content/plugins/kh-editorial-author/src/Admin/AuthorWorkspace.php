@@ -16,7 +16,7 @@ class AuthorWorkspace {
 
     public function register_menu() {
         add_submenu_page(
-            'kh-editorial-planner',
+            'kh-editorial-studio',
             __('Writing Studio', 'kh-editorial-author'),
             __('Author', 'kh-editorial-author'),
             'edit_posts',

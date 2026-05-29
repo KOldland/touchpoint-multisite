@@ -90,15 +90,44 @@ class AIStorage {
 
     /**
      * Record usage in budget.
+     * Uses an UPSERT pattern to ensure user budget rows exist.
      */
     public function update_budget_usage( $user_id, $tokens ) {
         global $wpdb;
         $table = $wpdb->prefix . 'ai_budgets';
 
-        return $wpdb->query( $wpdb->prepare(
+        $tokens = intval( $tokens );
+        if ( $tokens <= 0 ) {
+            return true;
+        }
+
+        // Try to update existing row first
+        $updated = $wpdb->query( $wpdb->prepare(
             "UPDATE $table SET token_used = token_used + %d WHERE scope = 'user' AND scope_id = %s AND reset_at > NOW()",
             $tokens, $user_id
         ) );
+
+        if ( $updated === 0 ) {
+            // No row updated, check if it's because it doesn't exist or just no valid period.
+            // We insert a default monthly budget for the user if none exists.
+            $exists = $wpdb->get_var( $wpdb->prepare(
+                "SELECT id FROM $table WHERE scope = 'user' AND scope_id = %s AND reset_at > NOW()",
+                $user_id
+            ) );
+
+            if ( ! $exists ) {
+                return $wpdb->insert( $table, [
+                    'scope'       => 'user',
+                    'scope_id'    => $user_id,
+                    'period'      => 'monthly',
+                    'token_limit' => get_option( 'kh_editorial_default_token_limit', 500000 ), // 500k tokens default
+                    'token_used'  => $tokens,
+                    'reset_at'    => date( 'Y-m-d H:i:s', strtotime( 'first day of next month' ) ),
+                ] );
+            }
+        }
+
+        return $updated !== false;
     }
 
     /**

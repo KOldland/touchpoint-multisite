@@ -10,16 +10,24 @@ namespace KH\EditorialAuthor\Agents;
  */
 class EnrichmentAgent {
 
+    private $intelligence;
+
+    public function __construct($intelligence = null) {
+        $this->intelligence = $intelligence;
+    }
+
     /**
      * Execute enrichment process
      * 
      * @param string $draft_content The raw draft (HTML or Markdown)
      * @param array $citations List of verified citations
+     * @param array $options Enrichment options (e.g., generate_images)
      * @return array Enriched blocks and metadata
      */
-    public function execute($draft_content, $citations) {
+    public function execute($draft_content, $citations, $options = []) {
         $warnings = [];
         $validation_errors = [];
+        $images = [];
 
         $blocks = $this->parse_draft_into_blocks($draft_content);
         if (empty($blocks)) {
@@ -106,13 +114,54 @@ class EnrichmentAgent {
             $output_blocks[] = ['type' => 'list', 'ordered' => false, 'items' => $footnotes];
         }
 
+        // Image Generation
+        if (!empty($options['generate_images']) && $this->intelligence) {
+            $image_result = $this->generate_editorial_images($draft_content, $options);
+            if (is_wp_error($image_result)) {
+                $warnings[] = 'Image generation failed: ' . $image_result->get_error_message();
+            } else {
+                $images = $image_result['attachments'] ?? [];
+                // Prepend the first image to the content
+                if (!empty($images)) {
+                    array_unshift($output_blocks, [
+                        'type' => 'image',
+                        'url'  => $images[0]['url'],
+                        'id'   => $images[0]['id'],
+                        'caption' => $image_result['meta']['caption'] ?? '',
+                    ]);
+                }
+            }
+        }
+
         return [
             'blocks'            => $output_blocks,
             'pull_quotes'       => $pull_quotes,
             'footnotes'         => $footnotes,
+            'images'            => $images,
             'warnings'          => $warnings,
             'validation_errors' => $validation_errors,
         ];
+    }
+
+    /**
+     * Call the Intelligence ImageService to generate images for the draft.
+     */
+    private function generate_editorial_images($content, $options) {
+        if (!class_exists('\KH\Editorial\Services\ImageService')) {
+            return new \WP_Error('service_missing', 'ImageService not found in Intelligence Tier.');
+        }
+
+        $image_service = new \KH\Editorial\Services\ImageService();
+        
+        $params = [
+            'title'   => $options['title'] ?? 'Editorial Image',
+            'summary' => wp_trim_words($content, 50),
+            'provider' => $options['image_provider'] ?? 'openai',
+            'store_in_media_library' => true,
+            'post_id' => $options['post_id'] ?? 0,
+        ];
+
+        return $image_service->generate($params);
     }
 
     private function parse_draft_into_blocks($content) {
