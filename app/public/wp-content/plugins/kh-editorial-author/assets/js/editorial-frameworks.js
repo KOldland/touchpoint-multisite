@@ -1,6 +1,6 @@
 /**
  * Writing Studio - Editorial Author Workspace
- * Refactored to support async drafting, polling, and policy configuration.
+ * Refactored to support async drafting, polling, and SmartSEO integration.
  */
 const { useState, useEffect } = wp.element;
 const { __ } = wp.i18n;
@@ -9,11 +9,14 @@ const {
     Notice, 
     Button, 
     TextareaControl, 
+    TextControl,
     SelectControl, 
     ToggleControl,
     PanelBody,
     Placeholder,
-    ProgressBar
+    ProgressBar,
+    Icon,
+    CheckboxControl
 } = wp.components;
 
 const apiFetch = (options) =>
@@ -25,9 +28,283 @@ const apiFetch = (options) =>
         },
     });
 
+/**
+ * SmartSEOPanel Component
+ * Surfaces AI-driven SEO insights and automated fixes.
+ */
+const SmartSEOPanel = ({ postId }) => {
+    const [status, setStatus] = useState('idle'); // 'idle' | 'auditing' | 'completed' | 'applying'
+    const [jobStatus, setJobStatus] = useState('queued'); // 'queued' | 'processing'
+    const [activeJobId, setActiveJobId] = useState(null);
+    const [auditData, setAuditData] = useState(null);
+    const [keyword, setKeyword] = useState('');
+    const [error, setError] = useState('');
+    const [allowSchema, setAllowSchema] = useState(false);
+
+    // Initial Hydration: Load existing focus keyword
+    useEffect(() => {
+        const fetchKeywords = async () => {
+            try {
+                const response = await apiFetch({
+                    path: `editorial/v1/seo/keywords?post_id=${postId}`,
+                    method: 'GET'
+                });
+                if (response.focus_keyword) {
+                    setKeyword(response.focus_keyword);
+                }
+            } catch (err) {
+                console.error('Failed to load keywords', err);
+            }
+        };
+
+        // RESET LOGIC: Clear state and re-hydrate when the article changes
+        setStatus('idle');
+        setJobStatus('queued');
+        setActiveJobId(null);
+        setAuditData(null);
+        setKeyword('');
+        setError('');
+        setAllowSchema(false);
+
+        if (postId) {
+            fetchKeywords();
+        }
+    }, [postId]);
+
+    // Polling logic for SEO Audit
+    useEffect(() => {
+        let pollInterval;
+        if (activeJobId && status === 'auditing') {
+            pollInterval = setInterval(async () => {
+                try {
+                    const response = await apiFetch({
+                        path: `editorial/v1/seo/audit/status/${activeJobId}`,
+                        method: 'GET',
+                    });
+
+                    if (response.status === 'completed' && response.data) {
+                        setAuditData(response.data);
+                        setStatus('completed');
+                        setActiveJobId(null);
+                        clearInterval(pollInterval);
+                    } else if (response.status === 'failed') {
+                        setError(response.error || __('Audit failed.', 'kh-editorial-author'));
+                        setStatus('idle');
+                        setActiveJobId(null);
+                        clearInterval(pollInterval);
+                    } else if (response.status === 'processing') {
+                        setJobStatus('processing');
+                    }
+                } catch (err) {
+                    console.error('SEO Polling error', err);
+                }
+            }, 3000);
+        }
+        return () => clearInterval(pollInterval);
+    }, [activeJobId, status]);
+
+    const runAudit = async () => {
+        try {
+            const trimmedKeyword = keyword.trim();
+            setError('');
+            setStatus('auditing');
+            setJobStatus('queued');
+            setAuditData(null);
+
+            const response = await apiFetch({
+                path: 'editorial/v1/seo/audit',
+                method: 'POST',
+                data: {
+                    post_id: postId,
+                    keyword: trimmedKeyword,
+                    idempotency_key: `seo-${postId}-${Date.now()}`
+                }
+            });
+
+            if (response.job_id) {
+                setActiveJobId(response.job_id);
+            }
+        } catch (err) {
+            setError(err.message || __('Failed to trigger SEO audit.', 'kh-editorial-author'));
+            setStatus('idle');
+        }
+    };
+
+    const applyFix = async (action) => {
+        try {
+            setStatus('applying');
+            const response = await apiFetch({
+                path: 'editorial/v1/seo/apply',
+                method: 'POST',
+                data: {
+                    post_id: postId,
+                    actions: [action],
+                    idempotency_key: `apply-${postId}-${Date.now()}`,
+                    allow_schema: allowSchema
+                }
+            });
+
+            if (response.success) {
+                // DATA INTEGRITY: Synchronize both analysis and summary score
+                if (response.analysis) {
+                    setAuditData(prev => ({ 
+                        ...prev, 
+                        analysis: response.analysis,
+                        summary: {
+                            ...prev.summary,
+                            score: response.analysis.overall_score
+                        }
+                    }));
+                }
+                // Filter out the applied action from suggestions
+                setAuditData(prev => ({
+                    ...prev,
+                    apply_actions: prev.apply_actions.filter(a => a.action_type !== action.action_type)
+                }));
+                
+                // SAFE GATE: Always reset schema authorization after any attempt
+                setAllowSchema(false);
+                setStatus('completed');
+            } else {
+                setError(__('Failed to apply specific SEO fix.', 'kh-editorial-author'));
+                setAllowSchema(false);
+                setStatus('idle');
+            }
+        } catch (err) {
+            setError(err.message || __('Error applying fix.', 'kh-editorial-author'));
+            setAllowSchema(false);
+            setStatus('idle');
+        }
+    };
+
+    const getScoreColor = (score) => {
+        if (score >= 75) return '#46b450';
+        if (score >= 40) return '#ffb900';
+        return '#dc3232';
+    };
+
+    const getPriorityIcon = (priority) => {
+        switch(priority) {
+            case 'high': return <Icon icon="warning" style={{ color: '#dc3232', marginRight: '5px' }} />;
+            case 'medium': return <Icon icon="info" style={{ color: '#ffb900', marginRight: '5px' }} />;
+            default: return <Icon icon="yes" style={{ color: '#46b450', marginRight: '5px' }} />;
+        }
+    };
+
+    const getStatusLabel = () => {
+        if (status === 'applying') return __('Applying Fix...', 'kh-editorial-author');
+        if (status === 'auditing') {
+            return jobStatus === 'processing' 
+                ? __('AI is Analyzing...', 'kh-editorial-author') 
+                : __('Waiting for Agent...', 'kh-editorial-author');
+        }
+        return __('Run AI SEO Audit', 'kh-editorial-author');
+    };
+
+    const score = auditData?.summary?.score || 0;
+
+    return (
+        <PanelBody title={__('Smart SEO', 'kh-editorial-author')} initialOpen={false} icon="performance">
+            <div style={{ marginBottom: '15px' }}>
+                <TextControl
+                    label={__('Focus Keyword', 'kh-editorial-author')}
+                    value={keyword}
+                    onChange={setKeyword}
+                    placeholder={__('Enter keyword...', 'kh-editorial-author')}
+                    disabled={status === 'auditing' || status === 'applying'}
+                />
+                <Button 
+                    isPrimary 
+                    isBusy={status === 'auditing' || status === 'applying'} 
+                    onClick={runAudit} 
+                    style={{ width: '100%', justifyContent: 'center' }}
+                    disabled={status === 'applying' || status === 'auditing'}
+                >
+                    {getStatusLabel()}
+                </Button>
+            </div>
+
+            {status === 'auditing' && <ProgressBar value={jobStatus === 'processing' ? 60 : 20} />}
+            {error && <Notice status="error" onDismiss={() => setError('')}>{error}</Notice>}
+
+            {auditData && (
+                <div className="seo-results">
+                    <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        background: '#f6f7f7', 
+                        padding: '15px', 
+                        borderRadius: '4px',
+                        marginBottom: '15px',
+                        borderLeft: `5px solid ${getScoreColor(score)}`
+                    }}>
+                        <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: getScoreColor(score) }}>{score}/100</div>
+                            <small>{__('Overall SEO Score', 'kh-editorial-author')}</small>
+                        </div>
+                    </div>
+
+                    <div className="seo-insights" style={{ marginBottom: '20px' }}>
+                        <h4 style={{ borderBottom: '1px solid #eee', paddingBottom: '5px' }}>{__('Strategic Insights', 'kh-editorial-author')}</h4>
+                        {[...(auditData.issues || []), ...(auditData.suggestions || [])].map((item, idx) => (
+                            <div key={idx} style={{ fontSize: '13px', marginBottom: '8px', display: 'flex', alignItems: 'flex-start' }}>
+                                {getPriorityIcon(item.priority)}
+                                <div>
+                                    <strong>{item.title}:</strong> {item.message}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="seo-fixes">
+                        <h4 style={{ borderBottom: '1px solid #eee', paddingBottom: '5px' }}>{__('Automated Fixes', 'kh-editorial-author')}</h4>
+                        {auditData.apply_actions && auditData.apply_actions.length > 0 ? (
+                            auditData.apply_actions.map((action, idx) => (
+                                <div key={idx} style={{ 
+                                    background: '#fff', 
+                                    border: '1px solid #ccd0d4', 
+                                    padding: '10px', 
+                                    marginBottom: '10px',
+                                    borderRadius: '4px'
+                                }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: '#666' }}>
+                                        {action.action_type.replace('set_', '').replace('_', ' ')}
+                                    </div>
+                                    <div style={{ margin: '5px 0', fontSize: '12px', fontStyle: 'italic', wordBreak: 'break-word' }}>
+                                        {typeof action.payload.value === 'string' ? action.payload.value : __('Complex Schema Configuration', 'kh-editorial-author')}
+                                    </div>
+                                    {action.action_type === 'set_schema_config' && (
+                                        <CheckboxControl
+                                            label={__('Authorize Schema Change', 'kh-editorial-author')}
+                                            checked={allowSchema}
+                                            onChange={setAllowSchema}
+                                        />
+                                    )}
+                                    <Button 
+                                        isSecondary 
+                                        isSmall 
+                                        onClick={() => applyFix(action)}
+                                        disabled={status === 'applying' || (action.action_type === 'set_schema_config' && !allowSchema)}
+                                        style={{ marginTop: '5px' }}
+                                    >
+                                        {status === 'applying' ? __('Applying...', 'kh-editorial-author') : __('Apply Fix', 'kh-editorial-author')}
+                                    </Button>
+                                </div>
+                            ))
+                        ) : (
+                            <p style={{ fontSize: '12px', color: '#666' }}>{__('No immediate fixes suggested.', 'kh-editorial-author')}</p>
+                        )}
+                    </div>
+                </div>
+            )}
+        </PanelBody>
+    );
+};
+
 const WritingStudioApp = () => {
     // UI State
-    const [view, setView] = useState('list'); // 'list' | 'articles' | 'workspace'
+    const [view, setView] = useState('list');
     const [sessions, setSessions] = useState([]);
     const [selectedSession, setSelectedSession] = useState(null);
     const [selectedArticle, setSelectedArticle] = useState(null);
@@ -35,11 +312,10 @@ const WritingStudioApp = () => {
     const [error, setError] = useState('');
 
     // Drafting State
-    const [status, setStatus] = useState('idle'); // 'idle' | 'queued' | 'processing' | 'completed' | 'failed'
+    const [status, setStatus] = useState('idle');
     const [activeJobId, setActiveJobId] = useState(null);
     const [draftResult, setDraftResult] = useState(null);
     
-    // Config State
     const [instructions, setInstructions] = useState('');
     const [policy, setPolicy] = useState(authorData.defaults || {});
     const [enrichment, setEnrichment] = useState({
@@ -53,7 +329,7 @@ const WritingStudioApp = () => {
         loadSessions();
     }, []);
 
-    // Polling logic
+    // Polling logic for Drafting
     useEffect(() => {
         let pollInterval;
         let consecutiveErrors = 0;
@@ -65,10 +341,16 @@ const WritingStudioApp = () => {
                         method: 'GET',
                     });
 
-                    consecutiveErrors = 0; // Reset on success
+                    consecutiveErrors = 0;
 
                     if (job.status === 'completed' && job.response) {
-                        setDraftResult(job.response);
+                        // The backend already parses the response for the /author/job endpoint
+                        // We set it directly if it's already an object.
+                        const finalResponse = (typeof job.response === 'object' && job.response !== null) 
+                            ? job.response 
+                            : JSON.parse(job.response);
+
+                        setDraftResult(finalResponse);
                         setStatus('completed');
                         setActiveJobId(null);
                         clearInterval(pollInterval);
@@ -84,7 +366,7 @@ const WritingStudioApp = () => {
                     console.error('Polling error', err);
                     consecutiveErrors++;
                     if (consecutiveErrors > 5) {
-                        setError(__('Lost connection to server. Polling stopped.', 'kh-editorial-author'));
+                        setError(__('Lost connection to server.', 'kh-editorial-author'));
                         setStatus('failed');
                         setActiveJobId(null);
                         clearInterval(pollInterval);
@@ -98,10 +380,7 @@ const WritingStudioApp = () => {
     const loadSessions = async () => {
         try {
             setLoading(true);
-            const response = await apiFetch({
-                path: 'editorial/v1/sessions',
-                method: 'GET',
-            });
+            const response = await apiFetch({ path: 'editorial/v1/sessions', method: 'GET' });
             const list = Array.isArray(response) ? response : response.data || [];
             setSessions(list);
         } catch (err) {
@@ -118,16 +397,13 @@ const WritingStudioApp = () => {
     };
 
     const handleSelectArticle = (article) => {
-        // Reset states for new workspace session
         setDraftResult(null);
         setStatus('idle');
         setInstructions('');
         setError('');
         setActiveJobId(null);
-
         setSelectedArticle(article);
         setView('workspace');
-        // Pre-fill policy if session/article has it
         if (selectedSession.author_policy) {
             setPolicy({ ...authorData.defaults, ...selectedSession.author_policy });
         }
@@ -161,7 +437,6 @@ const WritingStudioApp = () => {
             if (response.job_id) {
                 setActiveJobId(response.job_id);
             } else if (response.mode === 'draft') {
-                // Fallback for synchronous response if worker is disabled
                 setDraftResult(response);
                 setStatus('completed');
             }
@@ -252,7 +527,7 @@ const WritingStudioApp = () => {
                     ))}
                     {articles.length === 0 && (
                         <Notice status="warning" isDismissible={false}>
-                            {__('No article ideas found in this session. Ensure the planner has completed Phase 3.', 'kh-editorial-author')}
+                            {__('No article ideas found in this session.', 'kh-editorial-author')}
                         </Notice>
                     )}
                 </div>
@@ -269,6 +544,10 @@ const WritingStudioApp = () => {
                 </Button>
                 <h2>{__('Configuration', 'kh-editorial-author')}</h2>
                 
+                {selectedArticle?.wp_post_id && (
+                    <SmartSEOPanel postId={selectedArticle.wp_post_id} />
+                )}
+
                 <PanelBody title={__('Core Settings', 'kh-editorial-author')} initialOpen={true}>
                     <SelectControl
                         label={__('Industry Focus', 'kh-editorial-author')}

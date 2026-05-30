@@ -56,5 +56,19 @@ class Container {
                 self::get('CurrencyService')
             );
         });
+
+        self::bind('SEOAgent', function() {
+            return new \KH\Editorial\Services\AI\SEOAgent();
+        });
+
+        self::bind('AIStorage', function() {
+            return new \KH\Editorial\Services\AI\AIStorage();
+        });
+
+        self::bind('SEOToolkit', function() {
+            return (new \KH\Editorial\Providers\Tools\SEOToolkit())
+                ->set_storage(self::get('AIStorage'))
+                ->set_agent(self::get('SEOAgent'));
+        });
     }
 }

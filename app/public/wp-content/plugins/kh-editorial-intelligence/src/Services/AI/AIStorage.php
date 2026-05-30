@@ -89,6 +89,36 @@ class AIStorage {
     }
 
     /**
+     * Check if a user has remaining budget.
+     * 
+     * @param int $user_id The User ID.
+     * @return array Budget details including 'has_budget' boolean.
+     */
+    public function check_budget( int $user_id ): array {
+        global $wpdb;
+        $table = $wpdb->prefix . 'ai_budgets';
+
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT token_limit, token_used FROM $table WHERE scope = 'user' AND scope_id = %s AND reset_at > NOW()",
+            $user_id
+        ), ARRAY_A );
+
+        if ( ! $row ) {
+            return [
+                'has_budget' => true, // Assume true if no row exists (default budget will be created on usage)
+                'token_limit' => (int) get_option( 'kh_editorial_default_token_limit', 500000 ),
+                'token_used' => 0
+            ];
+        }
+
+        return [
+            'has_budget' => ( (int) $row['token_limit'] > (int) $row['token_used'] ),
+            'token_limit' => (int) $row['token_limit'],
+            'token_used' => (int) $row['token_used']
+        ];
+    }
+
+    /**
      * Record usage in budget.
      * Uses an UPSERT pattern to ensure user budget rows exist.
      */
