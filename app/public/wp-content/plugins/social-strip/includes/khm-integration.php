@@ -107,10 +107,16 @@ class KSS_KHM_Integration {
         wp_enqueue_script(
             'kss-social-strip-modern',
             plugin_dir_url(__FILE__) . '../assets/js/social-strip-modern.js',
-            ['jquery'],
+            ['jquery', 'wp-api-fetch', 'wp-i18n'],
             '1.2',
             true
         );
+
+        // Localize for modern REST-based interactions
+        wp_localize_script('kss-social-strip-modern', 'kssModernData', [
+            'rootUrl' => esc_url_raw(rest_url('editorial/v1')),
+            'nonce'   => wp_create_nonce('wp_rest'),
+        ]);
 
         // Keep legacy for existing modal logic (Buy/Gift), but modern handles data
         wp_enqueue_script(

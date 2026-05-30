@@ -8,14 +8,18 @@
 (function($) {
     'use strict';
 
+    const { __ } = wp.i18n;
+    const { apiFetch } = wp;
+
     class SocialStripHydrator {
         constructor() {
-            this.apiUrl = typeof khm_ajax !== 'undefined' ? khm_ajax.rest_url + 'editorial/v1/' : '';
-            this.nonce = typeof khm_ajax !== 'undefined' ? khm_ajax.rest_nonce : '';
+            // Localized data provided by the plugin (decoupled from khm_ajax)
             this.queue = new Set();
+            this.cache = {}; // Singleton state cache
             this.isProcessing = false;
             
-            if (!this.apiUrl) return;
+            // Check if standard WordPress libraries are available
+            if (!apiFetch || !__) return;
 
             this.init();
         }
@@ -24,11 +28,22 @@
             $(document).ready(() => {
                 this.scanAndQueue();
                 this.bindActions();
+                this.bindGlobalEvents();
             });
 
-            // Re-run on AJAX completions for SPA themes
+            // Re-run on AJAX completions for SPA themes/dynamic content
             $(document).on('ajaxComplete', () => {
                 this.scanAndQueue();
+            });
+        }
+
+        /**
+         * Listen for state updates from other strips on the page.
+         */
+        bindGlobalEvents() {
+            $(document).on('kss:state-updated', (e, { postId, data }) => {
+                this.cache[postId] = { ...this.cache[postId], ...data };
+                this.syncPostStrips(postId);
             });
         }
 
@@ -42,153 +57,197 @@
 
                 const postId = $strip.find('[data-post-id]').first().data('post-id');
                 if (postId) {
-                    this.queue.add(postId);
+                    if (this.cache[postId]) {
+                        this.applyData($strip, this.cache[postId]);
+                    } else {
+                        this.queue.add(postId);
+                    }
                 }
             });
 
             if (this.queue.size > 0 && !this.isProcessing) {
-                // Debounce slightly to catch all strips on the page
                 clearTimeout(this.debounceTimer);
                 this.debounceTimer = setTimeout(() => this.processQueue(), 50);
             }
         }
 
         /**
-         * Process the queued IDs in a single bulk request.
+         * Process the queued IDs in a single bulk request using wp.apiFetch.
          */
-        processQueue() {
+        async processQueue() {
             if (this.queue.size === 0) return;
             
             this.isProcessing = true;
             const ids = Array.from(this.queue).join(',');
             this.queue.clear();
 
-            $.ajax({
-                url: `${this.apiUrl}member/posts-data`,
-                method: 'GET',
-                data: { ids: ids },
-                beforeSend: (xhr) => {
-                    xhr.setRequestHeader('X-WP-Nonce', this.nonce);
-                },
-                success: (response) => {
-                    this.isProcessing = false;
-                    Object.keys(response).forEach(postId => {
-                        const $strips = $(`.kss-social-strip [data-post-id="${postId}"]`).closest('.kss-social-strip');
-                        $strips.each((i, el) => this.applyData($(el), response[postId]));
-                    });
-                },
-                error: () => {
-                    this.isProcessing = false;
-                    // Error state handled by lack of hydration marker
-                }
-            });
+            try {
+                // FIXED: Full namespace path required for apiFetch relative to wp-json/ root
+                const response = await apiFetch({
+                    path: `/editorial/v1/member/posts-data?ids=${ids}`,
+                    method: 'GET'
+                });
+
+                Object.keys(response).forEach(postId => {
+                    this.cache[postId] = response[postId];
+                    this.syncPostStrips(postId);
+                });
+
+            } catch (err) {
+                console.error('[SocialStrip] Bulk Hydration Failed', err);
+            } finally {
+                this.isProcessing = false;
+            }
+        }
+
+        /**
+         * Sync all strips on the page for a specific post ID.
+         */
+        syncPostStrips(postId) {
+            const data = this.cache[postId];
+            if (!data) return;
+
+            const $strips = this.findStripsByPostId(postId);
+            $strips.each((i, el) => this.applyData($(el), data));
+        }
+
+        /**
+         * Find all strips for a specific post ID on the page.
+         */
+        findStripsByPostId(postId) {
+            return $(`.kss-social-strip [data-post-id="${postId}"]`).closest('.kss-social-strip');
         }
 
         /**
          * Apply the REST response to the DOM elements.
          */
         applyData($strip, data) {
-            const { pricing, access, sharing, labels } = data;
+            const { access, sharing, labels } = data;
 
-            // 1. Update Buy Button & Label
+            // 1. Update Buy Button
             $strip.find('.kss-buy-button').each((i, btn) => {
                 const $btn = $(btn);
                 const $label = $btn.closest('.kss-action').find('.kss-label');
-                
-                $label.text(labels.buy);
-                $btn.attr('title', labels.buy);
-                if (access.has_purchased) $btn.addClass('purchased');
+                if (labels && labels.buy) {
+                    $label.text(labels.buy);
+                    $btn.attr('title', labels.buy);
+                }
+                if (access.has_purchased) {
+                    $btn.addClass('purchased');
+                } else {
+                    $btn.removeClass('purchased');
+                }
             });
 
             // 2. Update Gift Button
             $strip.find('.kss-gift-button').each((i, btn) => {
                 const $btn = $(btn);
                 const $label = $btn.closest('.kss-action').find('.kss-label');
-                
-                $label.text(labels.gift);
-                $btn.attr('title', labels.gift);
+                if (labels && labels.gift) {
+                    $label.text(labels.gift);
+                    $btn.attr('title', labels.gift);
+                }
             });
 
-            // 3. Update Save/Library Status
+            // 3. Update Save Button
             $strip.find('.kss-save-button').each((i, btn) => {
                 const $btn = $(btn);
                 const $label = $btn.closest('.kss-action').find('.kss-label');
-
                 if (access.is_saved) {
-                    $btn.addClass('saved').attr('title', labels.save);
+                    $btn.addClass('saved');
                 } else {
-                    $btn.removeClass('saved').attr('title', labels.save);
+                    $btn.removeClass('saved');
                 }
-                $label.text(labels.save);
+                if (labels && labels.save) {
+                    $btn.attr('title', labels.save);
+                    $label.text(labels.save);
+                }
             });
 
-            // 4. Update Download Status
+            // 4. Update Download Button
             $strip.find('.kss-download-credit').each((i, btn) => {
                 const $btn = $(btn);
                 const $label = $btn.closest('.kss-action').find('.kss-label');
-                
-                $label.text(labels.download);
-                $btn.attr('title', labels.download);
-                if (access.has_downloaded) $btn.addClass('downloaded');
+                if (labels && labels.download) {
+                    $label.text(labels.download);
+                    $btn.attr('title', labels.download);
+                }
+                if (access.has_downloaded) {
+                    $btn.addClass('downloaded');
+                } else {
+                    $btn.removeClass('downloaded');
+                }
             });
 
-            // 5. Update Sharing (Affiliate Links)
+            // 5. Update Sharing
             $strip.find('.ssm-share-trigger').each((i, btn) => {
                 const $btn = $(btn);
-                $btn.attr('data-url', sharing.affiliate_url);
+                if (sharing.affiliate_url) {
+                    $btn.attr('data-url', sharing.affiliate_url);
+                }
             });
 
-            // Mark as hydrated
             $strip.attr('data-kss-hydrated', 'true');
+            $strip.data('kss-hydrated', true);
             $strip.trigger('kss:hydrated', [data]);
         }
 
-        /**
-         * Bind global actions for buttons.
-         */
         bindActions() {
-            // Save to Library - use .off() to prevent double binding with legacy
+            // Save to Library - Modern REST path
             $(document).off('click.kssModernSave', '.kss-save-button');
             $(document).on('click.kssModernSave', '.kss-save-button', (e) => {
                 e.preventDefault();
-                e.stopImmediatePropagation(); // Stop legacy script from firing
-                const $btn = $(e.currentTarget);
-                this.handleLibraryToggle($btn);
+                e.stopImmediatePropagation();
+                this.handleLibraryToggle($(e.currentTarget));
             });
         }
 
         /**
-         * Handle Save/Remove from Library via REST.
+         * Handle Save/Remove toggle with synchronized loading states across all elements.
          */
-        handleLibraryToggle($btn) {
-            const postId = $btn.data('post-id');
-            const isRemoving = $btn.hasClass('saved');
+        async handleLibraryToggle($clickedBtn) {
+            const postId = $clickedBtn.data('post-id');
+            const isRemoving = $clickedBtn.hasClass('saved');
             
-            $btn.addClass('loading');
+            // UX SYNC: Apply loading state to ALL strips for this post ID
+            const $allRelatedBtns = this.findStripsByPostId(postId).find('.kss-save-button');
+            $allRelatedBtns.addClass('loading');
 
-            $.ajax({
-                url: `${this.apiUrl}member/library`,
-                method: 'POST',
-                data: {
-                    post_id: postId,
-                    action: isRemoving ? 'remove' : 'save'
-                },
-                beforeSend: (xhr) => {
-                    xhr.setRequestHeader('X-WP-Nonce', this.nonce);
-                },
-                success: (response) => {
-                    $btn.removeClass('loading');
-                    if (response.success) {
-                        if (response.is_saved) {
-                            $btn.addClass('saved');
-                            this.showFlash('Saved to library', 'success');
-                        } else {
-                            $btn.removeClass('saved');
-                            this.showFlash('Removed from library', 'success');
-                        }
+            try {
+                // FIXED: Full namespace path required for apiFetch
+                const response = await apiFetch({
+                    path: '/editorial/v1/member/library',
+                    method: 'POST',
+                    data: {
+                        post_id: postId,
+                        action: isRemoving ? 'remove' : 'save'
                     }
+                });
+
+                if (response.success) {
+                    // Update global cache and re-sync DOM
+                    $(document).trigger('kss:state-updated', [{
+                        postId: postId,
+                        data: {
+                            access: {
+                                ...this.cache[postId]?.access,
+                                is_saved: response.is_saved
+                            }
+                        }
+                    }]);
+
+                    const msg = response.is_saved 
+                        ? __('Saved to library', 'social-strip') 
+                        : __('Removed from library', 'social-strip');
+                    this.showFlash(msg, 'success');
                 }
-            });
+            } catch (err) {
+                console.error('[SocialStrip] Library Toggle Failed', err);
+                this.showFlash(__('Something went wrong. Please try again.', 'social-strip'), 'error');
+            } finally {
+                // UX SYNC: Remove loading state from ALL related strips
+                $allRelatedBtns.removeClass('loading');
+            }
         }
 
         showFlash(message, type) {
@@ -200,7 +259,7 @@
         }
     }
 
-    // Initialize
-    new SocialStripHydrator();
+    // Initialize singleton
+    window.kssModernHydrator = new SocialStripHydrator();
 
 })(jQuery);
