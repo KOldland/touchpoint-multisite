@@ -64,6 +64,26 @@ The project objective is the systematic decomposition of the legacy WordPress "G
 *   **Status**: CORE LOGIC & UI COMPLETE.
 *   **Refinement**: Namespaces standardized to `KH\Planner`. UI restored via `PlannerWorkspace`.
 
+### `kh-image` (MODERNIZED)
+*   **Status**: ACTIVE UTILITY.
+*   **Role**: Handles post-generation image optimization and compression.
+
+### `khm-seo-agent` (MODERNIZED STRUCTURE / LEGACY LOGIC)
+*   **Status**: PENDING INTEGRATION.
+*   **Role**: SEO optimization tools. Needs to migrate LLM logic to Intelligence Tier.
+
+### `social-strip` (LEGACY)
+*   **Status**: PENDING REFACTOR.
+*   **Role**: Frontend sharing/social UI. Needs to be bridged to `editorial/v1` REST API.
+
+### `kh-suggested-reading` (LEGACY)
+*   **Status**: PENDING MODERNIZATION.
+*   **Role**: Content recommendations. Candidate for AI-driven "Smart" suggestions.
+
+### `multiple-authors` (UTILITY)
+*   **Status**: ACTIVE.
+*   **Role**: Handles multi-author attribution. Needs integration with Authoring Orchestrator.
+
 ### `dual-gpt-wordpress-plugin` (LEGACY)
 *   **Hollowed Out**: Research and Writing logic moved.
 *   **Remaining**: Image Service, Framework citation-verifier logic.
@@ -76,11 +96,31 @@ The project objective is the systematic decomposition of the legacy WordPress "G
 
 ## 5. Remaining Work (Roadmap)
 
-### Phase 4: Suite Finalization
-*   **UI Polling (Wave 3)**: Update the React `Authoring` frontend to handle async job responses, polling, and real-time status updates.
-*   **Legacy Hollowing**: Remove or disable redundant logic in `dual-gpt-wordpress-plugin` and `khm-plugin` once Wave 3 testing is confirmed.
+### Phase 4: Suite Finalization (IN PROGRESS)
+*   **UI Polling**: Update React `Authoring` frontend for real-time async job status.
+*   **Legacy Hollowing**: Final removal of redundant code in `dual-gpt` and `khm-plugin`.
+
+### Phase 5: Ecosystem Modernization (IN PROGRESS)
+*   **Intelligence Bridge (COMPLETE)**:
+    *   Established `SocialBridge` and `MembershipInterface` for decoupled member-data access.
+    *   Implemented `Container` for Enterprise-grade Dependency Injection.
+    *   Added **GEO-Aware Dynamic Pricing** with admin-controlled exchange rates (GBP, EUR, USD).
+    *   **Bulk Hydration Engine**: Implemented `GET /member/posts-data` for efficient single-request frontend updates.
+    *   **Full Functional Parity**: Integrated `has_downloaded`, `is_saved`, and `has_purchased` states with 100% translatable labels.
+*   **SEO Intelligence Integration**:
+    *   Migrate `khm-seo-agent` LLM logic into `kh-editorial-intelligence`.
+    *   Unify SEO prompt engineering within the `Intelligence Tier`.
+*   **Social Bridge (`social-strip`)**:
+    *   Refactor frontend UI to pull data from the `editorial/v1` REST namespace.
+    *   Ensure compatibility with the new CPT-based (`planner_session`) architecture.
+3.  **Smart Recommendations**:
+    *   Upgrade `kh-suggested-reading` with a `RecommendationAgent` in the Intelligence Tier for semantic "related content" discovery.
+4.  **Attribution Sync**:
+    *   Integrate `multiple-authors` into the `AuthorOrchestrator` post-creation flow to ensure AI-generated posts retain correct human/AI metadata.
+5.  **Unified UI Convergence**:
+    *   Port legacy `khm-seo` and `khm-preview` controls into the React Writing Studio sidebar.
 
 ---
 
-**Last Sync:** 2024-05-28  
-**Status**: Phase 4 Wave 2 Complete; Infrastructure modernized & Image Service migrated.
+**Last Sync:** 2024-05-29  
+**Status**: Phase 5 Wave 1 Complete; Enterprise Bridge & GEO-Pricing established.

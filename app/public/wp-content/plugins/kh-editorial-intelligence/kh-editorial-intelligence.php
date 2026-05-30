@@ -52,4 +52,15 @@ add_action( 'plugins_loaded', function() {
         $ai_worker = new KH\Editorial\Services\AI\AIWorker();
         $ai_worker->init();
     }
+
+    // Service Container
+    if ( class_exists( 'KH\\Editorial\\Core\\Container' ) ) {
+        KH\Editorial\Core\Container::boot();
+    }
+
+    // REST API
+    if ( class_exists( 'KH\\Editorial\\API\\Rest_Api' ) ) {
+        $rest_api = new KH\Editorial\API\Rest_Api();
+        $rest_api->init();
+    }
 } );

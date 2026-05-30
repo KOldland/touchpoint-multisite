@@ -105,6 +105,15 @@ class KSS_KHM_Integration {
 
         // Enqueue JavaScript
         wp_enqueue_script(
+            'kss-social-strip-modern',
+            plugin_dir_url(__FILE__) . '../assets/js/social-strip-modern.js',
+            ['jquery'],
+            '1.2',
+            true
+        );
+
+        // Keep legacy for existing modal logic (Buy/Gift), but modern handles data
+        wp_enqueue_script(
             'kss-khm-integration',
             plugin_dir_url(__FILE__) . '../assets/js/khm-integration.js',
             ['jquery', 'kss-social-strip'],

@@ -263,6 +263,24 @@ class EditorialAdmin {
                     </tr>
                 </table>
 
+                <h2>Currency & GEO</h2>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="rate_eur">EUR Exchange Rate (1 GBP = ?)</label></th>
+                        <td>
+                            <input name="rate_eur" type="number" step="0.01" id="rate_eur" value="<?php echo esc_attr( $settings['currency_rates']['EUR'] ); ?>" class="small-text">
+                            <p class="description">Used for dynamic pricing in the EU zone.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="rate_usd">USD Exchange Rate (1 GBP = ?)</label></th>
+                        <td>
+                            <input name="rate_usd" type="number" step="0.01" id="rate_usd" value="<?php echo esc_attr( $settings['currency_rates']['USD'] ); ?>" class="small-text">
+                            <p class="description">Used for dynamic pricing for Rest of World.</p>
+                        </td>
+                    </tr>
+                </table>
+
                 <p class="submit">
                     <input type="submit" name="kh_editorial_save_settings" id="submit" class="button button-primary" value="Save Credentials">
                 </p>
