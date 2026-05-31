@@ -22,6 +22,7 @@ class Dual_GPT_Admin {
      * Add admin menu
      */
     public function add_admin_menu() {
+        /* DEACTIVATED 2024-06-03 - Modernized in Phase 5
         add_menu_page(
             'Dual-GPT Settings',
             'Dual-GPT',
@@ -85,6 +86,7 @@ class Dual_GPT_Admin {
             'dual-gpt-images',
             array($this, 'images_page')
         );
+        */
     }
 
     /**

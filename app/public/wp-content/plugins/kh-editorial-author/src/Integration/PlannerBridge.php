@@ -65,4 +65,28 @@ class PlannerBridge {
         $citations = get_post_meta($session_id, '_kh_verified_citations', true);
         return is_array($citations) ? $citations : [];
     }
+
+    /**
+     * Link a created post ID back to the specific article in the planner session.
+     */
+    public function link_article_to_post($session_id, $article_id, $post_id) {
+        $meta = get_post_meta($session_id, '_kh_planner_data', true);
+        if (!$meta || empty($meta['articles'])) return false;
+
+        $found = false;
+        foreach ($meta['articles'] as &$article) {
+            if (($article['id'] ?? '') == $article_id) {
+                $article['wp_post_id'] = $post_id;
+                $article['status'] = 'drafted';
+                $found = true;
+                break;
+            }
+        }
+
+        if ($found) {
+            return update_post_meta($session_id, '_kh_planner_data', $meta);
+        }
+
+        return false;
+    }
 }

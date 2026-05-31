@@ -572,6 +572,10 @@ const WritingStudioApp = () => {
     });
     const [exporting, setExporting] = useState(null);
 
+    // Persistence State
+    const [isPersisting, setIsPersisting] = useState(false);
+    const [persistenceNotice, setPersistenceNotice] = useState(null);
+
     useEffect(() => {
         loadSessions();
     }, []);
@@ -649,6 +653,7 @@ const WritingStudioApp = () => {
         setInstructions('');
         setError('');
         setActiveJobId(null);
+        setPersistenceNotice(null); // Clear persistence state
         setSelectedArticle(article);
         setView('workspace');
         if (selectedSession.author_policy) {
@@ -708,6 +713,78 @@ const WritingStudioApp = () => {
             setError(__('Export failed.', 'kh-editorial-author'));
         } finally {
             setExporting(null);
+        }
+    };
+
+    /**
+     * Helper to convert AI blocks to HTML for WordPress persistence.
+     */
+    const convertBlocksToHtml = (blocks) => {
+        if (!Array.isArray(blocks)) return '';
+        
+        return blocks.map(block => {
+            switch(block.type) {
+                case 'heading':
+                    const level = block.level || 2;
+                    return `<h${level}>${block.content}</h${level}>`;
+                case 'list':
+                    const tag = block.ordered ? 'ol' : 'ul';
+                    const items = (block.items || []).map(item => `<li>${item}</li>`).join('');
+                    return `<${tag}>${items}</${tag}>`;
+                case 'pullquote':
+                    const cite = block.cite ? `<cite>${block.cite}</cite>` : '';
+                    return `<blockquote><p>${block.content}</p>${cite}</blockquote>`;
+                default:
+                    return `<p>${block.content}</p>`;
+            }
+        }).join("\n\n");
+    };
+
+    /**
+     * Persist the draft to WordPress database.
+     */
+    const handleSaveToWordPress = async () => {
+        if (!draftResult || !draftResult.blocks) return;
+
+        try {
+            setIsPersisting(true);
+            setPersistenceNotice(null);
+
+            const response = await apiFetch({
+                path: 'editorial/v1/author/persist',
+                method: 'POST',
+                data: {
+                    id: selectedArticle.wp_post_id || null, // Ensure we update if ID exists
+                    title: selectedArticle.headline || selectedArticle.title,
+                    content: convertBlocksToHtml(draftResult.blocks),
+                    planner_session_id: selectedSession.session_id,
+                    article_id: selectedArticle.id,
+                    author_policy: policy
+                }
+            });
+
+            if (response.success) {
+                setPersistenceNotice({
+                    status: 'success',
+                    message: selectedArticle.wp_post_id 
+                        ? __('Draft updated successfully.', 'kh-editorial-author')
+                        : __('Draft successfully saved to WordPress.', 'kh-editorial-author'),
+                    edit_url: response.edit_url,
+                    warnings: response.warnings || []
+                });
+                
+                // Update local article state to show it is now drafted
+                if (selectedArticle && !selectedArticle.wp_post_id) {
+                    setSelectedArticle({ ...selectedArticle, wp_post_id: response.post_id });
+                }
+            }
+        } catch (err) {
+            setPersistenceNotice({
+                status: 'error',
+                message: err.message || __('Failed to save draft to WordPress.', 'kh-editorial-author')
+            });
+        } finally {
+            setIsPersisting(false);
         }
     };
 
@@ -917,6 +994,55 @@ const WritingStudioApp = () => {
                             {exporting === 'pdf' ? __('Exporting...', 'kh-editorial-author') : __('Export PDF', 'kh-editorial-author')}
                         </Button>
                     </div>
+                </PanelBody>
+
+                <PanelBody title={__('Persistence', 'kh-editorial-author')} initialOpen={true}>
+                    {persistenceNotice && (
+                        <Notice 
+                            status={persistenceNotice.status} 
+                            onDismiss={() => setPersistenceNotice(null)}
+                            style={{ marginBottom: '15px' }}
+                        >
+                            <p style={{ margin: '0 0 10px 0' }}>{persistenceNotice.message}</p>
+                            {persistenceNotice.warnings && persistenceNotice.warnings.map((w, i) => (
+                                <div key={i} style={{ fontSize: '11px', color: '#666', marginBottom: '5px' }}>• {w}</div>
+                            ))}
+                            {persistenceNotice.edit_url && (
+                                <Button 
+                                    isPrimary 
+                                    href={persistenceNotice.edit_url} 
+                                    target="_blank"
+                                    style={{ width: '100%', justifyContent: 'center', marginTop: '10px' }}
+                                >
+                                    {__('Open in WP Editor', 'kh-editorial-author')}
+                                </Button>
+                            )}
+                        </Notice>
+                    )}
+
+                    <Button 
+                        isPrimary 
+                        isBusy={isPersisting}
+                        disabled={!draftResult || isPersisting}
+                        onClick={handleSaveToWordPress}
+                        style={{ width: '100%', justifyContent: 'center' }}
+                        icon="wordpress"
+                    >
+                        {selectedArticle?.wp_post_id 
+                            ? __('Update WP Draft', 'kh-editorial-author') 
+                            : __('Save Draft to WordPress', 'kh-editorial-author')
+                        }
+                    </Button>
+                    
+                    {selectedArticle?.wp_post_id && !persistenceNotice && (
+                        <div style={{ marginTop: '10px', textAlign: 'center' }}>
+                            <small>
+                                <a href={`${authorData.adminUrl}post.php?post=${selectedArticle.wp_post_id}&action=edit`} target="_blank" rel="noreferrer">
+                                    {__('View existing draft (ID:', 'kh-editorial-author')} {selectedArticle.wp_post_id})
+                                </a>
+                            </small>
+                        </div>
+                    )}
                 </PanelBody>
             </aside>
 

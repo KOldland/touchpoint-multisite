@@ -155,41 +155,44 @@ require_once __DIR__ . '/includes/credit-system-helpers.php';
 require_once __DIR__ . '/src/Blocks/answer-card/answer-card.php';
 require_once __DIR__ . '/src/Blocks/answer-card/rest.php';
 
-// Load GEO Suggestion Service classes
-require_once __DIR__ . '/src/GEO/LLMClient.php';
-require_once __DIR__ . '/src/GEO/AnswerCardSchemaValidator.php';
-require_once __DIR__ . '/src/GEO/SuggestionCacheManager.php';
-require_once __DIR__ . '/src/GEO/RateLimiter.php';
-require_once __DIR__ . '/src/GEO/SuggestionAuditLogger.php';
-require_once __DIR__ . '/src/GEO/SuggestAnswerCardsEndpoint.php';
-require_once __DIR__ . '/src/GEO/RedirectHandler.php';
-require_once __DIR__ . '/src/Sponsors/SponsorMigration.php';
-require_once __DIR__ . '/src/Sponsors/SponsorAudit.php';
-require_once __DIR__ . '/src/Sponsors/SponsorIngest.php';
-require_once __DIR__ . '/src/Sponsors/SponsorController.php';
-require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
-require_once __DIR__ . '/src/Sponsors/SponsorDashboard.php';
-require_once __DIR__ . '/src/Sponsors/SponsorApplicationShortcode.php';
-require_once __DIR__ . '/src/Sponsors/SponsorApplicationAdminUI.php';
-require_once __DIR__ . '/src/Admin/PriceValidationAjax.php';
-require_once __DIR__ . '/src/Membership/MembershipMigration.php';
-require_once __DIR__ . '/src/Membership/TierRegistry.php';
-require_once __DIR__ . '/src/Membership/ReadershiptTierConfig.php';
-require_once __DIR__ . '/src/Migrations/SeedReadershipTiers.php';
-require_once __DIR__ . '/src/Membership/SignupEndpoint.php';
-require_once __DIR__ . '/src/Membership/LandingSuccessEndpoint.php';
-require_once __DIR__ . '/src/Membership/PriceOverrideEndpoint.php';
-require_once __DIR__ . '/src/Membership/DsarController.php';
-require_once __DIR__ . '/src/Membership/RetentionWorker.php';
-require_once __DIR__ . '/src/Membership/StatusEndpoint.php';
-require_once __DIR__ . '/src/Membership/CustomerPortalEndpoint.php';
-require_once __DIR__ . '/src/Membership/StripeWebhookHandler.php';
-require_once __DIR__ . '/src/Membership/LandingPageShortcode.php';
-require_once __DIR__ . '/src/Membership/DashboardShortcode.php';
-require_once __DIR__ . '/src/Membership/Admin/ReportsPage.php';
-require_once __DIR__ . '/src/Services/LevelPriceResolver.php';
-require_once __DIR__ . '/src/Migrations/CreateSponsorApplicationsTable.php';
-require_once __DIR__ . '/src/Migrations/CreateTechConnectTables.php';
+// Conditional guard: only load AI/editorial routes when Editorial Studio plugin is active.
+$khm_editorial_studio_active = get_option( 'khm_editorial_studio_active', false );
+if ( $khm_editorial_studio_active ) {
+    // Load GEO Suggestion Service classes
+    require_once __DIR__ . '/src/GEO/LLMClient.php';
+    require_once __DIR__ . '/src/GEO/AnswerCardSchemaValidator.php';
+    require_once __DIR__ . '/src/GEO/SuggestionCacheManager.php';
+    require_once __DIR__ . '/src/GEO/RateLimiter.php';
+    require_once __DIR__ . '/src/GEO/SuggestionAuditLogger.php';
+    require_once __DIR__ . '/src/GEO/SuggestAnswerCardsEndpoint.php';
+    require_once __DIR__ . '/src/GEO/RedirectHandler.php';
+    require_once __DIR__ . '/src/Sponsors/SponsorMigration.php';
+    require_once __DIR__ . '/src/Sponsors/SponsorAudit.php';
+    require_once __DIR__ . '/src/Sponsors/SponsorIngest.php';
+    require_once __DIR__ . '/src/Sponsors/SponsorController.php';
+    require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
+    require_once __DIR__ . '/src/Sponsors/SponsorDashboard.php';
+    require_once __DIR__ . '/src/Sponsors/SponsorApplicationShortcode.php';
+    require_once __DIR__ . '/src/Sponsors/SponsorApplicationAdminUI.php';
+    require_once __DIR__ . '/src/Admin/PriceValidationAjax.php';
+    require_once __DIR__ . '/src/Membership/MembershipMigration.php';
+    require_once __DIR__ . '/src/Membership/TierRegistry.php';
+    require_once __DIR__ . '/src/Membership/ReadershiptTierConfig.php';
+    require_once __DIR__ . '/src/Migrations/SeedReadershipTiers.php';
+    require_once __DIR__ . '/src/Membership/SignupEndpoint.php';
+    require_once __DIR__ . '/src/Membership/LandingSuccessEndpoint.php';
+    require_once __DIR__ . '/src/Membership/PriceOverrideEndpoint.php';
+    require_once __DIR__ . '/src/Membership/DsarController.php';
+    require_once __DIR__ . '/src/Membership/RetentionWorker.php';
+    require_once __DIR__ . '/src/Membership/StatusEndpoint.php';
+    require_once __DIR__ . '/src/Membership/CustomerPortalEndpoint.php';
+    require_once __DIR__ . '/src/Membership/StripeWebhookHandler.php';
+    require_once __DIR__ . '/src/Membership/LandingPageShortcode.php';
+    require_once __DIR__ . '/src/Membership/DashboardShortcode.php';
+    require_once __DIR__ . '/src/Membership/Admin/ReportsPage.php';
+    require_once __DIR__ . '/src/Services/LevelPriceResolver.php';
+    require_once __DIR__ . '/src/Migrations/CreateSponsorApplicationsTable.php';
+    require_once __DIR__ . '/src/Migrations/CreateTechConnectTables.php';
 
 
 // Register GEO Suggestion Endpoint at rest_api_init
@@ -245,6 +248,8 @@ add_action( 'rest_api_init', function() {
         $endpoint->register_routes();
     }
 } );
+
+} // End $khm_editorial_studio_active guard
 
 add_action( 'init', function() {
     if ( class_exists( 'KHM\\Membership\\RetentionWorker' ) ) {

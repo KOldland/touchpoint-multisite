@@ -52,6 +52,20 @@ class AuthorEndpoints {
             'callback' => [$this, 'get_job_status'],
             'permission_callback' => [$this, 'check_permissions'],
         ]);
+
+        register_rest_route('editorial/v1', '/author/persist', [
+            'methods' => 'POST',
+            'callback' => [$this, 'persist_draft'],
+            'permission_callback' => [$this, 'check_permissions'],
+            'args' => [
+                'title'              => ['type' => 'string', 'required' => true, 'sanitize_callback' => 'sanitize_text_field'],
+                'content'            => ['type' => 'string', 'required' => true, 'sanitize_callback' => 'wp_kses_post'],
+                'planner_session_id' => ['type' => 'integer', 'required' => true],
+                'article_id'         => ['type' => ['string', 'integer'], 'required' => true],
+                'author_policy'      => ['type' => 'object', 'required' => false],
+                'id'                 => ['type' => 'integer', 'required' => false],
+            ],
+        ]);
     }
 
     public function check_permissions() {
@@ -93,5 +107,81 @@ class AuthorEndpoints {
         }
 
         return new WP_REST_Response($job, 200);
+    }
+
+    /**
+     * Persist an AI-generated draft as a formal WordPress post.
+     */
+    public function persist_draft(WP_REST_Request $request) {
+        $id            = $request['id'] ? (int) $request['id'] : null;
+        $title         = $request['title'];
+        $content       = $request['content'];
+        $session_id    = (int) $request['planner_session_id'];
+        $article_id    = $request['article_id'];
+        $author_policy = $request['author_policy'] ?? [];
+        $user_id       = get_current_user_id();
+        $warnings      = [];
+
+        // 1. Guard: If ID is provided, verify user can edit it
+        if ($id) {
+            if (!current_user_can('edit_post', $id)) {
+                return new WP_Error('forbidden', 'You do not have permission to update this post.', ['status' => 403]);
+            }
+        }
+
+        // 2. Atomic Persist (Insert or Update)
+        $post_data = [
+            'post_title'   => $title,
+            'post_content' => $content,
+            'post_status'  => 'draft',
+            'post_type'    => 'post',
+            'post_author'  => $user_id,
+        ];
+
+        if ($id) {
+            $post_data['ID'] = $id;
+        }
+
+        $post_id = wp_insert_post($post_data, true);
+
+        if (is_wp_error($post_id)) {
+            return new WP_Error('insert_failed', 'Failed to create post: ' . $post_id->get_error_message(), ['status' => 500]);
+        }
+
+        // 2. AI Intent Persistence (Policy Snapshot)
+        if (!empty($author_policy)) {
+            update_post_meta($post_id, '_kh_ai_policy_snapshot', $author_policy);
+        }
+
+        // 3. Attribution Sync (Human + AI)
+        try {
+            $sync_provider = \KH\EditorialAuthor\Core\AuthorPlugin::get_instance()->get_author_sync();
+            $synced = $sync_provider->sync_authors($post_id, $user_id);
+            if (!$synced) {
+                $warnings[] = __('Post created, but attribution sync failed. Ensure co-author profiles exist.', 'kh-editorial-author');
+            }
+        } catch (\Throwable $e) {
+            $warnings[] = __('Attribution system error.', 'kh-editorial-author');
+            error_log("[AuthorEndpoints] Attribution sync failed for post {$post_id}: " . $e->getMessage());
+        }
+
+        // 4. Planner Session Linkage
+        try {
+            $planner_bridge = new \KH\EditorialAuthor\Integration\PlannerBridge();
+            $linked = $planner_bridge->link_article_to_post($session_id, $article_id, $post_id);
+            if (!$linked) {
+                $warnings[] = __('Post created, but failed to mark article idea as drafted in the planner.', 'kh-editorial-author');
+            }
+        } catch (\Throwable $e) {
+            $warnings[] = __('Planner linkage system error.', 'kh-editorial-author');
+            error_log("[AuthorEndpoints] Planner linkage failed for post {$post_id}: " . $e->getMessage());
+        }
+
+        return new WP_REST_Response([
+            'success'  => true,
+            'post_id'  => $post_id,
+            'edit_url' => admin_url("post.php?post={$post_id}&action=edit"),
+            'warnings' => $warnings
+        ], 200);
     }
 }

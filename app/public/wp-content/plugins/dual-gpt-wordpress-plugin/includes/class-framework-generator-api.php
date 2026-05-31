@@ -13,6 +13,10 @@ class Framework_Generator_API {
      * Register REST routes
      */
     public function register_routes() {
+        if (!defined('DUAL_GPT_LEGACY_MODE') || !DUAL_GPT_LEGACY_MODE) {
+            return;
+        }
+
         register_rest_route('fg/v1', '/start', array(
             'methods' => 'POST',
             'callback' => array($this, 'start_framework_generation'),

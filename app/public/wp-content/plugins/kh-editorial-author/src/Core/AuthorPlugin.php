@@ -7,6 +7,7 @@ use KH\EditorialAuthor\API\AuthorEndpoints;
 class AuthorPlugin {
     private static $instance = null;
     private $orchestrator = null;
+    private $author_sync = null;
 
     public static function get_instance() {
         if (null === self::$instance) {
@@ -24,6 +25,16 @@ class AuthorPlugin {
             $this->orchestrator = new \KH\EditorialAuthor\Agents\AuthorOrchestrator();
         }
         return $this->orchestrator;
+    }
+
+    /**
+     * Get the AuthorSyncProvider instance.
+     */
+    public function get_author_sync() {
+        if (null === $this->author_sync) {
+            $this->author_sync = new \KH\EditorialAuthor\Integration\AuthorSyncProvider();
+        }
+        return $this->author_sync;
     }
 
     private function init_hooks() {

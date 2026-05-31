@@ -40,6 +40,7 @@ class AuthorWorkspace {
 
         wp_localize_script('kh-author-react', 'authorData', [
             'apiRoot' => esc_url_raw(rest_url('editorial/v1')),
+            'adminUrl' => esc_url_raw(admin_url()),
             'nonce'   => wp_create_nonce('wp_rest'),
             'defaults' => \KH\EditorialAuthor\Core\AuthorPolicy::get_defaults(),
             'options' => [
