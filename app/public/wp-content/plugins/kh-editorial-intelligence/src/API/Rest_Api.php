@@ -84,6 +84,63 @@ class Rest_Api {
                 'post_id' => ['required' => true, 'type' => 'integer']
             ]
         ]);
+
+        // --- Recommendation Intelligence Namespace ---
+        register_rest_route($this->namespace, '/recommendations/(?P<post_id>\d+)', [
+            'methods'             => \WP_REST_Server::READABLE,
+            'callback'            => [$this, 'handle_get_recommendations'],
+            'permission_callback' => '__return_true',
+            'args' => [
+                'post_id' => [
+                    'required' => true,
+                    'type'     => 'integer',
+                    'validate_callback' => fn($param) => is_numeric($param)
+                ],
+                'limit'   => [
+                    'required' => false,
+                    'type'     => 'integer',
+                    'default'  => 3,
+                    'sanitize_callback' => fn($param) => min(max((int)$param, 1), 10)
+                ],
+                'force'   => [
+                    'required' => false,
+                    'type'     => 'boolean',
+                    'default'  => false
+                ]
+            ]
+        ]);
+    }
+
+    /**
+     * GET Handler for Recommendations.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response|\WP_Error
+     */
+    public function handle_get_recommendations(\WP_REST_Request $request) {
+        $post_id = (int) $request['post_id'];
+        $limit   = (int) $request['limit'];
+        $force   = (bool) $request['force'];
+
+        // Pre-flight Guard: Verify the post exists and is published
+        $post = get_post($post_id);
+        if (!$post || 'publish' !== $post->post_status) {
+            return new \WP_Error('post_not_found', 'The requested post was not found or is not published.', ['status' => 404]);
+        }
+
+        try {
+            $agent = Container::get('RecommendationAgent');
+            $data  = $agent->get_recommendations($post_id, $limit, $force);
+
+            return new \WP_REST_Response([
+                'success' => true,
+                'data'    => $data,
+                'forced'  => $force
+            ], 200);
+
+        } catch (\Exception $e) {
+            return new \WP_Error('service_error', $e->getMessage(), ['status' => 500]);
+        }
     }
 
     /**

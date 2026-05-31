@@ -16,7 +16,8 @@ const {
     Placeholder,
     ProgressBar,
     Icon,
-    CheckboxControl
+    CheckboxControl,
+    RangeControl
 } = wp.components;
 
 const apiFetch = (options) =>
@@ -27,6 +28,252 @@ const apiFetch = (options) =>
             ...(options.headers || {}),
         },
     });
+
+/**
+ * SmartRecommendationsPanel Component
+ * Surfaces semantically related content for cross-linking and research.
+ */
+const SmartRecommendationsPanel = ({ postId }) => {
+    const [recommendations, setRecommendations] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [limit, setLimit] = useState(3);
+    const [copiedId, setCopiedId] = useState(null);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [forceTrigger, setForceTrigger] = useState(false);
+    const [showForceNotice, setShowForceNotice] = useState(false);
+
+    useEffect(() => {
+        const controller = new AbortController();
+        const signal = controller.signal;
+        
+        const fetchRecommendations = async () => {
+            if (!postId) return;
+
+            setRecommendations([]);
+            setError('');
+            setLoading(true);
+
+            try {
+                const isForced = forceTrigger;
+                const response = await apiFetch({
+                    path: `editorial/v1/recommendations/${postId}?limit=${limit}${isForced ? '&force=1' : ''}`,
+                    method: 'GET',
+                    signal: signal
+                });
+
+                if (response.success) {
+                    setRecommendations(response.data || []);
+                    if (isForced) {
+                        setShowForceNotice(true);
+                        setTimeout(() => setShowForceNotice(false), 4000);
+                    }
+                } else {
+                    setError(__('Failed to load recommendations.', 'kh-editorial-author'));
+                }
+            } catch (err) {
+                // Ignore abort errors
+                if (err.name === 'AbortError') return;
+
+                if (err.code === 'post_not_found') {
+                    setError(__('AI Agent is still profiling this content. Check back shortly.', 'kh-editorial-author'));
+                } else if (err.code === 'budget_exceeded' || err.status === 402) {
+                    setError(__('AI Budget reached. Please contact your administrator.', 'kh-editorial-author'));
+                } else {
+                    setError(err.message || __('Error fetching recommendations.', 'kh-editorial-author'));
+                }
+            } finally {
+                if (!signal.aborted) {
+                    setLoading(false);
+                    setForceTrigger(false);
+                }
+            }
+        };
+
+        // Simple debounce for RangeControl (limit) changes
+        const timeoutId = setTimeout(fetchRecommendations, 300);
+
+        return () => {
+            clearTimeout(timeoutId);
+            controller.abort();
+        };
+    }, [postId, limit, refreshTrigger, forceTrigger]);
+
+    const copyToClipboard = (url, id) => {
+        navigator.clipboard.writeText(url).then(() => {
+            setCopiedId(id);
+            setTimeout(() => setCopiedId(null), 2000);
+        });
+    };
+
+    const handleRefresh = () => setRefreshTrigger(prev => prev + 1);
+    const handleForceRescan = () => {
+        setForceTrigger(true);
+    };
+
+    return (
+        <PanelBody title={__('Smart Recommendations', 'kh-editorial-author')} initialOpen={false} icon="location">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
+                <RangeControl
+                    label={__('Discovery Depth', 'kh-editorial-author')}
+                    value={limit}
+                    onChange={setLimit}
+                    min={1}
+                    max={10}
+                    disabled={loading}
+                    help={__('Adjust the number of semantic matches to discover.', 'kh-editorial-author')}
+                />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    <Button 
+                        isSecondary
+                        isSmall
+                        icon="update" 
+                        onClick={handleRefresh} 
+                        disabled={loading}
+                    >
+                        {__('Refresh', 'kh-editorial-author')}
+                    </Button>
+                    <Button 
+                        isSecondary
+                        isSmall
+                        icon="brainstorm" 
+                        onClick={handleForceRescan} 
+                        disabled={loading}
+                        showTooltip
+                        label={__('Bypass cache and re-analyze content', 'kh-editorial-author')}
+                    >
+                        {__('Force Re-scan', 'kh-editorial-author')}
+                    </Button>
+                </div>
+            </div>
+
+            {showForceNotice && (
+                <Notice status="success" onDismiss={() => setShowForceNotice(false)}>
+                    {__('Thematic profile updated and cache invalidated.', 'kh-editorial-author')}
+                </Notice>
+            )}
+
+            {loading && (
+                <Placeholder 
+                    icon="admin-site" 
+                    label={__('Analyzing Ecosystem...', 'kh-editorial-author')}
+                    instructions={__('Consulting the Intelligence Tier for semantic matches.', 'kh-editorial-author')}
+                >
+                    <Spinner />
+                </Placeholder>
+            )}
+
+            {error && (
+                <Notice status="warning" isDismissible={false}>
+                    {error}
+                    {!loading && (
+                        <div style={{ marginTop: '10px' }}>
+                            <Button isSecondary isSmall onClick={handleRefresh} icon="redo">
+                                {__('Retry Discovery', 'kh-editorial-author')}
+                            </Button>
+                        </div>
+                    )}
+                </Notice>
+            )}
+
+            {!loading && !error && recommendations.length === 0 && (
+                <Notice status="info" isDismissible={false}>
+                    {__('No semantic matches found yet. The AI performs better as you add more content to your draft.', 'kh-editorial-author')}
+                </Notice>
+            )}
+
+            {!loading && recommendations.length > 0 && (
+                <div className="recommendations-list">
+                    {recommendations.map((rec) => (
+                        <div key={rec.id} style={{ 
+                            background: '#fff', 
+                            border: '1px solid #ccd0d4', 
+                            padding: '12px', 
+                            marginBottom: '10px',
+                            borderRadius: '4px',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                        }}>
+                            <div style={{ display: 'flex', gap: '12px', marginBottom: '10px' }}>
+                                <div style={{ 
+                                    width: '40px', 
+                                    height: '40px', 
+                                    background: '#f0f0f1', 
+                                    borderRadius: '2px',
+                                    overflow: 'hidden',
+                                    display: 'flex',
+                                    flexShrink: 0,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: '1px solid #e2e4e7'
+                                }}>
+                                    {rec.image_url ? (
+                                        <img 
+                                            src={rec.image_url} 
+                                            alt="" 
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                        />
+                                    ) : (
+                                        <Icon icon="format-image" style={{ color: '#ccd0d4' }} />
+                                    )}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <h5 style={{ 
+                                        margin: '0 0 4px 0', 
+                                        fontSize: '13px', 
+                                        lineHeight: '1.4',
+                                        fontWeight: '600',
+                                        color: '#1e1e1e',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis'
+                                    }}>
+                                        {rec.title}
+                                    </h5>
+                                    <p style={{ 
+                                        margin: 0, 
+                                        fontSize: '11px', 
+                                        lineHeight: '1.5',
+                                        color: '#666', 
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden'
+                                    }}>
+                                        {rec.excerpt}
+                                    </p>
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <Button 
+                                    isSecondary 
+                                    isSmall 
+                                    href={rec.url} 
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    icon="external"
+                                    label={__('View original post in new tab', 'kh-editorial-author')}
+                                    showTooltip
+                                >
+                                    {__('View', 'kh-editorial-author')}
+                                </Button>
+                                <Button 
+                                    isSecondary 
+                                    isSmall 
+                                    onClick={() => copyToClipboard(rec.url, rec.id)}
+                                    icon={copiedId === rec.id ? 'yes' : 'admin-links'}
+                                    label={__('Copy link to clipboard for insertion', 'kh-editorial-author')}
+                                    showTooltip
+                                >
+                                    {copiedId === rec.id ? __('Copied!', 'kh-editorial-author') : __('Copy Link', 'kh-editorial-author')}
+                                </Button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </PanelBody>
+    );
+};
 
 /**
  * SmartSEOPanel Component
@@ -545,7 +792,10 @@ const WritingStudioApp = () => {
                 <h2>{__('Configuration', 'kh-editorial-author')}</h2>
                 
                 {selectedArticle?.wp_post_id && (
-                    <SmartSEOPanel postId={selectedArticle.wp_post_id} />
+                    <>
+                        <SmartSEOPanel postId={selectedArticle.wp_post_id} />
+                        <SmartRecommendationsPanel postId={selectedArticle.wp_post_id} />
+                    </>
                 )}
 
                 <PanelBody title={__('Core Settings', 'kh-editorial-author')} initialOpen={true}>

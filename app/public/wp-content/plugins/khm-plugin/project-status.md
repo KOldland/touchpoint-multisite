@@ -133,7 +133,21 @@ The project objective is the systematic decomposition of the legacy WordPress "G
 5.  **Unified UI Convergence**:
     *   Port legacy `khm-seo` and `khm-preview` controls into the React Writing Studio sidebar.
 
+#### WAVE 4: Smart Recommendations (COMPLETE)
+*   **RecommendationAgent Engine (Sub-task 4.1 COMPLETE)**:
+    *   Established `RecommendationAgent` in the Intelligence Tier with async thematic tagging.
+    *   **Content-Hash Detection**: Implemented md5 change detection to trigger profile updates only when content shifts.
+    *   **Role-Aware Caching**: Integrated transient caching with role-based isolation (6-hour TTL).
+*   **Infrastructure Bridge (Sub-task 4.2 COMPLETE)**:
+    *   Standardized `editorial/v1/recommendations` REST endpoint.
+    *   **Idempotency & Force Support**: Added `force` parameter to bypass cache and trigger immediate re-profiling.
+    *   **Pre-flight Security**: Strict `publish` status validation and clamping of discovery depth (1-10).
+*   **Writing Studio UI Integration (Sub-task 4.3 COMPLETE)**:
+    *   Launched `SmartRecommendations` React panel in the sidebar.
+    *   **High-Fidelity Discovery**: Implemented thumbnail support, excerpt clamping, and Gutenberg-native "Copy Link" workflow.
+    *   **Resilient Orchestration**: Integrated `AbortController` and debouncing to prevent race conditions during interaction.
+
 ---
 
-**Last Sync:** 2024-05-30  
-**Status**: Phase 5 Wave 2 COMPLETE; SEO Agent Consolidated.
+**Last Sync:** 2024-06-03  
+**Status**: Phase 5 Wave 4 COMPLETE; Smart Recommendations Integrated.

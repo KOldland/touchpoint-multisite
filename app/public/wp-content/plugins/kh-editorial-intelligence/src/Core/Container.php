@@ -70,5 +70,9 @@ class Container {
                 ->set_storage(self::get('AIStorage'))
                 ->set_agent(self::get('SEOAgent'));
         });
+
+        self::bind('RecommendationAgent', function() {
+            return new \KH\Editorial\Services\AI\RecommendationAgent();
+        });
     }
 }

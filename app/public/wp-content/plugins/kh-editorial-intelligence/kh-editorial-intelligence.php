@@ -36,29 +36,34 @@ spl_autoload_register( function ( $class ) {
 
 // Initialize components
 add_action( 'plugins_loaded', function() {
-    // Taxonomies
+    // 1. Service Container (Boot First)
+    if ( class_exists( 'KH\\Editorial\\Core\\Container' ) ) {
+        KH\Editorial\Core\Container::boot();
+    }
+
+    // 2. Taxonomies
     if ( class_exists( 'KH\\Editorial\\Taxonomies\\EditorialTaxonomy' ) ) {
         KH\Editorial\Taxonomies\EditorialTaxonomy::init();
     }
     
-    // Admin UI
+    // 3. Admin UI
     if ( is_admin() && class_exists( 'KH\\Editorial\\Admin\\EditorialAdmin' ) ) {
         $editorial_admin = new KH\Editorial\Admin\EditorialAdmin();
         $editorial_admin->init();
     }
 
-    // AI Worker
+    // 4. AI Worker
     if ( class_exists( 'KH\\Editorial\\Services\\AI\\AIWorker' ) ) {
         $ai_worker = new KH\Editorial\Services\AI\AIWorker();
         $ai_worker->init();
     }
 
-    // Service Container
-    if ( class_exists( 'KH\\Editorial\\Core\\Container' ) ) {
-        KH\Editorial\Core\Container::boot();
+    // 5. Recommendation Agent (Initialize via Container Singleton)
+    if ( KH\Editorial\Core\Container::has( 'RecommendationAgent' ) ) {
+        KH\Editorial\Core\Container::get( 'RecommendationAgent' )->init();
     }
 
-    // REST API
+    // 6. REST API
     if ( class_exists( 'KH\\Editorial\\API\\Rest_Api' ) ) {
         $rest_api = new KH\Editorial\API\Rest_Api();
         $rest_api->init();
