@@ -9,7 +9,7 @@
  * @package KHM\GEO
  */
 
-namespace KHM\GEO;
+namespace KH\Editorial\API;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -57,7 +57,7 @@ class SuggestAnswerCardsEndpoint {
      * Constructor
      */
     public function __construct() {
-        $this->llm_client   = new LLMClient();
+        // $this->llm_client   = new LLMClient(); // Migrated to static LLMService
         $this->validator    = new AnswerCardSchemaValidator();
         $this->cache        = new SuggestionCacheManager();
         $this->rate_limiter = new RateLimiter();

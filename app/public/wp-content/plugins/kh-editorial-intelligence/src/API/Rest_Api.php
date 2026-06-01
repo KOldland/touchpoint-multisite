@@ -109,6 +109,12 @@ class Rest_Api {
                 ]
             ]
         ]);
+
+        // --- Suggest AnswerCards Endpoint ---
+        if (class_exists('KH\\Editorial\\API\\SuggestAnswerCardsEndpoint')) {
+            $suggest_endpoint = new \KH\Editorial\API\SuggestAnswerCardsEndpoint();
+            $suggest_endpoint->register();
+        }
     }
 
     /**

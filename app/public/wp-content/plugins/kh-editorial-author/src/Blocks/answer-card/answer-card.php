@@ -15,7 +15,7 @@
  * @package KHM\Blocks\AnswerCard
  */
 
-namespace KHM\Blocks\AnswerCard;
+namespace KH\EditorialAuthor\Blocks\AnswerCard;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -159,7 +159,7 @@ function render_answercard_block( $attributes, $content ) {
     $share_nonce = is_user_logged_in() ? wp_create_nonce( 'khm_library_nonce' ) : '';
     $ajax_url = function_exists( 'admin_url' ) ? admin_url( 'admin-ajax.php' ) : '';
     $login_url = function_exists( 'wp_login_url' ) ? wp_login_url( get_permalink() ) : '';
-    $bookmark_icon = function_exists( 'plugins_url' ) ? plugins_url( 'social-strip/assets/bookmark.png' ) : '';
+    $bookmark_icon = function_exists( 'plugins_url' ) ? plugins_url( 'social-strip/assets/bookmark.png', WP_PLUGIN_DIR ) : '';
 
     // Build HTML output
     $html  = '<section class="khm-answer-card" role="region" aria-label="' . esc_attr( $question ) . '">';

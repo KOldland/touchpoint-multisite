@@ -152,66 +152,36 @@ require_once __DIR__ . '/includes/marketing-suite-functions.php';
 require_once __DIR__ . '/includes/credit-system-helpers.php';
 
 // Load GEO AnswerCard Gutenberg Block
-require_once __DIR__ . '/src/Blocks/answer-card/answer-card.php';
-require_once __DIR__ . '/src/Blocks/answer-card/rest.php';
+// (Removed: Migrated to modern khm-seo plugin)
 
-// Conditional guard: only load AI/editorial routes when Editorial Studio plugin is active.
-$khm_editorial_studio_active = get_option( 'khm_editorial_studio_active', false );
-if ( $khm_editorial_studio_active ) {
-    // Load GEO Suggestion Service classes
-    require_once __DIR__ . '/src/GEO/LLMClient.php';
-    require_once __DIR__ . '/src/GEO/AnswerCardSchemaValidator.php';
-    require_once __DIR__ . '/src/GEO/SuggestionCacheManager.php';
-    require_once __DIR__ . '/src/GEO/RateLimiter.php';
-    require_once __DIR__ . '/src/GEO/SuggestionAuditLogger.php';
-    require_once __DIR__ . '/src/GEO/SuggestAnswerCardsEndpoint.php';
-    require_once __DIR__ . '/src/GEO/RedirectHandler.php';
-    require_once __DIR__ . '/src/Sponsors/SponsorMigration.php';
-    require_once __DIR__ . '/src/Sponsors/SponsorAudit.php';
-    require_once __DIR__ . '/src/Sponsors/SponsorIngest.php';
-    require_once __DIR__ . '/src/Sponsors/SponsorController.php';
-    require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
-    require_once __DIR__ . '/src/Sponsors/SponsorDashboard.php';
-    require_once __DIR__ . '/src/Sponsors/SponsorApplicationShortcode.php';
-    require_once __DIR__ . '/src/Sponsors/SponsorApplicationAdminUI.php';
-    require_once __DIR__ . '/src/Admin/PriceValidationAjax.php';
-    require_once __DIR__ . '/src/Membership/MembershipMigration.php';
-    require_once __DIR__ . '/src/Membership/TierRegistry.php';
-    require_once __DIR__ . '/src/Membership/ReadershiptTierConfig.php';
-    require_once __DIR__ . '/src/Migrations/SeedReadershipTiers.php';
-    require_once __DIR__ . '/src/Membership/SignupEndpoint.php';
-    require_once __DIR__ . '/src/Membership/LandingSuccessEndpoint.php';
-    require_once __DIR__ . '/src/Membership/PriceOverrideEndpoint.php';
-    require_once __DIR__ . '/src/Membership/DsarController.php';
-    require_once __DIR__ . '/src/Membership/RetentionWorker.php';
-    require_once __DIR__ . '/src/Membership/StatusEndpoint.php';
-    require_once __DIR__ . '/src/Membership/CustomerPortalEndpoint.php';
-    require_once __DIR__ . '/src/Membership/StripeWebhookHandler.php';
-    require_once __DIR__ . '/src/Membership/LandingPageShortcode.php';
-    require_once __DIR__ . '/src/Membership/DashboardShortcode.php';
-    require_once __DIR__ . '/src/Membership/Admin/ReportsPage.php';
-    require_once __DIR__ . '/src/Services/LevelPriceResolver.php';
-    require_once __DIR__ . '/src/Migrations/CreateSponsorApplicationsTable.php';
-    require_once __DIR__ . '/src/Migrations/CreateTechConnectTables.php';
-
-
-// Register GEO Suggestion Endpoint at rest_api_init
-add_action( 'rest_api_init', function() {
-    error_log('[KHM GEO] rest_api_init hook fired - checking SuggestAnswerCardsEndpoint class');
-    if ( class_exists( 'KHM\\GEO\\SuggestAnswerCardsEndpoint' ) ) {
-        error_log('[KHM GEO] SuggestAnswerCardsEndpoint class found, attempting to instantiate');
-        try {
-            $ep = new KHM\GEO\SuggestAnswerCardsEndpoint();
-            $ep->register();
-            error_log('[KHM GEO] SuggestAnswerCardsEndpoint registered successfully.');
-        } catch ( Throwable $e ) {
-            error_log('[KHM GEO] Endpoint registration failed: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
-            error_log('[KHM GEO] Stack trace: ' . $e->getTraceAsString());
-        }
-    } else {
-        error_log('[KHM GEO] SuggestAnswerCardsEndpoint class not found during rest_api_init.');
-    }
-} );
+// Load Sponsorship and Membership Suites
+require_once __DIR__ . '/src/Sponsors/SponsorMigration.php';
+require_once __DIR__ . '/src/Sponsors/SponsorAudit.php';
+require_once __DIR__ . '/src/Sponsors/SponsorIngest.php';
+require_once __DIR__ . '/src/Sponsors/SponsorController.php';
+require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
+require_once __DIR__ . '/src/Sponsors/SponsorDashboard.php';
+require_once __DIR__ . '/src/Sponsors/SponsorApplicationShortcode.php';
+require_once __DIR__ . '/src/Sponsors/SponsorApplicationAdminUI.php';
+require_once __DIR__ . '/src/Admin/PriceValidationAjax.php';
+require_once __DIR__ . '/src/Membership/MembershipMigration.php';
+require_once __DIR__ . '/src/Membership/TierRegistry.php';
+require_once __DIR__ . '/src/Membership/ReadershiptTierConfig.php';
+require_once __DIR__ . '/src/Migrations/SeedReadershipTiers.php';
+require_once __DIR__ . '/src/Membership/SignupEndpoint.php';
+require_once __DIR__ . '/src/Membership/LandingSuccessEndpoint.php';
+require_once __DIR__ . '/src/Membership/PriceOverrideEndpoint.php';
+require_once __DIR__ . '/src/Membership/DsarController.php';
+require_once __DIR__ . '/src/Membership/RetentionWorker.php';
+require_once __DIR__ . '/src/Membership/StatusEndpoint.php';
+require_once __DIR__ . '/src/Membership/CustomerPortalEndpoint.php';
+require_once __DIR__ . '/src/Membership/StripeWebhookHandler.php';
+require_once __DIR__ . '/src/Membership/LandingPageShortcode.php';
+require_once __DIR__ . '/src/Membership/DashboardShortcode.php';
+require_once __DIR__ . '/src/Membership/Admin/ReportsPage.php';
+require_once __DIR__ . '/src/Services/LevelPriceResolver.php';
+require_once __DIR__ . '/src/Migrations/CreateSponsorApplicationsTable.php';
+require_once __DIR__ . '/src/Migrations/CreateTechConnectTables.php';
 
 // Register Sponsor endpoints
 add_action( 'rest_api_init', function() {
@@ -248,8 +218,6 @@ add_action( 'rest_api_init', function() {
         $endpoint->register_routes();
     }
 } );
-
-} // End $khm_editorial_studio_active guard
 
 add_action( 'init', function() {
     if ( class_exists( 'KHM\\Membership\\RetentionWorker' ) ) {
@@ -410,35 +378,9 @@ add_action( 'khm_press_release_rejected', function( int $press_release_id, int $
 }, 10, 4 );
 
 // Register planner_session post type
-add_action('init', function() {
-    $args = array(
-        'label' => 'Planner Sessions',
-        'public' => false,
-        'show_ui' => true,
-        'show_in_menu' => false,
-        'supports' => array('title','editor','author','custom-fields'),
-        'capability_type' => 'post',
-        'show_in_rest' => true,
-    );
-    register_post_type('planner_session', $args);
-    
-    // Register meta fields for REST API
-    $meta_fields = array('audience', 'angle', 'key_messages', 'framework', 'geo', 'tone', 'word_count', 'status', 'created_by', 'topics', 'portfolio');
-    foreach ($meta_fields as $field) {
-        register_post_meta('planner_session', $field, array(
-            'show_in_rest' => true,
-            'single' => true,
-            'type' => 'string',
-            'auth_callback' => function() {
-                return current_user_can('edit_posts');
-            }
-        ));
-    }
-}, 0);
+// (Removed: Migrated to KH\Planner\PostTypes\PlannerSession)
 
-// Load GEO Migration (for table creation)
-
-require_once __DIR__ . '/src/Migrations/GeoAnswerCardMigration.php';
+// (Removed: GeoAnswerCardMigration - Superseded by KHM_SEO\GEO\Database\EntityTables)
 
 // Load Attribution Admin Interface
 if (is_admin()) {
@@ -499,40 +441,7 @@ if ( class_exists( 'KHM\\PublicFrontend\\ConnectLegacyShortcodes' ) ) {
 	( new KHM\PublicFrontend\ConnectLegacyShortcodes() )->register();
 }
 
-/**
- * Create SuggestionAuditLogger table on plugin activation.
- */
-register_activation_hook( __FILE__, function() {
-    if ( class_exists( "KHM\GEO\SuggestionAuditLogger" ) ) {
-        try {
-            $logger = new KHM\GEO\SuggestionAuditLogger();
-            $logger->create_table();
-            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-                error_log( '[KHM GEO] SuggestionAuditLogger table created or already exists.' );
-            }
-        } catch ( \Exception $e ) {
-            error_log( '[KHM GEO] Failed to create SuggestionAuditLogger table on activation: ' . $e->getMessage() );
-            // Fail activation explicitly if the critical setup cannot be completed.
-            if ( function_exists( 'deactivate_plugins' ) && function_exists( 'plugin_basename' ) ) {
-                deactivate_plugins( plugin_basename( __FILE__ ) );
-            }
-            wp_die(
-                esc_html__( 'KHM Plugin: Failed to create the SuggestionAuditLogger database table during activation. Please check your server error logs and try again.', 'khm-membership' )
-            );
-        }
-    } else {
-        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-            error_log( '[KHM GEO] SuggestionAuditLogger class not found during plugin activation.' );
-        }
-        // Class missing is a critical problem; do not allow activation to appear successful.
-        if ( function_exists( 'deactivate_plugins' ) && function_exists( 'plugin_basename' ) ) {
-            deactivate_plugins( plugin_basename( __FILE__ ) );
-        }
-        wp_die(
-            esc_html__( 'KHM Plugin: Required class KHM\\GEO\\SuggestionAuditLogger was not found during activation. Composer dependencies may be missing. Please run "composer install" in wp-content/plugins/khm-plugin and try again.', 'khm-membership' )
-        );
-    }
-} );
+// (Removed: SuggestionAuditLogger table creation on activation - Migrated to modern khm-seo plugin)
 
 // Create main admin menu if it doesn't exist
 // add_action('admin_menu', 'khm_create_main_admin_menu');
@@ -1437,18 +1346,7 @@ register_activation_hook(__FILE__, function () {
         }
     }
 
-    // Initialize answer card library tables
-    if ( class_exists('KHM\\Services\\AnswerCardLibraryService') ) {
-        try {
-            $memberships = new KHM\Services\MembershipRepository();
-            $answercard_library = new KHM\Services\AnswerCardLibraryService($memberships);
-            $answercard_library->create_tables();
-            error_log('KHM AnswerCard Library tables created successfully');
-        } catch (\Exception $e) {
-            error_log('Failed to create answer card library tables: ' . $e->getMessage());
-            $activation_errors[] = 'AnswerCard library tables failed: ' . $e->getMessage();
-        }
-    }
+    // (Removed: AnswerCardLibraryService initialization - Migrated to modern suite)
 
     // Initialize sponsor tables
     if ( class_exists('KHM\\Sponsors\\SponsorMigration') ) {
@@ -1598,16 +1496,7 @@ register_activation_hook(__FILE__, function () {
             }
         }
 
-        // Phase 1: Editorial Taxonomy Table (Content Anchor)
-        if ( class_exists('KHM\\Migrations\\CreateEditorialTaxonomyTable') ) {
-            try {
-                KHM\Migrations\CreateEditorialTaxonomyTable::up();
-                error_log('KHM Editorial Taxonomy Table created successfully');
-            } catch ( \Exception $e ) {
-                error_log('Failed to create Editorial Taxonomy Table: ' . $e->getMessage());
-                $activation_errors[] = 'Editorial Taxonomy Table failed: ' . $e->getMessage();
-            }
-        }
+        // (Removed: Editorial Taxonomy Table activation - Migrated to modern kh-editorial-intelligence suite)
 
         // Phase 5: Tech.Connect Relational Tables
         if ( class_exists('KHM\\Migrations\\CreateTechConnectTables') ) {
@@ -1998,16 +1887,7 @@ add_action('init', function() {
     }
 }, 6);
 
-// Ensure answer card library table exists for legacy installs.
-add_action('init', function() {
-    if ( class_exists('KHM\\Services\\AnswerCardLibraryService') ) {
-        $memberships = new KHM\Services\MembershipRepository();
-        $answercard_library = new KHM\Services\AnswerCardLibraryService($memberships);
-        if ( ! $answercard_library->table_exists() ) {
-            $answercard_library->create_tables();
-        }
-    }
-}, 6);
+// (Removed: AnswerCardLibraryService legacy table check - Migrated to modern suite)
 
 // Register admin menu and pages
 add_action('init', function () {
@@ -2217,133 +2097,7 @@ add_action('plugins_loaded', function () {
 });
 
 // Social Strip Widget Data Function
-if (!function_exists('kss_get_enhanced_widget_data')) {
-    /**
-     * Get enhanced data for social strip widget
-     * Provides data for all 5 buttons: Download, Save, Buy, Gift, Share
-     *
-     * @param int $post_id
-     * @return array
-     */
-    function kss_get_enhanced_widget_data(int $post_id): array {
-        if ( defined( 'KSS_DISABLE_KHM' ) && KSS_DISABLE_KHM ) {
-            return [];
-        }
-
-        $user_id = get_current_user_id();
-        $post = get_post($post_id);
-        
-        if (!$post) {
-            return [];
-        }
-        
-        // Base data
-        $data = [
-            'post_id' => $post_id,
-            'post_title' => $post->post_title,
-            'post_url' => get_permalink($post_id),
-            'user_id' => $user_id,
-            'is_logged_in' => $user_id > 0,
-        ];
-
-        $credit_cost = get_post_meta( $post_id, 'kss_credit_cost', true );
-        $credit_cost = $credit_cost !== '' ? (int) $credit_cost : 0;
-        
-        // Only proceed with KHM integration if user is logged in and KHM is available
-        if ($user_id > 0 && function_exists('khm_get_user_membership')) {
-            
-            // Get user membership and credits
-            $membership = khm_get_user_membership($user_id);
-            $credits = khm_get_user_credits($user_id);
-            
-            // Download functionality (credits)
-            $data['credits'] = [
-                'available' => $credits,
-                'required' => $credit_cost,
-                'can_download' => $credit_cost === 0 ? true : $credits >= $credit_cost,
-            ];
-            
-            // Save to Library functionality
-            $is_saved = false;
-            if (function_exists('khm_call_service')) {
-                try {
-                    $is_saved = khm_call_service('is_saved_to_library', $user_id, $post_id) ?: false;
-                } catch (Exception $e) {
-                    $is_saved = false;
-                }
-            }
-            $data['library'] = [
-                'is_saved' => $is_saved,
-                'can_save' => true
-            ];
-            
-            // Buy functionality (pricing)
-            $base_price = get_post_meta( $post_id, 'kss_article_price', true );
-            $base_price = $base_price !== '' ? (float) $base_price : 0;
-            $discount_info = khm_get_member_discount($user_id, $base_price, 'article');
-            
-            $data['pricing'] = [
-                'base_price' => $base_price,
-                'member_price' => $discount_info['discounted_price'],
-                'discount_percent' => $discount_info['discount_percent'],
-                'currency' => '£'
-            ];
-            
-            // Gift functionality
-            $data['gift'] = [
-                'can_gift' => true,
-                'price' => $data['pricing']['member_price']
-            ];
-            
-            // Member status
-            $data['membership'] = [
-                'is_member' => !empty($membership),
-                'level' => $membership ? $membership->level_name : null
-            ];
-        } else {
-            // Guest user defaults
-            $base_price = get_post_meta( $post_id, 'kss_article_price', true );
-            $base_price = $base_price !== '' ? (float) $base_price : 0;
-            
-            $data['credits'] = [
-                'available' => 0,
-                'required' => $credit_cost,
-                'can_download' => false
-            ];
-            
-            $data['library'] = [
-                'is_saved' => false,
-                'can_save' => false
-            ];
-            
-            $data['pricing'] = [
-                'base_price' => $base_price,
-                'member_price' => $base_price,
-                'discount_percent' => 0,
-                'currency' => '£'
-            ];
-            
-            $data['gift'] = [
-                'can_gift' => true,
-                'price' => $base_price
-            ];
-            
-            $data['membership'] = [
-                'is_member' => false,
-                'level' => null
-            ];
-        }
-        
-        // Share functionality (always available)
-        $data['share'] = [
-            'title' => $post->post_title,
-            'url' => get_permalink($post_id),
-            'excerpt' => wp_trim_words($post->post_excerpt ?: $post->post_content, 30)
-        ];
-        
-        return apply_filters('kss_enhanced_widget_data', $data, $post_id, $user_id);
-    }
-}
+// (Removed: Migrated to social-strip plugin's own khm-integration.php)
 
 // Initialize Enhanced Email System
 add_action('plugins_loaded', function () {

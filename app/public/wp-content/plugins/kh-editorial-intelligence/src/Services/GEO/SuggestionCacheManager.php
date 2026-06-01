@@ -8,7 +8,7 @@
  * @package KHM\GEO
  */
 
-namespace KHM\GEO;
+namespace KH\Editorial\Services\GEO;
 
 defined( 'ABSPATH' ) || exit;
 
