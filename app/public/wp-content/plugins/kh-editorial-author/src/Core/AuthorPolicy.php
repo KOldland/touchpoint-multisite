@@ -77,6 +77,7 @@ class AuthorPolicy {
             'audience_tier'                => sanitize_text_field($policy['audience_tier'] ?? $defaults['audience_tier']),
             'risk_tolerance'               => sanitize_text_field($policy['risk_tolerance'] ?? $defaults['risk_tolerance']),
             'brand_profile'                => sanitize_text_field($policy['brand_profile'] ?? $defaults['brand_profile']),
+            'enrichment'                   => $policy['enrichment'] ?? [],
             'citations'                    => $policy['citations'] ?? [],
         ];
     }

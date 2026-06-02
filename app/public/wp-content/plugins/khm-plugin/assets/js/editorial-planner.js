@@ -92,6 +92,7 @@ const apiFetch = (options) =>
     wp.apiFetch({
         ...options,
         headers: {
+
             'X-WP-Nonce': editorialData.nonce,
             ...(options.headers || {}),
         },
@@ -190,14 +191,14 @@ const EditorialPlannerApp = () => {
     const showFocusControls = true;
     // URL-based routing: check if we're viewing a specific session detail
     const params = new URLSearchParams(window.location.search);
-    const viewingSessionId = params.get('session') || params.get('id');
+    const viewingSessionId = params.get('session') || params.get('session_id');
 
     const navigateToSession = (sessionId) => {
         if (!sessionId) {
             return;
         }
         const url = new URL(window.location.href);
-        url.searchParams.set('id', String(sessionId));
+        url.searchParams.set('session_id', String(sessionId));
         url.searchParams.delete('session');
         window.history.pushState(null, '', `${url.pathname}${url.search}`);
         openSessionDetail(sessionId);
@@ -205,7 +206,7 @@ const EditorialPlannerApp = () => {
 
     const navigateBack = () => {
         const url = new URL(window.location.href);
-        url.searchParams.delete('id');
+        url.searchParams.delete('session_id');
         url.searchParams.delete('session');
         window.history.pushState(null, '', `${url.pathname}${url.search}`);
         setDetailModalOpen(false);
@@ -222,7 +223,7 @@ const EditorialPlannerApp = () => {
 
     const navigateToNewSession = () => {
         const url = new URL(window.location.href);
-        url.searchParams.delete('id');
+        url.searchParams.delete('session_id');
         url.searchParams.delete('session');
         url.searchParams.set('page', 'editorial_new_session');
         window.location.href = `${url.pathname}${url.search}`;
@@ -236,7 +237,7 @@ const EditorialPlannerApp = () => {
     const loadTopLineCategories = async () => {
         try {
             const response = await apiFetch({
-                path: 'editorial/v1/planner/top-line-categories',
+                path: 'dual-gpt/v1/planner/top-line-categories',
                 method: 'GET',
             });
             const rows = Array.isArray(response?.top_line_categories) ? response.top_line_categories : [];
@@ -312,6 +313,7 @@ const EditorialPlannerApp = () => {
             setLoadingSessions(true);
             setSessionsError('');
             const data = await apiFetch({
+
                 path: 'editorial/v1/sessions?limit=20',
                 method: 'GET',
             });
@@ -335,41 +337,47 @@ const EditorialPlannerApp = () => {
             setSessionsError('');
 
             const sessionPayload = {
-                role: 'research',
-                preset_id: 'research-default',
+
+
                 title: selectedTopic,
                 meta: {
                     topic: selectedTopic,
                     includes,
                     excludes,
                     ...(showFocusControls ? { focus_level: focusLevel } : {}),
-                    research_policy: DEFAULT_RESEARCH_POLICY,
-                },
-                idempotency_key: `planner-${Date.now()}`,
+
+
+
+                }
             };
 
             const sessionResponse = await apiFetch({
+
                 path: 'editorial/v1/sessions',
                 method: 'POST',
                 data: sessionPayload,
             });
 
+
+
             if (!sessionResponse || !sessionResponse.id) {
-                throw new Error('Session creation did not return a session id.');
+                throw new Error('Session creation did not return an id.');
             }
 
             await apiFetch({
+
                 path: `editorial/v1/sessions/${sessionResponse.id}/run`,
                 method: 'POST',
-                data: {
-                    id: sessionResponse.id,
-                    ...(showFocusControls ? { focus_level: focusLevel } : {}),
-                },
+
+
+
+
             });
 
             dispatch('core/notices').createNotice(
                 'success',
-                'Planning session created and queued successfully.',
+
+                'Planning session created and discovery started.',
                 { type: 'snackbar' }
             );
 
@@ -378,6 +386,7 @@ const EditorialPlannerApp = () => {
             setExcludes([]);
             setSelectedTopic(topicOptions[0]?.value || TOPIC_OPTIONS[0].value);
             await loadSessions();
+
             await openSessionDetail(sessionResponse.id);
         } catch (error) {
             console.error('Failed to start session:', error);
@@ -441,8 +450,8 @@ const EditorialPlannerApp = () => {
         try {
             if (!silent && sessionId) {
                 const url = new URL(window.location.href);
-                if (url.searchParams.get('id') !== String(sessionId)) {
-                    url.searchParams.set('id', String(sessionId));
+                if (url.searchParams.get('session_id') !== String(sessionId)) {
+                    url.searchParams.set('session_id', String(sessionId));
                     url.searchParams.delete('session');
                     window.history.pushState(null, '', `${url.pathname}${url.search}`);
                 }
@@ -457,6 +466,7 @@ const EditorialPlannerApp = () => {
             setAuthorPolicyLoading(true);
             const cacheBuster = new Date().getTime();
             const data = await apiFetch({
+
                 path: `editorial/v1/sessions/${sessionId}?_t=${cacheBuster}`,
                 method: 'GET',
             });
@@ -465,7 +475,7 @@ const EditorialPlannerApp = () => {
 
             try {
                 const validationData = await apiFetch({
-                    path: `editorial/v1/planner/research-validation?id=${sessionId}&_t=${cacheBuster}`,
+                    path: `dual-gpt/v1/planner/research-validation?session_id=${sessionId}&_t=${cacheBuster}`,
                     method: 'GET',
                 });
                 setResearchPolicyDetail(validationData?.research_policy || data?.meta?.research_policy || null);
@@ -480,7 +490,7 @@ const EditorialPlannerApp = () => {
 
             try {
                 const authorPolicyResponse = await apiFetch({
-                    path: `editorial/v1/planner/author-policy?id=${sessionId}&_t=${cacheBuster}`,
+                    path: `dual-gpt/v1/planner/author-policy?session_id=${sessionId}&_t=${cacheBuster}`,
                     method: 'GET',
                 });
                 setAuthorPolicyDetail(authorPolicyResponse?.author_policy || data?.meta?.author_policy || null);
@@ -556,7 +566,7 @@ const EditorialPlannerApp = () => {
             // Add cache-busting timestamp to force fresh data
             const cacheBuster = new Date().getTime();
             const response = await apiFetch({
-                path: `editorial/v1/planner/queue?_t=${cacheBuster}`,
+                path: `dual-gpt/v1/planner/queue?_t=${cacheBuster}`,
                 method: 'GET',
             });
             console.log('[QUEUE] Loaded queue:', response);
@@ -651,10 +661,10 @@ const EditorialPlannerApp = () => {
         try {
             setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             const response = await apiFetch({
-                path: 'editorial/v1/planner/queue/add',
+                path: 'dual-gpt/v1/planner/queue/add',
                 method: 'POST',
                 data: {
-                    id: sessionDetail.id,
+                    session_id: sessionDetail.id,
                     article_id: articleId || undefined,
                     task_type: taskType,
                     ...(payload ? { payload } : {}),
@@ -686,7 +696,7 @@ const EditorialPlannerApp = () => {
             console.log('[QUEUE] Running item:', queueId);
             setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             const response = await apiFetch({
-                path: 'editorial/v1/planner/queue/run',
+                path: 'dual-gpt/v1/planner/queue/run',
                 method: 'POST',
                 data: {
                     queue_id: queueId,
@@ -722,10 +732,10 @@ const EditorialPlannerApp = () => {
         try {
             setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             const response = await apiFetch({
-                path: 'editorial/v1/planner/queue/run-bulk',
+                path: 'dual-gpt/v1/planner/queue/run-bulk',
                 method: 'POST',
                 data: runAllQueued
-                    ? { run_all_queued: true, id: sessionDetail.id }
+                    ? { run_all_queued: true, session_id: sessionDetail.id }
                     : { queue_ids: queueIds || [] },
             });
             const startedCount = Number(response?.started || 0);
@@ -774,10 +784,10 @@ const EditorialPlannerApp = () => {
         try {
             setQueueReorderLoading(true);
             await apiFetch({
-                path: 'editorial/v1/planner/queue/reorder',
+                path: 'dual-gpt/v1/planner/queue/reorder',
                 method: 'POST',
                 data: {
-                    id: sessionDetail.id,
+                    session_id: sessionDetail.id,
                     ordered_ids: orderedIds,
                 },
             });
@@ -801,7 +811,7 @@ const EditorialPlannerApp = () => {
         try {
             setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             await apiFetch({
-                path: 'editorial/v1/planner/queue/remove',
+                path: 'dual-gpt/v1/planner/queue/remove',
                 method: 'POST',
                 data: { queue_id: queueId },
             });
@@ -825,7 +835,7 @@ const EditorialPlannerApp = () => {
         try {
             setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             await apiFetch({
-                path: 'editorial/v1/planner/queue/stop',
+                path: 'dual-gpt/v1/planner/queue/stop',
                 method: 'POST',
                 data: {
                     queue_id: queueId,
@@ -891,10 +901,10 @@ const EditorialPlannerApp = () => {
         try {
             setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             const addResponse = await apiFetch({
-                path: 'editorial/v1/planner/queue/add',
+                path: 'dual-gpt/v1/planner/queue/add',
                 method: 'POST',
                 data: {
-                    id: sessionDetail.id,
+                    session_id: sessionDetail.id,
                     article_id: item.article_id || undefined,
                     task_type: item.task_type,
                     ...(item.payload ? { payload: item.payload } : {}),
@@ -907,7 +917,7 @@ const EditorialPlannerApp = () => {
             }
 
             await apiFetch({
-                path: 'editorial/v1/planner/queue/run',
+                path: 'dual-gpt/v1/planner/queue/run',
                 method: 'POST',
                 data: { queue_id: newQueueId },
             });
@@ -1005,7 +1015,7 @@ const EditorialPlannerApp = () => {
         try {
             setQueueRemoving(true);
             const response = await apiFetch({
-                path: 'editorial/v1/planner/queue/remove-all',
+                path: 'dual-gpt/v1/planner/queue/remove-all',
                 method: 'POST',
             });
             dispatch('core/notices').createNotice('success', response?.message || 'Queue items removed.', { type: 'snackbar' });
@@ -1026,7 +1036,7 @@ const EditorialPlannerApp = () => {
         try {
             setQueueClearing(true);
             const response = await apiFetch({
-                path: 'editorial/v1/planner/queue/clear',
+                path: 'dual-gpt/v1/planner/queue/clear',
                 method: 'POST',
                 data: { older_than_seconds: 0 },
             });
@@ -1557,10 +1567,10 @@ const EditorialPlannerApp = () => {
             };
 
             const saveResponse = await apiFetch({
-                path: 'editorial/v1/planner/policy',
+                path: 'dual-gpt/v1/planner/policy',
                 method: 'POST',
                 data: {
-                    id: sessionDetail.id,
+                    session_id: sessionDetail.id,
                     research_policy: payload,
                 },
             });
@@ -1622,10 +1632,10 @@ const EditorialPlannerApp = () => {
             };
 
             const saveResponse = await apiFetch({
-                path: 'editorial/v1/planner/author-policy',
+                path: 'dual-gpt/v1/planner/author-policy',
                 method: 'POST',
                 data: {
-                    id: sessionDetail.id,
+                    session_id: sessionDetail.id,
                     author_policy: payload,
                 },
             });
@@ -1699,10 +1709,10 @@ const EditorialPlannerApp = () => {
                 }));
             }
             await apiFetch({
-                path: 'editorial/v1/planner/run-framework',
+                path: 'dual-gpt/v1/planner/run-framework',
                 method: 'POST',
                 data: {
-                    id: sessionDetail.id,
+                    session_id: sessionDetail.id,
                     article_id: article.id,
                     force: article?.framework?.status !== 'pending',
                 },
@@ -1757,10 +1767,10 @@ const EditorialPlannerApp = () => {
         try {
             setPhase4RerunLoading(true);
             await apiFetch({
-                path: 'editorial/v1/planner/phase4',
+                path: 'dual-gpt/v1/planner/phase4',
                 method: 'POST',
                 data: {
-                    id: sessionDetail.id,
+                    session_id: sessionDetail.id,
                     ...(showFocusControls ? { focus_level: focusLevel } : {}),
                 },
             });
@@ -1801,10 +1811,10 @@ const EditorialPlannerApp = () => {
         try {
             setPhase2RerunLoading(true);
             await apiFetch({
-                path: 'editorial/v1/planner/phase2-qualification',
+                path: 'dual-gpt/v1/planner/phase2-qualification',
                 method: 'POST',
                 data: {
-                    id: sessionDetail.id,
+                    session_id: sessionDetail.id,
                     ...(showFocusControls ? { focus_level: focusLevel } : {}),
                 },
             });
@@ -1836,10 +1846,10 @@ const EditorialPlannerApp = () => {
         try {
             setPhase3RerunLoading(true);
             await apiFetch({
-                path: 'editorial/v1/planner/phase2',
+                path: 'dual-gpt/v1/planner/phase2',
                 method: 'POST',
                 data: {
-                    id: sessionDetail.id,
+                    session_id: sessionDetail.id,
                     ...(showFocusControls ? { focus_level: focusLevel } : {}),
                 },
             });
@@ -1871,10 +1881,10 @@ const EditorialPlannerApp = () => {
         try {
             setPhase1RerunLoading(true);
             await apiFetch({
-                path: 'editorial/v1/planner/phase1',
+                path: 'dual-gpt/v1/planner/phase1',
                 method: 'POST',
                 data: {
-                    id: sessionDetail.id,
+                    session_id: sessionDetail.id,
                     ...(showFocusControls ? { focus_level: focusLevel } : {}),
                 },
             });
@@ -1911,9 +1921,9 @@ const EditorialPlannerApp = () => {
         setSynopsisPlanError('');
         try {
             const data = await apiFetch({
-                path: 'editorial/v1/planner/synopsis-plan',
+                path: 'dual-gpt/v1/planner/synopsis-plan',
                 method: 'POST',
-                data: { id: sessionDetail.id, total: targetTotal },
+                data: { session_id: sessionDetail.id, total: targetTotal },
             });
             setSynopsisPlan(data.plan || {});
         } catch (error) {
@@ -1951,9 +1961,9 @@ const EditorialPlannerApp = () => {
                 { type: 'snackbar' }
             );
             await apiFetch({
-                path: 'editorial/v1/planner/synopses',
+                path: 'dual-gpt/v1/planner/synopses',
                 method: 'POST',
-                data: { id: sessionDetail.id, plan: synopsisPlan, batch_size: SYNOPSIS_BATCH_SIZE },
+                data: { session_id: sessionDetail.id, plan: synopsisPlan, batch_size: SYNOPSIS_BATCH_SIZE },
             });
 
             dispatch('core/notices').createNotice(
@@ -2003,9 +2013,9 @@ const EditorialPlannerApp = () => {
 
         try {
             const data = await apiFetch({
-                path: 'editorial/v1/planner/export',
+                path: 'dual-gpt/v1/planner/export',
                 method: 'POST',
-                data: { id: sessionDetail.id },
+                data: { session_id: sessionDetail.id },
             });
 
             const filename = data.filename || 'validation-export.html';
@@ -2047,9 +2057,9 @@ const EditorialPlannerApp = () => {
 
         try {
             const data = await apiFetch({
-                path: 'editorial/v1/planner/export-synopses',
+                path: 'dual-gpt/v1/planner/export-synopses',
                 method: 'POST',
-                data: { id: sessionDetail.id },
+                data: { session_id: sessionDetail.id },
             });
             openPrintWindow(data.html || '');
         } catch (error) {
@@ -2069,9 +2079,9 @@ const EditorialPlannerApp = () => {
 
         try {
             const data = await apiFetch({
-                path: 'editorial/v1/planner/export-framework',
+                path: 'dual-gpt/v1/planner/export-framework',
                 method: 'POST',
-                data: { id: sessionDetail.id, article_id: article.id },
+                data: { session_id: sessionDetail.id, article_id: article.id },
             });
             openPrintWindow(data.html || '');
         } catch (error) {
@@ -2119,10 +2129,10 @@ const EditorialPlannerApp = () => {
                 authorProfile: selectedProfile,
             });
             const data = await apiFetch({
-                path: 'editorial/v1/planner/run-author',
+                path: 'dual-gpt/v1/planner/run-author',
                 method: 'POST',
                 data: {
-                    id: sessionDetail.id,
+                    session_id: sessionDetail.id,
                     article_id: article.id,
                     author_profile: selectedProfile,
                 },
@@ -2242,7 +2252,7 @@ const EditorialPlannerApp = () => {
         try {
             setImageActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             const response = await apiFetch({
-                path: 'editorial/v1/images/recommend',
+                path: 'dual-gpt/v1/images/recommend',
                 method: 'POST',
                 data: buildArticleImagePayload(article),
             });
@@ -2271,7 +2281,7 @@ const EditorialPlannerApp = () => {
         try {
             setImageActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             const response = await apiFetch({
-                path: 'editorial/v1/images/generate',
+                path: 'dual-gpt/v1/images/generate',
                 method: 'POST',
                 data: buildArticleImagePayload(article),
             });
@@ -2312,7 +2322,7 @@ const EditorialPlannerApp = () => {
         try {
             setArticleActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             const payload = {
-                id: sessionDetail.id,
+                session_id: sessionDetail.id,
                 article_id: article.id,
                 action,
                 ...(showFocusControls ? { focus_level: focusLevel } : {}),
@@ -2327,7 +2337,7 @@ const EditorialPlannerApp = () => {
             );
             
             const fetchPromise = apiFetch({
-                path: 'editorial/v1/planner/article-action',
+                path: 'dual-gpt/v1/planner/article-action',
                 method: 'POST',
                 data: payload,
             });
@@ -2494,3757 +2504,3758 @@ const EditorialPlannerApp = () => {
     };
 
     const closeDiveDeeperModal = () => {
-        setDiveDeeperModalOpen(false);
-        setDiveDeeperSuccess(false);
-        setDiveDeeperJobId('');
-        setDiveDeeperJobStatus('');
-        setDiveDeeperJobError('');
-        setDiveDeeperElapsedSeconds(0);
-    };
 
-    const handleOpinionPieceArticle = async (article) => {
-        const params = { allow_low_citations: true };
-        await runArticleAction(
-            article,
-            'opinion_piece',
-            'Opinion piece initiated. Author is generating perspective on this topic...',
-            params
-        );
-    };
 
-    const renderPhaseSummaries = () => {
-        const phases = sessionDetail?.meta?.phases || {};
-        const phaseOrder = PHASE_ORDER;
 
-        const renderList = (items) => {
-            if (!items || !items.length) {
-                return null;
-            }
-            return wp.element.createElement(
-                'ul',
-                { style: { marginTop: '6px', marginBottom: 0, paddingLeft: '20px', listStyleType: 'disc' } },
-                items.map((item, idx) => wp.element.createElement('li', { key: idx }, item))
-            );
-        };
 
-        const renderLinkList = (links) => {
-            if (!links || !links.length) {
-                return null;
-            }
-            return wp.element.createElement(
-                'ul',
-                { style: { marginTop: '6px', marginBottom: 0 } },
-                links.map((link, idx) =>
-                    wp.element.createElement(
-                        'li',
-                        { key: idx },
-                        wp.element.createElement(
-                            'a',
-                            { href: link.url, target: '_blank', rel: 'noreferrer' },
-                            link.title || link.url
-                        )
-                    )
-                )
-            );
-        };
 
-        const renderTrendBlocks = (trends) => {
-            if (!Array.isArray(trends) || !trends.length) {
-                return null;
-            }
-            const normalizeText = (value) => {
-                if (Array.isArray(value)) {
-                    return value.filter(Boolean).join(' ');
-                }
-                if (value && typeof value === 'object') {
-                    return Object.values(value).filter(Boolean).join(' ');
-                }
-                if (value == null) {
-                    return '';
-                }
-                return String(value).replace(/\s0$/, '').trim();
-            };
-            return trends.map((trend, idx) => {
-                const insightPoints = Array.isArray(trend.insight_points) && trend.insight_points.length
-                    ? trend.insight_points
-                    : trend.insight
-                    ? [trend.insight]
-                    : [];
-                const implications = Array.isArray(trend.implications_for_articles)
-                    ? trend.implications_for_articles
-                    : [];
-                const evidencePoints = Array.isArray(trend.evidence) ? trend.evidence : [];
-                const citationTitles = Array.isArray(trend.citations)
-                    ? trend.citations.map((citation) => citation.title || citation.url || 'Citation')
-                    : [];
-                const whyMatters = normalizeText(trend.why_it_matters);
-                return wp.element.createElement(
-                    'div',
-                    { key: idx, style: { marginTop: '16px' } },
-                    wp.element.createElement('h2', { style: { margin: '0 0 6px' } }, trend.title || `Trend ${idx + 1}`),
-                    renderList(insightPoints),
-                    whyMatters &&
-                        wp.element.createElement(
-                            'div',
-                            { style: { marginTop: '10px' } },
-                            wp.element.createElement('h3', { style: { margin: '0 0 4px' } }, 'Why this matters'),
-                            wp.element.createElement('p', { style: { margin: 0 } }, whyMatters)
-                        ),
-                    trend.strategic_implication &&
-                        wp.element.createElement(
-                            'p',
-                            { style: { marginTop: '6px' } },
-                            `Strategic implication: ${trend.strategic_implication}`
-                        ),
-                    implications.length &&
-                        wp.element.createElement(
-                            'div',
-                            { style: { marginTop: '6px' } },
-                            wp.element.createElement('h3', { style: { margin: '0 0 4px' } }, 'Implications for articles'),
-                            renderList(implications)
-                        ),
-                    citationTitles.length
-                        ? wp.element.createElement(
-                              'div',
-                              { style: { marginTop: '6px' } },
-                              wp.element.createElement('h3', { style: { margin: '0 0 4px' } }, 'Citations'),
-                              renderList(citationTitles)
-                          )
-                        : null,
-                    evidencePoints.length
-                        ? wp.element.createElement(
-                              'div',
-                              { style: { marginTop: '6px' } },
-                              wp.element.createElement('h3', { style: { margin: '0 0 4px' } }, 'Supporting evidence'),
-                              renderList(
-                                  evidencePoints.map((item) => {
-                                      const label = item.stat_or_finding || item.evidence || '';
-                                      const source = item.source || item.url || '';
-                                      const year = item.year ? ` (${item.year})` : '';
-                                      return `${label}${source ? ` — ${source}${year}` : ''}`;
-                                  })
-                              )
-                          )
-                        : null
-                    ,
-                    wp.element.createElement('div', {
-                        style: {
-                            marginTop: '14px',
-                            borderBottom: '0.5pt solid #e2e4e7',
-                        },
-                    })
-                );
-            });
-        };
 
-        const renderPrioritizedTopics = (topics) => {
-            if (!Array.isArray(topics) || !topics.length) {
-                return null;
-            }
-            return topics.map((topic, idx) => {
-                const findings = Array.isArray(topic.key_findings) ? topic.key_findings : [];
-                const citations = Array.isArray(topic.citations) ? topic.citations : [];
-                const keywords = Array.isArray(topic.keywords) ? topic.keywords : [];
-                return wp.element.createElement(
-                    'div',
-                    { key: `prioritized-${idx}`, style: { marginTop: '16px' } },
-                    wp.element.createElement('h2', { style: { margin: '0 0 6px' } }, topic.topic || `Topic ${idx + 1}`),
-                    topic.why_now &&
-                        wp.element.createElement(
-                            'div',
-                            { style: { marginTop: '6px' } },
-                            wp.element.createElement('h3', { style: { margin: '0 0 4px' } }, 'Why now'),
-                            wp.element.createElement('p', { style: { margin: 0 } }, topic.why_now)
-                        ),
-                    findings.length
-                        ? wp.element.createElement(
-                              'div',
-                              { style: { marginTop: '6px' } },
-                              wp.element.createElement('h3', { style: { margin: '0 0 4px' } }, 'Key findings'),
-                              renderList(findings)
-                          )
-                        : null,
-                    keywords.length
-                        ? wp.element.createElement(
-                              'div',
-                              { style: { marginTop: '6px' } },
-                              wp.element.createElement('h3', { style: { margin: '0 0 4px' } }, 'Keywords'),
-                              renderList(keywords)
-                          )
-                        : null,
-                    topic.content_opportunity &&
-                        wp.element.createElement(
-                            'div',
-                            { style: { marginTop: '6px' } },
-                            wp.element.createElement('h3', { style: { margin: '0 0 4px' } }, 'Content opportunity'),
-                            wp.element.createElement('p', { style: { margin: 0 } }, topic.content_opportunity)
-                        ),
-                    citations.length
-                        ? wp.element.createElement(
-                              'div',
-                              { style: { marginTop: '6px' } },
-                              wp.element.createElement('h3', { style: { margin: '0 0 4px' } }, 'Citations'),
-                              renderList(citations.map((cite) => cite.title || cite.url || 'Citation'))
-                          )
-                        : null,
-                    wp.element.createElement('div', {
-                        style: {
-                            marginTop: '14px',
-                            borderBottom: '0.5pt solid #e2e4e7',
-                        },
-                    })
-                );
-            });
-        };
 
-        const providerErrors = Array.isArray(searchProviderStatus?.provider_errors)
-            ? searchProviderStatus.provider_errors
-            : [];
-        const hasProviderErrors = Boolean(searchProviderStatus?.has_errors) || providerErrors.length > 0;
-        const serpapiIssue = providerErrors.find((item) => String(item).toLowerCase().includes('serpapi:')) || '';
-        const providerAdminInstruction = searchProviderStatus?.admin_instruction
-            || (serpapiIssue
-                ? 'SerpAPI is failing (quota or credential issue). Please contact your System Administrator to restore SerpAPI access and verify fallback provider support before rerunning Research Phase 4.'
-                : 'Search provider is failing. Please contact your System Administrator to restore provider access before rerunning Research Phase 4.');
 
-        const phaseCards = phaseOrder.map((key) => {
-            const phase = phases[key];
-            if (!phase) {
-                return null;
-            }
-            const citationsCount = Array.isArray(phase.citations) ? phase.citations.length : 0;
-            const phaseSummary = phase.summary || phase.payload?.article_summary || '';
-            const hasSummary = !!(phaseSummary && String(phaseSummary).trim());
-            const hasError = !!(phase.error_message && String(phase.error_message).trim());
-            const isExpanded = !!expandedPhases[key];
-            const statusText = hasError
-                ? phase.error_message
-                : phase.status && phase.status !== 'completed'
-                ? 'In progress...'
-                : 'No summary yet.';
-            const detailBlocks = [];
-            const referencedLinks = [];
-            const seenUrls = new Set();
-            const placeholderSourcePattern = /^Relevant Result\s+\d+\s+for:/i;
 
-            const canonicalizeUrl = (value) => {
-                if (!value) {
-                    return '';
-                }
-                try {
-                    const parsed = new URL(value);
-                    parsed.hash = '';
-                    parsed.search = '';
-                    const normalized = parsed.toString().replace(/\/+$/, '');
-                    return normalized.toLowerCase();
-                } catch (error) {
-                    return String(value).trim().toLowerCase();
-                }
-            };
 
-            const isPlaceholderSource = (title, url) => {
-                const titleText = String(title || '');
-                const urlText = String(url || '');
-                return placeholderSourcePattern.test(titleText) || urlText.includes('example.com/result');
-            };
 
-            const pushLink = (title, url) => {
-                if (!url || isPlaceholderSource(title, url)) {
-                    return;
-                }
-                const dedupeKey = canonicalizeUrl(url);
-                if (!dedupeKey || seenUrls.has(dedupeKey)) {
-                    return;
-                }
-                seenUrls.add(dedupeKey);
-                referencedLinks.push({ title, url });
-            };
 
-            if (phase.payload?.trends) {
-                phase.payload.trends.forEach((trend) => {
-                    (trend.citations || []).forEach((citation) => {
-                        pushLink(citation.title, citation.url);
-                    });
-                });
-            }
-            if (phase.payload?.validated_topics) {
-                phase.payload.validated_topics.forEach((topic) => {
-                    (topic.citations || []).forEach((citation) => {
-                        pushLink(citation.title, citation.url);
-                    });
-                });
-            }
-            if (phase.payload?.sources) {
-                phase.payload.sources.forEach((source) => {
-                    pushLink(source.title, source.url);
-                });
-            }
-            if (key === 'phase1' && sessionDetail?.meta?.phase1?.serp_snapshot) {
-                Object.values(sessionDetail.meta.phase1.serp_snapshot).forEach((snapshot) => {
-                    (snapshot.results || []).forEach((result) => {
-                        pushLink(result.title, result.url);
-                    });
-                });
-            }
-            if (key === 'phase1' && sessionDetail?.meta?.phase1?.candidate_keywords?.length) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        { key: 'candidate-keywords', style: { marginTop: '8px' } },
-                        wp.element.createElement('strong', null, 'Candidate Keywords'),
-                        renderList(sessionDetail.meta.phase1.candidate_keywords)
-                    )
-                );
-            }
-            if (key === 'phase1' && sessionDetail?.meta?.phase1?.trend_summary?.length) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        { key: 'trend-summary-phase1', style: { marginTop: '8px' } },
-                        wp.element.createElement('strong', null, 'Trend Summary'),
-                        renderList(
-                            sessionDetail.meta.phase1.trend_summary.map(
-                                (item) =>
-                                    `${item.trend || 'Trend'}: ${
-                                        item.repeated_in_research || item.insight || ''
-                                    }`
-                            )
-                        )
-                    )
-                );
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'p',
-                        { key: 'trend-summary-legend', style: { marginTop: '6px', fontSize: '12px', color: '#50575e' } },
-                        'Repeated in research: yes = cited by multiple sources; mixed = conflicting or uneven coverage.'
-                    )
-                );
-            }
-            if (key === 'phase2' && sessionDetail?.meta?.phase2?.keyword_metrics?.length) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        { key: 'keyword-metrics-phase2', style: { marginTop: '8px' } },
-                        wp.element.createElement('strong', null, 'Keyword Metrics'),
-                        wp.element.createElement(
-                            'table',
-                            { className: 'widefat striped', style: { marginTop: '8px' } },
-                            wp.element.createElement(
-                                'thead',
-                                null,
-                                wp.element.createElement(
-                                    'tr',
-                                    null,
-                                    wp.element.createElement('th', null, 'Keyword'),
-                                    wp.element.createElement('th', null, 'Volume'),
-                                    wp.element.createElement('th', null, 'CPC'),
-                                    wp.element.createElement('th', null, 'Competition'),
-                                    wp.element.createElement('th', null, 'Trend'),
-                                    wp.element.createElement('th', null, 'Difficulty')
-                                )
-                            ),
-                            wp.element.createElement(
-                                'tbody',
-                                null,
-                                sessionDetail.meta.phase2.keyword_metrics.slice(0, 10).map((item, idx) =>
-                                    wp.element.createElement(
-                                        'tr',
-                                        { key: `kw-${idx}` },
-                                        wp.element.createElement('td', null, item.keyword || 'Keyword'),
-                                        wp.element.createElement('td', null, item.search_volume ?? '—'),
-                                        wp.element.createElement('td', null, item.cpc ?? '—'),
-                                        wp.element.createElement('td', null, item.competition ?? '—'),
-                                        wp.element.createElement('td', null, item.trend ?? '—'),
-                                        wp.element.createElement('td', null, item.difficulty ?? '—')
-                                    )
-                                )
-                            )
-                        )
-                    )
-                );
-            }
-            if (key === 'phase2' && sessionDetail?.meta?.phase2?.ranked_keywords?.length) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        { key: 'ranked-keywords-phase2', style: { marginTop: '10px' } },
-                        wp.element.createElement('strong', null, 'Priority Ranking'),
-                        renderList(
-                            sessionDetail.meta.phase2.ranked_keywords.slice(0, 10).map((item) => {
-                                const score = item.priority_score != null ? item.priority_score : '—';
-                                const volume = item.search_volume ?? '—';
-                                const cpc = item.cpc ?? '—';
-                                const competition = item.competition || '—';
-                                return `${item.keyword} — Priority Score: ${score}, Volume: ${volume}, CPC: ${cpc}, Competition: ${competition}`;
-                            })
-                        )
-                    )
-                );
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        { key: 'serp-signals-phase2', style: { marginTop: '8px' } },
-                        wp.element.createElement('strong', null, 'SERP Signals'),
-                        sessionDetail.meta.phase2.ranked_keywords.slice(0, 6).map((item, idx) =>
-                            wp.element.createElement(
-                                'div',
-                                { key: `serp-${idx}`, style: { marginTop: '6px' } },
-                                wp.element.createElement('strong', null, item.keyword),
-                                renderList(
-                                    (item.serp_sources || []).map((source) => source.title || source.domain || source.url)
-                                )
-                            )
-                        )
-                    )
-                );
-            }
-            if (phase.payload?.trends) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        { key: 'trends', style: { marginTop: '8px' } },
-                        wp.element.createElement('h2', { style: { margin: '0 0 6px' } }, 'Trends and Highlights'),
-                        renderTrendBlocks(phase.payload.trends)
-                    )
-                );
-            }
-            if (phase.payload?.prioritized_topics) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        { key: 'prioritized-topics', style: { marginTop: '8px' } },
-                        wp.element.createElement('h2', { style: { margin: '0 0 6px' } }, 'Prioritized Topics'),
-                        renderPrioritizedTopics(phase.payload.prioritized_topics)
-                    )
-                );
-            }
-            if (key === 'phase3' && Array.isArray(phase.payload?.prioritized_topics)) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'p',
-                        { key: 'phase3-topic-count', style: { marginTop: '6px', fontSize: '12px', color: '#50575e' } },
-                        `Prioritized topics: ${phase.payload.prioritized_topics.length}`
-                    )
-                );
-            }
-            if (phase.payload?.trend_summary) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        { key: 'trend-summary', style: { marginTop: '8px' } },
-                        wp.element.createElement('h2', { style: { margin: '0 0 6px' } }, 'Trend Summary'),
-                        renderList(
-                            phase.payload.trend_summary.map(
-                                (item) => `${item.trend || 'Trend'}: ${item.repeated_in_research || ''}`
-                            )
-                        ),
-                        wp.element.createElement(
-                            'p',
-                            { style: { marginTop: '6px', fontSize: '12px', color: '#50575e' } },
-                            'Key: yes = repeated across multiple sources; mixed = conflicting or uneven coverage; no = limited support.'
-                        )
-                    )
-                );
-            }
-            if (phase.payload?.data_evidence) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        { key: 'data-evidence', style: { marginTop: '8px' } },
-                        wp.element.createElement('strong', null, 'Data & Evidence'),
-                        renderList(phase.payload.data_evidence.map((item) => item.insight || item.claim || item.evidence))
-                    )
-                );
-            }
-            if (phase.payload?.risks_and_gaps) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        { key: 'risks-gaps', style: { marginTop: '8px' } },
-                        wp.element.createElement('strong', null, 'Risks & Gaps'),
-                        renderList(phase.payload.risks_and_gaps)
-                    )
-                );
-            }
-            if (phase.payload?.content_applications) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        { key: 'content-applications', style: { marginTop: '8px' } },
-                        wp.element.createElement('strong', null, 'Content Applications'),
-                        renderList(phase.payload.content_applications.map((item) => item.recommendation || item.format))
-                    )
-                );
-            }
-            if (phase.payload?.content_roadmap) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        { key: 'content-roadmap', style: { marginTop: '8px' } },
-                        wp.element.createElement('strong', null, 'Content Roadmap'),
-                        renderList(phase.payload.content_roadmap.map((item) => item.deliverable))
-                    )
-                );
-            }
-            if (phase.payload?.validated_topics) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        { key: 'validated-topics', style: { marginTop: '8px' } },
-                        wp.element.createElement('strong', null, 'Validated Topics'),
-                        renderList(
-                            phase.payload.validated_topics.map((item) => {
-                                const topic = item.topic || 'Topic';
-                                const citations = Array.isArray(item.citations) ? item.citations.length : 0;
-                                return `${topic} (citations: ${citations})`;
-                            })
-                        )
-                    )
-                );
-            }
-            const rawSources = phase.payload?.sources || phase.citations || [];
-            const sourceTitles = rawSources
-                .filter((source) => !isPlaceholderSource(source?.title, source?.url))
-                .map((source) => source.title || source.url || 'Source');
 
-            if (sourceTitles.length) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        { key: 'sources', style: { marginTop: '8px' } },
-                        wp.element.createElement('strong', null, 'Sources'),
-                        renderList(sourceTitles)
-                    )
-                );
-            }
-            if (phase.payload?.needs_validation) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'p',
-                        { key: 'needs-validation', style: { marginTop: '8px', color: '#946200' } },
-                        'Needs validation: evidence unavailable from live sources.'
-                    )
-                );
-            }
-            if (key === 'phase4' && hasProviderErrors && phase.status === 'completed') {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        {
-                            key: 'search-incomplete-notice',
-                            style: {
-                                marginTop: '10px',
-                                padding: '10px',
-                                border: '1px solid #946200',
-                                borderRadius: '4px',
-                                background: '#fffbe6',
-                            },
-                        },
-                        wp.element.createElement('strong', null, 'Note: Search was incomplete'),
-                        wp.element.createElement(
-                            'p',
-                            { style: { margin: '6px 0 0' } },
-                            'Live web search was unavailable during this validation run. Results are based on model-inferred validation using prior research context and may not reflect the most current sources. Re-run Phase 4 once search access is restored for live-sourced citations.'
-                        )
-                    )
-                );
-            }
-            if (key === 'phase4' && hasProviderErrors) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        {
-                            key: 'provider-admin-instruction',
-                            style: {
-                                marginTop: '10px',
-                                padding: '10px',
-                                border: '1px solid #d63638',
-                                borderRadius: '4px',
-                                background: '#fff5f5',
-                            },
-                        },
-                        wp.element.createElement('strong', null, 'Source Provider Issue'),
-                        wp.element.createElement('p', { style: { margin: '6px 0 0' } }, providerAdminInstruction),
-                        serpapiIssue
-                            ? wp.element.createElement(
-                                  'p',
-                                  { style: { margin: '6px 0 0', fontSize: '12px', color: '#7a1f1f' } },
-                                  `Detected provider error: ${serpapiIssue}`
-                              )
-                            : null
-                    )
-                );
-            }
-            if (referencedLinks.length) {
-                detailBlocks.push(
-                    wp.element.createElement(
-                        'div',
-                        { key: 'referenced-links', style: { marginTop: '8px' } },
-                        wp.element.createElement('h2', { style: { margin: '0 0 6px' } }, 'Referenced Links'),
-                        renderLinkList(referencedLinks.slice(0, 20))
-                    )
-                );
-            }
-            const phaseTitleOverrides = {
-                phase1: 'Research Phase 1',
-                phase2: 'Research Phase 2',
-                phase3: 'Research Phase 3',
-                phase4: 'Research Phase 4',
-            };
-            return wp.element.createElement(
-                Card,
-                { key, style: { marginBottom: '12px' } },
-                wp.element.createElement(
-                    CardHeader,
-                    null,
-                    phaseTitleOverrides[key] || phase.title || key
-                ),
-                wp.element.createElement(
-                    CardBody,
-                    null,
-                    wp.element.createElement(
-                        Button,
-                        {
-                            isSecondary: true,
-                            onClick: () =>
-                                setExpandedPhases((prev) => ({ ...prev, [key]: !prev[key] })),
-                            style: { marginTop: '2px' },
-                        },
-                        isExpanded ? 'Hide details' : 'View details'
-                    ),
-                    isExpanded &&
-                        wp.element.createElement(
-                            'div',
-                            { style: { marginTop: '12px' } },
-                            wp.element.createElement('p', null, hasSummary ? phaseSummary : statusText),
-                            hasError &&
-                                wp.element.createElement(
-                                    'p',
-                                    { style: { marginTop: '8px', color: '#b32d2e' } },
-                                    'Phase failed.'
-                                ),
-                            phase.error &&
-                                wp.element.createElement(
-                                    'p',
-                                    { style: { marginTop: '6px', color: '#b32d2e' } },
-                                    phase.error
-                                ),
-                            (referencedLinks.length || citationsCount)
-                                ? wp.element.createElement(
-                                      'p',
-                                      { style: { marginTop: '8px', fontSize: '12px', color: '#50575e' } },
-                                      `Links checked: ${referencedLinks.length || citationsCount}`
-                                  )
-                                : null,
-                            ...detailBlocks
-                        ),
-                    isExpanded && phase.payload?.next_step_question &&
-                        wp.element.createElement(
-                            'div',
-                            { style: { marginTop: '8px' } },
-                            wp.element.createElement(
-                                'p',
-                                { style: { fontStyle: 'italic', marginBottom: '6px' } },
-                                phase.payload.next_step_question
-                            ),
-                            key === 'phase1' &&
-                                wp.element.createElement(
-                                    Button,
-                                    {
-                                        isSecondary: true,
-                                        onClick: handleRerunPhase2,
-                                        disabled: phase2RerunLoading,
-                                    },
-                                    phase2RerunLoading ? wp.element.createElement(Spinner, null) : 'Run Research Phase 2'
-                                ),
-                            key === 'phase3' &&
-                                wp.element.createElement(
-                                    Button,
-                                    {
-                                        isSecondary: true,
-                                        onClick: handleRerunPhase4,
-                                        disabled: phase4RerunLoading || !phase3Complete,
-                                    },
-                                    phase4RerunLoading ? wp.element.createElement(Spinner, null) : 'Run Research Phase 4'
-                                ),
-                            key === 'phase4' &&
-                                wp.element.createElement(
-                                    Button,
-                                    {
-                                        isPrimary: true,
-                                        onClick: openSynopsisModal,
-                                        disabled: !phase4Complete,
-                                    },
-                                    'Generate Article Synopses'
-                                )
-                        ),
-                    isExpanded && key === 'phase2' &&
-                        wp.element.createElement(
-                            'div',
-                            { style: { marginTop: '8px' } },
-                            wp.element.createElement(
-                                Button,
-                                {
-                                    isSecondary: true,
-                                    onClick: handleRerunPhase3,
-                                    disabled: phase3RerunLoading,
-                                },
-                                phase3RerunLoading ? wp.element.createElement(Spinner, null) : 'Run Research Phase 3'
-                            )
-                        )
-                )
-            );
-        });
 
-        const phaseKeysPresent = phaseOrder.filter((key) => !!phases[key]);
-        return wp.element.createElement(
-            'div',
-            null,
-            phaseKeysPresent.length > 0 &&
-                wp.element.createElement(
-                    'div',
-                    { style: { marginBottom: '8px', display: 'flex', gap: '8px' } },
-                    wp.element.createElement(
-                        Button,
-                        {
-                            isSecondary: true,
-                            onClick: () => {
-                                const next = {};
-                                phaseKeysPresent.forEach((key) => {
-                                    next[key] = true;
-                                });
-                                setExpandedPhases(next);
-                            },
-                        },
-                        'Expand all phases'
-                    ),
-                    wp.element.createElement(
-                        Button,
-                        {
-                            isSecondary: true,
-                            onClick: () => setExpandedPhases({}),
-                        },
-                        'Collapse all phases'
-                    )
-                ),
-            ...phaseCards
-        );
-    };
 
-    const renderArticlesTable = () => {
-        const articles = sessionDetail?.meta?.articles || [];
-        if (!articles.length) {
-            return wp.element.createElement('p', null, 'No article synopses yet.');
-        }
 
-        const keywordMetrics = sessionDetail?.meta?.phase2?.keyword_metrics || [];
-        const findMetric = (keywords) => {
-            if (!keywords || !keywords.length) {
-                return null;
-            }
-            return keywordMetrics.find((metric) => keywords.includes(metric.keyword));
-        };
 
-        const rows = articles.map((article, index) => {
-            const metric = findMetric(article.keywords || []);
-            const volumeValue = Number(metric?.search_volume ?? 0);
-            const prioritySignal = Number(metric?.priority_score ?? 0);
-            const rankValue = Number(metric?.rank ?? 0);
-            const rankingSignal = Number.isFinite(prioritySignal) && prioritySignal > 0
-                ? prioritySignal
-                : Number.isFinite(rankValue) && rankValue > 0
-                ? 1 / rankValue
-                : 0;
-            const citationsCount = getCitationCount(article);
-            return {
-                article,
-                index,
-                metric,
-                volumeValue: Number.isFinite(volumeValue) ? volumeValue : 0,
-                rankingSignal: Number.isFinite(rankingSignal) ? rankingSignal : 0,
-                citationsCount,
-            };
-        });
 
-        const classifyCitationBand = (count) => {
-            if (count < 2) {
-                return 'critical';
-            }
-            if (count < MIN_CITATIONS_REQUIRED) {
-                return 'below_minimum';
-            }
-            if (count < IDEAL_CITATIONS_TARGET) {
-                return 'ready';
-            }
-            return 'ideal';
-        };
 
-        const criticalCitationCount = rows.filter((item) => item.citationsCount < 2).length;
-        const belowMinimumCitationCount = rows.filter(
-            (item) => item.citationsCount < MIN_CITATIONS_REQUIRED
-        ).length;
-        const idealCitationCount = rows.filter(
-            (item) => item.citationsCount >= IDEAL_CITATIONS_TARGET
-        ).length;
 
-        const maxVolume = Math.max(1, ...rows.map((item) => item.volumeValue || 0));
-        const maxRankingSignal = Math.max(1, ...rows.map((item) => item.rankingSignal || 0));
-        const maxCitations = Math.max(1, ...rows.map((item) => item.citationsCount || 0));
-        const scoredRows = rows
-            .map((item) => {
-                const hasMarketData = !!item.metric;
-                const volumeSignal = maxVolume > 1
-                    ? Math.log1p(item.volumeValue) / Math.log1p(maxVolume)
-                    : item.volumeValue > 0
-                    ? 1
-                    : 0;
-                const rankingSignalNorm = maxRankingSignal > 0 ? item.rankingSignal / maxRankingSignal : 0;
-                const marketSignalRaw = (volumeSignal * 0.7) + (rankingSignalNorm * 0.3);
-                const marketSignal = hasMarketData
-                    ? Math.round(Math.max(5, Math.min(95, marketSignalRaw * 100)))
-                    : null;
-                const priorityScore =
-                    ((item.volumeValue / maxVolume) * 0.45) +
-                    ((item.citationsCount / maxCitations) * 0.35) +
-                    ((item.rankingSignal / maxRankingSignal) * 0.2);
-                const citationBand = classifyCitationBand(item.citationsCount);
-                const deprioritizedScore = citationBand === 'critical'
-                    ? priorityScore * 0.5
-                    : citationBand === 'below_minimum'
-                    ? priorityScore * 0.75
-                    : priorityScore;
-                return { ...item, priorityScore: deprioritizedScore, marketSignal, citationBand };
-            })
-            .sort((a, b) => b.priorityScore - a.priorityScore);
 
-        const filteredRows = citationSegmentFilter === 'all'
-            ? scoredRows
-            : scoredRows.filter((item) => item.citationBand === citationSegmentFilter);
 
-        const lowCitationRows = scoredRows.filter(
-            (item) => item.citationsCount < MIN_CITATIONS_REQUIRED && item?.article?.id
-        );
-        const lowCitationEligibleRows = lowCitationRows.filter((item) => {
-            const jobs = Array.isArray(item?.article?.dive_deeper_jobs)
-                ? item.article.dive_deeper_jobs
-                : [];
-            const hasActiveDiveDeeper = jobs.some((job) =>
-                ['queued', 'running', 'processing'].includes(String(job?.status || '').toLowerCase())
-            );
-            const hasCompletedDiveDeeper = jobs.some(
-                (job) => String(job?.status || '').toLowerCase() === 'completed'
-            );
-            const hasCitationLift = Number(item?.article?.deep_dive?.citations_added || 0) > 0;
-            return !hasActiveDiveDeeper && !hasCompletedDiveDeeper && !hasCitationLift;
-        });
-        const lowCitationBatchRows = [...lowCitationEligibleRows]
-            .sort((a, b) => {
-                if (a.citationsCount !== b.citationsCount) {
-                    return a.citationsCount - b.citationsCount;
-                }
-                return b.priorityScore - a.priorityScore;
-            })
-            .slice(0, LOW_CITATION_QUEUE_BATCH_SIZE);
 
-        const handleQueueLowCitationDeepDive = async () => {
-            if (!lowCitationRows.length) {
-                dispatch('core/notices').createNotice('info', 'No low-citation articles need processing.', {
-                    type: 'snackbar',
-                });
-                return;
-            }
 
-            if (!lowCitationEligibleRows.length) {
-                dispatch('core/notices').createNotice(
-                    'info',
-                    'Low-citation articles are already being processed or were already deep-dived.',
-                    { type: 'snackbar' }
-                );
-                return;
-            }
 
-            const deepDivePayload = mapSliderToDepthParams(3);
-            let queued = 0;
-            setLowCitationBatchLoading(true);
-            try {
-                for (const row of lowCitationBatchRows) {
-                    const response = await enqueuePlannerTask({
-                        taskType: 'dive_deeper',
-                        articleId: row.article.id,
-                        payload: deepDivePayload,
-                        silentSuccess: true,
-                    });
-                    if (response) {
-                        queued += 1;
-                    }
-                }
 
-                dispatch('core/notices').createNotice(
-                    queued > 0 ? 'success' : 'warning',
-                    queued > 0
-                        ? `Queued deep-dive for ${queued} low-citation article${queued === 1 ? '' : 's'} (target ${deepDivePayload.target_min_citations} citations). ${Math.max(0, lowCitationRows.length - lowCitationBatchRows.length)} remaining for future batches.`
-                        : 'No low-citation articles were queued. Check queue status and try again.',
-                    { type: 'snackbar' }
-                );
-                await refreshSessionDetail();
-            } finally {
-                setLowCitationBatchLoading(false);
-            }
-        };
 
-        return wp.element.createElement(
-            'div',
-            null,
-            wp.element.createElement(
-                'p',
-                { style: { margin: '8px 0', fontSize: '12px', color: '#50575e' } },
-                'Priority score weights: 45% Market Signal, 35% Citation Strength, 20% Keyword Ranking. Author profile recommendation is inferred from article intent and framework language.'
-            ),
-            wp.element.createElement(
-                'p',
-                {
-                    style: {
-                        margin: '0 0 8px',
-                        fontSize: '12px',
-                        color: belowMinimumCitationCount > 0 ? '#8a5a00' : '#1e5f3a',
-                    },
-                },
-                `Citation coverage: ${criticalCitationCount} critical (<2), ${belowMinimumCitationCount} below minimum (<${MIN_CITATIONS_REQUIRED}), ${idealCitationCount} ideal (${IDEAL_CITATIONS_TARGET}+)`
-            ),
-            wp.element.createElement(
-                'div',
-                {
-                    style: {
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        flexWrap: 'wrap',
-                        marginBottom: '8px',
-                    },
-                },
-                wp.element.createElement(SelectControl, {
-                    label: 'Citation Segment',
-                    value: citationSegmentFilter,
-                    options: [
-                        { label: `All (${scoredRows.length})`, value: 'all' },
-                        { label: `Critical <2 (${criticalCitationCount})`, value: 'critical' },
-                        {
-                            label: `Below minimum 2-${MIN_CITATIONS_REQUIRED - 1} (${Math.max(0, belowMinimumCitationCount - criticalCitationCount)})`,
-                            value: 'below_minimum',
-                        },
-                        {
-                            label: `Ready ${MIN_CITATIONS_REQUIRED}-${IDEAL_CITATIONS_TARGET - 1} (${Math.max(0, scoredRows.length - belowMinimumCitationCount - idealCitationCount)})`,
-                            value: 'ready',
-                        },
-                        { label: `Ideal ${IDEAL_CITATIONS_TARGET}+ (${idealCitationCount})`, value: 'ideal' },
-                    ],
-                    onChange: setCitationSegmentFilter,
-                }),
-                wp.element.createElement(
-                    Button,
-                    {
-                        isSecondary: true,
-                        onClick: handleQueueLowCitationDeepDive,
-                        disabled: lowCitationBatchLoading || lowCitationEligibleRows.length === 0,
-                        style: { marginTop: '22px' },
-                    },
-                    lowCitationBatchLoading
-                        ? wp.element.createElement(Spinner, null)
-                        : `Queue Next Low-Citation Batch (${Math.min(lowCitationEligibleRows.length, LOW_CITATION_QUEUE_BATCH_SIZE)}/${lowCitationEligibleRows.length})`
-                )
-            ),
-            wp.element.createElement(
-            'table',
-            { className: 'widefat striped', style: { marginTop: '12px' } },
-            wp.element.createElement(
-                'thead',
-                null,
-                wp.element.createElement(
-                    'tr',
-                    null,
-                    wp.element.createElement('th', null, 'Headline'),
-                    wp.element.createElement('th', null, 'Brief'),
-                    wp.element.createElement('th', null, 'Keywords'),
-                    wp.element.createElement('th', null, 'Market Signal'),
-                    wp.element.createElement('th', null, 'Citations'),
-                    wp.element.createElement('th', null, 'Framework Status'),
-                    wp.element.createElement('th', null, 'Author Status'),
-                    wp.element.createElement('th', null, 'Actions')
-                )
-            ),
-            wp.element.createElement(
-                'tbody',
-                null,
-                filteredRows.map((row, priorityIndex) => {
-                    const { article, index, metric, citationsCount, priorityScore, marketSignal } = row;
-                    const volume = metric?.search_volume ?? '—';
-                    const frameworkStatusRaw = article.framework?.status || 'pending';
-                    const frameworkStatus =
-                        frameworkStatusRaw === 'completed' ? 'complete' : frameworkStatusRaw;
-                    const progressEntry = frameworkProgress[article.id];
-                    const progressPercent = progressEntry?.percent || 5;
-                    const authorStatusRaw = article.author?.status || 'pending';
-                    const authorStatus =
-                        authorStatusRaw === 'completed' ? 'complete' : authorStatusRaw;
-                    const authorEntry = authorProgress[article.id];
-                    const authorPercent = authorEntry?.percent || 5;
-                    const isAuthorLoading = !!authorLoading[article.id];
-                    const authorEditUrl = article.author?.edit_url;
-                    const frameworkReady =
-                        frameworkStatus === 'complete' && !!article.framework?.output;
-                    const meetsCitationThreshold = citationsCount >= MIN_CITATIONS_REQUIRED;
-                    const citationQuality = citationsCount < 2
-                        ? {
-                            label: 'Critical: under 2 citations',
-                            bg: '#fde8e8',
-                            border: '#d63638',
-                            text: '#8a2424',
-                        }
-                        : citationsCount < MIN_CITATIONS_REQUIRED
-                          ? {
-                                label: `Below minimum: ${MIN_CITATIONS_REQUIRED} required`,
-                                bg: '#fff4e5',
-                                border: '#dba617',
-                                text: '#8a5a00',
-                            }
-                          : citationsCount < IDEAL_CITATIONS_TARGET
-                            ? {
-                                  label: `Meets minimum. Target ${IDEAL_CITATIONS_TARGET}+`,
-                                  bg: '#e7f5ff',
-                                  border: '#4da3ff',
-                                  text: '#0b4f8a',
-                              }
-                            : {
-                                  label: `Ideal coverage (${IDEAL_CITATIONS_TARGET}+)`,
-                                  bg: '#edfaef',
-                                  border: '#4ab866',
-                                  text: '#1f6f3c',
-                              };
-                    const opinionPieceWritten =
-                        authorStatus === 'complete' && article.framework?.lite_mode === 'opinion';
-                    const selectedProfile = getSelectedAuthorProfile(article);
-                    const recommendedProfile = getRecommendedAuthorProfile(article);
-                    const frameworkActionLabel =
-                        frameworkStatus === 'complete' ? 'Regenerate Framework' : 'Generate Framework';
-                    const isDismissLoading = !!articleActionLoading[`dismiss:${article.id}`];
-                    const isDeepDiveLoading = !!articleActionLoading[`dive_deeper:${article.id}`];
-                    const isOpinionLoading = !!articleActionLoading[`opinion_piece:${article.id}`];
-                    const isRecommendImageLoading = !!imageActionLoading[`recommend:${article.id}`];
-                    const isGenerateImageLoading = !!imageActionLoading[`generate:${article.id}`];
-                    const generatedImage = generatedImageByArticle[article.id];
-                    const isQueueFrameworkLoading = !!queueActionLoading[`enqueue:framework_generation:${article.id}`];
-                    const isQueueArticleLoading = !!queueActionLoading[`enqueue:article_creation:${article.id}`];
-                    const canImageActions = authorStatus === 'complete' && !!article.author?.output;
-                    return wp.element.createElement(
-                        'tr',
-                        { key: `${article.headline || article.title || article.id}-${index}` },
-                        wp.element.createElement(
-                            'td',
-                            null,
-                            wp.element.createElement('strong', null, `#${priorityIndex + 1}`),
-                            ' ',
-                            article.headline || article.title || 'Untitled',
-                            wp.element.createElement(
-                                'div',
-                                { style: { fontSize: '11px', color: '#50575e', marginTop: '2px' } },
-                                `Priority score: ${(priorityScore * 100).toFixed(0)}`
-                            )
-                        ),
-                        wp.element.createElement(
-                            'td',
-                            null,
-                            wp.element.createElement(
-                                'div',
-                                { style: { maxWidth: '420px' } },
-                                article.summary || article.brief || article.summary_two_sentences || 'No summary.'
-                            )
-                        ),
-                        wp.element.createElement(
-                            'td',
-                            null,
-                            (article.keywords || article.tags || []).join(', ') || '—'
-                        ),
-                        wp.element.createElement(
-                            'td',
-                            { title: `Search volume: ${volume}` },
-                            wp.element.createElement('strong', null, marketSignal == null ? '—' : `${marketSignal}%`),
-                            wp.element.createElement(
-                                'div',
-                                { style: { fontSize: '11px', color: '#50575e', marginTop: '2px' } },
-                                `Vol: ${volume}${metric?.priority_score != null ? ` · Priority: ${metric.priority_score}` : ''}`
-                            )
-                        ),
-                        wp.element.createElement(
-                            'td',
-                            null,
-                            wp.element.createElement('strong', null, citationsCount),
-                            wp.element.createElement(
-                                'div',
-                                {
-                                    style: {
-                                        marginTop: '4px',
-                                        display: 'inline-block',
-                                        padding: '2px 6px',
-                                        borderRadius: '999px',
-                                        border: `1px solid ${citationQuality.border}`,
-                                        background: citationQuality.bg,
-                                        color: citationQuality.text,
-                                        fontSize: '11px',
-                                        fontWeight: 600,
-                                        lineHeight: 1.3,
-                                    },
-                                },
-                                citationQuality.label
-                            )
-                        ),
-                        wp.element.createElement(
-                            'td',
-                            null,
-                            frameworkStatus === 'running'
-                                ? wp.element.createElement(
-                                      'div',
-                                      { style: { minWidth: '160px' } },
-                                      wp.element.createElement('div', null, `Running (${progressPercent}%)`),
-                                      wp.element.createElement(ProgressBar, { value: progressPercent })
-                                  )
-                                : frameworkStatus === 'queued'
-                                  ? wp.element.createElement(
-                                        'div',
-                                        { style: { minWidth: '160px' } },
-                                        wp.element.createElement('div', null, `Queued (${progressPercent}%)`),
-                                        wp.element.createElement(ProgressBar, { value: progressPercent })
-                                    )
-                                : frameworkStatus === 'failed'
-                                  ? wp.element.createElement(
-                                        'div',
-                                        null,
-                                        wp.element.createElement('div', null, 'failed'),
-                                        article.framework?.error_message &&
-                                            wp.element.createElement(
-                                                'div',
-                                                { style: { fontSize: '12px', color: '#a00' } },
-                                                article.framework.error_message
-                                            )
-                                    )
-                                  : frameworkStatus
-                        ),
-                        wp.element.createElement(
-                            'td',
-                            null,
-                            authorStatus === 'running'
-                                ? wp.element.createElement(
-                                      'div',
-                                      { style: { minWidth: '160px' } },
-                                      wp.element.createElement('div', null, `Running (${authorPercent}%)`),
-                                      wp.element.createElement(ProgressBar, { value: authorPercent })
-                                  )
-                                : authorStatus === 'queued'
-                                  ? wp.element.createElement(
-                                        'div',
-                                        { style: { minWidth: '160px' } },
-                                        wp.element.createElement('div', null, 'Queued'),
-                                        wp.element.createElement(Spinner, null)
-                                    )
-                                : authorStatus === 'failed'
-                                  ? wp.element.createElement(
-                                        'div',
-                                        null,
-                                        wp.element.createElement('div', null, 'failed'),
-                                        article.author?.error_message &&
-                                            wp.element.createElement(
-                                                'div',
-                                                { style: { fontSize: '12px', color: '#a00' } },
-                                                article.author.error_message
-                                            )
-                                    )
-                                  : authorStatus
-                        ),
-                        wp.element.createElement(
-                            'td',
-                            null,
-                            wp.element.createElement(
-                                SelectControl,
-                                {
-                                    label: 'Author profile',
-                                    value: selectedProfile,
-                                    options: AUTHOR_PROFILE_OPTIONS,
-                                    onChange: (value) => {
-                                        setAuthorProfileSelection((prev) => ({
-                                            ...prev,
-                                            [article.id]: value,
-                                        }));
-                                    },
-                                    help: `Recommended: ${getAuthorProfileLabel(recommendedProfile)}`,
-                                }
-                            ),
-                            opinionPieceWritten &&
-                                wp.element.createElement(
-                                    Notice,
-                                    { status: 'success', isDismissible: false },
-                                    'Opinion piece written.'
-                                ),
-                            !meetsCitationThreshold &&
-                                wp.element.createElement(
-                                    Button,
-                                    {
-                                        isSecondary: true,
-                                        onClick: () => handleDeepDiveArticle(article),
-                                        style: { marginRight: '8px', marginBottom: '8px' },
-                                        disabled: isDeepDiveLoading,
-                                    },
-                                    isDeepDiveLoading ? wp.element.createElement(Spinner, null) : 'Dive Deeper'
-                                ),
-                            !meetsCitationThreshold &&
-                                wp.element.createElement(
-                                    Button,
-                                    {
-                                        isPrimary: true,
-                                        onClick: () => handleOpinionPieceArticle(article),
-                                        style: { marginRight: '8px', marginBottom: '8px' },
-                                        disabled: isOpinionLoading,
-                                    },
-                                    isOpinionLoading ? wp.element.createElement(Spinner, null) : 'Opinion Piece'
-                                ),
-                            !meetsCitationThreshold &&
-                                wp.element.createElement(
-                                    Button,
-                                    {
-                                        isSecondary: true,
-                                        onClick: () => handleDismissArticle(article),
-                                        style: { marginRight: '8px', marginBottom: '8px' },
-                                        disabled: isDismissLoading,
-                                    },
-                                    isDismissLoading ? wp.element.createElement(Spinner, null) : 'Dismiss'
-                                ),
-                            wp.element.createElement(
-                                Button,
-                                {
-                                    isSecondary: true,
-                                    onClick: () => setPreviewArticle(article),
-                                    style: { marginRight: '8px' },
-                                },
-                                'Preview'
-                            ),
-                            frameworkReady &&
-                                article.framework?.output &&
-                                wp.element.createElement(
-                                    Button,
-                                    {
-                                        isSecondary: true,
-                                        onClick: () => setFrameworkPreview(article),
-                                        style: { marginRight: '8px' },
-                                    },
-                                    'View Framework'
-                                ),
-                            wp.element.createElement(
-                                Button,
-                                {
-                                    isSecondary: true,
-                                    onClick: () => handleExportFramework(article),
-                                    style: { marginRight: '8px' },
-                                    disabled: !frameworkReady,
-                                },
-                                'Export Framework'
-                            ),
-                            wp.element.createElement(
-                                Button,
-                                {
-                                    isSecondary: true,
-                                    onClick: () => handleRunAuthorAgent(article),
-                                    style: { marginRight: '8px' },
-                                    disabled: !meetsCitationThreshold || !frameworkReady || isAuthorLoading || authorStatus === 'running' || authorStatus === 'queued',
-                                },
-                                isAuthorLoading ? wp.element.createElement(Spinner, null) : 'Run Author'
-                            ),
-                            wp.element.createElement(
-                                Button,
-                                {
-                                    isSecondary: true,
-                                    onClick: () => handleQueueAuthorAgent(article),
-                                    style: { marginRight: '8px' },
-                                    disabled: !meetsCitationThreshold || !frameworkReady || isQueueArticleLoading || authorStatus === 'running' || authorStatus === 'queued',
-                                },
-                                isQueueArticleLoading ? wp.element.createElement(Spinner, null) : 'Queue Article'
-                            ),
-                            wp.element.createElement(
-                                Button,
-                                {
-                                    isSecondary: true,
-                                    onClick: () => setAuthorPreview(article),
-                                    style: { marginRight: '8px' },
-                                    disabled: !(authorStatus === 'complete' && article.author?.output),
-                                },
-                                'View Draft'
-                            ),
-                            wp.element.createElement(
-                                Button,
-                                {
-                                    isSecondary: true,
-                                    onClick: () => handleExportAuthorDraft(article),
-                                    style: { marginRight: '8px' },
-                                    disabled: !(authorStatus === 'complete' && article.author?.output),
-                                },
-                                'Export Draft'
-                            ),
-                            wp.element.createElement(
-                                Button,
-                                {
-                                    isSecondary: true,
-                                    onClick: () => handleRecommendImageArticle(article),
-                                    style: { marginRight: '8px' },
-                                    disabled: !canImageActions || isRecommendImageLoading,
-                                },
-                                isRecommendImageLoading ? wp.element.createElement(Spinner, null) : 'Recommend Image'
-                            ),
-                            wp.element.createElement(
-                                Button,
-                                {
-                                    isSecondary: true,
-                                    onClick: () => handleGenerateImageArticle(article),
-                                    style: { marginRight: '8px' },
-                                    disabled: !canImageActions || isGenerateImageLoading,
-                                },
-                                isGenerateImageLoading ? wp.element.createElement(Spinner, null) : 'Generate Image'
-                            ),
-                            wp.element.createElement(
-                                Button,
-                                {
-                                    isSecondary: true,
-                                    onClick: () => window.open(generatedImage?.url, '_blank'),
-                                    style: { marginRight: '8px' },
-                                    disabled: !generatedImage?.url,
-                                },
-                                'Open Image'
-                            ),
-                            wp.element.createElement(
-                                Button,
-                                {
-                                    isSecondary: true,
-                                    onClick: () => window.open(authorEditUrl, '_blank'),
-                                    style: { marginRight: '8px' },
-                                    disabled: !(authorStatus === 'complete' && authorEditUrl),
-                                },
-                                'Open in Editor'
-                            ),
-                            wp.element.createElement(
-                                Button,
-                                {
-                                    isSecondary: true,
-                                    onClick: () => handleQueueFrameworkGeneration(article),
-                                    style: { marginRight: '8px' },
-                                    disabled: !meetsCitationThreshold || isQueueFrameworkLoading,
-                                },
-                                isQueueFrameworkLoading ? wp.element.createElement(Spinner, null) : 'Queue Framework'
-                            ),
-                            wp.element.createElement(
-                                Button,
-                                {
-                                    isPrimary: true,
-                                    onClick: () => handleRegenerateFramework(article, index),
-                                    disabled: !meetsCitationThreshold || !!frameworkLoading[index],
-                                },
-                                frameworkLoading[index] ? wp.element.createElement(Spinner, null) : frameworkActionLabel
-                            )
-                        )
-                    );
-                })
-            )
-            )
-        );
-    };
 
-    const renderEditorQueueTable = () => {
-        const articles = sessionDetail?.meta?.articles || [];
-        const filteredQueueItems = queueItems.filter((item) => {
-            const matchesStatus = queueStatusFilter === 'all' ? true : item.status === queueStatusFilter;
-            const matchesTaskType = queueTaskTypeFilter === 'all' ? true : item.task_type === queueTaskTypeFilter;
-            return matchesStatus && matchesTaskType;
-        });
-        const sortedQueueItems = [...filteredQueueItems].sort((a, b) => {
-            const aQueued = (a?.status || '') === 'queued';
-            const bQueued = (b?.status || '') === 'queued';
 
-            if (queueStatusFilter === 'queued') {
-                return Number(a?.position || 0) - Number(b?.position || 0);
-            }
-            if (queueStatusFilter !== 'all') {
-                return parseQueueDate(b?.updated_at || b?.created_at) - parseQueueDate(a?.updated_at || a?.created_at);
-            }
 
-            if (aQueued && bQueued) {
-                return Number(a?.position || 0) - Number(b?.position || 0);
-            }
-            if (aQueued) {
-                return -1;
-            }
-            if (bQueued) {
-                return 1;
-            }
 
-            return parseQueueDate(b?.updated_at || b?.created_at) - parseQueueDate(a?.updated_at || a?.created_at);
-        });
-        const queuedItems = queueItems.filter((item) => item.status === 'queued');
-        const activeQueueItems = queueItems.filter((item) => ['queued', 'running', 'dispatched'].includes(item.status || ''));
-        const hiddenActiveItems = activeQueueItems.filter((item) => !filteredQueueItems.some((filtered) => filtered.id === item.id));
-        const tableEntries = [
-            ...hiddenActiveItems.map((item) => ({ type: 'item', item, pinned: true })),
-            ...(hiddenActiveItems.length
-                ? [{ type: 'separator', id: 'filtered-results-separator' }]
-                : []),
-            ...sortedQueueItems.map((item) => ({ type: 'item', item, pinned: false })),
-        ];
-        const selectedQueuedItems = queuedItems.filter((item) => selectedQueueItems.includes(item.id));
-        const articleTitleById = articles.reduce((acc, article) => {
-            acc[article.id] = article.headline || article.title || article.id;
-            return acc;
-        }, {});
 
-        const canRemoveQueueItem = (status) => !['running', 'dispatched'].includes(status || '');
 
-        return wp.element.createElement(
-            'div',
-            { style: { marginTop: '16px' } },
-            wp.element.createElement('h2', null, 'Editor Queue'),
-            queueError && wp.element.createElement(Notice, { status: 'error', isDismissible: false }, queueError),
-            wp.element.createElement(
-                'p',
-                { style: { margin: '8px 0', fontSize: '12px', color: '#50575e' } },
-                `Queued: ${queueCounts?.queued || 0} · Running: ${queueCounts?.running || 0} · Completed: ${queueCounts?.completed || 0} · Failed: ${queueCounts?.failed || 0}`
-            ),
-            wp.element.createElement(
-                'p',
-                { style: { margin: '0 0 8px', fontSize: '12px', color: '#666' } },
-                'Drag queued rows to reorder priority, then run selected items or run all queued items.'
-            ),
-            wp.element.createElement(
-                'div',
-                { style: { display: 'flex', gap: '8px', marginBottom: '10px' } },
-                wp.element.createElement(SelectControl, {
-                    label: 'Status filter',
-                    value: queueStatusFilter,
-                    options: [
-                        { label: 'All statuses', value: 'all' },
-                        { label: 'Queued', value: 'queued' },
-                        { label: 'Running', value: 'running' },
-                        { label: 'Dispatched', value: 'dispatched' },
-                        { label: 'Completed', value: 'completed' },
-                        { label: 'Failed', value: 'failed' },
-                    ],
-                    onChange: setQueueStatusFilter,
-                }),
-                wp.element.createElement(SelectControl, {
-                    label: 'Category filter',
-                    value: queueTaskTypeFilter,
-                    options: [
-                        { label: 'All categories', value: 'all' },
-                        { label: 'Deeper Dives', value: 'dive_deeper' },
-                        { label: 'Framework Generation', value: 'framework_generation' },
-                        { label: 'Article Creation', value: 'article_creation' },
-                    ],
-                    onChange: setQueueTaskTypeFilter,
-                }),
-            ),
-            wp.element.createElement(
-                'div',
-                { style: { display: 'flex', gap: '8px', marginBottom: '10px' } },
-                wp.element.createElement(
-                    Button,
-                    { isSecondary: true, onClick: loadPlannerQueue, disabled: queueLoading || queueClearing },
-                    queueLoading ? wp.element.createElement(Spinner, null) : 'Refresh Queue'
-                ),
-                wp.element.createElement(
-                    Button,
-                    {
-                        isSecondary: true,
-                        onClick: () => runPlannerQueueBulk({ queueIds: selectedQueuedItems.map((item) => item.id) }),
-                        disabled: !selectedQueuedItems.length || !!queueActionLoading['run:selected'] || queueLoading || queueReorderLoading,
-                    },
-                    queueActionLoading['run:selected'] ? wp.element.createElement(Spinner, null) : `Run Selected (${selectedQueuedItems.length})`
-                ),
-                wp.element.createElement(
-                    Button,
-                    {
-                        isPrimary: true,
-                        onClick: () => runPlannerQueueBulk({ runAllQueued: true }),
-                        disabled: !queuedItems.length || !!queueActionLoading['run:all'] || queueLoading || queueReorderLoading,
-                    },
-                    queueActionLoading['run:all'] ? wp.element.createElement(Spinner, null) : `Run All Queued (${queuedItems.length})`
-                ),
-                wp.element.createElement(
-                    Button,
-                    { isDestructive: true, onClick: clearQueuedJobs, disabled: queueLoading || queueClearing || queueRemoving },
-                    queueClearing ? wp.element.createElement(Spinner, null) : 'Clear Queued'
-                ),
-                wp.element.createElement(
-                    Button,
-                    { isDestructive: true, onClick: removeAllQueueItems, disabled: queueLoading || queueClearing || queueRemoving },
-                    queueRemoving ? wp.element.createElement(Spinner, null) : 'Remove All'
-                )
-            ),
-            queueLoading &&
-                wp.element.createElement(
-                    'p',
-                    { style: { margin: '6px 0', fontSize: '12px', color: '#666' } },
-                    'Refreshing queue…'
-                ),
-            hiddenActiveItems.length > 0 &&
-                wp.element.createElement(
-                    Notice,
-                    { status: 'info', isDismissible: false },
-                    `${hiddenActiveItems.length} active queue item(s) are pinned above the filtered results so controls stay available in every view.`
-                ),
-            wp.element.createElement(
-                      'table',
-                      { className: 'widefat striped' },
-                      wp.element.createElement(
-                          'thead',
-                          null,
-                          wp.element.createElement(
-                              'tr',
-                              null,
-                              wp.element.createElement('th', null, ''),
-                              wp.element.createElement('th', null, ''),
-                              wp.element.createElement('th', null, 'Order'),
-                              wp.element.createElement('th', null, 'Task'),
-                              wp.element.createElement('th', null, 'Article'),
-                              wp.element.createElement('th', null, 'Status'),
-                              wp.element.createElement('th', null, 'Created'),
-                              wp.element.createElement('th', null, 'Action'),
-                              wp.element.createElement('th', null, 'Remove')
-                          )
-                      ),
-                      wp.element.createElement(
-                          'tbody',
-                          null,
-                          tableEntries.length
-                              ? tableEntries.map((entry) => {
-                                    if (entry.type === 'separator') {
-                                        return wp.element.createElement(
-                                            'tr',
-                                            { key: entry.id },
-                                            wp.element.createElement(
-                                                'td',
-                                                {
-                                                    colSpan: 9,
-                                                    style: {
-                                                        background: '#f6f7f7',
-                                                        color: '#50575e',
-                                                        fontSize: '12px',
-                                                        fontWeight: 600,
-                                                    },
-                                                },
-                                                'Filtered results'
-                                            )
-                                        );
-                                    }
 
-                                    const item = entry.item;
-                                    const runKey = `run:${item.id}`;
-                                    const removeKey = `remove:${item.id}`;
-                                                                        const stopKey = `stop:${item.id}`;
-                                    const isRunningAction = !!queueActionLoading[runKey];
-                                    const isRemoveAction = !!queueActionLoading[removeKey];
-                                                                        const isStopAction = !!queueActionLoading[stopKey];
-                                    const rerunKey = `rerun:${item.id}`;
-                                    const isRerunAction = !!queueActionLoading[rerunKey];
-                                    const isQueued = item.status === 'queued';
-                                    const isCompleted = item.status === 'completed';
-                                    const isFailed = item.status === 'failed';
-                                                                        const isStoppable = ['queued', 'running', 'dispatched'].includes(item.status || '');
-                                    const isSelected = selectedQueueItems.includes(item.id);
-                                    const articleTitle = articleTitleById[item.article_id] || item.article_id || '—';
-                                    const failureReason = isFailed ? String(item.error_message || '').trim() : '';
-                                    const progressDetail = getQueueProgressDetail(item);
-                                    return wp.element.createElement(
-                                        'tr',
-                                        {
-                                            key: item.id,
-                                            draggable: isQueued && !queueReorderLoading,
-                                            onDragStart: () => setDraggedQueueItemId(item.id),
-                                            onDragOver: (event) => {
-                                                if (!isQueued) {
-                                                    return;
-                                                }
-                                                event.preventDefault();
-                                            },
-                                            onDrop: (event) => {
-                                                event.preventDefault();
-                                                handleQueueRowDrop(item.id);
-                                            },
-                                            style: {
-                                                cursor: isQueued ? 'move' : 'default',
-                                                opacity: draggedQueueItemId === item.id ? 0.6 : 1,
-                                                background: entry.pinned ? '#fffbe6' : undefined,
-                                            },
-                                        },
-                                        wp.element.createElement(
-                                            'td',
-                                            { style: { color: isQueued ? '#666' : '#bbb', width: '28px', textAlign: 'center' } },
-                                            isQueued ? '⋮⋮' : '•'
-                                        ),
-                                        wp.element.createElement(
-                                            'td',
-                                            null,
-                                            wp.element.createElement('input', {
-                                                type: 'checkbox',
-                                                checked: isSelected,
-                                                disabled: !isQueued,
-                                                onChange: (event) => toggleQueueItemSelection(item.id, !!event?.target?.checked),
-                                            })
-                                        ),
-                                        wp.element.createElement('td', null, item.position || '—'),
-                                        wp.element.createElement('td', null, taskTypeLabel(item.task_type)),
-                                        wp.element.createElement('td', null, articleTitle),
-                                        wp.element.createElement(
-                                            'td',
-                                            null,
-                                            queueStatusLabel(item.status || 'queued'),
-                                            progressDetail &&
-                                                wp.element.createElement(
-                                                    'div',
-                                                    {
-                                                        style: {
-                                                            marginTop: '4px',
-                                                            fontSize: '11px',
-                                                            color: isFailed ? '#666' : '#666',
-                                                            lineHeight: 1.35,
-                                                        },
-                                                    },
-                                                    progressDetail
-                                                ),
-                                            failureReason &&
-                                                wp.element.createElement(
-                                                    'div',
-                                                    {
-                                                        style: {
-                                                            marginTop: '4px',
-                                                            fontSize: '11px',
-                                                            color: '#a00',
-                                                            maxWidth: '260px',
-                                                            lineHeight: 1.35,
-                                                        },
-                                                        title: failureReason,
-                                                    },
-                                                    failureReason.length > 120 ? `${failureReason.slice(0, 120)}…` : failureReason
-                                                )
-                                        ),
-                                        wp.element.createElement('td', null, item.created_at || '—'),
-                                        wp.element.createElement(
-                                            'td',
-                                            null,
-                                            wp.element.createElement(
-                                                'div',
-                                                { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
-                                                wp.element.createElement(
-                                                    Button,
-                                                    {
-                                                        isSecondary: true,
-                                                        onClick: () => runPlannerQueueItem(item.id),
-                                                        disabled: !isQueued || isRunningAction || queueReorderLoading,
-                                                    },
-                                                    isRunningAction ? wp.element.createElement(Spinner, null) : 'Run Now'
-                                                ),
-                                                isCompleted &&
-                                                    wp.element.createElement(
-                                                        Button,
-                                                        {
-                                                            isSecondary: true,
-                                                            onClick: () => handleQueuePreview(item),
-                                                        },
-                                                        'Preview'
-                                                    ),
-                                                isCompleted &&
-                                                    wp.element.createElement(
-                                                        Button,
-                                                        {
-                                                            isSecondary: true,
-                                                            onClick: () => rerunPlannerQueueItem(item),
-                                                            disabled: isRerunAction || queueReorderLoading,
-                                                        },
-                                                        isRerunAction ? wp.element.createElement(Spinner, null) : 'Re-run'
-                                                    ),
-                                                isFailed &&
-                                                    wp.element.createElement(
-                                                        Button,
-                                                        {
-                                                            isSecondary: true,
-                                                            onClick: () => rerunPlannerQueueItem(item),
-                                                            disabled: isRerunAction || isRunningAction || queueReorderLoading,
-                                                        },
-                                                        isRerunAction ? wp.element.createElement(Spinner, null) : 'Retry'
-                                                    ),
-                                                isStoppable &&
-                                                    wp.element.createElement(
-                                                        Button,
-                                                        {
-                                                            isDestructive: true,
-                                                            onClick: () => stopPlannerQueueItem(item.id),
-                                                            disabled: isStopAction,
-                                                        },
-                                                        isStopAction ? wp.element.createElement(Spinner, null) : 'Stop'
-                                                    )
-                                            )
-                                        ),
-                                        wp.element.createElement(
-                                            'td',
-                                            null,
-                                            wp.element.createElement(
-                                                Button,
-                                                {
-                                                    isSecondary: true,
-                                                    onClick: () => removePlannerQueueItem(item.id),
-                                                    disabled: !canRemoveQueueItem(item.status) || isRemoveAction,
-                                                },
-                                                isRemoveAction ? wp.element.createElement(Spinner, null) : 'Remove'
-                                            )
-                                        )
-                                    );
-                                })
-                              : wp.element.createElement(
-                                    'tr',
-                                    null,
-                                    wp.element.createElement(
-                                        'td',
-                                        { colSpan: 9, style: { color: '#666' } },
-                                        'No queue items match the current filters.'
-                                    )
-                                )
-                      )
-                  )
-        );
-    };
 
-    const renderFrameworks = () => {
-        const frameworks =
-            (sessionDetail?.meta?.frameworks || []).length > 0
-                ? sessionDetail.meta.frameworks
-                : (sessionDetail?.meta?.articles || [])
-                      .filter((article) => article?.framework?.output)
-                      .map((article, index) => ({
-                          job_id: article?.framework?.job_id || article?.id || `framework-${index}`,
-                          article_id: article?.id || null,
-                          article_title: article?.headline || article?.title || 'Framework',
-                          output: article?.framework?.output,
-                      }));
-        if (!frameworks.length) {
-            return null;
-        }
 
-        const formatFrameworkOutput = (output) => {
-            if (!output) {
-                return 'No output captured.';
-            }
-            if (typeof output === 'string') {
-                return output;
-            }
-            try {
-                return JSON.stringify(output, null, 2);
-            } catch (error) {
-                return 'Framework output available but could not be formatted.';
-            }
-        };
 
-        return wp.element.createElement(
-            'div',
-            { style: { marginTop: '16px' } },
-            wp.element.createElement('h3', null, 'Generated Frameworks'),
-            frameworks.map((framework, index) =>
-                wp.element.createElement(
-                    Card,
-                    { key: `${framework.job_id}-${index}`, style: { marginTop: '8px' } },
-                    wp.element.createElement(CardHeader, null, framework.article_title || 'Framework'),
-                    wp.element.createElement(
-                        CardBody,
-                        null,
-                        wp.element.createElement(
-                            'pre',
-                            { style: { whiteSpace: 'pre-wrap' } },
-                            formatFrameworkOutput(framework.output)
-                        )
-                    )
-                )
-            )
-        );
-    };
 
-    const phase1Complete = sessionDetail?.meta?.phases?.phase1?.status === 'completed';
-    const phase2Complete = sessionDetail?.meta?.phases?.phase2?.status === 'completed';
-    const allPhasesExpanded = PHASE_ORDER.every((key) => !!expandedPhases[key]);
-    const phase3Complete = sessionDetail?.meta?.phases?.phase3?.status === 'completed';
-    const phase4Complete = sessionDetail?.meta?.phases?.phase4?.status === 'completed';
-    const synopsisPlanTotal = Object.values(synopsisPlan).reduce(
-        (sum, value) => sum + (parseInt(value || 0, 10) || 0),
-        0
-    );
-    const focusLabel = getFocusLabel(focusLevel);
-    const synopsisEstimate = estimateSynopses(sessionDetail?.meta, focusLevel);
-    const authorValidationSummary = summarizeAuthorValidation(sessionDetail?.meta);
-    const providerErrors = Array.isArray(searchProviderStatus?.provider_errors)
-        ? searchProviderStatus.provider_errors
-        : [];
-    const hasProviderErrors = Boolean(searchProviderStatus?.has_errors) || providerErrors.length > 0;
-    const serpapiIssue = providerErrors.find((item) => String(item).toLowerCase().includes('serpapi:')) || '';
-    const providerAdminInstruction = searchProviderStatus?.admin_instruction
-        || (serpapiIssue
-            ? 'SerpAPI is failing (quota or credential issue). Please contact your System Administrator to restore SerpAPI access and verify fallback provider support before rerunning Research Phase 4.'
-            : 'Search provider is failing. Please contact your System Administrator to restore provider access before rerunning Research Phase 4.');
 
-    // Render the detail page when viewing a session
-    if (viewingSessionId && sessionDetail) {
-        return wp.element.createElement(
-            'div',
-            { className: 'editorial-planner-dashboard' },
-            wp.element.createElement(
-                'div',
-                { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' } },
-                wp.element.createElement(
-                    'div',
-                    null,
-                    wp.element.createElement(
-                        Button,
-                        {
-                            isSecondary: true,
-                            onClick: navigateBack,
-                            style: { marginRight: '12px' },
-                        },
-                        '← Back to Sessions'
-                    ),
-                    wp.element.createElement('h1', { style: { display: 'inline-block', margin: '0' } }, sessionDetail?.title || 'Session Detail')
-                )
-            ),
-            detailLoading
-                ? wp.element.createElement(Spinner, null)
-                : wp.element.createElement(
-                      'div',
-                      null,
-                      detailError && wp.element.createElement(Notice, { status: 'error', isDismissible: false }, detailError),
-                      showFocusControls &&
-                          wp.element.createElement(
-                              'div',
-                              {
-                                  style: {
-                                      marginBottom: '12px',
-                                      padding: '12px',
-                                      border: '1px solid #dcdcde',
-                                      borderRadius: '6px',
-                                      background: '#f6f7f7',
-                                  },
-                              },
-                              wp.element.createElement('strong', null, 'Focus vs Breadth'),
-                              wp.element.createElement(
-                                  'p',
-                                  { style: { margin: '6px 0 8px', color: '#50575e' } },
-                                  `Current setting: ${focusLabel} (${focusLevel})`
-                              ),
-                              wp.element.createElement(RangeControl, {
-                                  value: focusLevel,
-                                  min: 0,
-                                  max: 100,
-                                  step: 5,
-                                  onChange: (value) => {
-                                      setFocusDirty(true);
-                                      setFocusLevel(value);
-                                  },
-                                  help: 'Lower = broader coverage; higher = tighter focus.',
-                              }),
-                              wp.element.createElement(
-                                  'p',
-                                  { style: { margin: '6px 0 0', fontSize: '12px', color: '#50575e' } },
-                                  synopsisEstimate.estimate > 0
-                                      ? `Estimated synopses: ${synopsisEstimate.min}–${synopsisEstimate.max} (target 20).`
-                                      : 'Estimated synopses available after Phase 2.'
-                              )
-                          ),
-                      wp.element.createElement(
-                          'div',
-                          { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-                          wp.element.createElement(
-                              'div',
-                              null,
-                              wp.element.createElement('h2', null, 'Phase Summaries'),
-                              showThinkingIndicator &&
-                                  wp.element.createElement(
-                                      'div',
-                                      {
-                                          style: {
-                                              display: 'flex',
-                                              alignItems: 'center',
-                                              gap: '8px',
-                                              marginTop: '6px',
-                                              fontSize: '14px',
-                                              color: '#0073aa',
-                                              fontStyle: 'italic',
-                                          },
-                                      },
-                                      wp.element.createElement('span', null, '✨'),
-                                      wp.element.createElement('span', null, `${activePhaseLabel || 'Working'} · ${THINKING_PHRASES[thinkingPhraseIndex]}...`)
-                                  )
-                          ),
-                          wp.element.createElement(
-                              'div',
-                              null,
-                              wp.element.createElement(
-                                  Button,
-                                  {
-                                      isSecondary: true,
-                                      onClick: () => {
-                                          setExpandedPhases(
-                                              allPhasesExpanded
-                                                  ? {}
-                                                  : PHASE_ORDER.reduce((acc, key) => {
-                                                        acc[key] = true;
-                                                        return acc;
-                                                    }, {})
-                                          );
-                                      },
-                                      style: { marginRight: '8px' },
-                                  },
-                                  allPhasesExpanded ? 'Collapse All Phases' : 'Expand All Phases'
-                              ),
-                              wp.element.createElement(
-                                  Button,
-                                  {
-                                      isSecondary: true,
-                                      onClick: handleRerunPhase1,
-                                      style: { marginRight: '8px' },
-                                      disabled: phase1RerunLoading,
-                                  },
-                                  phase1RerunLoading ? wp.element.createElement(Spinner, null) : 'Run Discovery'
-                              ),
-                              wp.element.createElement(
-                                  Button,
-                                  {
-                                      isSecondary: true,
-                                      onClick: handleRerunPhase2,
-                                      style: { marginRight: '8px' },
-                                      disabled: phase2RerunLoading,
-                                  },
-                                  phase2RerunLoading ? wp.element.createElement(Spinner, null) : 'Run Research Phase 2'
-                              ),
-                              wp.element.createElement(
-                                  Button,
-                                  {
-                                      isSecondary: true,
-                                      onClick: handleRerunPhase3,
-                                      style: { marginRight: '8px' },
-                                      disabled: phase3RerunLoading || !phase2Complete,
-                                  },
-                                  phase3RerunLoading ? wp.element.createElement(Spinner, null) : 'Run Research Phase 3'
-                              ),
-                              wp.element.createElement(
-                                  Button,
-                                  {
-                                      isSecondary: true,
-                                      onClick: handleRerunPhase4,
-                                      style: { marginRight: '8px' },
-                                      disabled: phase4RerunLoading || !phase3Complete,
-                                  },
-                                  phase4RerunLoading ? wp.element.createElement(Spinner, null) : 'Run Research Phase 4'
-                              ),
-                              wp.element.createElement(
-                                  Button,
-                                  {
-                                      isSecondary: true,
-                                      onClick: handleExportValidation,
-                                      style: { marginRight: '8px' },
-                                      disabled: !phase4Complete,
-                                  },
-                                  'Export Validation'
-                              ),
-                              wp.element.createElement(
-                                  Button,
-                                  {
-                                      isPrimary: true,
-                                      onClick: openSynopsisModal,
-                                      style: { marginRight: '8px' },
-                                      disabled: !phase4Complete,
-                                  },
-                                  'Generate Article Synopses'
-                              ),
-                              wp.element.createElement(
-                                  Button,
-                                  {
-                                      isSecondary: true,
-                                      onClick: handleExportSynopses,
-                                      style: { marginRight: '8px' },
-                                      disabled: !(sessionDetail?.meta?.articles || []).length,
-                                  },
-                                  'Export Synopses'
-                              ),
-                              wp.element.createElement(
-                                  ToggleControl,
-                                  {
-                                      label: 'Auto refresh',
-                                      checked: autoRefreshEnabled,
-                                      onChange: () => setAutoRefreshEnabled((prev) => !prev),
-                                      style: { marginRight: '12px' },
-                                  }
-                              ),
-                              wp.element.createElement(
-                                  Button,
-                                  {
-                                      isSecondary: true,
-                                      onClick: openQueueModal,
-                                      style: { marginRight: '8px' },
-                                  },
-                                  `Queue (${queueCounts?.queued || 0})`
-                              ),
-                              wp.element.createElement(
-                                  Button,
-                                  { isSecondary: true, onClick: refreshSessionDetail },
-                                  'Refresh'
-                              )
-                          )
-                      ),
-                      renderPhaseSummaries(),
-                      renderEditorQueueTable(),
-                      (sessionDetail?.meta?.articles || []).length > 0
-                          ? wp.element.createElement(
-                                wp.element.Fragment,
-                                null,
-                                wp.element.createElement('h2', { style: { marginTop: '16px' } }, 'Article Synopses'),
-                                                                renderArticlesTable(),
-                                                                renderFrameworks()
-                            )
-                          : null
-                  ),
-            diveDeeperModalOpen &&
-                wp.element.createElement(
-                    Modal,
-                    {
-                        title: 'Dive Deeper - Research Depth',
-                        onRequestClose: closeDiveDeeperModal,
-                    },
-                    diveDeeperSuccess
-                        ? wp.element.createElement(
-                              'div',
-                              { style: { textAlign: 'center', padding: '32px 24px' } },
-                              wp.element.createElement(
-                                  'div',
-                                  { style: { fontSize: '48px', lineHeight: 1, marginBottom: '12px' } },
-                                  '✓'
-                              ),
-                              wp.element.createElement(
-                                  'p',
-                                  { style: { fontSize: '16px', fontWeight: '600', color: '#1e7e34', margin: '0 0 8px' } },
-                                  'Source-check complete'
-                              ),
-                              wp.element.createElement(
-                                  'p',
-                                  { style: { fontSize: '13px', color: '#666', margin: 0 } },
-                                  'Supporting evidence has been processed for this article. You can now review updated citations.'
-                              )
-                          )
-                        : isDiveDeeperWorking
-                        ? wp.element.createElement(
-                              'div',
-                              { style: { textAlign: 'center', padding: '32px 24px' } },
-                              wp.element.createElement(Spinner, null),
-                              wp.element.createElement(
-                                  'p',
-                                  { style: { marginTop: '16px', fontSize: '14px', color: '#666' } },
-                                  `${diveDeeperStageMeta.label} · ${THINKING_PHRASES[thinkingPhraseIndex]}...`
-                              ),
-                              wp.element.createElement(
-                                  'div',
-                                  { style: { marginTop: '14px', marginBottom: '10px' } },
-                                  wp.element.createElement(ProgressBar, { value: diveDeeperStageMeta.progress })
-                              ),
-                              wp.element.createElement(
-                                  'p',
-                                  { style: { marginTop: '8px', fontSize: '12px', color: '#666' } },
-                                  diveDeeperStageMeta.detail
-                              ),
-                              wp.element.createElement(
-                                  'p',
-                                  { style: { marginTop: '6px', fontSize: '12px', color: '#999' } },
-                                  `Status: ${diveDeeperStageKey}${diveDeeperElapsedSeconds > 0 ? ` · ${diveDeeperElapsedSeconds}s elapsed` : ''}`
-                              ),
-                              isDiveDeeperStalled &&
-                                  wp.element.createElement(
-                                      Notice,
-                                      { status: 'warning', isDismissible: false },
-                                      wp.element.createElement(
-                                          'div',
-                                          {
-                                              style: {
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  justifyContent: 'space-between',
-                                                  gap: '10px',
-                                              },
-                                          },
-                                          wp.element.createElement(
-                                              'span',
-                                              null,
-                                              'This job has been queued longer than expected. You can retry now.'
-                                          ),
-                                          wp.element.createElement(
-                                              Button,
-                                              {
-                                                  isSecondary: true,
-                                                  onClick: handleDiveDeeperRetry,
-                                                  disabled: isDeepDiveLoading,
-                                              },
-                                              isDeepDiveLoading ? wp.element.createElement(Spinner, null) : 'Retry'
-                                          )
-                                      )
-                                  )
-                          )
-                        : wp.element.createElement(
-                              'div',
-                              { style: { marginBottom: '24px' } },
-                              diveDeeperJobError &&
-                                  wp.element.createElement(
-                                      Notice,
-                                      { status: 'error', isDismissible: false },
-                                      diveDeeperJobError
-                                  ),
-                              wp.element.createElement(
-                                  'p',
-                                  { style: { marginBottom: '16px', color: '#50575e' } },
-                                  'Select how much research depth you want. The slider controls how many citations and how recent the sources should be.'
-                              ),
-                              wp.element.createElement(RangeControl, {
-                                  label: 'Depth Level',
-                                  value: diveDeeperDepthSlider,
-                                  onChange: setDiveDeeperDepthSlider,
-                                  min: 0,
-                                  max: 4,
-                                  step: 1,
-                                  marks: [
-                                      { value: 0, label: 'A bit more' },
-                                      { value: 1, label: '' },
-                                      { value: 2, label: 'Default' },
-                                      { value: 3, label: '' },
-                                      { value: 4, label: 'Deep dive' },
-                                  ],
-                              }),
-                              wp.element.createElement(
-                                  'div',
-                                  { style: { marginTop: '16px', padding: '12px', background: '#f0f0f0', borderRadius: '4px' } },
-                                  wp.element.createElement(
-                                      'strong',
-                                      null,
-                                      'Parameters:'
-                                  ),
-                                  (() => {
-                                      const params = mapSliderToDepthParams(diveDeeperDepthSlider);
-                                      return wp.element.createElement(
-                                          'ul',
-                                          { style: { margin: '8px 0 0', paddingLeft: '20px' } },
-                                          wp.element.createElement(
-                                              'li',
-                                              null,
-                                              `Target: ${params.target_min_citations} citations`
-                                          ),
-                                          wp.element.createElement(
-                                              'li',
-                                              null,
-                                              `Recency: Last ${params.recency_months} months`
-                                          ),
-                                          wp.element.createElement(
-                                              'li',
-                                              null,
-                                              `Sources: ${Object.keys(params.source_mix_minimums).join(', ')}`
-                                          )
-                                      );
-                                  })()
-                              ),
-                              wp.element.createElement(
-                                  'div',
-                                  { style: { marginTop: '24px', display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
-                                  wp.element.createElement(
-                                      Button,
-                                      {
-                                          isSecondary: true,
-                                          onClick: closeDiveDeeperModal,
-                                      },
-                                      'Cancel'
-                                  ),
-                                  wp.element.createElement(
-                                      Button,
-                                      {
-                                          isSecondary: true,
-                                          onClick: handleDiveDeeperQueueSubmit,
-                                          disabled: isDiveDeeperWorking || diveDeeperQueueLoading,
-                                      },
-                                      diveDeeperQueueLoading ? wp.element.createElement(Spinner, null) : 'Add to Queue'
-                                  ),
-                                  wp.element.createElement(
-                                      Button,
-                                      {
-                                          isPrimary: true,
-                                          onClick: handleDiveDeeperSubmit,
-                                          disabled: isDiveDeeperWorking || diveDeeperQueueLoading,
-                                      },
-                                      isDiveDeeperWorking ? wp.element.createElement(Spinner, null) : 'Run Now'
-                                  )
-                              )
-                          )
-                ),
-            queueModalOpen &&
-                wp.element.createElement(
-                    Modal,
-                    {
-                        title: 'Planner Queue',
-                        onRequestClose: () => !queueClearing && setQueueModalOpen(false),
-                    },
-                    queueError && wp.element.createElement(Notice, { status: 'error', isDismissible: false }, queueError),
-                    wp.element.createElement(
-                        'p',
-                        { style: { marginTop: 0, color: '#50575e' } },
-                        `Queued: ${queueCounts?.queued || 0} · Running: ${queueCounts?.running || 0} · Failed: ${queueCounts?.failed || 0}`
-                    ),
-                    queueLoading
-                        ? wp.element.createElement(Spinner, null)
-                        : wp.element.createElement(
-                              'div',
-                              {
-                                  style: {
-                                      maxHeight: '320px',
-                                      overflowY: 'auto',
-                                      border: '1px solid #ddd',
-                                      borderRadius: '4px',
-                                      padding: '8px',
-                                  },
-                              },
-                              queueItems.length
-                                  ? queueItems.map((item) =>
-                                        wp.element.createElement(
-                                            'div',
-                                            {
-                                                key: item.id,
-                                                style: {
-                                                    padding: '8px 6px',
-                                                    borderBottom: '1px solid #eee',
-                                                    fontSize: '12px',
-                                                },
-                                            },
-                                            wp.element.createElement(
-                                                'div',
-                                                { style: { fontWeight: 600 } },
-                                                `${(item.task_type || 'task').replace(/_/g, ' ')} · ${item.status.toUpperCase()} · ${item.created_at}`
-                                            ),
-                                            wp.element.createElement(
-                                                'div',
-                                                { style: { color: '#666', marginTop: '4px' } },
-                                                item.article_id || item.id
-                                            ),
-                                            wp.element.createElement(
-                                                'div',
-                                                { style: { color: '#666', marginTop: '4px', fontSize: '11px' } },
-                                                getQueueProgressDetail(item) || 'No progress detail yet.'
-                                            ),
-                                            wp.element.createElement(
-                                                'div',
-                                                { style: { marginTop: '6px' } },
-                                                wp.element.createElement(
-                                                    Button,
-                                                    {
-                                                        isSecondary: true,
-                                                        onClick: () => runPlannerQueueItem(item.id),
-                                                        disabled: item.status !== 'queued' || !!queueActionLoading[`run:${item.id}`],
-                                                    },
-                                                    queueActionLoading[`run:${item.id}`] ? wp.element.createElement(Spinner, null) : 'Run Now'
-                                                ),
-                                                item.status === 'failed' &&
-                                                    wp.element.createElement(
-                                                        Button,
-                                                        {
-                                                            isSecondary: true,
-                                                            onClick: () => rerunPlannerQueueItem(item),
-                                                            disabled: !!queueActionLoading[`rerun:${item.id}`],
-                                                            style: { marginLeft: '6px' },
-                                                        },
-                                                        queueActionLoading[`rerun:${item.id}`] ? wp.element.createElement(Spinner, null) : 'Retry'
-                                                    ),
-                                                ['queued', 'running', 'dispatched'].includes(item.status || '') &&
-                                                    wp.element.createElement(
-                                                        Button,
-                                                        {
-                                                            isDestructive: true,
-                                                            onClick: () => stopPlannerQueueItem(item.id),
-                                                            disabled: !!queueActionLoading[`stop:${item.id}`],
-                                                            style: { marginLeft: '6px' },
-                                                        },
-                                                        queueActionLoading[`stop:${item.id}`] ? wp.element.createElement(Spinner, null) : 'Stop'
-                                                    )
-                                            )
-                                        )
-                                    )
-                                  : wp.element.createElement(
-                                        'p',
-                                        { style: { margin: 0, color: '#666' } },
-                                        'No queued/running jobs.'
-                                    )
-                          ),
-                    wp.element.createElement(
-                        'div',
-                        { style: { marginTop: '16px', display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
-                        wp.element.createElement(
-                            Button,
-                            { isSecondary: true, onClick: loadPlannerQueue, disabled: queueLoading || queueClearing },
-                            queueLoading ? wp.element.createElement(Spinner, null) : 'Refresh Queue'
-                        ),
-                        wp.element.createElement(
-                            Button,
-                            { isDestructive: true, onClick: clearQueuedJobs, disabled: queueLoading || queueClearing || queueRemoving },
-                            queueClearing ? wp.element.createElement(Spinner, null) : 'Clear Queued'
-                        ),
-                        wp.element.createElement(
-                            Button,
-                            { isDestructive: true, onClick: removeAllQueueItems, disabled: queueLoading || queueClearing || queueRemoving },
-                            queueRemoving ? wp.element.createElement(Spinner, null) : 'Remove All'
-                        )
-                    )
-                ),
-            synopsisModalOpen &&
-                wp.element.createElement(
-                    Modal,
-                    {
-                        title: 'Generate Article Synopses',
-                        onRequestClose: () => (!synopsisGenerateLoading ? setSynopsisModalOpen(false) : null),
-                        style: { minWidth: '60vw' },
-                    },
-                    synopsisPlanLoading
-                        ? wp.element.createElement(Spinner, null)
-                        : synopsisGenerateLoading
-                          ? wp.element.createElement(
-                                'div',
-                                { style: { textAlign: 'center', padding: '24px' } },
-                                wp.element.createElement(Spinner, null),
-                                wp.element.createElement(
-                                    'p',
-                                    { style: { marginTop: '16px', fontSize: '14px', color: '#666' } },
-                                    'Generating article synopses from research data...'
-                                ),
-                                wp.element.createElement(
-                                    'p',
-                                    { style: { fontSize: '12px', color: '#aaa', marginTop: '8px' } },
-                                    'This typically takes 1-5 minutes depending on topic complexity.'
-                                )
-                            )
-                          : wp.element.createElement(
-                              'div',
-                              null,
-                              synopsisPlanError &&
-                                  wp.element.createElement(Notice, { status: 'error', isDismissible: false }, synopsisPlanError),
-                              wp.element.createElement(
-                                  'p',
-                                  { style: { marginTop: '8px' } },
-                                  `Target synopses: ${synopsisTotal}. Current total: ${synopsisPlanTotal}.`
-                              ),
-                              synopsisPlanTotal !== synopsisTotal &&
-                                  wp.element.createElement(
-                                      Notice,
-                                      { status: 'warning', isDismissible: false },
-                                      `Total synopses do not match target (${synopsisTotal}). You can still generate, or adjust counts.`
-                                  ),
-                              wp.element.createElement(
-                                  'div',
-                                  { style: { marginTop: '12px', maxWidth: '240px' } },
-                                  wp.element.createElement(TextControl, {
-                                      label: 'Target total',
-                                      type: 'number',
-                                      min: 1,
-                                      value: synopsisTotal,
-                                      onChange: (value) => setSynopsisTotal(Math.max(1, parseInt(value || 0, 10))),
-                                  })
-                              ),
-                              Object.keys(synopsisPlan).length
-                                  ? wp.element.createElement(
-                                        'div',
-                                        { style: { marginTop: '12px' } },
-                                        Object.keys(synopsisPlan).map((topic) =>
-                                            wp.element.createElement(TextControl, {
-                                                key: topic,
-                                                type: 'number',
-                                                label: topic,
-                                                value: synopsisPlan[topic],
-                                                onChange: (value) => updateSynopsisCount(topic, value),
-                                                min: 0,
-                                            })
-                                        )
-                                    )
-                                  : wp.element.createElement('p', null, 'No validated topics available.'),
-                              wp.element.createElement(
-                                  'div',
-                                  { style: { marginTop: '16px', display: 'flex', justifyContent: 'flex-end' } },
-                                  wp.element.createElement(
-                                      Button,
-                                      { isSecondary: true, onClick: () => setSynopsisModalOpen(false) },
-                                      'Cancel'
-                                  ),
-                                  wp.element.createElement(
-                                      Button,
-                                      {
-                                          isPrimary: true,
-                                          onClick: handleGenerateSynopses,
-                                          disabled: synopsisGenerateLoading || synopsisPlanTotal === 0 || !sessionDetail?.id,
-                                          type: 'button',
-                                          style: { marginLeft: '8px' },
-                                      },
-                                      synopsisGenerateLoading ? wp.element.createElement(Spinner, null) : 'Generate Synopses'
-                                  )
-                              )
-                          )
-                ),
-            previewArticle &&
-                wp.element.createElement(
-                    Modal,
-                    {
-                        title: previewArticle.headline || previewArticle.title || 'Article Preview',
-                        onRequestClose: () => setPreviewArticle(null),
-                        isDismissible: true,
-                        shouldCloseOnClickOutside: false,
-                    },
-                    wp.element.createElement(
-                        'p',
-                        null,
-                        previewArticle.summary || previewArticle.brief || previewArticle.summary_two_sentences || 'No summary.'
-                    ),
-                    previewArticle.key_points &&
-                        previewArticle.key_points.length &&
-                        wp.element.createElement(
-                            'div',
-                            { style: { marginTop: '12px' } },
-                            wp.element.createElement('strong', null, 'Key Points'),
-                            wp.element.createElement(
-                                'ul',
-                                null,
-                                previewArticle.key_points.map((point, idx) =>
-                                    wp.element.createElement('li', { key: idx }, point)
-                                )
-                            )
-                        ),
-                    (previewArticle.keywords || previewArticle.tags) &&
-                        (previewArticle.keywords || previewArticle.tags).length &&
-                        wp.element.createElement(
-                            'p',
-                            { style: { marginTop: '8px', fontSize: '12px', color: '#50575e' } },
-                            `Keywords: ${(previewArticle.keywords || previewArticle.tags).join(', ')}`
-                        ),
-                    previewArticle.recommended_word_count &&
-                        wp.element.createElement(
-                            'p',
-                            { style: { marginTop: '8px', fontSize: '12px', color: '#50575e' } },
-                            `Recommended word count: ${previewArticle.recommended_word_count}`
-                        ),
-                    previewArticle.topic_coverage_level &&
-                        wp.element.createElement(
-                            'p',
-                            { style: { marginTop: '4px', fontSize: '12px', color: '#50575e' } },
-                            `Topic coverage level: ${previewArticle.topic_coverage_level}`
-                        ),
-                    previewArticle.citations &&
-                        previewArticle.citations.length > 0 &&
-                        wp.element.createElement(
-                            'div',
-                            { style: { marginTop: '12px' } },
-                            wp.element.createElement('strong', null, 'Supporting Citations'),
-                            wp.element.createElement(
-                                'ul',
-                                null,
-                                previewArticle.citations.map((citation, idx) =>
-                                    wp.element.createElement(
-                                        'li',
-                                        { key: idx },
-                                        citation.title || citation.url || 'Citation'
-                                    )
-                                )
-                            )
-                        )
-                ),
-            frameworkPreview &&
-                wp.element.createElement(
-                    Modal,
-                    {
-                        title: 'Framework Preview',
-                        onRequestClose: () => setFrameworkPreview(null),
-                        isDismissible: true,
-                        shouldCloseOnClickOutside: false,
-                    },
-                    wp.element.createElement(
-                        'div',
-                        { style: { marginBottom: '12px', display: 'flex', gap: '8px' } },
-                        wp.element.createElement(
-                            Button,
-                            {
-                                isSecondary: true,
-                                onClick: () => handleExportFramework(frameworkPreview),
-                                disabled: !(frameworkPreview?.framework?.output),
-                            },
-                            'Export Framework'
-                        ),
-                        wp.element.createElement(
-                            Button,
-                            {
-                                isSecondary: true,
-                                onClick: () => handleRunAuthorAgent(frameworkPreview),
-                                disabled: !(frameworkPreview?.framework?.output),
-                            },
-                            'Run Author Agent'
-                        )
-                    ),
-                    wp.element.createElement('p', null, frameworkPreview.title || 'Framework'),
-                    frameworkPreview.framework?.output?.title &&
-                        wp.element.createElement(
-                            'div',
-                            { style: { marginTop: '12px' } },
-                            wp.element.createElement('h3', null, frameworkPreview.framework.output.title),
-                            frameworkPreview.framework.output.overview &&
-                                wp.element.createElement(
-                                    'div',
-                                    { style: { marginTop: '8px' } },
-                                    wp.element.createElement('strong', null, 'Overview'),
-                                    wp.element.createElement('p', null, frameworkPreview.framework.output.overview)
-                                ),
-                            frameworkPreview.framework.output.context &&
-                                wp.element.createElement(
-                                    'div',
-                                    { style: { marginTop: '8px' } },
-                                    wp.element.createElement('strong', null, 'Context'),
-                                    wp.element.createElement('p', null, frameworkPreview.framework.output.context)
-                                ),
-                            frameworkPreview.framework.output.application &&
-                                wp.element.createElement(
-                                    'div',
-                                    { style: { marginTop: '8px' } },
-                                    wp.element.createElement('strong', null, 'Application'),
-                                    wp.element.createElement(
-                                        'p',
-                                        null,
-                                        frameworkPreview.framework.output.application.intended_reader
-                                            ? `Intended Reader: ${frameworkPreview.framework.output.application.intended_reader}`
-                                            : null
-                                    ),
-                                    wp.element.createElement(
-                                        'p',
-                                        null,
-                                        frameworkPreview.framework.output.application.use_case
-                                            ? `Use Case: ${frameworkPreview.framework.output.application.use_case}`
-                                            : null
-                                    )
-                                ),
-                            frameworkPreview.framework.output.observations &&
-                                frameworkPreview.framework.output.observations.length > 0 &&
-                                wp.element.createElement(
-                                    'div',
-                                    { style: { marginTop: '8px' } },
-                                    wp.element.createElement('strong', null, 'Observations'),
-                                    wp.element.createElement(
-                                        'ul',
-                                        null,
-                                        frameworkPreview.framework.output.observations.map((item, idx) =>
-                                            wp.element.createElement(
-                                                'li',
-                                                { key: idx },
-                                                wp.element.createElement('strong', null, item.headline || 'Observation'),
-                                                wp.element.createElement('p', null, item.detail || '')
-                                            )
-                                        )
-                                    )
-                                ),
-                            frameworkPreview.framework.output.key_themes &&
-                                frameworkPreview.framework.output.key_themes.length > 0 &&
-                                wp.element.createElement(
-                                    'div',
-                                    { style: { marginTop: '8px' } },
-                                    wp.element.createElement('strong', null, 'Key Themes'),
-                                    wp.element.createElement(
-                                        'ul',
-                                        null,
-                                        frameworkPreview.framework.output.key_themes.map((theme, idx) =>
-                                            wp.element.createElement('li', { key: idx }, theme)
-                                        )
-                                    )
-                                )
-                        ),
-                    !frameworkPreview.framework?.output?.title &&
-                        frameworkPreview.framework?.output?.h2_sections &&
-                        wp.element.createElement(
-                            'div',
-                            { style: { marginTop: '12px' } },
-                            wp.element.createElement('strong', null, 'Framework'),
-                            wp.element.createElement(
-                                'ul',
-                                null,
-                                frameworkPreview.framework.output.h2_sections.map((section, idx) =>
-                                    wp.element.createElement(
-                                        'li',
-                                        { key: idx },
-                                        section.title || 'Section',
-                                        section.h3_sections && section.h3_sections.length
-                                            ? wp.element.createElement(
-                                                  'ul',
-                                                  null,
-                                                  section.h3_sections.map((h3, h3Idx) =>
-                                                      wp.element.createElement('li', { key: h3Idx }, h3)
-                                                  )
-                                              )
-                                            : null
-                                    )
-                                )
-                            )
-                        ),
-                    frameworkPreview.citations &&
-                        frameworkPreview.citations.length > 0 &&
-                        wp.element.createElement(
-                            'div',
-                            { style: { marginTop: '12px' } },
-                            wp.element.createElement('strong', null, 'Citations'),
-                            wp.element.createElement(
-                                'ul',
-                                null,
-                                frameworkPreview.citations.map((citation, idx) =>
-                                    wp.element.createElement(
-                                        'li',
-                                        { key: idx },
-                                        citation.apa || citation.title || citation.url || 'Citation',
-                                        citation.relevance
-                                            ? wp.element.createElement('p', null, citation.relevance)
-                                            : null
-                                    )
-                                )
-                            )
-                        )
-                ),
-            authorPreview &&
-                wp.element.createElement(
-                    Modal,
-                    {
-                        title: 'Author Draft',
-                        onRequestClose: () => setAuthorPreview(null),
-                        isDismissible: true,
-                        shouldCloseOnClickOutside: false,
-                    },
-                    wp.element.createElement(
-                        'div',
-                        { style: { marginBottom: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' } },
-                        wp.element.createElement(
-                            Button,
-                            {
-                                isSecondary: true,
-                                onClick: () => handleExportAuthorDraft(authorPreview),
-                                disabled: !(authorPreview?.author?.output),
-                            },
-                            'Export Draft'
-                        ),
-                        wp.element.createElement(
-                            Button,
-                            {
-                                isSecondary: true,
-                                onClick: () => authorPreview?.author?.edit_url && window.open(authorPreview.author.edit_url, '_blank'),
-                                disabled: !(authorPreview?.author?.edit_url),
-                            },
-                            'Open in Editor'
-                        )
-                    ),
-                    wp.element.createElement(
-                        'div',
-                        {
-                            style: {
-                                marginBottom: '12px',
-                                padding: '10px 12px',
-                                border: '1px solid #dcdcde',
-                                borderRadius: '6px',
-                                background: '#fff',
-                            },
-                        },
-                        wp.element.createElement('strong', null, authorPreview.title || 'Draft'),
-                        wp.element.createElement(
-                            'p',
-                            { style: { margin: '6px 0 0', color: '#50575e' } },
-                            `Profile: ${getAuthorProfileLabel(getSelectedAuthorProfile(authorPreview))} · Recommended: ${getAuthorProfileLabel(getRecommendedAuthorProfile(authorPreview))}`
-                        )
-                    ),
-                    wp.element.createElement(
-                        'div',
-                        {
-                            style: {
-                                whiteSpace: 'pre-wrap',
-                                maxHeight: '60vh',
-                                overflowY: 'auto',
-                                padding: '12px',
-                                border: '1px solid #dcdcde',
-                                borderRadius: '6px',
-                                background: '#fff',
-                            },
-                        },
-                        authorPreview.author?.output?.draft ||
-                            authorPreview.author?.output?.content ||
-                            'No draft available.'
-                    )
-                )
-        );
-    }
 
-    // Render the sessions list page (default view)
-    return wp.element.createElement(
-        'div',
-        { className: 'editorial-planner-dashboard' },
-        wp.element.createElement(
-            'div',
-            { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-            wp.element.createElement('h1', null, 'Article Planner'),
-            wp.element.createElement(
-                Button,
-                {
-                    isPrimary: true,
-                    onClick: navigateToNewSession,
-                },
-                'Start New Session'
-            )
-        ),
-        sessionsError && wp.element.createElement(Notice, { status: 'error', isDismissible: false }, sessionsError),
-        loadingSessions
-            ? wp.element.createElement(Spinner, null)
-            : wp.element.createElement(
-                  Card,
-                  { style: { marginTop: '16px' } },
-                  wp.element.createElement(CardHeader, null, 'Recent Sessions'),
-                  wp.element.createElement(
-                      CardBody,
-                      null,
-                      sessions.length
-                          ? wp.element.createElement(
-                                'table',
-                                { className: 'widefat striped' },
-                                wp.element.createElement(
-                                    'thead',
-                                    null,
-                                    wp.element.createElement(
-                                        'tr',
-                                        null,
-                                        wp.element.createElement('th', null, 'Title'),
-                                        wp.element.createElement('th', null, 'Topic'),
-                                        wp.element.createElement('th', null, 'Created'),
-                                        wp.element.createElement('th', null, 'Actions')
-                                    )
-                                ),
-                                wp.element.createElement(
-                                    'tbody',
-                                    null,
-                                    sessions.map((session) =>
-                                        wp.element.createElement(
-                                            'tr',
-                                            { key: session.id },
-                                            wp.element.createElement('td', null, session.title || session.meta?.topic || session.id),
-                                            wp.element.createElement('td', null, session.meta?.topic || '—'),
-                                            wp.element.createElement('td', null, session.created_at || '—'),
-                                            wp.element.createElement(
-                                                'td',
-                                                null,
-                                                wp.element.createElement(
-                                                    Button,
-                                                    {
-                                                        isSecondary: true,
-                                                        onClick: () => navigateToSession(session.id),
-                                                    },
-                                                    'View'
-                                                )
-                                            )
-                                        )
-                                    )
-                                )
-                            )
-                          : wp.element.createElement('p', null, 'No planning sessions yet — start your first above now!')
-                  )
-              ),
-        startModalOpen &&
-            wp.element.createElement(
-                Modal,
-                {
-                    title: 'Start a New Planning Session',
-                    onRequestClose: () => setStartModalOpen(false),
-                },
-                wp.element.createElement(SelectControl, {
-                    label: 'Top-line Topic',
-                    value: selectedTopic,
-                    options: topicOptions,
-                    onChange: setSelectedTopic,
-                }),
-                wp.element.createElement(FormTokenField, {
-                    label: 'Includes',
-                    value: includes,
-                    onChange: setIncludes,
-                    placeholder: 'Add include terms',
-                }),
-                wp.element.createElement(FormTokenField, {
-                    label: 'Excludes',
-                    value: excludes,
-                    onChange: setExcludes,
-                    placeholder: 'Add exclude terms',
-                }),
-                wp.element.createElement(
-                    'div',
-                    { style: { marginTop: '16px', display: 'flex', justifyContent: 'flex-end' } },
-                    wp.element.createElement(
-                        Button,
-                        { isSecondary: true, onClick: () => setStartModalOpen(false) },
-                        'Cancel'
-                    ),
-                    wp.element.createElement(
-                        Button,
-                        {
-                            isPrimary: true,
-                            onClick: startNewSession,
-                            disabled: starting,
-                            style: { marginLeft: '8px' },
-                        },
-                        starting ? wp.element.createElement(Spinner, null) : 'Start New Session'
-                    )
-                )
-            ),
-        detailModalOpen &&
-            wp.element.createElement(
-                Modal,
-                {
-                    title: sessionDetail?.title || 'Session Detail',
-                    onRequestClose: navigateBack,
-                    style: { minWidth: '70vw' },
-                },
-                detailLoading
-                    ? wp.element.createElement(Spinner, null)
-                    : wp.element.createElement(
-                          'div',
-                          null,
-                          detailError && wp.element.createElement(Notice, { status: 'error', isDismissible: false }, detailError),
-                          showFocusControls &&
-                              wp.element.createElement(
-                                  'div',
-                                  {
-                                      style: {
-                                          marginBottom: '12px',
-                                          padding: '12px',
-                                          border: '1px solid #dcdcde',
-                                          borderRadius: '6px',
-                                          background: '#f6f7f7',
-                                      },
-                                  },
-                                  wp.element.createElement('strong', null, 'Focus vs Breadth'),
-                                  wp.element.createElement(
-                                      'p',
-                                      { style: { margin: '6px 0 8px', color: '#50575e' } },
-                                      `Current setting: ${focusLabel} (${focusLevel})`
-                                  ),
-                                  wp.element.createElement(RangeControl, {
-                                      value: focusLevel,
-                                      min: 0,
-                                      max: 100,
-                                      step: 5,
-                                      onChange: (value) => {
-                                          setFocusDirty(true);
-                                          setFocusLevel(value);
-                                      },
-                                      help: 'Lower = broader coverage; higher = tighter focus.',
-                                  }),
-                                  wp.element.createElement(
-                                      'p',
-                                      { style: { margin: '6px 0 0', fontSize: '12px', color: '#50575e' } },
-                                      synopsisEstimate.estimate > 0
-                                          ? `Estimated synopses: ${synopsisEstimate.min}–${synopsisEstimate.max} (target 20).`
-                                          : 'Estimated synopses available after Phase 2.'
-                                  )
-                              ),
-                          wp.element.createElement(
-                              'div',
-                              {
-                                  style: {
-                                      marginBottom: '12px',
-                                      padding: '12px',
-                                      border: '1px solid #dcdcde',
-                                      borderRadius: '6px',
-                                      background: '#fff',
-                                  },
-                              },
-                              wp.element.createElement('strong', null, 'Effective Research Policy'),
-                              researchValidationLoading
-                                  ? wp.element.createElement('p', { style: { margin: '8px 0 0' } }, 'Loading policy…')
-                                  : wp.element.createElement(
-                                        wp.element.Fragment,
-                                        null,
-                                        wp.element.createElement(
-                                            'p',
-                                            { style: { margin: '8px 0 4px', color: '#50575e' } },
-                                            `Recency: ${researchPolicyDetail?.recency_months ?? '—'} months · Source mix minimums: academic ${researchPolicyDetail?.source_mix_minimums?.academic ?? 0}, analyst ${researchPolicyDetail?.source_mix_minimums?.analyst ?? 0}, industry ${researchPolicyDetail?.source_mix_minimums?.industry ?? 0}, case study ${researchPolicyDetail?.source_mix_minimums?.case_study ?? 0}`
-                                        ),
-                                        wp.element.createElement(
-                                            'p',
-                                            { style: { margin: '4px 0', color: '#50575e' } },
-                                            `Blocked domains: ${formatPolicyDomainList(researchPolicyDetail?.blocked_domains)}`
-                                        )
-                                    ),
-                              wp.element.createElement('h4', { style: { margin: '12px 0 8px' } }, 'Edit Policy'),
-                              wp.element.createElement(RangeControl, {
-                                  label: 'Recency Window (months)',
-                                  value: Number(policyDraft?.recency_months ?? DEFAULT_RESEARCH_POLICY.recency_months),
-                                  onChange: (value) => {
-                                      setPolicyDirty(true);
-                                      setPolicyDraft((prev) => ({
-                                          ...prev,
-                                          recency_months: Number(value || DEFAULT_RESEARCH_POLICY.recency_months),
-                                      }));
-                                  },
-                                  min: 1,
-                                  max: 60,
-                                  step: 1,
-                              }),
-                              wp.element.createElement('p', { style: { margin: '6px 0', fontWeight: '500' } }, 'Source Mix Minimums'),
-                              wp.element.createElement(RangeControl, {
-                                  label: 'Academic',
-                                  value: Number(policyDraft?.source_mix_minimums?.academic ?? 0),
-                                  onChange: (value) => {
-                                      setPolicyDirty(true);
-                                      setPolicyDraft((prev) => ({
-                                          ...prev,
-                                          source_mix_minimums: {
-                                              ...prev.source_mix_minimums,
-                                              academic: Number(value || 0),
-                                          },
-                                      }));
-                                  },
-                                  min: 0,
-                                  max: 3,
-                                  step: 1,
-                              }),
-                              wp.element.createElement(RangeControl, {
-                                  label: 'Analyst',
-                                  value: Number(policyDraft?.source_mix_minimums?.analyst ?? 0),
-                                  onChange: (value) => {
-                                      setPolicyDirty(true);
-                                      setPolicyDraft((prev) => ({
-                                          ...prev,
-                                          source_mix_minimums: {
-                                              ...prev.source_mix_minimums,
-                                              analyst: Number(value || 0),
-                                          },
-                                      }));
-                                  },
-                                  min: 0,
-                                  max: 3,
-                                  step: 1,
-                              }),
-                              wp.element.createElement(RangeControl, {
-                                  label: 'Industry',
-                                  value: Number(policyDraft?.source_mix_minimums?.industry ?? 0),
-                                  onChange: (value) => {
-                                      setPolicyDirty(true);
-                                      setPolicyDraft((prev) => ({
-                                          ...prev,
-                                          source_mix_minimums: {
-                                              ...prev.source_mix_minimums,
-                                              industry: Number(value || 0),
-                                          },
-                                      }));
-                                  },
-                                  min: 0,
-                                  max: 3,
-                                  step: 1,
-                              }),
-                              wp.element.createElement(RangeControl, {
-                                  label: 'Case Study',
-                                  value: Number(policyDraft?.source_mix_minimums?.case_study ?? 0),
-                                  onChange: (value) => {
-                                      setPolicyDirty(true);
-                                      setPolicyDraft((prev) => ({
-                                          ...prev,
-                                          source_mix_minimums: {
-                                              ...prev.source_mix_minimums,
-                                              case_study: Number(value || 0),
-                                          },
-                                      }));
-                                  },
-                                  min: 0,
-                                  max: 3,
-                                  step: 1,
-                              }),
-                              wp.element.createElement(FormTokenField, {
-                                  label: 'Blocked Domains',
-                                  value: policyDraft?.blocked_domains || [],
-                                  onChange: (value) => {
-                                      setPolicyDirty(true);
-                                      setPolicyDraft((prev) => ({ ...prev, blocked_domains: value }));
-                                  },
-                                  placeholder: 'Add domains like quora.com',
-                              }),
-                              wp.element.createElement(
-                                  'div',
-                                  { style: { marginTop: '8px', display: 'flex', gap: '8px' } },
-                                  wp.element.createElement(
-                                      Button,
-                                      {
-                                          isPrimary: true,
-                                          onClick: handleSavePolicy,
-                                          disabled: policySaving || !policyDirty,
-                                      },
-                                      policySaving ? wp.element.createElement(Spinner, null) : 'Save Policy'
-                                  ),
-                                  wp.element.createElement(
-                                      Button,
-                                      {
-                                          isSecondary: true,
-                                          onClick: handleResetPolicyDraft,
-                                          disabled: policySaving,
-                                      },
-                                      'Reset'
-                                  )
-                              ),
-                              wp.element.createElement(
-                                  'p',
-                                  { style: { margin: '6px 0 0', fontSize: '12px', color: '#50575e' } },
-                                  'Saving policy updates enforcement without re-running planner.'
-                              ),
-                              wp.element.createElement(
-                                  'p',
-                                  { style: { margin: '8px 0 4px', fontWeight: '500' } },
-                                  `Validation Issues: ${researchValidationDetail?.summary?.error_count ?? 0} errors, ${researchValidationDetail?.summary?.warning_count ?? 0} warnings`
-                              ),
-                              hasProviderErrors &&
-                                  wp.element.createElement(
-                                      'div',
-                                      {
-                                          style: {
-                                              margin: '8px 0 8px',
-                                              padding: '10px',
-                                              border: '1px solid #d63638',
-                                              borderRadius: '4px',
-                                              background: '#fff5f5',
-                                          },
-                                      },
-                                      wp.element.createElement('strong', null, 'Search Provider Action Required'),
-                                      wp.element.createElement(
-                                          'p',
-                                          { style: { margin: '6px 0 0' } },
-                                          providerAdminInstruction
-                                      ),
-                                      serpapiIssue
-                                          ? wp.element.createElement(
-                                                'p',
-                                                { style: { margin: '6px 0 0', fontSize: '12px', color: '#7a1f1f' } },
-                                                `Detected provider error: ${serpapiIssue}`
-                                            )
-                                          : null
-                                  ),
-                              (researchValidationDetail?.issues || []).length > 0 &&
-                                  wp.element.createElement(
-                                      'ul',
-                                      { style: { margin: '0', paddingLeft: '18px' } },
-                                      (researchValidationDetail.issues || []).slice(0, 5).map((issue, index) =>
-                                          wp.element.createElement(
-                                              'li',
-                                              { key: `${issue.code || 'issue'}-${index}`, style: { marginBottom: '4px' } },
-                                              `${(issue.severity || 'warning').toUpperCase()}: ${issue.message || issue.code || 'Validation issue'}`
-                                          )
-                                      )
-                                  )
-                          ),
-                          wp.element.createElement(
-                              'div',
-                              {
-                                  style: {
-                                      marginBottom: '12px',
-                                      padding: '12px',
-                                      border: '1px solid #dcdcde',
-                                      borderRadius: '6px',
-                                      background: '#fff',
-                                  },
-                              },
-                              wp.element.createElement('strong', null, 'Effective Author Policy'),
-                              authorPolicyLoading
-                                  ? wp.element.createElement('p', { style: { margin: '8px 0 0' } }, 'Loading author policy…')
-                                  : wp.element.createElement(
-                                        wp.element.Fragment,
-                                        null,
-                                        wp.element.createElement(
-                                            'p',
-                                            { style: { margin: '8px 0 4px', color: '#50575e' } },
-                                            `Word range: ${authorPolicyDetail?.min_words ?? DEFAULT_AUTHOR_POLICY.min_words}-${authorPolicyDetail?.max_words ?? DEFAULT_AUTHOR_POLICY.max_words} · Reporter voice: ${(authorPolicyDetail?.reporter_voice_required ?? true) ? 'required' : 'optional'} · First-person: ${(authorPolicyDetail?.disallow_first_person ?? true) ? 'disallowed' : 'allowed'}`
-                                        ),
-                                        wp.element.createElement(
-                                            'p',
-                                            { style: { margin: '4px 0', color: '#50575e' } },
-                                            `Em dash: ${(authorPolicyDetail?.disallow_em_dash ?? true) ? 'disallowed' : 'allowed'} · Rhetorical binaries: ${(authorPolicyDetail?.disallow_rhetorical_binaries ?? true) ? 'disallowed' : 'allowed'} · Listicle framing: ${(authorPolicyDetail?.disallow_listicle_framing ?? true) ? 'disallowed' : 'allowed'} · Tidy conclusions: ${(authorPolicyDetail?.disallow_tidy_conclusion ?? true) ? 'disallowed' : 'allowed'}`
-                                        )
-                                    ),
-                              wp.element.createElement('h4', { style: { margin: '12px 0 8px' } }, 'Edit Author Policy'),
-                              wp.element.createElement(ToggleControl, {
-                                  label: 'Require reporter voice',
-                                  checked: Boolean(authorPolicyDraft?.reporter_voice_required),
-                                  onChange: (value) => {
-                                      setAuthorPolicyDirty(true);
-                                      setAuthorPolicyDraft((prev) => ({ ...prev, reporter_voice_required: Boolean(value) }));
-                                  },
-                              }),
-                              wp.element.createElement(ToggleControl, {
-                                  label: 'Disallow first-person pronouns',
-                                  checked: Boolean(authorPolicyDraft?.disallow_first_person),
-                                  onChange: (value) => {
-                                      setAuthorPolicyDirty(true);
-                                      setAuthorPolicyDraft((prev) => ({ ...prev, disallow_first_person: Boolean(value) }));
-                                  },
-                              }),
-                              wp.element.createElement(ToggleControl, {
-                                  label: 'Disallow em dashes',
-                                  checked: Boolean(authorPolicyDraft?.disallow_em_dash),
-                                  onChange: (value) => {
-                                      setAuthorPolicyDirty(true);
-                                      setAuthorPolicyDraft((prev) => ({ ...prev, disallow_em_dash: Boolean(value) }));
-                                  },
-                              }),
-                              wp.element.createElement(ToggleControl, {
-                                  label: 'Disallow rhetorical binaries',
-                                  checked: Boolean(authorPolicyDraft?.disallow_rhetorical_binaries),
-                                  onChange: (value) => {
-                                      setAuthorPolicyDirty(true);
-                                      setAuthorPolicyDraft((prev) => ({ ...prev, disallow_rhetorical_binaries: Boolean(value) }));
-                                  },
-                              }),
-                              wp.element.createElement(ToggleControl, {
-                                  label: 'Disallow listicle framing',
-                                  checked: Boolean(authorPolicyDraft?.disallow_listicle_framing),
-                                  onChange: (value) => {
-                                      setAuthorPolicyDirty(true);
-                                      setAuthorPolicyDraft((prev) => ({ ...prev, disallow_listicle_framing: Boolean(value) }));
-                                  },
-                              }),
-                              wp.element.createElement(ToggleControl, {
-                                  label: 'Disallow tidy conclusions',
-                                  checked: Boolean(authorPolicyDraft?.disallow_tidy_conclusion),
-                                  onChange: (value) => {
-                                      setAuthorPolicyDirty(true);
-                                      setAuthorPolicyDraft((prev) => ({ ...prev, disallow_tidy_conclusion: Boolean(value) }));
-                                  },
-                              }),
-                              wp.element.createElement(TextControl, {
-                                  label: 'Minimum words',
-                                  type: 'number',
-                                  min: 300,
-                                  value: Number(authorPolicyDraft?.min_words ?? DEFAULT_AUTHOR_POLICY.min_words),
-                                  onChange: (value) => {
-                                      setAuthorPolicyDirty(true);
-                                      setAuthorPolicyDraft((prev) => ({ ...prev, min_words: Number(value || DEFAULT_AUTHOR_POLICY.min_words) }));
-                                  },
-                              }),
-                              wp.element.createElement(TextControl, {
-                                  label: 'Maximum words',
-                                  type: 'number',
-                                  min: 300,
-                                  value: Number(authorPolicyDraft?.max_words ?? DEFAULT_AUTHOR_POLICY.max_words),
-                                  onChange: (value) => {
-                                      setAuthorPolicyDirty(true);
-                                      setAuthorPolicyDraft((prev) => ({ ...prev, max_words: Number(value || DEFAULT_AUTHOR_POLICY.max_words) }));
-                                  },
-                              }),
-                              wp.element.createElement(FormTokenField, {
-                                  label: 'Banned phrases',
-                                  value: authorPolicyDraft?.banned_phrases || [],
-                                  onChange: (value) => {
-                                      setAuthorPolicyDirty(true);
-                                      setAuthorPolicyDraft((prev) => ({ ...prev, banned_phrases: value }));
-                                  },
-                                  placeholder: 'Add banned words/phrases',
-                              }),
-                              wp.element.createElement(
-                                  'div',
-                                  { style: { marginTop: '8px', display: 'flex', gap: '8px' } },
-                                  wp.element.createElement(
-                                      Button,
-                                      {
-                                          isPrimary: true,
-                                          onClick: handleSaveAuthorPolicy,
-                                          disabled: authorPolicySaving || !authorPolicyDirty,
-                                      },
-                                      authorPolicySaving ? wp.element.createElement(Spinner, null) : 'Save Author Policy'
-                                  ),
-                                  wp.element.createElement(
-                                      Button,
-                                      {
-                                          isSecondary: true,
-                                          onClick: handleResetAuthorPolicyDraft,
-                                          disabled: authorPolicySaving,
-                                      },
-                                      'Reset'
-                                  )
-                              ),
-                              wp.element.createElement(
-                                  'p',
-                                  { style: { margin: '6px 0 0', fontSize: '12px', color: '#50575e' } },
-                                  'Saving author policy updates enforcement without re-running planner.'
-                              ),
-                              wp.element.createElement(
-                                  'p',
-                                  { style: { margin: '8px 0 4px', fontWeight: '500' } },
-                                  `Author Validation: ${authorValidationSummary.error_count} errors, ${authorValidationSummary.warning_count} warnings across ${authorValidationSummary.drafts_with_output} drafts${authorValidationSummary.drafts_failed > 0 ? ` · ${authorValidationSummary.drafts_failed} failed runs` : ''}`
-                              ),
-                              authorValidationSummary.issues.length > 0 &&
-                                  wp.element.createElement(
-                                      'ul',
-                                      { style: { margin: '0', paddingLeft: '18px' } },
-                                      authorValidationSummary.issues.slice(0, 5).map((issue, index) =>
-                                          wp.element.createElement(
-                                              'li',
-                                              { key: `author-issue-${index}`, style: { marginBottom: '4px' } },
-                                              `${issue.severity.toUpperCase()}: ${issue.message}`
-                                          )
-                                      )
-                                  ),
-                              authorValidationSummary.issues.length === 0 &&
-                                  wp.element.createElement(
-                                      'p',
-                                      { style: { margin: '4px 0', color: '#50575e' } },
-                                      'No author validation issues captured yet.'
-                                  )
-                              )
-                          ),
-                          wp.element.createElement(
-                              'div',
-                              { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-                              wp.element.createElement(
-                                  'div',
-                                  null,
-                                  wp.element.createElement('h2', null, 'Phase Summaries')
-                              ),
-                              wp.element.createElement(
-                                  'div',
-                                  null,
-                                  wp.element.createElement(
-                                      Button,
-                                      {
-                                          isSecondary: true,
-                                          onClick: handleRerunPhase1,
-                                          style: { marginRight: '8px' },
-                                          disabled: phase1RerunLoading,
-                                      },
-                                      phase1RerunLoading ? wp.element.createElement(Spinner, null) : 'Run Discovery'
-                                  ),
-                                  wp.element.createElement(
-                                      Button,
-                                      {
-                                          isSecondary: true,
-                                          onClick: handleRerunPhase2,
-                                          style: { marginRight: '8px' },
-                                          disabled: phase2RerunLoading,
-                                      },
-                                      phase2RerunLoading ? wp.element.createElement(Spinner, null) : 'Run Research Phase 2'
-                                  ),
-                                  wp.element.createElement(
-                                      Button,
-                                      {
-                                          isSecondary: true,
-                                          onClick: handleRerunPhase3,
-                                          style: { marginRight: '8px' },
-                                          disabled: phase3RerunLoading || !phase2Complete,
-                                      },
-                                      phase3RerunLoading ? wp.element.createElement(Spinner, null) : 'Run Research Phase 3'
-                                  ),
-                                  wp.element.createElement(
-                                      Button,
-                                      {
-                                          isSecondary: true,
-                                          onClick: handleRerunPhase4,
-                                          style: { marginRight: '8px' },
-                                          disabled: phase4RerunLoading || !phase3Complete,
-                                      },
-                                      phase4RerunLoading ? wp.element.createElement(Spinner, null) : 'Run Research Phase 4'
-                                  ),
-                                  wp.element.createElement(
-                                      Button,
-                                      {
-                                          isSecondary: true,
-                                          onClick: handleExportValidation,
-                                          style: { marginRight: '8px' },
-                                          disabled: !phase4Complete,
-                                      },
-                                      'Export Validation'
-                                  ),
-                                  wp.element.createElement(
-                                      Button,
-                                      {
-                                          isPrimary: true,
-                                          onClick: openSynopsisModal,
-                                          style: { marginRight: '8px' },
-                                          disabled: !phase4Complete,
-                                      },
-                                      'Generate Article Synopses'
-                                  ),
-                                  wp.element.createElement(
-                                      Button,
-                                      {
-                                          isSecondary: true,
-                                          onClick: handleExportSynopses,
-                                          style: { marginRight: '8px' },
-                                          disabled: !(sessionDetail?.meta?.articles || []).length,
-                                      },
-                                      'Export Synopses'
-                                  ),
-                                  wp.element.createElement(
-                                      ToggleControl,
-                                      {
-                                          label: 'Auto refresh',
-                                          checked: autoRefreshEnabled,
-                                          onChange: () => setAutoRefreshEnabled((prev) => !prev),
-                                          style: { marginRight: '12px' },
-                                      }
-                                  ),
-                                  wp.element.createElement(
-                                      Button,
-                                      { isSecondary: true, onClick: refreshSessionDetail },
-                                      'Refresh'
-                                  )
-                              )
-                          ),
-                          renderPhaseSummaries(),
-                          (sessionDetail?.meta?.articles || []).length > 0
-                              ? wp.element.createElement(
-                                    wp.element.Fragment,
-                                    null,
-                                    wp.element.createElement('h2', { style: { marginTop: '16px' } }, 'Article Synopses'),
-                                                                        renderArticlesTable(),
-                                                                        renderFrameworks()
-                                )
-                              : null
-            ),
-        detailModalOpen &&
-            showThinkingIndicator &&
-            wp.element.createElement(
-                'div',
-                {
-                    style: {
-                        position: 'fixed',
-                        inset: 0,
-                        zIndex: 100000,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: 'rgba(17, 24, 39, 0.28)',
-                        backdropFilter: 'blur(6px)',
-                        WebkitBackdropFilter: 'blur(6px)',
-                    },
-                },
-                wp.element.createElement(
-                    'div',
-                    {
-                        style: {
-                            minWidth: '320px',
-                            maxWidth: '560px',
-                            padding: '24px 28px',
-                            borderRadius: '14px',
-                            background: '#ffffff',
-                            boxShadow: '0 24px 60px rgba(15, 23, 42, 0.25)',
-                            textAlign: 'center',
-                        },
-                    },
-                    wp.element.createElement('div', { style: { fontSize: '30px', marginBottom: '8px' } }, '✨'),
-                    wp.element.createElement('h3', { style: { margin: '0 0 8px' } }, activePhaseLabel || 'Working'),
-                    wp.element.createElement(
-                        'p',
-                        { style: { margin: '0 0 16px', color: '#50575e', fontSize: '16px', fontStyle: 'italic' } },
-                        THINKING_PHRASES[thinkingPhraseIndex] + '...'
-                    ),
-                    wp.element.createElement(
-                        'div',
-                        { style: { display: 'flex', justifyContent: 'center', marginBottom: '12px' } },
-                        wp.element.createElement(Spinner, null)
-                    ),
-                    wp.element.createElement(
-                        'p',
-                        { style: { margin: 0, fontSize: '13px', color: '#6b7280' } },
-                        'Please wait while the planner updates this phase.'
-                    )
-                )
-            ),
-        synopsisModalOpen &&
-            wp.element.createElement(
-                Modal,
-                {
-                    title: 'Generate Article Synopses',
-                    onRequestClose: () => (!synopsisGenerateLoading ? setSynopsisModalOpen(false) : null),
-                    style: { minWidth: '60vw' },
-                },
-                synopsisPlanLoading
-                    ? wp.element.createElement(Spinner, null)
-                    : synopsisGenerateLoading
-                      ? wp.element.createElement(
-                            'div',
-                            { style: { textAlign: 'center', padding: '24px' } },
-                            wp.element.createElement('div', { style: { fontSize: '28px', marginBottom: '10px' } }, '✨'),
-                            wp.element.createElement(Spinner, null),
-                            wp.element.createElement(
-                                'p',
-                                { style: { marginTop: '16px', fontSize: '18px', color: '#444', fontStyle: 'italic' } },
-                                `${THINKING_PHRASES[thinkingPhraseIndex]}...`
-                            ),
-                            wp.element.createElement(
-                                'p',
-                                { style: { marginTop: '10px', fontSize: '14px', color: '#666' } },
-                                'Generating article synopses from research data...'
-                            ),
-                            wp.element.createElement(
-                                'p',
-                                { style: { fontSize: '12px', color: '#aaa', marginTop: '8px' } },
-                                'This typically takes 1-5 minutes depending on topic complexity.'
-                            )
-                        )
-                      : wp.element.createElement(
-                          'div',
-                          null,
-                          synopsisPlanError &&
-                              wp.element.createElement(Notice, { status: 'error', isDismissible: false }, synopsisPlanError),
-                          wp.element.createElement(
-                              'p',
-                              { style: { marginTop: '8px' } },
-                              `Target synopses: ${synopsisTotal}. Current total: ${synopsisPlanTotal}.`
-                          ),
-                          synopsisPlanTotal !== synopsisTotal &&
-                              wp.element.createElement(
-                                  Notice,
-                                  { status: 'warning', isDismissible: false },
-                                  `Total synopses do not match target (${synopsisTotal}). You can still generate, or adjust counts.`
-                              ),
-                          wp.element.createElement(
-                              'div',
-                              { style: { marginTop: '12px', maxWidth: '240px' } },
-                              wp.element.createElement(TextControl, {
-                                  label: 'Target total',
-                                  type: 'number',
-                                  min: 1,
-                                  value: synopsisTotal,
-                                  onChange: (value) => setSynopsisTotal(Math.max(1, parseInt(value || 0, 10))),
-                              })
-                          ),
-                          Object.keys(synopsisPlan).length
-                              ? wp.element.createElement(
-                                    'div',
-                                    { style: { marginTop: '12px' } },
-                                    Object.keys(synopsisPlan).map((topic) =>
-                                        wp.element.createElement(TextControl, {
-                                            key: topic,
-                                            type: 'number',
-                                            label: topic,
-                                            value: synopsisPlan[topic],
-                                            onChange: (value) => updateSynopsisCount(topic, value),
-                                            min: 0,
-                                        })
-                                    )
-                                )
-                              : wp.element.createElement('p', null, 'No validated topics available.'),
-                          wp.element.createElement(
-                              'div',
-                              { style: { marginTop: '16px', display: 'flex', justifyContent: 'flex-end' } },
-                              wp.element.createElement(
-                                  Button,
-                                  { isSecondary: true, onClick: () => setSynopsisModalOpen(false) },
-                                  'Cancel'
-                              ),
-                              wp.element.createElement(
-                                  Button,
-                                  {
-                                      isPrimary: true,
-                                      onClick: handleGenerateSynopses,
-                                      disabled: synopsisGenerateLoading || synopsisPlanTotal === 0 || !sessionDetail?.id,
-                                      type: 'button',
-                                      style: { marginLeft: '8px' },
-                                  },
-                                  synopsisGenerateLoading ? wp.element.createElement(Spinner, null) : 'Generate Synopses'
-                              )
-                          )
-                      )
-            ),
-        previewArticle &&
-            wp.element.createElement(
-                Modal,
-                {
-                    title: previewArticle.headline || previewArticle.title || 'Article Preview',
-                    onRequestClose: () => setPreviewArticle(null),
-                    isDismissible: true,
-                    shouldCloseOnClickOutside: false,
-                },
-                wp.element.createElement(
-                    'p',
-                    null,
-                    previewArticle.summary || previewArticle.brief || previewArticle.summary_two_sentences || 'No summary.'
-                ),
-                previewArticle.key_points &&
-                    previewArticle.key_points.length &&
-                    wp.element.createElement(
-                        'div',
-                        { style: { marginTop: '12px' } },
-                        wp.element.createElement('strong', null, 'Key Points'),
-                        wp.element.createElement(
-                            'ul',
-                            null,
-                            previewArticle.key_points.map((point, idx) =>
-                                wp.element.createElement('li', { key: idx }, point)
-                            )
-                        )
-                    ),
-                (previewArticle.keywords || previewArticle.tags) &&
-                    (previewArticle.keywords || previewArticle.tags).length &&
-                    wp.element.createElement(
-                        'p',
-                        { style: { marginTop: '8px', fontSize: '12px', color: '#50575e' } },
-                        `Keywords: ${(previewArticle.keywords || previewArticle.tags).join(', ')}`
-                    ),
-                previewArticle.recommended_word_count &&
-                    wp.element.createElement(
-                        'p',
-                        { style: { marginTop: '8px', fontSize: '12px', color: '#50575e' } },
-                        `Recommended word count: ${previewArticle.recommended_word_count}`
-                    ),
-                previewArticle.topic_coverage_level &&
-                    wp.element.createElement(
-                        'p',
-                        { style: { marginTop: '4px', fontSize: '12px', color: '#50575e' } },
-                        `Topic coverage level: ${previewArticle.topic_coverage_level}`
-                    ),
-                previewArticle.citations &&
-                    previewArticle.citations.length > 0 &&
-                    wp.element.createElement(
-                        'div',
-                        { style: { marginTop: '12px' } },
-                        wp.element.createElement('strong', null, 'Supporting Citations'),
-                        wp.element.createElement(
-                            'ul',
-                            null,
-                            previewArticle.citations.map((citation, idx) =>
-                                wp.element.createElement(
-                                    'li',
-                                    { key: idx },
-                                    citation.title || citation.url || 'Citation'
-                                )
-                            )
-                        )
-                    )
-            ),
-        frameworkPreview &&
-            wp.element.createElement(
-                Modal,
-                {
-                    title: 'Framework Preview',
-                    onRequestClose: () => setFrameworkPreview(null),
-                    isDismissible: true,
-                    shouldCloseOnClickOutside: false,
-                },
-                wp.element.createElement(
-                    'div',
-                    { style: { marginBottom: '12px', display: 'flex', gap: '8px' } },
-                    wp.element.createElement(
-                        Button,
-                        {
-                            isSecondary: true,
-                            onClick: () => handleExportFramework(frameworkPreview),
-                            disabled: !(frameworkPreview?.framework?.output),
-                        },
-                        'Export Framework'
-                    ),
-                    wp.element.createElement(
-                        Button,
-                        {
-                            isSecondary: true,
-                            onClick: () => handleRunAuthorAgent(frameworkPreview),
-                            disabled: !(frameworkPreview?.framework?.output),
-                        },
-                        'Run Author Agent'
-                    )
-                ),
-                wp.element.createElement('p', null, frameworkPreview.title || 'Framework'),
-                frameworkPreview.framework?.output?.title &&
-                    wp.element.createElement(
-                        'div',
-                        { style: { marginTop: '12px' } },
-                        wp.element.createElement('h3', null, frameworkPreview.framework.output.title),
-                        frameworkPreview.framework.output.overview &&
-                            wp.element.createElement(
-                                'div',
-                                { style: { marginTop: '8px' } },
-                                wp.element.createElement('strong', null, 'Overview'),
-                                wp.element.createElement('p', null, frameworkPreview.framework.output.overview)
-                            ),
-                        frameworkPreview.framework.output.context &&
-                            wp.element.createElement(
-                                'div',
-                                { style: { marginTop: '8px' } },
-                                wp.element.createElement('strong', null, 'Context'),
-                                wp.element.createElement('p', null, frameworkPreview.framework.output.context)
-                            ),
-                        frameworkPreview.framework.output.application &&
-                            wp.element.createElement(
-                                'div',
-                                { style: { marginTop: '8px' } },
-                                wp.element.createElement('strong', null, 'Application'),
-                                wp.element.createElement(
-                                    'p',
-                                    null,
-                                    frameworkPreview.framework.output.application.intended_reader
-                                        ? `Intended Reader: ${frameworkPreview.framework.output.application.intended_reader}`
-                                        : null
-                                ),
-                                wp.element.createElement(
-                                    'p',
-                                    null,
-                                    frameworkPreview.framework.output.application.use_case
-                                        ? `Use Case: ${frameworkPreview.framework.output.application.use_case}`
-                                        : null
-                                )
-                            ),
-                        frameworkPreview.framework.output.observations &&
-                            frameworkPreview.framework.output.observations.length > 0 &&
-                            wp.element.createElement(
-                                'div',
-                                { style: { marginTop: '8px' } },
-                                wp.element.createElement('strong', null, 'Observations'),
-                                wp.element.createElement(
-                                    'ul',
-                                    null,
-                                    frameworkPreview.framework.output.observations.map((item, idx) =>
-                                        wp.element.createElement(
-                                            'li',
-                                            { key: idx },
-                                            wp.element.createElement('strong', null, item.headline || 'Observation'),
-                                            wp.element.createElement('p', null, item.detail || '')
-                                        )
-                                    )
-                                )
-                            ),
-                        frameworkPreview.framework.output.key_themes &&
-                            frameworkPreview.framework.output.key_themes.length > 0 &&
-                            wp.element.createElement(
-                                'div',
-                                { style: { marginTop: '8px' } },
-                                wp.element.createElement('strong', null, 'Key Themes'),
-                                wp.element.createElement(
-                                    'ul',
-                                    null,
-                                    frameworkPreview.framework.output.key_themes.map((theme, idx) =>
-                                        wp.element.createElement('li', { key: idx }, theme)
-                                    )
-                                )
-                            )
-                    ),
-                !frameworkPreview.framework?.output?.title &&
-                    frameworkPreview.framework?.output?.h2_sections &&
-                    wp.element.createElement(
-                        'div',
-                        { style: { marginTop: '12px' } },
-                        wp.element.createElement('strong', null, 'Framework'),
-                        wp.element.createElement(
-                            'ul',
-                            null,
-                            frameworkPreview.framework.output.h2_sections.map((section, idx) =>
-                                wp.element.createElement(
-                                    'li',
-                                    { key: idx },
-                                    section.title || 'Section',
-                                    section.h3_sections && section.h3_sections.length
-                                        ? wp.element.createElement(
-                                              'ul',
-                                              null,
-                                              section.h3_sections.map((h3, h3Idx) =>
-                                                  wp.element.createElement('li', { key: h3Idx }, h3)
-                                              )
-                                          )
-                                        : null
-                                )
-                            )
-                        )
-                    ),
-                frameworkPreview.citations &&
-                    frameworkPreview.citations.length > 0 &&
-                    wp.element.createElement(
-                        'div',
-                        { style: { marginTop: '12px' } },
-                        wp.element.createElement('strong', null, 'Citations'),
-                        wp.element.createElement(
-                            'ul',
-                            null,
-                            frameworkPreview.citations.map((citation, idx) =>
-                                wp.element.createElement(
-                                    'li',
-                                    { key: idx },
-                                    citation.apa || citation.title || citation.url || 'Citation',
-                                    citation.relevance
-                                        ? wp.element.createElement('p', null, citation.relevance)
-                                        : null
-                                )
-                            )
-                        )
-                    )
-            ),
-        authorPreview &&
-            wp.element.createElement(
-                Modal,
-                {
-                    title: 'Author Draft',
-                    onRequestClose: () => setAuthorPreview(null),
-                    isDismissible: true,
-                    shouldCloseOnClickOutside: false,
-                },
-                wp.element.createElement(
-                    'div',
-                    { style: { marginBottom: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' } },
-                    wp.element.createElement(
-                        Button,
-                        {
-                            isSecondary: true,
-                            onClick: () => handleExportAuthorDraft(authorPreview),
-                            disabled: !(authorPreview?.author?.output),
-                        },
-                        'Export Draft'
-                    ),
-                    wp.element.createElement(
-                        Button,
-                        {
-                            isSecondary: true,
-                            onClick: () => authorPreview?.author?.edit_url && window.open(authorPreview.author.edit_url, '_blank'),
-                            disabled: !(authorPreview?.author?.edit_url),
-                        },
-                        'Open in Editor'
-                    )
-                ),
-                wp.element.createElement(
-                    'div',
-                    {
-                        style: {
-                            marginBottom: '12px',
-                            padding: '10px 12px',
-                            border: '1px solid #dcdcde',
-                            borderRadius: '6px',
-                            background: '#fff',
-                        },
-                    },
-                    wp.element.createElement('strong', null, authorPreview.title || 'Draft'),
-                    wp.element.createElement(
-                        'p',
-                        { style: { margin: '6px 0 0', color: '#50575e' } },
-                        `Profile: ${getAuthorProfileLabel(getSelectedAuthorProfile(authorPreview))} · Recommended: ${getAuthorProfileLabel(getRecommendedAuthorProfile(authorPreview))}`
-                    )
-                ),
-                wp.element.createElement(
-                    'div',
-                    {
-                        style: {
-                            whiteSpace: 'pre-wrap',
-                            maxHeight: '60vh',
-                            overflowY: 'auto',
-                            padding: '12px',
-                            border: '1px solid #dcdcde',
-                            borderRadius: '6px',
-                            background: '#fff',
-                        },
-                    },
-                    authorPreview.author?.output?.draft ||
-                        authorPreview.author?.output?.content ||
-                        'No draft available.'
-                )
-            )
-    );
-};
 
-wp.element.render(
-    wp.element.createElement(EditorialPlannerApp),
-    document.getElementById('editorial-planner-app')
-);
 
-})();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        setDiveDeepe

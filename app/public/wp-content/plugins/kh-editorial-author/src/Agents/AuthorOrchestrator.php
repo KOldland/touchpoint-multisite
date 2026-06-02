@@ -100,7 +100,11 @@ class AuthorOrchestrator {
 
         // Merge session-level policy with user overrides from UI
         $final_policy = \KH\EditorialAuthor\Core\AuthorPolicy::sanitize(
-            array_merge($context['author_policy'] ?? [], $params['merged_policy'] ?? [])
+            array_merge(
+                $context['author_policy'] ?? [], 
+                $params['merged_policy'] ?? [],
+                ['enrichment' => $context['brand_profile'] ?? []]
+            )
         );
 
         // Ensure citations are in a list for the prompt factory

@@ -60,7 +60,7 @@ class PlannerEndpoints {
     }
 
     public function get_sessions( $request ) {
-        $limit = intval( $request->get_param( 'limit' ) ?: 6 );
+        $limit = intval( $request->get_param( 'limit' ) ?: 20 );
         $args  = [ 
             'post_type'      => 'planner_session', 
             'posts_per_page' => $limit, 
@@ -70,11 +70,22 @@ class PlannerEndpoints {
         $posts = get_posts( $args );
         
         $out = array_map( function( $p ) {
-            return [
-                'id'         => $p->ID,
-                'title'      => $p->post_title,
+            $meta = [
+                'role'       => get_post_meta( $p->ID, 'kh_planner_role', true ) ?: 'research',
+                'preset_id'  => get_post_meta( $p->ID, 'kh_planner_preset_id', true ) ?: 'research-default',
                 'status'     => get_post_meta( $p->ID, 'kh_planner_status', true ) ?: 'draft',
-                'link'       => admin_url( "admin.php?page=editorial_planner&session_id={$p->ID}" )
+                'created_by' => (int) get_post_meta( $p->ID, 'created_by', true ) ?: (int) $p->post_author,
+            ];
+            return [
+                'id'         => (string) $p->ID,
+                'session_id' => (string) $p->ID,
+                'title'      => $p->post_title,
+                'role'       => $meta['role'],
+                'preset_id'  => $meta['preset_id'],
+                'created_at' => $p->post_date,
+                'updated_at' => $p->post_modified,
+                'status'     => $meta['status'],
+                'meta'       => $meta,
             ];
         }, $posts );
 
@@ -84,6 +95,9 @@ class PlannerEndpoints {
     public function create_session( $request ) {
         $params = $request->get_json_params();
         $title  = isset( $params['title'] ) ? sanitize_text_field( $params['title'] ) : '';
+        $role   = isset( $params['role'] ) ? sanitize_text_field( $params['role'] ) : 'research';
+        $preset_id = isset( $params['preset_id'] ) ? sanitize_text_field( $params['preset_id'] ) : null;
+        $meta_input = isset( $params['meta'] ) && is_array( $params['meta'] ) ? $params['meta'] : [];
 
         if ( empty( $title ) ) {
             return new \WP_Error( 'missing_title', 'Title is required', [ 'status' => 400 ] );
@@ -103,10 +117,19 @@ class PlannerEndpoints {
 
         update_post_meta( $post_id, 'kh_planner_status', 'draft' );
         update_post_meta( $post_id, 'created_by', get_current_user_id() );
+        update_post_meta( $post_id, 'kh_planner_role', $role );
+        if ( $preset_id ) {
+            update_post_meta( $post_id, 'kh_planner_preset_id', $preset_id );
+        }
+        if ( ! empty( $meta_input ) ) {
+            update_post_meta( $post_id, 'kh_planner_meta', wp_json_encode( $meta_input ) );
+        }
 
         return rest_ensure_response( [
-            'id'   => (int) $post_id,
-            'link' => admin_url( 'admin.php?page=editorial_planner&session_id=' . $post_id ),
+            'session_id' => (string) $post_id,
+            'id'         => (string) $post_id,
+            'role'       => $role,
+            'preset_id'  => $preset_id,
         ] );
     }
 
@@ -152,3 +175,4 @@ class PlannerEndpoints {
         ] );
     }
 }
+

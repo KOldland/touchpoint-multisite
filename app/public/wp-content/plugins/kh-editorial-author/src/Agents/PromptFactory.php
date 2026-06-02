@@ -34,6 +34,45 @@ class PromptFactory {
             $lines[] = 'Do not use these banned phrases: ' . implode(', ', $policy['banned_phrases']) . '.';
         }
 
+        // Add Enrichment Metadata if present in policy
+        if (!empty($policy['enrichment'])) {
+            $e = $policy['enrichment'];
+            
+            $fields = [
+                'target_personas'     => 'Target audience',
+                'target_sponsors'     => 'Consider vendor ecosystem',
+                'key_competitors'     => 'Contextualise against competitors',
+                'trade_associations'  => 'Reference industry bodies',
+                'academic_journals'   => 'Preferred academic sources',
+                'acronyms'            => 'Use and define terminology',
+                'cultural_lexicon'    => 'Key industry concepts',
+                'key_speakers'        => 'Reference thought leaders'
+            ];
+
+            foreach ($fields as $key => $label) {
+                if (empty($e[$key])) continue;
+                
+                $values = $e[$key];
+                $list = [];
+
+                if (is_array($values)) {
+                    foreach ($values as $item) {
+                        if (is_array($item) && isset($item['name'])) {
+                            $list[] = $item['name'];
+                        } elseif (is_string($item)) {
+                            $list[] = $item;
+                        }
+                    }
+                } elseif (is_string($values)) {
+                    $list[] = $values;
+                }
+
+                if (!empty($list)) {
+                    $lines[] = $label . ': ' . implode(', ', $list) . '.';
+                }
+            }
+        }
+
         return implode("\n", $lines);
     }
 

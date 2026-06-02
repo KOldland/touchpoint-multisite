@@ -19,6 +19,7 @@ class PlannerBridge {
         // New standard: context is stored in namespaced meta
         $meta = get_post_meta($session_id, '_kh_planner_data', true);
         $author_policy = get_post_meta($session_id, '_kh_author_policy', true);
+        $brand_profile = get_post_meta($session_id, '_kh_brand_profile', true);
         $session_citations = $this->get_verified_citations($session_id);
 
         $context = [
@@ -26,6 +27,7 @@ class PlannerBridge {
             'title'         => $post->post_title,
             'planner_data'  => $meta,
             'author_policy' => $author_policy,
+            'brand_profile' => $brand_profile,
             'dossier'       => get_post_meta($session_id, '_kh_research_dossier', true),
             'citations'     => $session_citations,
             'article_id'    => $article_id,
