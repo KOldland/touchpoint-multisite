@@ -17,7 +17,7 @@ const EditorialExportsApp = () => {
             setLoading(true);
             // Load all sessions with their frameworks
             const sessions = await apiFetch({
-                path: 'dual-gpt/v1/sessions?limit=100',
+                path: 'editorial/v1/sessions?limit=100',
                 method: 'GET',
             });
 

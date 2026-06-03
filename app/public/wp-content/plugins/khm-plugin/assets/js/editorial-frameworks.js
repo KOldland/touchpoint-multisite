@@ -26,7 +26,7 @@ const EditorialFrameworksApp = () => {
             setLoading(true);
             setError('');
             const response = await apiFetch({
-                path: 'dual-gpt/v1/sessions',
+                path: 'editorial/v1/sessions',
                 method: 'GET',
             });
             

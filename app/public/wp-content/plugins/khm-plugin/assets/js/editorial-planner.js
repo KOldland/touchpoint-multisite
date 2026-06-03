@@ -237,7 +237,7 @@ const EditorialPlannerApp = () => {
     const loadTopLineCategories = async () => {
         try {
             const response = await apiFetch({
-                path: 'dual-gpt/v1/planner/top-line-categories',
+                path: 'editorial/v1/planner/top-line-categories',
                 method: 'GET',
             });
             const rows = Array.isArray(response?.top_line_categories) ? response.top_line_categories : [];
@@ -475,7 +475,7 @@ const EditorialPlannerApp = () => {
 
             try {
                 const validationData = await apiFetch({
-                    path: `dual-gpt/v1/planner/research-validation?session_id=${sessionId}&_t=${cacheBuster}`,
+                    path: `editorial/v1/planner/research-validation?session_id=${sessionId}&_t=${cacheBuster}`,
                     method: 'GET',
                 });
                 setResearchPolicyDetail(validationData?.research_policy || data?.meta?.research_policy || null);
@@ -490,7 +490,7 @@ const EditorialPlannerApp = () => {
 
             try {
                 const authorPolicyResponse = await apiFetch({
-                    path: `dual-gpt/v1/planner/author-policy?session_id=${sessionId}&_t=${cacheBuster}`,
+                    path: `editorial/v1/planner/author-policy?session_id=${sessionId}&_t=${cacheBuster}`,
                     method: 'GET',
                 });
                 setAuthorPolicyDetail(authorPolicyResponse?.author_policy || data?.meta?.author_policy || null);
@@ -566,7 +566,7 @@ const EditorialPlannerApp = () => {
             // Add cache-busting timestamp to force fresh data
             const cacheBuster = new Date().getTime();
             const response = await apiFetch({
-                path: `dual-gpt/v1/planner/queue?_t=${cacheBuster}`,
+                path: `editorial/v1/planner/queue?_t=${cacheBuster}`,
                 method: 'GET',
             });
             console.log('[QUEUE] Loaded queue:', response);
@@ -661,7 +661,7 @@ const EditorialPlannerApp = () => {
         try {
             setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             const response = await apiFetch({
-                path: 'dual-gpt/v1/planner/queue/add',
+                path: 'editorial/v1/planner/queue/add',
                 method: 'POST',
                 data: {
                     session_id: sessionDetail.id,
@@ -696,7 +696,7 @@ const EditorialPlannerApp = () => {
             console.log('[QUEUE] Running item:', queueId);
             setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             const response = await apiFetch({
-                path: 'dual-gpt/v1/planner/queue/run',
+                path: 'editorial/v1/planner/queue/run',
                 method: 'POST',
                 data: {
                     queue_id: queueId,
@@ -732,7 +732,7 @@ const EditorialPlannerApp = () => {
         try {
             setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             const response = await apiFetch({
-                path: 'dual-gpt/v1/planner/queue/run-bulk',
+                path: 'editorial/v1/planner/queue/run-bulk',
                 method: 'POST',
                 data: runAllQueued
                     ? { run_all_queued: true, session_id: sessionDetail.id }
@@ -784,7 +784,7 @@ const EditorialPlannerApp = () => {
         try {
             setQueueReorderLoading(true);
             await apiFetch({
-                path: 'dual-gpt/v1/planner/queue/reorder',
+                path: 'editorial/v1/planner/queue/reorder',
                 method: 'POST',
                 data: {
                     session_id: sessionDetail.id,
@@ -811,7 +811,7 @@ const EditorialPlannerApp = () => {
         try {
             setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             await apiFetch({
-                path: 'dual-gpt/v1/planner/queue/remove',
+                path: 'editorial/v1/planner/queue/remove',
                 method: 'POST',
                 data: { queue_id: queueId },
             });
@@ -835,7 +835,7 @@ const EditorialPlannerApp = () => {
         try {
             setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             await apiFetch({
-                path: 'dual-gpt/v1/planner/queue/stop',
+                path: 'editorial/v1/planner/queue/stop',
                 method: 'POST',
                 data: {
                     queue_id: queueId,
@@ -901,7 +901,7 @@ const EditorialPlannerApp = () => {
         try {
             setQueueActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             const addResponse = await apiFetch({
-                path: 'dual-gpt/v1/planner/queue/add',
+                path: 'editorial/v1/planner/queue/add',
                 method: 'POST',
                 data: {
                     session_id: sessionDetail.id,
@@ -917,7 +917,7 @@ const EditorialPlannerApp = () => {
             }
 
             await apiFetch({
-                path: 'dual-gpt/v1/planner/queue/run',
+                path: 'editorial/v1/planner/queue/run',
                 method: 'POST',
                 data: { queue_id: newQueueId },
             });
@@ -1015,7 +1015,7 @@ const EditorialPlannerApp = () => {
         try {
             setQueueRemoving(true);
             const response = await apiFetch({
-                path: 'dual-gpt/v1/planner/queue/remove-all',
+                path: 'editorial/v1/planner/queue/remove-all',
                 method: 'POST',
             });
             dispatch('core/notices').createNotice('success', response?.message || 'Queue items removed.', { type: 'snackbar' });
@@ -1036,7 +1036,7 @@ const EditorialPlannerApp = () => {
         try {
             setQueueClearing(true);
             const response = await apiFetch({
-                path: 'dual-gpt/v1/planner/queue/clear',
+                path: 'editorial/v1/planner/queue/clear',
                 method: 'POST',
                 data: { older_than_seconds: 0 },
             });
@@ -1567,7 +1567,7 @@ const EditorialPlannerApp = () => {
             };
 
             const saveResponse = await apiFetch({
-                path: 'dual-gpt/v1/planner/policy',
+                path: 'editorial/v1/planner/policy',
                 method: 'POST',
                 data: {
                     session_id: sessionDetail.id,
@@ -1632,7 +1632,7 @@ const EditorialPlannerApp = () => {
             };
 
             const saveResponse = await apiFetch({
-                path: 'dual-gpt/v1/planner/author-policy',
+                path: 'editorial/v1/planner/author-policy',
                 method: 'POST',
                 data: {
                     session_id: sessionDetail.id,
@@ -1709,7 +1709,7 @@ const EditorialPlannerApp = () => {
                 }));
             }
             await apiFetch({
-                path: 'dual-gpt/v1/planner/run-framework',
+                path: 'editorial/v1/planner/run-framework',
                 method: 'POST',
                 data: {
                     session_id: sessionDetail.id,
@@ -1767,7 +1767,7 @@ const EditorialPlannerApp = () => {
         try {
             setPhase4RerunLoading(true);
             await apiFetch({
-                path: 'dual-gpt/v1/planner/phase4',
+                path: 'editorial/v1/planner/phase4',
                 method: 'POST',
                 data: {
                     session_id: sessionDetail.id,
@@ -1811,7 +1811,7 @@ const EditorialPlannerApp = () => {
         try {
             setPhase2RerunLoading(true);
             await apiFetch({
-                path: 'dual-gpt/v1/planner/phase2-qualification',
+                path: 'editorial/v1/planner/phase2-qualification',
                 method: 'POST',
                 data: {
                     session_id: sessionDetail.id,
@@ -1846,7 +1846,7 @@ const EditorialPlannerApp = () => {
         try {
             setPhase3RerunLoading(true);
             await apiFetch({
-                path: 'dual-gpt/v1/planner/phase2',
+                path: 'editorial/v1/planner/phase2',
                 method: 'POST',
                 data: {
                     session_id: sessionDetail.id,
@@ -1881,7 +1881,7 @@ const EditorialPlannerApp = () => {
         try {
             setPhase1RerunLoading(true);
             await apiFetch({
-                path: 'dual-gpt/v1/planner/phase1',
+                path: 'editorial/v1/planner/phase1',
                 method: 'POST',
                 data: {
                     session_id: sessionDetail.id,
@@ -1921,7 +1921,7 @@ const EditorialPlannerApp = () => {
         setSynopsisPlanError('');
         try {
             const data = await apiFetch({
-                path: 'dual-gpt/v1/planner/synopsis-plan',
+                path: 'editorial/v1/planner/synopsis-plan',
                 method: 'POST',
                 data: { session_id: sessionDetail.id, total: targetTotal },
             });
@@ -1961,7 +1961,7 @@ const EditorialPlannerApp = () => {
                 { type: 'snackbar' }
             );
             await apiFetch({
-                path: 'dual-gpt/v1/planner/synopses',
+                path: 'editorial/v1/planner/synopses',
                 method: 'POST',
                 data: { session_id: sessionDetail.id, plan: synopsisPlan, batch_size: SYNOPSIS_BATCH_SIZE },
             });
@@ -2013,7 +2013,7 @@ const EditorialPlannerApp = () => {
 
         try {
             const data = await apiFetch({
-                path: 'dual-gpt/v1/planner/export',
+                path: 'editorial/v1/planner/export',
                 method: 'POST',
                 data: { session_id: sessionDetail.id },
             });
@@ -2057,7 +2057,7 @@ const EditorialPlannerApp = () => {
 
         try {
             const data = await apiFetch({
-                path: 'dual-gpt/v1/planner/export-synopses',
+                path: 'editorial/v1/planner/export-synopses',
                 method: 'POST',
                 data: { session_id: sessionDetail.id },
             });
@@ -2079,7 +2079,7 @@ const EditorialPlannerApp = () => {
 
         try {
             const data = await apiFetch({
-                path: 'dual-gpt/v1/planner/export-framework',
+                path: 'editorial/v1/planner/export-framework',
                 method: 'POST',
                 data: { session_id: sessionDetail.id, article_id: article.id },
             });
@@ -2129,7 +2129,7 @@ const EditorialPlannerApp = () => {
                 authorProfile: selectedProfile,
             });
             const data = await apiFetch({
-                path: 'dual-gpt/v1/planner/run-author',
+                path: 'editorial/v1/planner/run-author',
                 method: 'POST',
                 data: {
                     session_id: sessionDetail.id,
@@ -2252,7 +2252,7 @@ const EditorialPlannerApp = () => {
         try {
             setImageActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             const response = await apiFetch({
-                path: 'dual-gpt/v1/images/recommend',
+                path: 'editorial/v1/images/recommend',
                 method: 'POST',
                 data: buildArticleImagePayload(article),
             });
@@ -2281,7 +2281,7 @@ const EditorialPlannerApp = () => {
         try {
             setImageActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
             const response = await apiFetch({
-                path: 'dual-gpt/v1/images/generate',
+                path: 'editorial/v1/images/generate',
                 method: 'POST',
                 data: buildArticleImagePayload(article),
             });
@@ -2337,7 +2337,7 @@ const EditorialPlannerApp = () => {
             );
             
             const fetchPromise = apiFetch({
-                path: 'dual-gpt/v1/planner/article-action',
+                path: 'editorial/v1/planner/article-action',
                 method: 'POST',
                 data: payload,
             });

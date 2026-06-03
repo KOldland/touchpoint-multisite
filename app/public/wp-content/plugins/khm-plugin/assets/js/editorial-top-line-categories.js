@@ -169,7 +169,7 @@ const EditorialTopLineCategoriesApp = () => {
             setLoading(true);
             setError('');
             const response = await apiFetch({
-                path: 'dual-gpt/v1/planner/top-line-categories',
+                path: 'editorial/v1/top-line-categories',
                 method: 'GET',
             });
             const rows = Array.isArray(response?.top_line_categories) ? response.top_line_categories : [];
@@ -283,7 +283,7 @@ const EditorialTopLineCategoriesApp = () => {
             setSaving(true);
             setError('');
             await apiFetch({
-                path: 'dual-gpt/v1/planner/top-line-categories',
+                path: 'editorial/v1/top-line-categories',
                 method: 'POST',
                 data: {
                     top_line_category: payload,
@@ -320,7 +320,7 @@ const EditorialTopLineCategoriesApp = () => {
             }
 
             const response = await apiFetch({
-                path: 'dual-gpt/v1/planner/top-line-categories/import',
+                path: 'editorial/v1/top-line-categories/import',
                 method: 'POST',
                 data: payload,
             });

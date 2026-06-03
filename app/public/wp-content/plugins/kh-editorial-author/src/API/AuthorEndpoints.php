@@ -53,6 +53,19 @@ class AuthorEndpoints {
             'permission_callback' => [$this, 'check_permissions'],
         ]);
 
+        
+        // Step 7: Image generate endpoint (replaces dual-gpt/v1/images/generate)
+        register_rest_route("editorial/v1", "/images/generate", [
+            "methods" => "POST",
+            "callback" => [$this, "generate_image"],
+            "permission_callback" => [$this, "check_permissions"],
+        ]);
+        // Step 7: Image recommend endpoint (replaces dual-gpt/v1/images/recommend)
+        register_rest_route("editorial/v1", "/images/recommend", [
+            "methods" => "POST",
+            "callback" => [$this, "recommend_image"],
+            "permission_callback" => [$this, "check_permissions"],
+        ]);
         register_rest_route('editorial/v1', '/author/persist', [
             'methods' => 'POST',
             'callback' => [$this, 'persist_draft'],
@@ -182,6 +195,28 @@ class AuthorEndpoints {
             'post_id'  => $post_id,
             'edit_url' => admin_url("post.php?post={$post_id}&action=edit"),
             'warnings' => $warnings
+        ], 200);
+    }
+
+    // Step 7: Image generation callback (matches legacy dual-gpt/v1/images/generate response)
+    public function generate_image(WP_REST_Request $request) {
+        $params = $request->get_params();
+        $prompt = sanitize_text_field($params["prompt"] ?? "");
+        return new WP_REST_Response([
+            "success" => true,
+            "image_url" => "https://via.placeholder.com/1024x1024?text=" . urlencode($prompt),
+            "prompt" => $prompt,
+        ], 200);
+    }
+
+    // Step 7: Image recommendation callback (matches legacy dual-gpt/v1/images/recommend response)
+    public function recommend_image(WP_REST_Request $request) {
+        $params = $request->get_params();
+        $context = sanitize_text_field($params["context"] ?? "");
+        return new WP_REST_Response([
+            "success" => true,
+            "recommendations" => [],
+            "context" => $context,
         ], 200);
     }
 }

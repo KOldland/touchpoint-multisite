@@ -77,7 +77,7 @@ https://appcenter.intuit.com/connect/oauth2?client_id=ABYksPaLcXNSMLcwjmIKchevkq
             setRecommending(true);
             setNotice(null);
             wp.apiFetch({
-                path: 'dual-gpt/v1/images/recommend',
+                path: 'editorial/v1/images/recommend',
                 method: 'POST',
                 data: buildPayload(),
             }).then(function (res) {
@@ -97,7 +97,7 @@ https://appcenter.intuit.com/connect/oauth2?client_id=ABYksPaLcXNSMLcwjmIKchevkq
             setNotice(null);
             setGeneratedImage(null);
             wp.apiFetch({
-                path: 'dual-gpt/v1/images/generate',
+                path: 'editorial/v1/images/generate',
                 method: 'POST',
                 data: buildPayload({ prompt: editablePrompt }),
             }).then(function (res) {

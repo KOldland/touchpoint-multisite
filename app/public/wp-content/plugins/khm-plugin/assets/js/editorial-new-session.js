@@ -96,7 +96,7 @@ const EditorialNewSessionApp = () => {
     const loadTopLineCategories = async () => {
         try {
             const response = await apiFetch({
-                path: 'dual-gpt/v1/planner/top-line-categories',
+                path: 'editorial/v1/top-line-categories',
                 method: 'GET',
             });
 
@@ -124,7 +124,7 @@ const EditorialNewSessionApp = () => {
         try {
             setLoadingPresets(true);
             const response = await apiFetch({
-                path: 'dual-gpt/v1/presets',
+                path: 'editorial/v1/presets',
                 method: 'GET',
             });
             
@@ -230,7 +230,7 @@ const EditorialNewSessionApp = () => {
             };
 
             const sessionResponse = await apiFetch({
-                path: 'dual-gpt/v1/sessions',
+                path: .editorial/v1/sessions.,
                 method: 'POST',
                 data: sessionPayload,
             });
@@ -240,10 +240,10 @@ const EditorialNewSessionApp = () => {
             }
 
             await apiFetch({
-                path: 'dual-gpt/v1/planner/run',
+                path: `editorial/v1/sessions/${sessionResponse.session_id}/run`,,
                 method: 'POST',
                 data: {
-                    session_id: sessionResponse.session_id,
+                    
                     ...(showFocusControls ? { focus_level: focusLevel } : {}),
                 },
             });

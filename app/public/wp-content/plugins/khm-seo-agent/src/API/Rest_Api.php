@@ -484,7 +484,7 @@ class Rest_Api {
     }
 
     private function create_dual_gpt_session( $post_id, $keyword = '' ) {
-        $request = new \WP_REST_Request( 'POST', '/dual-gpt/v1/sessions' );
+        $request = new \WP_REST_Request( 'POST', '/editorial/v1/sessions' );
         $request->set_param( 'role', 'seo' );
         $request->set_param( 'title', 'SEO Agent - ' . current_time( 'mysql' ) );
         $request->set_param( 'post_id', $post_id );
@@ -507,7 +507,7 @@ class Rest_Api {
     }
 
     private function create_dual_gpt_job( $session_id, $prompt ) {
-        $request = new \WP_REST_Request( 'POST', '/dual-gpt/v1/jobs' );
+        $request = new \WP_REST_Request( 'POST', '/editorial/v1/jobs' );
         $request->set_param( 'session_id', $session_id );
         $request->set_param( 'prompt', $prompt );
         $request->set_param( 'model', 'gpt-4o' );

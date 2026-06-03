@@ -34,7 +34,7 @@ const EditorialSessionsApp = () => {
             setLoading(true);
             setError('');
             const response = await apiFetch({
-                path: 'dual-gpt/v1/sessions',
+                path: 'editorial/v1/sessions',
                 method: 'GET',
             });
 
@@ -65,7 +65,7 @@ const EditorialSessionsApp = () => {
             setDeletingSessionId(sessionId);
             setError('');
             await apiFetch({
-                path: `dual-gpt/v1/sessions/${sessionId}`,
+                path: `editorial/v1/sessions/${sessionId}`,
                 method: 'DELETE',
             });
 
