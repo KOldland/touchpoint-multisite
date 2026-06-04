@@ -70,6 +70,13 @@ class PlannerEndpoints {
             "permission_callback" => [$this, "check_permission"],
         ]);
 
+        // Export endpoints
+        register_rest_route( 'editorial/v1', '/sessions/(?P<id>\d+)/export/(?P<format>[a-z]+)', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'export_session' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
         // Add POST jobs endpoint (Step 8) for khm-seo-agent
         register_rest_route("editorial/v1", "/jobs", [
             "methods" => "POST",
@@ -85,6 +92,27 @@ class PlannerEndpoints {
 
     public function check_permission() {
         return current_user_can( 'edit_posts' );
+    }
+
+    public function export_session( $request ) {
+        $session_id = $request->get_param( 'id' );
+        $format     = $request->get_param( 'format' );
+
+        $agent = new \KH\Planner\Agents\ExportAgent();
+
+        if ( $format === 'docx' ) {
+            $result = $agent->export_to_docx( $session_id );
+        } elseif ( $format === 'html' ) {
+            $result = $agent->export_to_html( $session_id );
+        } else {
+            return new \WP_Error( 'invalid_format', 'Invalid export format' );
+        }
+
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        return rest_ensure_response( $result );
     }
 
     public function get_sessions( $request ) {
