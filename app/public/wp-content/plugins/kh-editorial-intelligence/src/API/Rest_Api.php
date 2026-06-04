@@ -115,6 +115,17 @@ class Rest_Api {
             $suggest_endpoint = new \KH\Editorial\API\SuggestAnswerCardsEndpoint();
             $suggest_endpoint->register();
         }
+
+        // --- Audit & Budget Endpoints ---
+        if (class_exists('KH\\Editorial\\API\\AuditEndpoints')) {
+            $audit_endpoint = new \KH\Editorial\API\AuditEndpoints();
+            $audit_endpoint->register();
+        }
+
+        if (class_exists('KH\\Editorial\\API\\BudgetEndpoints')) {
+            $budget_endpoint = new \KH\Editorial\API\BudgetEndpoints();
+            $budget_endpoint->register();
+        }
     }
 
     /**
