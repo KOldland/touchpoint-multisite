@@ -6,8 +6,10 @@ use KH\Attribution\Api\AttributionEndpoints;
 use KH\Attribution\Assets\AttributionAssets;
 use KH\Attribution\Services\Attribution\AttributionStorage;
 use KH\Attribution\Services\Attribution\CommissionCalculator;
+use KHM_Attribution_Performance_Manager;
+use KHM_Attribution_Async_Manager;
+use KHM_Attribution_Query_Builder;
 use KH\Attribution\Services\Attribution\KHM_Advanced_Attribution_Manager;
-use KH\Attribution\Admin\AttributionAdmin;
 
 /**
  * Bootstrap Provider
@@ -15,8 +17,6 @@ use KH\Attribution\Admin\AttributionAdmin;
  * Orchestrates the initialization of the Attribution module.
  */
 class Bootstrap {
-    private static $manager;
-
     public static function init() {
         // 1. Ensure DB Schema exists
         AttributionSchema::ensure_tables_exist();
@@ -32,8 +32,6 @@ class Bootstrap {
         // Injecting all 5 required dependencies
         $manager = new KHM_Advanced_Attribution_Manager($performance, $async, $query, $storage, $calculator);
 
-        self::$manager = $manager;
-
         // 4. Register API Endpoints
         $endpoints = new AttributionEndpoints($manager);
         add_action('rest_api_init', [$endpoints, 'register']);
@@ -41,15 +39,5 @@ class Bootstrap {
         // 5. Register Assets
         $assets = new AttributionAssets($manager);
         $assets->register();
-
-        // 6. Register Admin UI
-        if (is_admin()) {
-            $admin = new AttributionAdmin($manager);
-            $admin->register();
-        }
-    }
-
-    public static function get_manager() {
-        return self::$manager;
     }
 }

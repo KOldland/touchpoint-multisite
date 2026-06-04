@@ -2427,7 +2427,10 @@ class Dual_GPT_Plugin {
                 continue;
             }
             $job = $wpdb->get_row(
-                $wpdb->prepare("SELECT status, error_message, idempotency_key, created_at FROM {$jobs_table} WHERE id = %s", $job_id),
+                $wpdb->prepare("SELECT status, error_message, idempotency_key, created_at FROM {$jobs_table} WHERE id = %s", $job_id)
+            );
+        }
+    }
 
 
 

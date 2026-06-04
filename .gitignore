@@ -19,6 +19,16 @@ Thumbs.db
 *.sln
 *.sw?
 
+# AI Agents & IDE Extension Configurations (NEVER COMMIT API KEYS)
+.continue/
+.continuerc.json
+config.json
+config.yaml
+config.ts
+.clinerules
+.claude/
+artifacts/
+
 # Dependencies
 node_modules/
 vendor/
