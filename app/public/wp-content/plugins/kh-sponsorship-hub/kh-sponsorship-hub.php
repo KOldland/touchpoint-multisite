@@ -15,5 +15,5 @@ use KhSponsorshipHub\Sponsors\SponsorshipHubBootstrap;
 
 add_action( 'plugins_loaded', function() {
     $bootstrap = new SponsorshipHubBootstrap();
-    $bootstrap->init();
+    $bootstrap->register();
 });

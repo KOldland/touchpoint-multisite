@@ -155,14 +155,14 @@ require_once __DIR__ . '/includes/credit-system-helpers.php';
 // (Removed: Migrated to modern khm-seo plugin)
 
 // Load Sponsorship and Membership Suites
-require_once __DIR__ . '/src/Sponsors/SponsorMigration.php';
-require_once __DIR__ . '/src/Sponsors/SponsorAudit.php';
-require_once __DIR__ . '/src/Sponsors/SponsorIngest.php';
-require_once __DIR__ . '/src/Sponsors/SponsorController.php';
-require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
-require_once __DIR__ . '/src/Sponsors/SponsorDashboard.php';
-require_once __DIR__ . '/src/Sponsors/SponsorApplicationShortcode.php';
-require_once __DIR__ . '/src/Sponsors/SponsorApplicationAdminUI.php';
+// require_once __DIR__ . '/src/Sponsors/SponsorMigration.php';
+// require_once __DIR__ . '/src/Sponsors/SponsorAudit.php';
+// require_once __DIR__ . '/src/Sponsors/SponsorIngest.php';
+// require_once __DIR__ . '/src/Sponsors/SponsorController.php';
+// require_once __DIR__ . '/src/Sponsors/SponsorAdminUI.php';
+// require_once __DIR__ . '/src/Sponsors/SponsorDashboard.php';
+// require_once __DIR__ . '/src/Sponsors/SponsorApplicationShortcode.php';
+// require_once __DIR__ . '/src/Sponsors/SponsorApplicationAdminUI.php';
 require_once __DIR__ . '/src/Admin/PriceValidationAjax.php';
 require_once __DIR__ . '/src/Membership/MembershipMigration.php';
 require_once __DIR__ . '/src/Membership/TierRegistry.php';
@@ -180,15 +180,15 @@ require_once __DIR__ . '/src/Membership/LandingPageShortcode.php';
 require_once __DIR__ . '/src/Membership/DashboardShortcode.php';
 require_once __DIR__ . '/src/Membership/Admin/ReportsPage.php';
 require_once __DIR__ . '/src/Services/LevelPriceResolver.php';
-require_once __DIR__ . '/src/Migrations/CreateSponsorApplicationsTable.php';
+// require_once __DIR__ . '/src/Migrations/CreateSponsorApplicationsTable.php';
 require_once __DIR__ . '/src/Migrations/CreateTechConnectTables.php';
 
 // Register Sponsor endpoints
 add_action( 'rest_api_init', function() {
-    if ( class_exists( 'KHM\\Sponsors\\SponsorController' ) ) {
-        $controller = new KHM\Sponsors\SponsorController();
-        $controller->register_routes();
-    }
+////    if ( class_exists( 'KHM\\Sponsors\\SponsorController' ) ) {
+//        $controller = new KHM\Sponsors\SponsorController();
+//        $controller->register_routes();
+//    }
     if ( class_exists( 'KHM\\Membership\\SignupEndpoint' ) ) {
         $endpoint = new KHM\Membership\SignupEndpoint();
         $endpoint->register_routes();
@@ -400,28 +400,28 @@ if (is_admin()) {
         ( new KHM\Admin\QuoteClubAdvertAdminPage() )->register();
     }
 
-    if ( class_exists( 'KHM\\Sponsors\\SponsorAdminUI' ) ) {
-        $sponsor_admin = new KHM\Sponsors\SponsorAdminUI();
-        $sponsor_admin->register();
-    }
-    if ( class_exists( 'KHM\\Sponsors\\SponsorApplicationAdminUI' ) ) {
-        $sponsor_app_admin = new KHM\Sponsors\SponsorApplicationAdminUI();
-        $sponsor_app_admin->register();
-    }
+////    if ( class_exists( 'KHM\\Sponsors\\SponsorAdminUI' ) ) {
+//        $sponsor_admin = new KHM\Sponsors\SponsorAdminUI();
+//        $sponsor_admin->register();
+//    }
+//    if ( class_exists( 'KHM\\Sponsors\\SponsorApplicationAdminUI' ) ) {
+//        $sponsor_app_admin = new KHM\Sponsors\SponsorApplicationAdminUI();
+//        $sponsor_app_admin->register();
+//    }
     if ( class_exists( 'KHM\\Admin\\PriceValidationAjax' ) ) {
         ( new KHM\Admin\PriceValidationAjax() )->register();
     }
 } else {
     // Frontend: Register sponsor dashboard shortcode
-    if ( class_exists( 'KHM\\Sponsors\\SponsorDashboard' ) ) {
-        $sponsor_dashboard = new KHM\Sponsors\SponsorDashboard();
-        $sponsor_dashboard->register();
-    }
-    // Frontend: Register sponsor application form shortcode
-    if ( class_exists( 'KHM\\Sponsors\\SponsorApplicationShortcode' ) ) {
-        $sponsor_apply = new KHM\Sponsors\SponsorApplicationShortcode();
-        $sponsor_apply->register();
-    }
+////    if ( class_exists( 'KHM\\Sponsors\\SponsorDashboard' ) ) {
+//        $sponsor_dashboard = new KHM\Sponsors\SponsorDashboard();
+//        $sponsor_dashboard->register();
+//    }
+//    // Frontend: Register sponsor application form shortcode
+////    if ( class_exists( 'KHM\\Sponsors\\SponsorApplicationShortcode' ) ) {
+//        $sponsor_apply = new KHM\Sponsors\SponsorApplicationShortcode();
+//        $sponsor_apply->register();
+//    }
 }
 
 // Register dedicated Quote Club sponsor portal shortcode.
@@ -1324,14 +1324,14 @@ register_activation_hook(__FILE__, function () {
         }
 
         // Phase 6: Sponsor to Solution Mapping (NEW BRIDGE)
-        if ( class_exists('KHM\\Migrations\\CreateSponsorSolutionMappingTable') ) {
-            try {
-                KHM\Migrations\CreateSponsorSolutionMappingTable::create_table();
-                error_log('KHM Sponsor Solution Mapping Table created successfully');
-            } catch ( \Exception $e ) {
-                error_log('Failed to create Sponsor Solution Mapping Table: ' . $e->getMessage());
-                $activation_errors[] = 'Sponsor Solution Mapping Table failed: ' . $e->getMessage();
-            }
+//        if ( class_exists('KHM\\Migrations\\CreateSponsorSolutionMappingTable') ) {
+//            try {
+//                KHM\Migrations\CreateSponsorSolutionMappingTable::create_table();
+//                error_log('KHM Sponsor Solution Mapping Table created successfully');
+//            } catch ( \Exception $e ) {
+//                error_log('Failed to create Sponsor Solution Mapping Table: ' . $e->getMessage());
+//                $activation_errors[] = 'Sponsor Solution Mapping Table failed: ' . $e->getMessage();
+//            }
         }
 
         // Add start_date / end_date scheduling columns (S20 – advert expiry).
@@ -1360,9 +1360,9 @@ register_deactivation_hook(__FILE__, function () {
     if ( class_exists('KHM\\Scheduled\\Scheduler') ) {
         KHM\Scheduled\Scheduler::deactivate();
     }
-    if ( class_exists('KHM\\Sponsors\\AdvertScheduler') ) {
-        KHM\Sponsors\AdvertScheduler::deactivate();
-    }
+//    if ( class_exists('KHM\\Sponsors\\AdvertScheduler') ) {
+//        KHM\Sponsors\AdvertScheduler::deactivate();
+//    }
     $timestamp = wp_next_scheduled('khm_4a_hourly_recompute');
     if ( $timestamp ) {
         wp_unschedule_event($timestamp, 'khm_4a_hourly_recompute');
@@ -1431,9 +1431,9 @@ add_action('rest_api_init', function () {
     }
 
     // Register sponsor advert routes (S16/S17 – creative portal + ad serving).
-    if ( class_exists('KHM\\REST\\SponsorAdvertController') ) {
-        ( new KHM\REST\SponsorAdvertController() )->register();
-    }
+//    if ( class_exists('KHM\\REST\\SponsorAdvertController') ) {
+//        ( new KHM\REST\SponsorAdvertController() )->register();
+//    }
 
     // Register LinkedIn scheduling routes (S9).
     if ( class_exists('KHM\\REST\\LinkedInController') ) {
@@ -1777,9 +1777,9 @@ add_action('init', function () {
     if ( class_exists('KHM\\Scheduled\\Scheduler') ) {
         ( new KHM\Scheduled\Scheduler() )->register();
     }
-    if ( class_exists('KHM\\Sponsors\\AdvertScheduler') ) {
-        ( new KHM\Sponsors\AdvertScheduler() )->register();
-    }
+//    if ( class_exists('KHM\\Sponsors\\AdvertScheduler') ) {
+//        ( new KHM\Sponsors\AdvertScheduler() )->register();
+//    }
 
     if ( class_exists('KHM\\Scheduled\\Scheduler') && class_exists('KHM\\Scheduled\\Tasks') ) {
         add_action(KHM\Scheduled\Scheduler::HOOK_DAILY, [ new KHM\Scheduled\Tasks(), 'run_daily' ]);
