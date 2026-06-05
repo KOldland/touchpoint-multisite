@@ -431,7 +431,6 @@ if ( class_exists( 'KHM\\PublicFrontend\\QuoteClubPortalShortcode' ) ) {
 }
 
 // Load Connect directory shortcode (enqueues connect-directory.css + js)
-require_once __DIR__ . '/src/PublicFrontend/ConnectDirectoryShortcode.php';
 if ( class_exists( 'KHM\\PublicFrontend\\ConnectDirectoryShortcode' ) ) {
     ( new KHM\PublicFrontend\ConnectDirectoryShortcode() )->register();
 }
@@ -1566,7 +1565,6 @@ if ( defined('WP_CLI') && WP_CLI ) {
     require_once __DIR__ . $cli_dir . 'AnonymizeAttributionCommand.php';
     require_once __DIR__ . $cli_dir . 'RetentionRunCommand.php';
     require_once __DIR__ . $cli_dir . 'MembershipEmailControlCommand.php';
-    require_once __DIR__ . $cli_dir . 'ConnectDemoSeedCommand.php';
     require_once __DIR__ . $cli_dir . 'SeedTaxonomyFromCsvCommand.php';
 
     // Register CLI commands
@@ -1576,7 +1574,6 @@ if ( defined('WP_CLI') && WP_CLI ) {
     WP_CLI::add_command( 'khm anonymize_attribution', 'KHM\\CLI\\AnonymizeAttributionCommand' );
     WP_CLI::add_command( 'khm retention:run', 'KHM\\CLI\\RetentionRunCommand' );
     WP_CLI::add_command( 'khm membership:email-control', 'KHM\\CLI\\MembershipEmailControlCommand' );
-    WP_CLI::add_command( 'khm connect', 'KHM\\CLI\\ConnectDemoSeedCommand' );
 }
 
 // Register webhook email notifications

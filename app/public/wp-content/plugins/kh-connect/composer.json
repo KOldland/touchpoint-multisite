@@ -1,0 +1,10 @@
+{
+    "name": "touchpoint/kh-connect",
+    "description": "Tech.Connect Relational Endpoints & RFP Handlers",
+    "type": "wordpress-plugin",
+    "autoload": {
+        "psr-4": {
+            "KH\\Connect\\": "src/"
+        }
+    }
+}

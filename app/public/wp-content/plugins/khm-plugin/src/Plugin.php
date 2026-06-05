@@ -1,31 +1,9 @@
 <?php
 namespace KHM;
 
-use KHM\Connect\ConnectShortlistEndpoint;
-use KHM\Connect\ConnectComparisonEndpoint;
-use KHM\Connect\ConnectAdminPage;
-use KHM\Connect\ConnectEngagedSettingsPage;
-use KHM\Connect\ConnectIntroThreadEndpoint;
-use KHM\Connect\ConnectSponsorProviderEndpoint;
-use KHM\Connect\ConnectTiering;
-use KHM\Connect\ConnectSellerPaymentEndpoint;
-use KHM\Connect\ConnectBuyerValidationEndpoint;
-use KHM\Connect\ConnectSellerResponseEndpoint;
-use KHM\Connect\ConnectHandoverEndpoint;
-use KHM\Connect\ConnectDiscountCodeClaimEndpoint;
-use KHM\Connect\ConnectOpportunityEndpoint;
-use KHM\Connect\ConnectOutreachChargingListener;
-use KHM\Connect\ConnectMatchPaymentEndpoint;
-use KHM\Connect\ConnectColdOutreachChargeHandler;
-use KHM\Connect\ConnectRFQReportingPage;
 use KHM\Cron\ConnectRFQUpsellWorker;
 use KHM\Cron\ConnectRFQCommissionWorker;
 use KHM\Cron\ConnectSubscriptionExpiryWorker;
-use KHM\Connect\ConnectSubscriptionEndpoint;
-use KHM\Connect\ConnectProviderActivationListener;
-use KHM\Connect\ConnectDirectoryEndpoint;
-use KHM\Connect\ConnectRfqEndpoint;
-use KHM\Connect\ConnectSavedSearchEndpoint;
 use KHM\Migrations\RenameRfpToRfq;
 use KHM\Migrations\AddConnectBuyerDirectoryColumns;
 use KHM\Migrations\AddConnectRfpExtendedFields;
@@ -149,31 +127,6 @@ class Plugin {
         CreateRFPSupportTables::run();
         CreateConnectSavedSearchesTable::up();
 
-        ( new ConnectShortlistEndpoint() )->register();
-        ( new ConnectComparisonEndpoint() )->register();
-        ( new ConnectIntroThreadEndpoint() )->register();
-        ( new ConnectAdminPage() )->register();
-        ( new ConnectEngagedSettingsPage() )->register();
-        ( new ConnectSponsorProviderEndpoint() )->register();
-        ( new ConnectSellerPaymentEndpoint() )->register();
-        ( new ConnectBuyerValidationEndpoint() )->register();
-        ( new ConnectSellerResponseEndpoint() )->register();
-        ( new ConnectHandoverEndpoint() )->register();
-        ( new ConnectDiscountCodeClaimEndpoint() )->register();
-        ( new ConnectOpportunityEndpoint() )->register();
-        ( new ConnectOutreachChargingListener() )->register();
-        ( new ConnectMatchPaymentEndpoint() )->register();
-        ( new ConnectColdOutreachChargeHandler() )->register();
-        ( new ConnectRFQReportingPage() )->register();
-        ( new ConnectRFQUpsellWorker() )->register();
-        ( new ConnectRFQCommissionWorker() )->register();
-        ( new ConnectSubscriptionEndpoint() )->register();
-        ( new ConnectSubscriptionExpiryWorker() )->register();
-        ( new ConnectProviderActivationListener() )->register();
-        ( new ConnectDirectoryEndpoint() )->register();
-        ( new ConnectRfqEndpoint() )->register();
-        ( new ConnectSavedSearchEndpoint() )->register();
-        ( new ConnectDirectoryShortcode() )->register();
         ( new QBOAuthEndpoint() )->register();
         ( new QBOWebhookEndpoint() )->register();
     }
