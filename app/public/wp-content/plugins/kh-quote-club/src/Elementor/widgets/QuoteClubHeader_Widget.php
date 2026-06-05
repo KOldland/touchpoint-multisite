@@ -1,6 +1,6 @@
 <?php
 
-namespace KHM\Elementor\Widgets;
+namespace QuoteClub\Elementor\Widgets;
 
 use Elementor\Widget_Base;
 
@@ -14,7 +14,7 @@ class QuoteClubHeader_Widget extends Widget_Base {
     }
 
     public function get_title() {
-        return __('Quote Club Header', 'khm-membership');
+        return __('Quote Club Header', 'kh-quote-club');
     }
 
     public function get_icon() {
@@ -34,7 +34,7 @@ class QuoteClubHeader_Widget extends Widget_Base {
         $support->enqueue_assets();
 
         if (!is_user_logged_in()) {
-            $support->render_login_required(__('Please log in to view Quote Club.', 'khm-membership'));
+            $support->render_login_required(__('Please log in to view Quote Club.', 'kh-quote-club'));
             return;
         }
 
@@ -42,13 +42,13 @@ class QuoteClubHeader_Widget extends Widget_Base {
         ?>
         <div class="khm-qc-member-header">
             <div>
-                <h2><?php esc_html_e('Quote Club Dashboard', 'khm-membership'); ?></h2>
-                <p><?php esc_html_e('Track your commentary workflow and jump straight into submissions.', 'khm-membership'); ?></p>
+                <h2><?php esc_html_e('Quote Club Dashboard', 'kh-quote-club'); ?></h2>
+                <p><?php esc_html_e('Track your commentary workflow and jump straight into submissions.', 'kh-quote-club'); ?></p>
             </div>
             <div class="khm-qc-member-actions">
-                <a href="#khm-qc-search-workspace" class="button button-primary"><?php esc_html_e('Article Search', 'khm-membership'); ?></a>
-                <a href="<?php echo esc_url($urls['new_press_release_url']); ?>" class="button"><?php esc_html_e('New Press Release', 'khm-membership'); ?></a>
-                <a href="<?php echo esc_url($urls['buy_credits_url']); ?>" class="button"><?php esc_html_e('Buy Credits', 'khm-membership'); ?></a>
+                <a href="#khm-qc-search-workspace" class="button button-primary"><?php esc_html_e('Article Search', 'kh-quote-club'); ?></a>
+                <a href="<?php echo esc_url($urls['new_press_release_url']); ?>" class="button"><?php esc_html_e('New Press Release', 'kh-quote-club'); ?></a>
+                <a href="<?php echo esc_url($urls['buy_credits_url']); ?>" class="button"><?php esc_html_e('Buy Credits', 'kh-quote-club'); ?></a>
             </div>
         </div>
         <?php

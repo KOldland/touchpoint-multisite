@@ -6,16 +6,16 @@
  * Bundles are admin-defined and can add editorial credits and/or press-release
  * credits to a sponsor's balance when purchased via Stripe checkout.
  *
- * @package KHM\Services
+ * @package QuoteClub\Services
  */
 
-namespace KHM\Services;
+namespace QuoteClub\Services;
 
 class QuoteClubCreditBundleService {
 
-	private CreditService $credits;
+	private \KHM\Services\CreditService $credits;
 
-	public function __construct( CreditService $credits ) {
+	public function __construct( \KHM\Services\CreditService $credits ) {
 		$this->credits = $credits;
 	}
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace KHM\Admin;
+namespace QuoteClub\Admin;
 
 /**
  * Admin page: Sponsor Commentary review queue.
@@ -15,8 +15,8 @@ class QuoteClubCommentaryAdminPage {
     public function add_menu(): void {
         add_submenu_page(
             'editorial_planner',
-            __('Sponsor Commentary', 'khm-membership'),
-            __('Sponsor Commentary', 'khm-membership'),
+            __('Sponsor Commentary', 'kh-quote-club'),
+            __('Sponsor Commentary', 'kh-quote-club'),
             'edit_posts',
             'khm-qc-commentary',
             [$this, 'render']
@@ -63,7 +63,7 @@ class QuoteClubCommentaryAdminPage {
         ];
         ?>
         <div class="wrap khm-commentary-review">
-            <h1><?php esc_html_e('Sponsor Commentary Queue', 'khm-membership'); ?></h1>
+            <h1><?php esc_html_e('Sponsor Commentary Queue', 'kh-quote-club'); ?></h1>
 
             <nav class="nav-tab-wrapper" style="margin-bottom:1rem;">
                 <?php foreach ($tabs as $slug => $label): ?>
@@ -75,7 +75,7 @@ class QuoteClubCommentaryAdminPage {
             </nav>
 
             <?php if (empty($rows)): ?>
-                <p><?php esc_html_e('No commentary found.', 'khm-membership'); ?></p>
+                <p><?php esc_html_e('No commentary found.', 'kh-quote-club'); ?></p>
             <?php else: ?>
             <table class="wp-list-table widefat fixed striped">
                 <thead>

@@ -1,0 +1,13 @@
+{
+    "name": "touchpoint/kh-quote-club",
+    "description": "Touchpoint Multisite - Quote Club Micro-Plugin",
+    "type": "wordpress-plugin",
+    "require": {
+        "php": ">=7.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "QuoteClub\\": "src/"
+        }
+    }
+}

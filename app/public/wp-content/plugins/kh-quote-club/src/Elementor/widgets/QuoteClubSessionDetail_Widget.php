@@ -1,6 +1,6 @@
 <?php
 
-namespace KHM\Elementor\Widgets;
+namespace QuoteClub\Elementor\Widgets;
 
 use Elementor\Widget_Base;
 
@@ -14,7 +14,7 @@ class QuoteClubSessionDetail_Widget extends Widget_Base {
     }
 
     public function get_title() {
-        return __('Quote Club Session Detail', 'khm-membership');
+        return __('Quote Club Session Detail', 'kh-quote-club');
     }
 
     public function get_icon() {
@@ -34,13 +34,13 @@ class QuoteClubSessionDetail_Widget extends Widget_Base {
         $support->enqueue_assets();
 
         if (!is_user_logged_in()) {
-            $support->render_login_required(__('Please log in to view Quote Club details.', 'khm-membership'));
+            $support->render_login_required(__('Please log in to view Quote Club details.', 'kh-quote-club'));
             return;
         }
         ?>
         <div class="khm-quoteclub-detail">
-            <h3><?php esc_html_e('Session details', 'khm-membership'); ?></h3>
-            <p><?php esc_html_e('Select a result to view the brief and submit commentary.', 'khm-membership'); ?></p>
+            <h3><?php esc_html_e('Session details', 'kh-quote-club'); ?></h3>
+            <p><?php esc_html_e('Select a result to view the brief and submit commentary.', 'kh-quote-club'); ?></p>
         </div>
         <?php
     }

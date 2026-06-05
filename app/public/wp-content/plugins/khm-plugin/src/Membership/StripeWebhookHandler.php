@@ -1548,7 +1548,7 @@ class StripeWebhookHandler {
         if ( ! class_exists( '\KHM\Services\CreditService' )
             || ! class_exists( '\KHM\Services\MembershipRepository' )
             || ! class_exists( '\KHM\Services\LevelRepository' )
-            || ! class_exists( '\KHM\Services\QuoteClubCreditBundleService' )
+            || ! class_exists( '\QuoteClub\Services\QuoteClubCreditBundleService' )
         ) {
             throw new \RuntimeException( 'qc_bundle fulfil: required service classes unavailable' );
         }
@@ -1557,7 +1557,7 @@ class StripeWebhookHandler {
             new \KHM\Services\MembershipRepository(),
             new \KHM\Services\LevelRepository()
         );
-        $bundle_service = new \KHM\Services\QuoteClubCreditBundleService( $credit_service );
+        $bundle_service = new \QuoteClub\Services\QuoteClubCreditBundleService( $credit_service );
         $fulfilled      = $bundle_service->fulfil_purchase( $session_id );
 
         if ( ! $fulfilled ) {

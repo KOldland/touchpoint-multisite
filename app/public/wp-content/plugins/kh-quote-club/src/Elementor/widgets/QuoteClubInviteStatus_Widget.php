@@ -1,6 +1,6 @@
 <?php
 
-namespace KHM\Elementor\Widgets;
+namespace QuoteClub\Elementor\Widgets;
 
 use Elementor\Widget_Base;
 
@@ -14,7 +14,7 @@ class QuoteClubInviteStatus_Widget extends Widget_Base {
     }
 
     public function get_title() {
-        return __('Quote Club Invite Status', 'khm-membership');
+        return __('Quote Club Invite Status', 'kh-quote-club');
     }
 
     public function get_icon() {
@@ -34,7 +34,7 @@ class QuoteClubInviteStatus_Widget extends Widget_Base {
         $support->enqueue_assets();
 
         if (!is_user_logged_in()) {
-            $support->render_login_required(__('Please log in to view Quote Club.', 'khm-membership'));
+            $support->render_login_required(__('Please log in to view Quote Club.', 'kh-quote-club'));
             return;
         }
 

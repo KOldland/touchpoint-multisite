@@ -1,6 +1,6 @@
 <?php
 
-namespace KHM\Admin;
+namespace QuoteClub\Admin;
 
 /**
  * Admin page: Press Release editorial review queue.
@@ -15,8 +15,8 @@ class QuoteClubPressReleaseAdminPage {
     public function add_menu(): void {
         add_submenu_page(
             'editorial_planner',
-            __('Press Releases', 'khm-membership'),
-            __('Press Releases', 'khm-membership'),
+            __('Press Releases', 'kh-quote-club'),
+            __('Press Releases', 'kh-quote-club'),
             'edit_posts',
             'khm-qc-press-releases',
             [$this, 'render']
@@ -62,7 +62,7 @@ class QuoteClubPressReleaseAdminPage {
         ];
         ?>
         <div class="wrap khm-press-release-review">
-            <h1><?php esc_html_e('Press Release Queue', 'khm-membership'); ?></h1>
+            <h1><?php esc_html_e('Press Release Queue', 'kh-quote-club'); ?></h1>
 
             <nav class="nav-tab-wrapper" style="margin-bottom:1rem;">
                 <?php foreach ($tabs as $slug => $label): ?>
@@ -74,7 +74,7 @@ class QuoteClubPressReleaseAdminPage {
             </nav>
 
             <?php if (empty($rows)): ?>
-                <p><?php esc_html_e('No press releases found.', 'khm-membership'); ?></p>
+                <p><?php esc_html_e('No press releases found.', 'kh-quote-club'); ?></p>
             <?php else: ?>
             <table class="wp-list-table widefat fixed striped">
                 <thead>

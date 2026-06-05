@@ -15,13 +15,13 @@
  *
  * @package KHM\PublicFrontend
  */
-namespace KHM\PublicFrontend;
-use KHM\Connect\ConnectEngagedSettingsPage;
+namespace QuoteClub\PublicFrontend;
+use QuoteClub\Connect\ConnectEngagedSettingsPage;
 use KHM\Services\CreditService;
 use KHM\Services\MembershipRepository;
 use KHM\Services\LevelRepository;
 use KHM\Services\SponsorService;
-use KHM\Services\QuoteClubCreditBundleService;
+use QuoteClub\Services\QuoteClubCreditBundleService;
 defined( 'ABSPATH' ) || exit;
 class QuoteClubPortalShortcode {
 	private CreditService $credits;
@@ -267,26 +267,26 @@ class QuoteClubPortalShortcode {
 					<?php echo esc_html( $user ? $user->display_name : '' ); ?>
 				</div>
 			</div>
-			<div class="khm-partner-header-metrics" aria-label="<?php esc_attr_e( 'Portal summary metrics', 'khm-membership' ); ?>">
+			<div class="khm-partner-header-metrics" aria-label="<?php esc_attr_e( 'Portal summary metrics', 'kh-quote-club' ); ?>">
 				<div class="khm-partner-header-metric">
 					<span class="khm-partner-header-metric-value"><?php echo esc_html( number_format_i18n( (int) $credit_breakdown['editorial_monthly_remaining'] ) ); ?></span>
-					<span class="khm-partner-header-metric-label"><?php esc_html_e( 'Monthly Editorial', 'khm-membership' ); ?></span>
+					<span class="khm-partner-header-metric-label"><?php esc_html_e( 'Monthly Editorial', 'kh-quote-club' ); ?></span>
 				</div>
 				<div class="khm-partner-header-metric">
 					<span class="khm-partner-header-metric-value"><?php echo esc_html( number_format_i18n( (int) $credit_breakdown['editorial_purchased_remaining'] ) ); ?></span>
-					<span class="khm-partner-header-metric-label"><?php esc_html_e( 'Purchased Editorial', 'khm-membership' ); ?></span>
+					<span class="khm-partner-header-metric-label"><?php esc_html_e( 'Purchased Editorial', 'kh-quote-club' ); ?></span>
 				</div>
 				<div class="khm-partner-header-metric">
 					<span class="khm-partner-header-metric-value"><?php echo esc_html( number_format_i18n( (int) $credit_breakdown['press_monthly_remaining'] ) ); ?></span>
-					<span class="khm-partner-header-metric-label"><?php esc_html_e( 'Monthly Press Releases', 'khm-membership' ); ?></span>
+					<span class="khm-partner-header-metric-label"><?php esc_html_e( 'Monthly Press Releases', 'kh-quote-club' ); ?></span>
 				</div>
 				<div class="khm-partner-header-metric">
 					<span class="khm-partner-header-metric-value"><?php echo esc_html( number_format_i18n( (int) $credit_breakdown['press_purchased_remaining'] ) ); ?></span>
-					<span class="khm-partner-header-metric-label"><?php esc_html_e( 'Purchased Press Releases', 'khm-membership' ); ?></span>
+					<span class="khm-partner-header-metric-label"><?php esc_html_e( 'Purchased Press Releases', 'kh-quote-club' ); ?></span>
 				</div>
 				<div class="khm-partner-header-metric">
 					<span class="khm-partner-header-metric-value"><?php echo esc_html( number_format_i18n( $connected_sites ) ); ?></span>
-					<span class="khm-partner-header-metric-label"><?php esc_html_e( 'Connected Sites', 'khm-membership' ); ?></span>
+					<span class="khm-partner-header-metric-label"><?php esc_html_e( 'Connected Sites', 'kh-quote-club' ); ?></span>
 				</div>
 			</div>
 		</header>
@@ -297,18 +297,18 @@ class QuoteClubPortalShortcode {
 	// -------------------------------------------------------------------------
 	private function render_nav( string $current_section ): void {
 		$sections = [
-			'overview'       => [ 'label' => __( 'Overview', 'khm-membership' ),       'icon' => 'dashicons-chart-bar' ],
-			'connect'        => [ 'label' => __( 'Connect', 'khm-membership' ),        'icon' => 'dashicons-networking' ],
-			'account'        => [ 'label' => __( 'Listings', 'khm-membership' ), 'icon' => 'dashicons-admin-settings' ],
-			'commentary'     => [ 'label' => __( 'Commentary', 'khm-membership' ),      'icon' => 'dashicons-format-quote' ],
-			'press-releases' => [ 'label' => __( 'Press Releases', 'khm-membership' ),  'icon' => 'dashicons-media-document' ],
-			'tracking'       => [ 'label' => __( 'Tracking', 'khm-membership' ),        'icon' => 'dashicons-chart-line' ],
-			'social'         => [ 'label' => __( 'Social', 'khm-membership' ),          'icon' => 'dashicons-share' ],
-			'adverts'        => [ 'label' => __( 'Adverts', 'khm-membership' ),         'icon' => 'dashicons-megaphone' ],
+			'overview'       => [ 'label' => __( 'Overview', 'kh-quote-club' ),       'icon' => 'dashicons-chart-bar' ],
+			'connect'        => [ 'label' => __( 'Connect', 'kh-quote-club' ),        'icon' => 'dashicons-networking' ],
+			'account'        => [ 'label' => __( 'Listings', 'kh-quote-club' ), 'icon' => 'dashicons-admin-settings' ],
+			'commentary'     => [ 'label' => __( 'Commentary', 'kh-quote-club' ),      'icon' => 'dashicons-format-quote' ],
+			'press-releases' => [ 'label' => __( 'Press Releases', 'kh-quote-club' ),  'icon' => 'dashicons-media-document' ],
+			'tracking'       => [ 'label' => __( 'Tracking', 'kh-quote-club' ),        'icon' => 'dashicons-chart-line' ],
+			'social'         => [ 'label' => __( 'Social', 'kh-quote-club' ),          'icon' => 'dashicons-share' ],
+			'adverts'        => [ 'label' => __( 'Adverts', 'kh-quote-club' ),         'icon' => 'dashicons-megaphone' ],
 		];
 		$sections = apply_filters( 'khm_qc_portal_sections', $sections );
 		?>
-		<nav class="khm-partner-nav" role="navigation" aria-label="<?php esc_attr_e( 'Quote Club sections', 'khm-membership' ); ?>">
+		<nav class="khm-partner-nav" role="navigation" aria-label="<?php esc_attr_e( 'Quote Club sections', 'kh-quote-club' ); ?>">
 			<?php foreach ( $sections as $slug => $section ) : ?>
 				<a href="<?php echo esc_url( add_query_arg( 'qc_section', $slug ) ); ?>"
 				   class="khm-partner-nav-item<?php echo $current_section === $slug ? ' is-active' : ''; ?>"
@@ -394,9 +394,9 @@ class QuoteClubPortalShortcode {
 		}
 		if ( $use_demo || empty( $views_by_maturity ) ) {
 			$views_by_maturity = [
-				[ 'label' => __( 'Accelerating', 'khm-membership' ), 'value' => 5820, 'pct' => 100 ],
-				[ 'label' => __( 'Assessing', 'khm-membership' ),    'value' => 3410, 'pct' =>  59 ],
-				[ 'label' => __( 'Exploring', 'khm-membership' ),    'value' => 1980, 'pct' =>  34 ],
+				[ 'label' => __( 'Accelerating', 'kh-quote-club' ), 'value' => 5820, 'pct' => 100 ],
+				[ 'label' => __( 'Assessing', 'kh-quote-club' ),    'value' => 3410, 'pct' =>  59 ],
+				[ 'label' => __( 'Exploring', 'kh-quote-club' ),    'value' => 1980, 'pct' =>  34 ],
 			];
 		}
 		if ( $use_demo || count( $published_articles ) < 3 ) {
@@ -447,25 +447,25 @@ class QuoteClubPortalShortcode {
 		// ── End demo mock data ─────────────────────────────────────────────────
 		?>
 		<div class="khm-partner-section khm-partner-overview">
-			<h2><?php esc_html_e( 'Overview', 'khm-membership' ); ?></h2>
+			<h2><?php esc_html_e( 'Overview', 'kh-quote-club' ); ?></h2>
 			<div class="khm-partner-dashboard-kpis">
 				<div class="khm-partner-dashboard-kpi">
 					<span class="khm-partner-dashboard-kpi-value"><?php echo esc_html( number_format_i18n( $page_views_30 ) ); ?></span>
-					<span class="khm-partner-dashboard-kpi-label"><?php esc_html_e( 'Page views (last 30 days)', 'khm-membership' ); ?></span>
+					<span class="khm-partner-dashboard-kpi-label"><?php esc_html_e( 'Page views (last 30 days)', 'kh-quote-club' ); ?></span>
 				</div>
 				<div class="khm-partner-dashboard-kpi">
 					<span class="khm-partner-dashboard-kpi-value"><?php echo esc_html( number_format_i18n( $smart_clicks_30 ) ); ?></span>
-					<span class="khm-partner-dashboard-kpi-label"><?php esc_html_e( 'Smart Link clicks (last 30 days)', 'khm-membership' ); ?></span>
+					<span class="khm-partner-dashboard-kpi-label"><?php esc_html_e( 'Smart Link clicks (last 30 days)', 'kh-quote-club' ); ?></span>
 				</div>
 			</div>
 			<section class="khm-partner-dashboard-card khm-partner-dashboard-chart-card">
-				<h3><?php esc_html_e( 'Performance (Last 30 Days)', 'khm-membership' ); ?></h3>
+				<h3><?php esc_html_e( 'Performance (Last 30 Days)', 'kh-quote-club' ); ?></h3>
 				<div class="khm-partner-dashboard-chart-legend">
-					<span><i class="khm-partner-chart-dot khm-partner-chart-dot-views"></i><?php esc_html_e( 'Page Views', 'khm-membership' ); ?></span>
-					<span><i class="khm-partner-chart-dot khm-partner-chart-dot-clicks"></i><?php esc_html_e( 'Smart Link Clicks', 'khm-membership' ); ?></span>
+					<span><i class="khm-partner-chart-dot khm-partner-chart-dot-views"></i><?php esc_html_e( 'Page Views', 'kh-quote-club' ); ?></span>
+					<span><i class="khm-partner-chart-dot khm-partner-chart-dot-clicks"></i><?php esc_html_e( 'Smart Link Clicks', 'kh-quote-club' ); ?></span>
 				</div>
 				<?php if ( empty( $performance_series['rows'] ) ) : ?>
-					<p class="khm-partner-dashboard-empty"><?php esc_html_e( 'No performance data yet for the last 30 days.', 'khm-membership' ); ?></p>
+					<p class="khm-partner-dashboard-empty"><?php esc_html_e( 'No performance data yet for the last 30 days.', 'kh-quote-club' ); ?></p>
 				<?php else : ?>
 				<div class="khm-partner-dashboard-chart-bars">
 					<?php foreach ( $performance_series['rows'] as $point ) : ?>
@@ -485,9 +485,9 @@ class QuoteClubPortalShortcode {
 			</section>
 			<div class="khm-partner-dashboard-grid">
 				<section class="khm-partner-dashboard-card">
-					<h3><?php esc_html_e( 'Smart Clicks by Site (30d)', 'khm-membership' ); ?></h3>
+					<h3><?php esc_html_e( 'Smart Clicks by Site (30d)', 'kh-quote-club' ); ?></h3>
 					<?php if ( empty( $smart_clicks_by_site ) ) : ?>
-						<p class="khm-partner-dashboard-empty"><?php esc_html_e( 'No smart-click site data yet.', 'khm-membership' ); ?></p>
+						<p class="khm-partner-dashboard-empty"><?php esc_html_e( 'No smart-click site data yet.', 'kh-quote-club' ); ?></p>
 					<?php else : ?>
 					<ul class="khm-partner-breakdown-list">
 						<?php foreach ( $smart_clicks_by_site as $row ) : ?>
@@ -503,9 +503,9 @@ class QuoteClubPortalShortcode {
 					<?php endif; ?>
 				</section>
 				<section class="khm-partner-dashboard-card">
-					<h3><?php esc_html_e( 'Views by User Maturity (30d)', 'khm-membership' ); ?></h3>
+					<h3><?php esc_html_e( 'Views by User Maturity (30d)', 'kh-quote-club' ); ?></h3>
 					<?php if ( empty( $views_by_maturity ) ) : ?>
-						<p class="khm-partner-dashboard-empty"><?php esc_html_e( 'No maturity segmentation data yet.', 'khm-membership' ); ?></p>
+						<p class="khm-partner-dashboard-empty"><?php esc_html_e( 'No maturity segmentation data yet.', 'kh-quote-club' ); ?></p>
 					<?php else :
 						$_pie_colors = [ '#1a56db', '#16a34a', '#d97706' ];
 						$_pie_total  = array_sum( array_column( $views_by_maturity, 'value' ) );
@@ -535,13 +535,13 @@ class QuoteClubPortalShortcode {
 							<?php endforeach; ?>
 						</ul>
 					</div>
-					<p class="khm-partner-dashboard-footnote"><?php esc_html_e( 'Estimated from 30-day maturity signal mix.', 'khm-membership' ); ?></p>
+					<p class="khm-partner-dashboard-footnote"><?php esc_html_e( 'Estimated from 30-day maturity signal mix.', 'kh-quote-club' ); ?></p>
 					<?php endif; ?>
 				</section>
 				<section class="khm-partner-dashboard-card">
-					<h3><?php esc_html_e( 'Last Five Published Articles', 'khm-membership' ); ?></h3>
+					<h3><?php esc_html_e( 'Last Five Published Articles', 'kh-quote-club' ); ?></h3>
 					<?php if ( empty( $published_articles ) ) : ?>
-						<p class="khm-partner-dashboard-empty"><?php esc_html_e( 'No published articles yet.', 'khm-membership' ); ?></p>
+						<p class="khm-partner-dashboard-empty"><?php esc_html_e( 'No published articles yet.', 'kh-quote-club' ); ?></p>
 					<?php else : ?>
 					<ul class="khm-partner-dashboard-list">
 						<?php foreach ( $published_articles as $article ) : ?>
@@ -554,9 +554,9 @@ class QuoteClubPortalShortcode {
 					<?php endif; ?>
 				</section>
 				<section class="khm-partner-dashboard-card">
-					<h3><?php esc_html_e( 'Your Scheduled Articles', 'khm-membership' ); ?></h3>
+					<h3><?php esc_html_e( 'Your Scheduled Articles', 'kh-quote-club' ); ?></h3>
 					<?php if ( empty( $scheduled_articles ) ) : ?>
-						<p class="khm-partner-dashboard-empty"><?php esc_html_e( 'No scheduled articles right now.', 'khm-membership' ); ?></p>
+						<p class="khm-partner-dashboard-empty"><?php esc_html_e( 'No scheduled articles right now.', 'kh-quote-club' ); ?></p>
 					<?php else : ?>
 					<ul class="khm-partner-dashboard-list">
 						<?php foreach ( $scheduled_articles as $article ) : ?>
@@ -569,9 +569,9 @@ class QuoteClubPortalShortcode {
 					<?php endif; ?>
 				</section>
 				<section class="khm-partner-dashboard-card khm-partner-dashboard-card-span-2">
-					<h3><?php esc_html_e( 'Suggested Upcoming Summaries', 'khm-membership' ); ?></h3>
+					<h3><?php esc_html_e( 'Suggested Upcoming Summaries', 'kh-quote-club' ); ?></h3>
 					<?php if ( empty( $suggested_summaries ) ) : ?>
-						<p class="khm-partner-dashboard-empty"><?php esc_html_e( 'No summary recommendations found yet.', 'khm-membership' ); ?></p>
+						<p class="khm-partner-dashboard-empty"><?php esc_html_e( 'No summary recommendations found yet.', 'kh-quote-club' ); ?></p>
 					<?php else : ?>
 					<ul class="khm-partner-dashboard-list khm-partner-dashboard-summary-list">
 						<?php foreach ( $suggested_summaries as $summary ) : ?>
@@ -587,9 +587,9 @@ class QuoteClubPortalShortcode {
 					<?php endif; ?>
 				</section>
 				<section class="khm-partner-dashboard-card">
-					<h3><?php esc_html_e( 'Potential Prospects Available', 'khm-membership' ); ?></h3>
+					<h3><?php esc_html_e( 'Potential Prospects Available', 'kh-quote-club' ); ?></h3>
 					<?php if ( empty( $potential_prospects ) ) : ?>
-						<p class="khm-partner-dashboard-empty"><?php esc_html_e( 'No prospects currently available.', 'khm-membership' ); ?></p>
+						<p class="khm-partner-dashboard-empty"><?php esc_html_e( 'No prospects currently available.', 'kh-quote-club' ); ?></p>
 					<?php else : ?>
 					<ul class="khm-partner-dashboard-list">
 						<?php foreach ( $potential_prospects as $prospect ) : ?>
@@ -602,9 +602,9 @@ class QuoteClubPortalShortcode {
 					<?php endif; ?>
 				</section>
 				<section class="khm-partner-dashboard-card">
-					<h3><?php esc_html_e( 'Prospect Meeting Requests', 'khm-membership' ); ?></h3>
+					<h3><?php esc_html_e( 'Prospect Meeting Requests', 'kh-quote-club' ); ?></h3>
 					<?php if ( empty( $meeting_requests ) ) : ?>
-						<p class="khm-partner-dashboard-empty"><?php esc_html_e( 'No meeting requests pending.', 'khm-membership' ); ?></p>
+						<p class="khm-partner-dashboard-empty"><?php esc_html_e( 'No meeting requests pending.', 'kh-quote-club' ); ?></p>
 					<?php else : ?>
 					<ul class="khm-partner-dashboard-list">
 						<?php foreach ( $meeting_requests as $request ) : ?>
@@ -837,7 +837,7 @@ class QuoteClubPortalShortcode {
 		foreach ( $rows as $row ) {
 			$url = (string) ( $row['target_url'] ?? '' );
 			$host = wp_parse_url( $url, PHP_URL_HOST );
-			$label = is_string( $host ) && '' !== $host ? preg_replace( '/^www\./i', '', $host ) : __( 'Unknown site', 'khm-membership' );
+			$label = is_string( $host ) && '' !== $host ? preg_replace( '/^www\./i', '', $host ) : __( 'Unknown site', 'kh-quote-club' );
 			if ( ! isset( $by_host[ $label ] ) ) {
 				$by_host[ $label ] = 0;
 			}
@@ -899,9 +899,9 @@ class QuoteClubPortalShortcode {
 		$max = 1;
 		$out = [];
 		$labels = [
-			'premium'     => __( 'Accelerating', 'khm-membership' ),
-			'standard'    => __( 'Assessing', 'khm-membership' ),
-			'exploratory' => __( 'Exploring', 'khm-membership' ),
+			'premium'     => __( 'Accelerating', 'kh-quote-club' ),
+			'standard'    => __( 'Assessing', 'kh-quote-club' ),
+			'exploratory' => __( 'Exploring', 'kh-quote-club' ),
 		];
 		foreach ( [ 'premium', 'standard', 'exploratory' ] as $tier ) {
 			$estimated = (int) round( ( $tier_counts[ $tier ] / $total_signals ) * max( 0, $total_views ) );
@@ -935,7 +935,7 @@ class QuoteClubPortalShortcode {
 		$articles = [];
 		foreach ( $query->posts as $post ) {
 			$articles[] = [
-				'title' => get_the_title( $post ) ?: __( '(Untitled)', 'khm-membership' ),
+				'title' => get_the_title( $post ) ?: __( '(Untitled)', 'kh-quote-club' ),
 				'url'   => get_permalink( $post ) ?: '#',
 				'date'  => wp_date( get_option( 'date_format' ), strtotime( (string) $post->post_date ) ),
 			];
@@ -958,7 +958,7 @@ class QuoteClubPortalShortcode {
 		$articles = [];
 		foreach ( $query->posts as $post ) {
 			$articles[] = [
-				'title' => get_the_title( $post ) ?: __( '(Untitled)', 'khm-membership' ),
+				'title' => get_the_title( $post ) ?: __( '(Untitled)', 'kh-quote-club' ),
 				'url'   => get_preview_post_link( $post ) ?: '#',
 				'date'  => wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), strtotime( (string) $post->post_date ) ),
 			];
@@ -1020,7 +1020,7 @@ class QuoteClubPortalShortcode {
 				$summary_text = wp_trim_words( wp_strip_all_tags( (string) $post->post_content ), 24, '…' );
 			}
 			$summaries[] = [
-				'title'   => get_the_title( $post ) ?: __( '(Untitled)', 'khm-membership' ),
+				'title'   => get_the_title( $post ) ?: __( '(Untitled)', 'kh-quote-club' ),
 				'url'     => get_permalink( $post ) ?: '#',
 				'date'    => wp_date( get_option( 'date_format' ), strtotime( (string) $post->post_date ) ),
 				'summary' => wp_trim_words( wp_strip_all_tags( (string) $summary_text ), 28, '…' ),
@@ -1056,10 +1056,10 @@ class QuoteClubPortalShortcode {
 		$items = [];
 		foreach ( $rows as $row ) {
 			$items[] = [
-				'domain' => (string) ( $row['actor_email_domain'] ?: __( 'Anonymous domain', 'khm-membership' ) ),
+				'domain' => (string) ( $row['actor_email_domain'] ?: __( 'Anonymous domain', 'kh-quote-club' ) ),
 				'meta'   => sprintf(
 					/* translators: 1: stage, 2: tier, 3: score percentage */
-					__( 'Stage: %1$s • Tier: %2$s • Score: %3$s%%', 'khm-membership' ),
+					__( 'Stage: %1$s • Tier: %2$s • Score: %3$s%%', 'kh-quote-club' ),
 					(string) ( $row['internal_stage'] ?: '—' ),
 					(string) ( $row['commercial_tier'] ?: '—' ),
 					number_format_i18n( (float) ( $row['person_score'] ?? 0 ), 0 )
@@ -1099,15 +1099,15 @@ class QuoteClubPortalShortcode {
 		}
 		$items = [];
 		foreach ( $rows as $row ) {
-			$company = (string) ( $row['buyer_company'] ?: __( 'Anonymous company', 'khm-membership' ) );
+			$company = (string) ( $row['buyer_company'] ?: __( 'Anonymous company', 'kh-quote-club' ) );
 			$requested_at = strtotime( (string) ( $row['buyer_requested_at'] ?: '' ) );
 			$items[] = [
-				'provider' => (string) ( $row['provider_name'] ?: __( 'Unknown offering', 'khm-membership' ) ),
+				'provider' => (string) ( $row['provider_name'] ?: __( 'Unknown offering', 'kh-quote-club' ) ),
 				'meta'     => sprintf(
 					/* translators: 1: buyer company, 2: requested date */
-					__( '%1$s • Requested %2$s', 'khm-membership' ),
+					__( '%1$s • Requested %2$s', 'kh-quote-club' ),
 					$company,
-					$requested_at ? wp_date( get_option( 'date_format' ), $requested_at ) : __( 'recently', 'khm-membership' )
+					$requested_at ? wp_date( get_option( 'date_format' ), $requested_at ) : __( 'recently', 'kh-quote-club' )
 				),
 			];
 		}
@@ -1167,8 +1167,8 @@ class QuoteClubPortalShortcode {
 			<div class="khm-partner-connect-shell" data-sponsor-id="<?php echo esc_attr( (int) ( $sponsor['id'] ?? 0 ) ); ?>">
 				<div class="khm-partner-connect-hero">
 					<div>
-						<h2><?php esc_html_e( 'Connect Offerings', 'khm-membership' ); ?></h2>
-						<p><?php esc_html_e( 'Manage the provider offerings that power comparison, guided matching, commentary eligibility, and future intro workflows.', 'khm-membership' ); ?></p>
+						<h2><?php esc_html_e( 'Connect Offerings', 'kh-quote-club' ); ?></h2>
+						<p><?php esc_html_e( 'Manage the provider offerings that power comparison, guided matching, commentary eligibility, and future intro workflows.', 'kh-quote-club' ); ?></p>
 					</div>
 					<div class="khm-partner-connect-status" role="status" aria-live="polite"></div>
 				</div>
@@ -1262,8 +1262,8 @@ class QuoteClubPortalShortcode {
 						</style>
 						<div class="khm-partner-connect-panel-head">
 							<div>
-								<h3><?php esc_html_e( 'Connect Subscription', 'khm-membership' ); ?></h3>
-								<p><?php esc_html_e( 'Network channels and their live connection status.', 'khm-membership' ); ?></p>
+								<h3><?php esc_html_e( 'Connect Subscription', 'kh-quote-club' ); ?></h3>
+								<p><?php esc_html_e( 'Network channels and their live connection status.', 'kh-quote-club' ); ?></p>
 							</div>
 						</div>
 						<div class="khm-partner-sub-notice" role="status" aria-live="polite"></div>
@@ -1373,14 +1373,14 @@ class QuoteClubPortalShortcode {
 								</div>
 							</div>
 							<div class="khm-partner-sub-carousel-nav">
-								<button type="button" class="khm-partner-sub-carousel-btn khm-partner-sub-prev" aria-label="<?php esc_attr_e( 'Previous slide', 'khm-membership' ); ?>">&#8592;</button>
+								<button type="button" class="khm-partner-sub-carousel-btn khm-partner-sub-prev" aria-label="<?php esc_attr_e( 'Previous slide', 'kh-quote-club' ); ?>">&#8592;</button>
 								<div class="khm-partner-sub-carousel-pages">1 / 1</div>
-								<button type="button" class="khm-partner-sub-carousel-btn khm-partner-sub-next" aria-label="<?php esc_attr_e( 'Next slide', 'khm-membership' ); ?>">&#8594;</button>
+								<button type="button" class="khm-partner-sub-carousel-btn khm-partner-sub-next" aria-label="<?php esc_attr_e( 'Next slide', 'kh-quote-club' ); ?>">&#8594;</button>
 							</div>
 						</div>
 						<div class="khm-partner-sub-actions">
 							<button type="button" class="khm-partner-btn khm-partner-btn-primary" id="khm-sub-modal-trigger" data-khm-sub-modal-trigger>
-								<?php esc_html_e( 'Manage Connections', 'khm-membership' ); ?>
+								<?php esc_html_e( 'Manage Connections', 'kh-quote-club' ); ?>
 							</button>
 						</div>
 					</section>
@@ -1453,19 +1453,19 @@ class QuoteClubPortalShortcode {
 					<div id="khm-sub-modal" class="khm-sub-modal" role="dialog" aria-modal="true" aria-labelledby="khm-sub-modal-title" hidden>
 						<div class="khm-sub-modal-backdrop"></div>
 						<div class="khm-sub-modal-dialog">
-							<button type="button" class="khm-sub-modal-close" aria-label="<?php esc_attr_e( 'Close', 'khm-membership' ); ?>">&times;</button>
-							<h2 id="khm-sub-modal-title" class="khm-sub-modal-title"><?php esc_html_e( 'Manage Connections', 'khm-membership' ); ?></h2>
+							<button type="button" class="khm-sub-modal-close" aria-label="<?php esc_attr_e( 'Close', 'kh-quote-club' ); ?>">&times;</button>
+							<h2 id="khm-sub-modal-title" class="khm-sub-modal-title"><?php esc_html_e( 'Manage Connections', 'kh-quote-club' ); ?></h2>
 							<!-- Upgrade banner (shown when upgrade is available and portfolio not active) -->
 							<div class="khm-sub-upgrade-banner" hidden>
 								<div class="khm-sub-upgrade-banner-inner">
-									<strong><?php esc_html_e( 'Upgrade to Portfolio', 'khm-membership' ); ?></strong>
+									<strong><?php esc_html_e( 'Upgrade to Portfolio', 'kh-quote-club' ); ?></strong>
 									<span class="khm-sub-upgrade-desc"></span>
 									<span class="khm-sub-upgrade-credit-note"></span>
 									<span class="khm-sub-upgrade-net-price"></span>
 								</div>
 								<div class="khm-sub-upgrade-actions">
 									<button type="button" class="khm-partner-btn khm-partner-btn-primary khm-sub-upgrade-btn">
-										<?php esc_html_e( 'Upgrade to Portfolio', 'khm-membership' ); ?>
+										<?php esc_html_e( 'Upgrade to Portfolio', 'kh-quote-club' ); ?>
 									</button>
 								</div>
 							</div>
@@ -1479,7 +1479,7 @@ class QuoteClubPortalShortcode {
 								</div>
 								<div class="khm-sub-cart-controls">
 									<button type="button" class="khm-partner-btn khm-partner-btn-primary khm-sub-cart-confirm">
-										<?php esc_html_e( 'Checkout', 'khm-membership' ); ?>
+										<?php esc_html_e( 'Checkout', 'kh-quote-club' ); ?>
 									</button>
 								</div>
 							</div>
@@ -1698,10 +1698,10 @@ class QuoteClubPortalShortcode {
 						</style>
 						<div class="khm-partner-connect-panel-head">
 							<div>
-								<h3><?php esc_html_e( 'Active Matches', 'khm-membership' ); ?></h3>
-								<p><?php esc_html_e( 'The buyers below have engaged with your content. Their identity stays anonymised until they explicitly request an introduction, you are buying qualified intent, not cold contact details.', 'khm-membership' ); ?></p>
+								<h3><?php esc_html_e( 'Active Matches', 'kh-quote-club' ); ?></h3>
+								<p><?php esc_html_e( 'The buyers below have engaged with your content. Their identity stays anonymised until they explicitly request an introduction, you are buying qualified intent, not cold contact details.', 'kh-quote-club' ); ?></p>
 							</div>
-							<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-leads-refresh"><?php esc_html_e( 'Refresh', 'khm-membership' ); ?></button>
+							<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-leads-refresh"><?php esc_html_e( 'Refresh', 'kh-quote-club' ); ?></button>
 						</div>
 						<div class="khm-partner-leads-notice" role="status" aria-live="polite"></div>
 						<div class="khm-partner-leads-grid"></div>
@@ -2045,19 +2045,19 @@ class QuoteClubPortalShortcode {
 								if (canAccept && allProviders.length) {
 									if (normalizedTier === 'engaged') {
 										var optionTwoBtn = ENGAGED_OPTION_TWO_ENABLED
-											? '<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-lead-accept-btn" data-id="' + o.id + '" data-engaged-option="option_2"><?php echo esc_js( __( 'Request Option 2', 'khm-membership' ) ); ?></button>'
+											? '<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-lead-accept-btn" data-id="' + o.id + '" data-engaged-option="option_2"><?php echo esc_js( __( 'Request Option 2', 'kh-quote-club' ) ); ?></button>'
 											: '';
 										acceptHtml = '<div class="khm-partner-lead-accept-form">' +
 											'<select class="khm-partner-lead-provider-sel">' + providerOpts + '</select>' +
 											'<div class="khm-partner-lead-engaged-ctas">' +
-												'<button type="button" class="khm-partner-btn khm-partner-btn-primary khm-partner-lead-accept-btn" data-id="' + o.id + '" data-engaged-option="option_1"><?php echo esc_js( __( 'Request Option 1', 'khm-membership' ) ); ?></button>' +
+												'<button type="button" class="khm-partner-btn khm-partner-btn-primary khm-partner-lead-accept-btn" data-id="' + o.id + '" data-engaged-option="option_1"><?php echo esc_js( __( 'Request Option 1', 'kh-quote-club' ) ); ?></button>' +
 												optionTwoBtn +
 											'</div>' +
 										'</div>';
 									} else {
 										acceptHtml = '<div class="khm-partner-lead-accept-form">' +
 											'<select class="khm-partner-lead-provider-sel">' + providerOpts + '</select>' +
-											'<button type="button" class="khm-partner-btn khm-partner-btn-primary khm-partner-lead-accept-btn" data-id="' + o.id + '"><?php echo esc_js( __( 'Request', 'khm-membership' ) ); ?></button>' +
+											'<button type="button" class="khm-partner-btn khm-partner-btn-primary khm-partner-lead-accept-btn" data-id="' + o.id + '"><?php echo esc_js( __( 'Request', 'kh-quote-club' ) ); ?></button>' +
 										'</div>';
 									}
 								} else if (acceptedAlready) {
@@ -2104,7 +2104,7 @@ class QuoteClubPortalShortcode {
 										'<span title="' + maturityTooltip + '" style="cursor:help;">Maturity: <strong>' + scorePct + '%</strong></span>' +
 										'<span title="' + affinityTooltip + '" style="cursor:help;">Affinity: <strong>' + affinityPct + '%</strong></span>' +
 									'</div>' +
-									'<div class="khm-partner-lead-price"><?php echo esc_js( __( 'Price', 'khm-membership' ) ); ?>: ' + priceHtml + '</div>' +
+									'<div class="khm-partner-lead-price"><?php echo esc_js( __( 'Price', 'kh-quote-club' ) ); ?>: ' + priceHtml + '</div>' +
 									engagedOptionsHtml +
 									'<div class="khm-partner-lead-anon">' + signalHtml + '</div>' +
 									(acceptHtml ? '<div class="khm-partner-lead-actions">' + acceptHtml + '</div>' : '');
@@ -2130,13 +2130,13 @@ class QuoteClubPortalShortcode {
 								khmMatchModalEl.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);align-items:center;justify-content:center;';
 								khmMatchModalEl.innerHTML =
 									'<div style="background:#fff;border-radius:8px;padding:32px 28px;max-width:480px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.18);">' +
-										'<h3 style="margin:0 0 8px;font-size:1.2rem;" id="khm-match-modal-title"><?php echo esc_js( __( 'Complete payment to request introduction', 'khm-membership' ) ); ?></h3>' +
+										'<h3 style="margin:0 0 8px;font-size:1.2rem;" id="khm-match-modal-title"><?php echo esc_js( __( 'Complete payment to request introduction', 'kh-quote-club' ) ); ?></h3>' +
 										'<p style="margin:0 0 20px;color:#555;font-size:.9rem;" id="khm-match-modal-amount"></p>' +
 										'<div id="khm-match-payment-element" style="margin-bottom:20px;"></div>' +
 										'<div id="khm-match-payment-error" style="color:#c0392b;margin-bottom:12px;font-size:.85rem;display:none;"></div>' +
 										'<div style="display:flex;gap:12px;justify-content:flex-end;">' +
-											'<button type="button" id="khm-match-modal-cancel" style="background:none;border:1px solid #ccc;padding:8px 20px;border-radius:4px;cursor:pointer;"><?php echo esc_js( __( 'Cancel', 'khm-membership' ) ); ?></button>' +
-											'<button type="button" id="khm-match-modal-pay" style="background:#2271b1;color:#fff;border:none;padding:8px 20px;border-radius:4px;cursor:pointer;font-weight:600;"><?php echo esc_js( __( 'Pay & Request Introduction', 'khm-membership' ) ); ?></button>' +
+											'<button type="button" id="khm-match-modal-cancel" style="background:none;border:1px solid #ccc;padding:8px 20px;border-radius:4px;cursor:pointer;"><?php echo esc_js( __( 'Cancel', 'kh-quote-club' ) ); ?></button>' +
+											'<button type="button" id="khm-match-modal-pay" style="background:#2271b1;color:#fff;border:none;padding:8px 20px;border-radius:4px;cursor:pointer;font-weight:600;"><?php echo esc_js( __( 'Pay & Request Introduction', 'kh-quote-club' ) ); ?></button>' +
 										'</div>' +
 									'</div>';
 								document.body.appendChild(khmMatchModalEl);
@@ -2147,13 +2147,13 @@ class QuoteClubPortalShortcode {
 								khmMatchCurrentState = { oppId: oppId, providerId: providerId, engagedOption: engagedOption, paymentIntentId: paymentIntentId };
 								var amountFmt = (amount / 100).toFixed(2);
 								var currSym   = (currency || 'gbp').toUpperCase() === 'GBP' ? '£' : (currency || '').toUpperCase() === 'USD' ? '$' : currency.toUpperCase();
-								document.getElementById('khm-match-modal-amount').textContent = currSym + amountFmt + ' — ' + <?php echo wp_json_encode( __( 'one-off match fee', 'khm-membership' ) ); ?>;
+								document.getElementById('khm-match-modal-amount').textContent = currSym + amountFmt + ' — ' + <?php echo wp_json_encode( __( 'one-off match fee', 'kh-quote-club' ) ); ?>;
 								document.getElementById('khm-match-payment-error').style.display = 'none';
 								document.getElementById('khm-match-modal-pay').disabled = false;
-								document.getElementById('khm-match-modal-pay').textContent = <?php echo wp_json_encode( __( 'Pay & Request Introduction', 'khm-membership' ) ); ?>;
+								document.getElementById('khm-match-modal-pay').textContent = <?php echo wp_json_encode( __( 'Pay & Request Introduction', 'kh-quote-club' ) ); ?>;
 								khmMatchModalEl.style.display = 'flex';
 								if (typeof Stripe === 'undefined') {
-									document.getElementById('khm-match-payment-error').textContent = <?php echo wp_json_encode( __( 'Payment system not available. Please refresh the page.', 'khm-membership' ) ); ?>;
+									document.getElementById('khm-match-payment-error').textContent = <?php echo wp_json_encode( __( 'Payment system not available. Please refresh the page.', 'kh-quote-club' ) ); ?>;
 									document.getElementById('khm-match-payment-error').style.display = 'block';
 									return;
 								}
@@ -2172,14 +2172,14 @@ class QuoteClubPortalShortcode {
 								if (!khmMatchStripe || !khmMatchElements) return;
 								var payBtn = this;
 								payBtn.disabled = true;
-								payBtn.textContent = <?php echo wp_json_encode( __( 'Processing…', 'khm-membership' ) ); ?>;
+								payBtn.textContent = <?php echo wp_json_encode( __( 'Processing…', 'kh-quote-club' ) ); ?>;
 								document.getElementById('khm-match-payment-error').style.display = 'none';
 								khmMatchStripe.confirmPayment({ elements: khmMatchElements, redirect: 'if_required' }).then(function(result) {
 									if (result.error) {
 										document.getElementById('khm-match-payment-error').textContent = result.error.message;
 										document.getElementById('khm-match-payment-error').style.display = 'block';
 										payBtn.disabled = false;
-										payBtn.textContent = <?php echo wp_json_encode( __( 'Pay & Request Introduction', 'khm-membership' ) ); ?>;
+										payBtn.textContent = <?php echo wp_json_encode( __( 'Pay & Request Introduction', 'kh-quote-club' ) ); ?>;
 										return;
 									}
 									// Payment confirmed — call accept endpoint
@@ -2195,14 +2195,14 @@ class QuoteClubPortalShortcode {
 									}).then(function(r){ return r.json(); }).then(function(d) {
 										khmMatchModalEl.style.display = 'none';
 										if (d.success) {
-											showNotice(<?php echo wp_json_encode( __( 'Payment confirmed — introduction requested. Your inbox will update shortly.', 'khm-membership' ) ); ?>, true);
+											showNotice(<?php echo wp_json_encode( __( 'Payment confirmed — introduction requested. Your inbox will update shortly.', 'kh-quote-club' ) ); ?>, true);
 											loadLeads();
 										} else {
-											showNotice((d.message || <?php echo wp_json_encode( __( 'Request failed after payment. Please contact support.', 'khm-membership' ) ); ?>), false);
+											showNotice((d.message || <?php echo wp_json_encode( __( 'Request failed after payment. Please contact support.', 'kh-quote-club' ) ); ?>), false);
 										}
 									}).catch(function() {
 										khmMatchModalEl.style.display = 'none';
-										showNotice(<?php echo wp_json_encode( __( 'Network error after payment. Please contact support.', 'khm-membership' ) ); ?>, false);
+										showNotice(<?php echo wp_json_encode( __( 'Network error after payment. Please contact support.', 'kh-quote-club' ) ); ?>, false);
 									});
 								});
 							});
@@ -2216,14 +2216,14 @@ class QuoteClubPortalShortcode {
 										var allBtns = btn.closest('.khm-partner-lead-actions').querySelectorAll('.khm-partner-lead-accept-btn');
 										allBtns.forEach(function(b){ b.disabled = true; });
 										btn.textContent = engagedOption
-											? (engagedOption === 'option_1' ? <?php echo wp_json_encode( __( 'Option 1 Requested', 'khm-membership' ) ); ?> : <?php echo wp_json_encode( __( 'Option 2 Requested', 'khm-membership' ) ); ?>)
-											: <?php echo wp_json_encode( __( 'Requested', 'khm-membership' ) ); ?>;
+											? (engagedOption === 'option_1' ? <?php echo wp_json_encode( __( 'Option 1 Requested', 'kh-quote-club' ) ); ?> : <?php echo wp_json_encode( __( 'Option 2 Requested', 'kh-quote-club' ) ); ?>)
+											: <?php echo wp_json_encode( __( 'Requested', 'kh-quote-club' ) ); ?>;
 										return;
 									}
 									var oppId     = parseInt(btn.dataset.id, 10);
 									var sel       = btn.closest('.khm-partner-lead-accept-form').querySelector('.khm-partner-lead-provider-sel');
 									var providerId = sel ? parseInt(sel.value, 10) : 0;
-									if (!providerId) { showNotice(<?php echo wp_json_encode( __( 'No provider mapping found for this RFQ.', 'khm-membership' ) ); ?>, false); return; }
+									if (!providerId) { showNotice(<?php echo wp_json_encode( __( 'No provider mapping found for this RFQ.', 'kh-quote-club' ) ); ?>, false); return; }
 									btn.disabled = true;
 									// Step 1: Create PaymentIntent for this match
 									fetch('<?php echo esc_js( rest_url( 'khm/v1/connect/match/' ) ); ?>' + oppId + '/payment-intent', {
@@ -2235,9 +2235,9 @@ class QuoteClubPortalShortcode {
 										if (d.success && d.client_secret) {
 											khmMatchShowModal(oppId, providerId, engagedOption, d.amount, d.currency, d.client_secret, d.payment_intent_id, d.publishable_key);
 										} else {
-											showNotice((d.message || <?php echo wp_json_encode( __( 'Unable to initiate payment. Please try again.', 'khm-membership' ) ); ?>), false);
+											showNotice((d.message || <?php echo wp_json_encode( __( 'Unable to initiate payment. Please try again.', 'kh-quote-club' ) ); ?>), false);
 										}
-									}).catch(function(){ btn.disabled = false; showNotice(<?php echo wp_json_encode( __( 'Network error — please try again.', 'khm-membership' ) ); ?>, false); });
+									}).catch(function(){ btn.disabled = false; showNotice(<?php echo wp_json_encode( __( 'Network error — please try again.', 'kh-quote-club' ) ); ?>, false); });
 								});
 							});
 						}
@@ -2247,7 +2247,7 @@ class QuoteClubPortalShortcode {
 							allProviders = providers;
 							currentPage  = 0;
 							if (!opps.length) {
-								grid.innerHTML = '<p class="khm-partner-leads-empty"><?php echo esc_js( __( 'No active matches at this time.', 'khm-membership' ) ); ?></p>';
+								grid.innerHTML = '<p class="khm-partner-leads-empty"><?php echo esc_js( __( 'No active matches at this time.', 'kh-quote-club' ) ); ?></p>';
 								var nav = panel.querySelector('.khm-partner-leads-nav');
 								if (nav) nav.innerHTML = '';
 								return;
@@ -2255,7 +2255,7 @@ class QuoteClubPortalShortcode {
 							renderPage(0);
 						}
 						function loadLeads() {
-							grid.innerHTML = '<p class="khm-partner-leads-empty"><?php echo esc_js( __( 'Loading…', 'khm-membership' ) ); ?></p>';
+							grid.innerHTML = '<p class="khm-partner-leads-empty"><?php echo esc_js( __( 'Loading…', 'kh-quote-club' ) ); ?></p>';
 							renderCards(demoLeads(), demoProviders());
 						}
 						btn.addEventListener('click', loadLeads);
@@ -2265,10 +2265,10 @@ class QuoteClubPortalShortcode {
 					<section class="khm-partner-connect-panel khm-partner-rfq-requests-panel khm-partner-connect-span-full" id="khm-partner-rfq-requests-panel-<?php echo (int) ( $sponsor['id'] ?? 0 ); ?>">
 						<div class="khm-partner-connect-panel-head">
 							<div>
-								<h3><?php esc_html_e( 'RFQ Requests', 'khm-membership' ); ?></h3>
-								<p><?php esc_html_e( 'Buyers with formal procurement processes and defined requirements. RFQ scope details below.', 'khm-membership' ); ?></p>
+								<h3><?php esc_html_e( 'RFQ Requests', 'kh-quote-club' ); ?></h3>
+								<p><?php esc_html_e( 'Buyers with formal procurement processes and defined requirements. RFQ scope details below.', 'kh-quote-club' ); ?></p>
 							</div>
-							<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-rfq-refresh"><?php esc_html_e( 'Refresh', 'khm-membership' ); ?></button>
+							<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-rfq-refresh"><?php esc_html_e( 'Refresh', 'kh-quote-club' ); ?></button>
 						</div>
 						<div class="khm-partner-rfq-notice" role="status" aria-live="polite"></div>
 						<div class="khm-partner-rfq-grid"></div>
@@ -2601,14 +2601,14 @@ class QuoteClubPortalShortcode {
 							modal.innerHTML =
 								'<div class="khm-partner-rfq-review-dialog" role="dialog" aria-modal="true" aria-labelledby="khm-partner-rfq-review-title">' +
 									'<div class="khm-partner-rfq-review-head">' +
-										'<h3 id="khm-partner-rfq-review-title"><?php echo esc_js( __( 'Review Proposal Terms', 'khm-membership' ) ); ?></h3>' +
-										'<button type="button" class="khm-partner-rfq-review-close" aria-label="<?php echo esc_js( __( 'Close', 'khm-membership' ) ); ?>">&times;</button>' +
+										'<h3 id="khm-partner-rfq-review-title"><?php echo esc_js( __( 'Review Proposal Terms', 'kh-quote-club' ) ); ?></h3>' +
+										'<button type="button" class="khm-partner-rfq-review-close" aria-label="<?php echo esc_js( __( 'Close', 'kh-quote-club' ) ); ?>">&times;</button>' +
 									'</div>' +
 									'<div class="khm-partner-rfq-review-preview"></div>' +
 									'<div class="khm-partner-rfq-review-terms"></div>' +
 									'<div class="khm-partner-rfq-review-actions">' +
-										'<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-rfq-review-cancel"><?php echo esc_js( __( 'Back', 'khm-membership' ) ); ?></button>' +
-										'<button type="button" class="khm-partner-btn khm-partner-btn-primary khm-partner-rfq-review-confirm"><?php echo esc_js( __( 'Send Proposal', 'khm-membership' ) ); ?></button>' +
+										'<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-rfq-review-cancel"><?php echo esc_js( __( 'Back', 'kh-quote-club' ) ); ?></button>' +
+										'<button type="button" class="khm-partner-btn khm-partner-btn-primary khm-partner-rfq-review-confirm"><?php echo esc_js( __( 'Send Proposal', 'kh-quote-club' ) ); ?></button>' +
 									'</div>' +
 								'</div>';
 							document.body.appendChild(modal);
@@ -2753,18 +2753,18 @@ class QuoteClubPortalShortcode {
 									var scopeLabel = (scopeOptions.find(function(s){ return s.value === miniRfq.scope_value; }) || {}).label || miniRfq.scope_value || '';
 									var seatRange = seatRangeForValue(miniRfq.seats_value);
 									var commissionRateDefault = Math.max(5, Math.min(25, parseInt(miniRfq.max_discount_pct, 10) || 10));
-									var pilotRequestedHtml = miniRfq.pilot_requested ? '<li><strong><?php echo esc_js( __( 'Pilot requested:', 'khm-membership' ) ); ?></strong> <?php echo esc_js( __( 'Yes', 'khm-membership' ) ); ?></li>' : '';
+									var pilotRequestedHtml = miniRfq.pilot_requested ? '<li><strong><?php echo esc_js( __( 'Pilot requested:', 'kh-quote-club' ) ); ?></strong> <?php echo esc_js( __( 'Yes', 'kh-quote-club' ) ); ?></li>' : '';
 									var servicesHtml = (miniRfq.service_items || []).length
-										? '<li><strong><?php echo esc_js( __( 'Services:', 'khm-membership' ) ); ?></strong><ul class="khm-partner-rfq-summary-sublist">' + miniRfq.service_items.map(function(item){ return '<li>' + safe(item) + '</li>'; }).join('') + '</ul></li>'
+										? '<li><strong><?php echo esc_js( __( 'Services:', 'kh-quote-club' ) ); ?></strong><ul class="khm-partner-rfq-summary-sublist">' + miniRfq.service_items.map(function(item){ return '<li>' + safe(item) + '</li>'; }).join('') + '</ul></li>'
 										: '';
 									acceptHtml = '<div class="khm-partner-rfq-accept-form">' +
 										'<input type="hidden" class="khm-partner-rfq-provider-id" value="' + parseInt(selectedProviderId, 10) + '" />' +
 										'<input type="hidden" class="khm-partner-rfq-opportunity-baseline" value="' + opportunityBaselineGbp.toFixed(2) + '" />' +
 										'<div class="khm-partner-lead-engaged-ctas">' +
-											'<button type="button" class="khm-partner-btn khm-partner-btn-primary khm-partner-rfq-open-form-btn" data-id="' + o.id + '"><?php echo esc_js( __( 'Open Proposal Builder', 'khm-membership' ) ); ?></button>' +
+											'<button type="button" class="khm-partner-btn khm-partner-btn-primary khm-partner-rfq-open-form-btn" data-id="' + o.id + '"><?php echo esc_js( __( 'Open Proposal Builder', 'kh-quote-club' ) ); ?></button>' +
 										'</div>' +
 										'<div class="khm-partner-rfq-response-workflow" hidden>' +
-											'<div class="khm-partner-rfq-response-hint"><?php echo esc_js( __( 'Pricing is based on the matched opportunity and your seller profile. Review the commercial terms before sending.', 'khm-membership' ) ); ?></div>' +
+											'<div class="khm-partner-rfq-response-hint"><?php echo esc_js( __( 'Pricing is based on the matched opportunity and your seller profile. Review the commercial terms before sending.', 'kh-quote-club' ) ); ?></div>' +
 											'<div class="khm-partner-rfq-response-grid">' +
 												'<div class="khm-partner-rfq-response-field khm-partner-rfq-summary">' +
 													'<input type="hidden" class="khm-partner-rfq-response-scope" value="' + miniRfq.scope_value + '" />' +
@@ -2772,58 +2772,58 @@ class QuoteClubPortalShortcode {
 													'<input type="hidden" class="khm-partner-rfq-seat-min" value="' + seatRange.min + '" />' +
 													'<input type="hidden" class="khm-partner-rfq-seat-max" value="' + seatRange.max + '" />' +
 													'<input type="hidden" class="khm-partner-rfq-pilot-requested" value="' + (miniRfq.pilot_requested ? 'yes' : 'no') + '" />' +
-													'<h4><?php echo esc_js( __( 'Engagement Summary', 'khm-membership' ) ); ?></h4>' +
+													'<h4><?php echo esc_js( __( 'Engagement Summary', 'kh-quote-club' ) ); ?></h4>' +
 													'<ul class="khm-partner-rfq-summary-list">' +
-														'<li><strong><?php echo esc_js( __( 'Solution:', 'khm-membership' ) ); ?></strong> ' + scopeLabel + '</li>' +
-														'<li><strong><?php echo esc_js( __( 'Licences:', 'khm-membership' ) ); ?></strong> ' + seatRange.label + '</li>' +
+														'<li><strong><?php echo esc_js( __( 'Solution:', 'kh-quote-club' ) ); ?></strong> ' + scopeLabel + '</li>' +
+														'<li><strong><?php echo esc_js( __( 'Licences:', 'kh-quote-club' ) ); ?></strong> ' + seatRange.label + '</li>' +
 														pilotRequestedHtml +
-														'<li><strong><?php echo esc_js( __( 'Features:', 'khm-membership' ) ); ?></strong><div class="khm-partner-rfq-feature-grid">' + featureCheckboxHtml(featureOptions, miniRfq.features) + '</div></li>' +
+														'<li><strong><?php echo esc_js( __( 'Features:', 'kh-quote-club' ) ); ?></strong><div class="khm-partner-rfq-feature-grid">' + featureCheckboxHtml(featureOptions, miniRfq.features) + '</div></li>' +
 														servicesHtml +
 													'</ul>' +
 												'</div>' +
 												'<div class="khm-partner-rfq-response-field">' +
-													'<label><?php echo esc_js( __( 'Cost per licence / month (£)', 'khm-membership' ) ); ?></label>' +
+													'<label><?php echo esc_js( __( 'Cost per licence / month (£)', 'kh-quote-club' ) ); ?></label>' +
 													'<input type="number" min="1" step="0.01" class="khm-partner-rfq-response-cpl" value="' + baseCpl.toFixed(2) + '" />' +
-													'<p class="khm-partner-rfq-estimate-caption"><?php echo esc_js( __( 'Editable commercial price seeded from the matched seller rate.', 'khm-membership' ) ); ?></p>' +
+													'<p class="khm-partner-rfq-estimate-caption"><?php echo esc_js( __( 'Editable commercial price seeded from the matched seller rate.', 'kh-quote-club' ) ); ?></p>' +
 												'</div>' +
 												'<div class="khm-partner-rfq-response-field">' +
-													'<label><?php echo esc_js( __( '12-month estimate', 'khm-membership' ) ); ?></label>' +
+													'<label><?php echo esc_js( __( '12-month estimate', 'kh-quote-club' ) ); ?></label>' +
 													'<div class="khm-partner-rfq-calc-card">' +
 														'<div class="khm-partner-rfq-estimate-value khm-partner-rfq-estimate-range"></div>' +
-														'<div class="khm-partner-rfq-estimate-caption"><?php echo esc_js( __( 'Calculated from the licence range in the RFQ over 12 months.', 'khm-membership' ) ); ?></div>' +
+														'<div class="khm-partner-rfq-estimate-caption"><?php echo esc_js( __( 'Calculated from the licence range in the RFQ over 12 months.', 'kh-quote-club' ) ); ?></div>' +
 													'</div>' +
 												'</div>' +
 												'<div class="khm-partner-rfq-response-field">' +
 													'<label class="khm-partner-rfq-toggle">' +
 														'<input type="checkbox" class="khm-partner-rfq-discount-toggle" />' +
-														'<span><?php echo esc_js( __( 'Offer platform discount', 'khm-membership' ) ); ?></span>' +
+														'<span><?php echo esc_js( __( 'Offer platform discount', 'kh-quote-club' ) ); ?></span>' +
 													'</label>' +
 												'</div>' +
 												'<div class="khm-partner-rfq-response-field">' +
 													'<div class="khm-partner-rfq-discount-controls" hidden>' +
-														'<label><?php echo esc_js( __( 'Discount / commission rate (%)', 'khm-membership' ) ); ?></label>' +
+														'<label><?php echo esc_js( __( 'Discount / commission rate (%)', 'kh-quote-club' ) ); ?></label>' +
 														'<input type="range" min="5" max="25" step="1" value="' + commissionRateDefault + '" class="khm-partner-rfq-commission-rate" />' +
-														'<div class="khm-partner-rfq-discount-readout"><span><?php echo esc_js( __( 'Selected rate:', 'khm-membership' ) ); ?> <strong class="khm-partner-rfq-rate-value">' + commissionRateDefault + '%</strong></span><span><?php echo esc_js( __( 'This total rate is split 50/50 between estimated buyer discount and estimated platform commission.', 'khm-membership' ) ); ?></span></div>' +
+														'<div class="khm-partner-rfq-discount-readout"><span><?php echo esc_js( __( 'Selected rate:', 'kh-quote-club' ) ); ?> <strong class="khm-partner-rfq-rate-value">' + commissionRateDefault + '%</strong></span><span><?php echo esc_js( __( 'This total rate is split 50/50 between estimated buyer discount and estimated platform commission.', 'kh-quote-club' ) ); ?></span></div>' +
 													'</div>' +
 												'</div>' +
 												'<div class="khm-partner-rfq-response-field">' +
-													'<label><?php echo esc_js( __( 'Commercial breakdown', 'khm-membership' ) ); ?></label>' +
+													'<label><?php echo esc_js( __( 'Commercial breakdown', 'kh-quote-club' ) ); ?></label>' +
 													'<div class="khm-partner-rfq-calc-card">' +
-														'<div class="khm-partner-rfq-breakdown-row"><span><?php echo esc_js( __( 'Payable today', 'khm-membership' ) ); ?></span><strong class="khm-partner-rfq-flat-fee"></strong></div>' +
+														'<div class="khm-partner-rfq-breakdown-row"><span><?php echo esc_js( __( 'Payable today', 'kh-quote-club' ) ); ?></span><strong class="khm-partner-rfq-flat-fee"></strong></div>' +
 														'<div class="khm-partner-rfq-commission-breakdown" hidden>' +
-															'<div class="khm-partner-rfq-breakdown-row"><span class="khm-partner-rfq-tooltip"><?php echo esc_js( __( 'Estimated buyer discount', 'khm-membership' ) ); ?><button type="button" class="khm-partner-rfq-tooltip-btn" aria-label="<?php echo esc_js( __( 'Buyer discount help', 'khm-membership' ) ); ?>">i</button><span class="khm-partner-rfq-tooltip-bubble"><?php echo esc_js( __( 'Deductible from the buyer\'s first invoice with your company.', 'khm-membership' ) ); ?></span></span><strong class="khm-partner-rfq-client-saving"></strong></div>' +
-															'<div class="khm-partner-rfq-breakdown-row"><span class="khm-partner-rfq-tooltip"><?php echo esc_js( __( 'Estimated platform commission', 'khm-membership' ) ); ?><button type="button" class="khm-partner-rfq-tooltip-btn" aria-label="<?php echo esc_js( __( 'Platform commission help', 'khm-membership' ) ); ?>">i</button><span class="khm-partner-rfq-tooltip-bubble"><?php echo esc_js( __( 'Debited from your account when the buyer confirms agreement so they can claim discount.', 'khm-membership' ) ); ?></span></span><strong class="khm-partner-rfq-platform-commission"></strong></div>' +
+															'<div class="khm-partner-rfq-breakdown-row"><span class="khm-partner-rfq-tooltip"><?php echo esc_js( __( 'Estimated buyer discount', 'kh-quote-club' ) ); ?><button type="button" class="khm-partner-rfq-tooltip-btn" aria-label="<?php echo esc_js( __( 'Buyer discount help', 'kh-quote-club' ) ); ?>">i</button><span class="khm-partner-rfq-tooltip-bubble"><?php echo esc_js( __( 'Deductible from the buyer\'s first invoice with your company.', 'kh-quote-club' ) ); ?></span></span><strong class="khm-partner-rfq-client-saving"></strong></div>' +
+															'<div class="khm-partner-rfq-breakdown-row"><span class="khm-partner-rfq-tooltip"><?php echo esc_js( __( 'Estimated platform commission', 'kh-quote-club' ) ); ?><button type="button" class="khm-partner-rfq-tooltip-btn" aria-label="<?php echo esc_js( __( 'Platform commission help', 'kh-quote-club' ) ); ?>">i</button><span class="khm-partner-rfq-tooltip-bubble"><?php echo esc_js( __( 'Debited from your account when the buyer confirms agreement so they can claim discount.', 'kh-quote-club' ) ); ?></span></span><strong class="khm-partner-rfq-platform-commission"></strong></div>' +
 														'</div>' +
 													'</div>' +
 												'</div>' +
 												'<div class="khm-partner-rfq-response-field">' +
-													'<label><?php echo esc_js( __( 'Note to send with this proposal (optional)', 'khm-membership' ) ); ?></label>' +
-													'<textarea class="khm-partner-rfq-response-notes" placeholder="<?php echo esc_js( __( 'Any caveats, assumptions, or implementation notes…', 'khm-membership' ) ); ?>"></textarea>' +
+													'<label><?php echo esc_js( __( 'Note to send with this proposal (optional)', 'kh-quote-club' ) ); ?></label>' +
+													'<textarea class="khm-partner-rfq-response-notes" placeholder="<?php echo esc_js( __( 'Any caveats, assumptions, or implementation notes…', 'kh-quote-club' ) ); ?>"></textarea>' +
 												'</div>' +
 											'</div>' +
 											'<div class="khm-partner-rfq-response-actions">' +
-												'<button type="button" class="khm-partner-btn khm-partner-btn-primary khm-partner-rfq-submit-btn" data-id="' + o.id + '"><?php echo esc_js( __( 'Review Proposal Terms', 'khm-membership' ) ); ?></button>' +
-												'<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-rfq-cancel-btn"><?php echo esc_js( __( 'Cancel', 'khm-membership' ) ); ?></button>' +
+												'<button type="button" class="khm-partner-btn khm-partner-btn-primary khm-partner-rfq-submit-btn" data-id="' + o.id + '"><?php echo esc_js( __( 'Review Proposal Terms', 'kh-quote-club' ) ); ?></button>' +
+												'<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-rfq-cancel-btn"><?php echo esc_js( __( 'Cancel', 'kh-quote-club' ) ); ?></button>' +
 											'</div>' +
 										'</div>' +
 									'</div>';
@@ -2969,14 +2969,14 @@ class QuoteClubPortalShortcode {
 									var features = Array.prototype.map.call(featureInputs, function(input){ return String(input.value || ''); });
 									var pricing = updateRfqPricing(form);
 									if (!scopeValue || cplValue <= 0 || !features.length || !pricing) {
-										showNotice(<?php echo wp_json_encode( __( 'Please complete the pricing details before continuing.', 'khm-membership' ) ); ?>, false);
+										showNotice(<?php echo wp_json_encode( __( 'Please complete the pricing details before continuing.', 'kh-quote-club' ) ); ?>, false);
 										return;
 									}
 									var oppId = parseInt(btn.dataset.id, 10);
 									var providerInput = form ? form.querySelector('.khm-partner-rfq-provider-id') : null;
 									var providerId = providerInput ? parseInt(providerInput.value, 10) : 0;
 									if (!providerId) {
-										showNotice(<?php echo wp_json_encode( __( 'No provider mapping found for this RFQ.', 'khm-membership' ) ); ?>, false);
+										showNotice(<?php echo wp_json_encode( __( 'No provider mapping found for this RFQ.', 'kh-quote-club' ) ); ?>, false);
 										return;
 									}
 									var responseSummary = 'Scope=' + scopeValue + '; Seats=' + seatsValue + '; Features=' + features.join(',') + '; CPLGBP=' + cplValue.toFixed(2) + '; AnnualEstimateMin=' + pricing.discountedMin.toFixed(2) + '; AnnualEstimateMax=' + pricing.discountedMax.toFixed(2) + '; PlatformDiscount=' + (offerPlatformDiscount ? 'yes' : 'no') + '; CommissionRate=' + commissionRate + '; BaselineGBP=' + pricing.flatFeeBasis.toFixed(2) + '; FlatFeeGBP=' + pricing.flatFee.toFixed(2) + '; BuyerDiscountGBP=' + pricing.estimatedBuyerDiscount.toFixed(2) + '; PlatformCommissionGBP=' + pricing.estimatedPlatformCommission.toFixed(2);
@@ -3004,25 +3004,25 @@ class QuoteClubPortalShortcode {
 									var previewHtml =
 										(summarySection ? summarySection.outerHTML : '') +
 										'<div class="khm-partner-rfq-calc-card">' +
-											'<h4><?php echo esc_js( __( 'Commercial Terms', 'khm-membership' ) ); ?></h4>' +
-											'<div class="khm-partner-rfq-breakdown-row"><span><?php echo esc_js( __( 'Cost per licence / month', 'khm-membership' ) ); ?></span><strong>' + formatGbp(cplValue) + '</strong></div>' +
-											'<div class="khm-partner-rfq-breakdown-row"><span><?php echo esc_js( __( '12-month estimate', 'khm-membership' ) ); ?></span><strong>' + formatGbp(pricing.discountedMin) + ' - ' + formatGbp(pricing.discountedMax) + '</strong></div>' +
-											'<div class="khm-partner-rfq-breakdown-row"><span><?php echo esc_js( __( 'Platform discount offered', 'khm-membership' ) ); ?></span><strong>' + (offerPlatformDiscount ? 'Yes (' + commissionRate + '%)' : 'No') + '</strong></div>' +
-											'<div class="khm-partner-rfq-breakdown-row"><span><?php echo esc_js( __( 'Payable today', 'khm-membership' ) ); ?></span><strong>' + formatGbp(pricing.flatFee) + '</strong></div>' +
-											(offerPlatformDiscount ? '<div class="khm-partner-rfq-breakdown-row"><span class="khm-partner-rfq-tooltip"><?php echo esc_js( __( 'Estimated buyer discount', 'khm-membership' ) ); ?><button type="button" class="khm-partner-rfq-tooltip-btn" aria-label="<?php echo esc_js( __( 'Buyer discount help', 'khm-membership' ) ); ?>">i</button><span class="khm-partner-rfq-tooltip-bubble"><?php echo esc_js( __( 'Deductible from the buyer\'s first invoice with your company.', 'khm-membership' ) ); ?></span></span><strong>' + formatGbp(pricing.estimatedBuyerDiscount) + '</strong></div>' : '') +
-											(offerPlatformDiscount ? '<div class="khm-partner-rfq-breakdown-row"><span class="khm-partner-rfq-tooltip"><?php echo esc_js( __( 'Estimated platform commission', 'khm-membership' ) ); ?><button type="button" class="khm-partner-rfq-tooltip-btn" aria-label="<?php echo esc_js( __( 'Platform commission help', 'khm-membership' ) ); ?>">i</button><span class="khm-partner-rfq-tooltip-bubble"><?php echo esc_js( __( 'Debited from your account when the buyer confirms agreement so they can claim discount.', 'khm-membership' ) ); ?></span></span><strong>' + formatGbp(pricing.estimatedPlatformCommission) + '</strong></div>' : '') +
-											(notesValue ? '<div><strong><?php echo esc_js( __( 'Note to buyer', 'khm-membership' ) ); ?>:</strong><p style="margin:6px 0 0;">' + safe(notesValue).replace(/\n/g, '<br>') + '</p></div>' : '') +
+											'<h4><?php echo esc_js( __( 'Commercial Terms', 'kh-quote-club' ) ); ?></h4>' +
+											'<div class="khm-partner-rfq-breakdown-row"><span><?php echo esc_js( __( 'Cost per licence / month', 'kh-quote-club' ) ); ?></span><strong>' + formatGbp(cplValue) + '</strong></div>' +
+											'<div class="khm-partner-rfq-breakdown-row"><span><?php echo esc_js( __( '12-month estimate', 'kh-quote-club' ) ); ?></span><strong>' + formatGbp(pricing.discountedMin) + ' - ' + formatGbp(pricing.discountedMax) + '</strong></div>' +
+											'<div class="khm-partner-rfq-breakdown-row"><span><?php echo esc_js( __( 'Platform discount offered', 'kh-quote-club' ) ); ?></span><strong>' + (offerPlatformDiscount ? 'Yes (' + commissionRate + '%)' : 'No') + '</strong></div>' +
+											'<div class="khm-partner-rfq-breakdown-row"><span><?php echo esc_js( __( 'Payable today', 'kh-quote-club' ) ); ?></span><strong>' + formatGbp(pricing.flatFee) + '</strong></div>' +
+											(offerPlatformDiscount ? '<div class="khm-partner-rfq-breakdown-row"><span class="khm-partner-rfq-tooltip"><?php echo esc_js( __( 'Estimated buyer discount', 'kh-quote-club' ) ); ?><button type="button" class="khm-partner-rfq-tooltip-btn" aria-label="<?php echo esc_js( __( 'Buyer discount help', 'kh-quote-club' ) ); ?>">i</button><span class="khm-partner-rfq-tooltip-bubble"><?php echo esc_js( __( 'Deductible from the buyer\'s first invoice with your company.', 'kh-quote-club' ) ); ?></span></span><strong>' + formatGbp(pricing.estimatedBuyerDiscount) + '</strong></div>' : '') +
+											(offerPlatformDiscount ? '<div class="khm-partner-rfq-breakdown-row"><span class="khm-partner-rfq-tooltip"><?php echo esc_js( __( 'Estimated platform commission', 'kh-quote-club' ) ); ?><button type="button" class="khm-partner-rfq-tooltip-btn" aria-label="<?php echo esc_js( __( 'Platform commission help', 'kh-quote-club' ) ); ?>">i</button><span class="khm-partner-rfq-tooltip-bubble"><?php echo esc_js( __( 'Debited from your account when the buyer confirms agreement so they can claim discount.', 'kh-quote-club' ) ); ?></span></span><strong>' + formatGbp(pricing.estimatedPlatformCommission) + '</strong></div>' : '') +
+											(notesValue ? '<div><strong><?php echo esc_js( __( 'Note to buyer', 'kh-quote-club' ) ); ?>:</strong><p style="margin:6px 0 0;">' + safe(notesValue).replace(/\n/g, '<br>') + '</p></div>' : '') +
 										'</div>';
-									var termsHtml = '<p><?php echo esc_js( __( 'By sending this proposal you agree that your account will be debited for the flat fee if the buyer accepts and wishes to proceed off-platform.', 'khm-membership' ) ); ?></p>';
+									var termsHtml = '<p><?php echo esc_js( __( 'By sending this proposal you agree that your account will be debited for the flat fee if the buyer accepts and wishes to proceed off-platform.', 'kh-quote-club' ) ); ?></p>';
 									if (offerPlatformDiscount) {
-										termsHtml += '<p><?php echo esc_js( __( 'If a deal is agreed with the buyer, accessing the platform discount requires proof of contract. Submitting proof will automatically trigger the platform commission payment.', 'khm-membership' ) ); ?></p>';
+										termsHtml += '<p><?php echo esc_js( __( 'If a deal is agreed with the buyer, accessing the platform discount requires proof of contract. Submitting proof will automatically trigger the platform commission payment.', 'kh-quote-club' ) ); ?></p>';
 									}
 									openRfqReviewModal(previewHtml, termsHtml, function() {
 										var rfqCard = btn.closest('.khm-partner-rfq-card');
 										if (rfqCard && rfqCard.dataset.demo === '1') {
 											var actions = btn.closest('.khm-partner-lead-actions');
 											if (actions) {
-												actions.innerHTML = '<span class="khm-partner-lead-status" style="color:#1e8c45;">&#10003; <?php echo esc_js( __( 'Proposal sent', 'khm-membership' ) ); ?></span>';
+												actions.innerHTML = '<span class="khm-partner-lead-status" style="color:#1e8c45;">&#10003; <?php echo esc_js( __( 'Proposal sent', 'kh-quote-club' ) ); ?></span>';
 											}
 											return;
 										}
@@ -3038,13 +3038,13 @@ class QuoteClubPortalShortcode {
 											})
 										}).then(function(r){ return r.json(); }).then(function(d) {
 											if (d.success) {
-												showNotice(<?php echo wp_json_encode( __( 'Proposal sent — intro thread will open shortly.', 'khm-membership' ) ); ?>, true);
+												showNotice(<?php echo wp_json_encode( __( 'Proposal sent — intro thread will open shortly.', 'kh-quote-club' ) ); ?>, true);
 												loadRfqs();
 											} else {
-												showNotice((d.message || <?php echo wp_json_encode( __( 'Request failed.', 'khm-membership' ) ); ?>), false);
+												showNotice((d.message || <?php echo wp_json_encode( __( 'Request failed.', 'kh-quote-club' ) ); ?>), false);
 												btn.disabled = false;
 											}
-										}).catch(function(){ showNotice(<?php echo wp_json_encode( __( 'Network error — please try again.', 'khm-membership' ) ); ?>, false); btn.disabled = false; });
+										}).catch(function(){ showNotice(<?php echo wp_json_encode( __( 'Network error — please try again.', 'kh-quote-club' ) ); ?>, false); btn.disabled = false; });
 									});
 								});
 							});
@@ -3055,7 +3055,7 @@ class QuoteClubPortalShortcode {
 							allProviders = providers;
 							currentPage  = 0;
 							if (!rfps.length) {
-								grid.innerHTML = '<p class="khm-partner-leads-empty"><?php echo esc_js( __( 'No RFQ requests at this time.', 'khm-membership' ) ); ?></p>';
+								grid.innerHTML = '<p class="khm-partner-leads-empty"><?php echo esc_js( __( 'No RFQ requests at this time.', 'kh-quote-club' ) ); ?></p>';
 								var nav = panel.querySelector('.khm-partner-rfq-nav');
 								if (nav) nav.innerHTML = '';
 								return;
@@ -3077,7 +3077,7 @@ class QuoteClubPortalShortcode {
 						}
 						function loadRfqs() {
 							seedDemoClientSetup();
-							grid.innerHTML = '<p class="khm-partner-leads-empty"><?php echo esc_js( __( 'Loading…', 'khm-membership' ) ); ?></p>';
+							grid.innerHTML = '<p class="khm-partner-leads-empty"><?php echo esc_js( __( 'Loading…', 'kh-quote-club' ) ); ?></p>';
 							renderRfqCards(demoRfqLeads(), demoProviders());
 						}
 						btn.addEventListener('click', loadRfqs);
@@ -3095,14 +3095,14 @@ class QuoteClubPortalShortcode {
 						</style>
 						<div class="khm-partner-connect-panel-head">
 							<div>
-								<h3><?php esc_html_e( 'Intro Inbox', 'khm-membership' ); ?></h3>
-								<p><?php esc_html_e( 'Replies stay platform-mediated until a buyer explicitly requests handover and your team confirms it.', 'khm-membership' ); ?></p>
+								<h3><?php esc_html_e( 'Intro Inbox', 'kh-quote-club' ); ?></h3>
+								<p><?php esc_html_e( 'Replies stay platform-mediated until a buyer explicitly requests handover and your team confirms it.', 'kh-quote-club' ); ?></p>
 							</div>
 						</div>
 						<div class="khm-partner-connect-inbox-grid">
 							<div class="khm-partner-connect-thread-list"></div>
 							<div class="khm-partner-connect-thread-detail">
-								<div class="khm-partner-connect-empty"><?php esc_html_e( 'Select an intro thread to review messages, reply, and manage handover.', 'khm-membership' ); ?></div>
+								<div class="khm-partner-connect-empty"><?php esc_html_e( 'Select an intro thread to review messages, reply, and manage handover.', 'kh-quote-club' ); ?></div>
 							</div>
 						</div>
 					</section>
@@ -3117,41 +3117,41 @@ class QuoteClubPortalShortcode {
 		<div class="khm-partner-section khm-partner-commentary">
 			<!-- Invite / accept status banner -->
 			<div class="khm-quoteclub-invite-status" role="status" aria-live="polite"></div>
-			<h2><?php esc_html_e( 'Search Articles &amp; Submit Commentary', 'khm-membership' ); ?></h2>
+			<h2><?php esc_html_e( 'Search Articles &amp; Submit Commentary', 'kh-quote-club' ); ?></h2>
 			<div class="khm-quoteclub-toolbar">
-				<select class="khm-filter-date-range" aria-label="<?php esc_attr_e( 'Date range', 'khm-membership' ); ?>">
-					<option value="all"><?php esc_html_e( 'All', 'khm-membership' ); ?></option>
-					<option value="week"><?php esc_html_e( 'Within the next week', 'khm-membership' ); ?></option>
-					<option value="month"><?php esc_html_e( 'Within the next month', 'khm-membership' ); ?></option>
+				<select class="khm-filter-date-range" aria-label="<?php esc_attr_e( 'Date range', 'kh-quote-club' ); ?>">
+					<option value="all"><?php esc_html_e( 'All', 'kh-quote-club' ); ?></option>
+					<option value="week"><?php esc_html_e( 'Within the next week', 'kh-quote-club' ); ?></option>
+					<option value="month"><?php esc_html_e( 'Within the next month', 'kh-quote-club' ); ?></option>
 				</select>
 				<?php if ( ! empty( $categories ) ) : ?>
-				<select multiple class="khm-filter-categories" aria-label="<?php esc_attr_e( 'Categories', 'khm-membership' ); ?>">
+				<select multiple class="khm-filter-categories" aria-label="<?php esc_attr_e( 'Categories', 'kh-quote-club' ); ?>">
 					<?php foreach ( $categories as $cat ) : ?>
 						<option value="<?php echo esc_attr( $cat ); ?>"><?php echo esc_html( $cat ); ?></option>
 					<?php endforeach; ?>
 				</select>
 				<?php endif; ?>
 				<div class="khm-topic-autocomplete">
-					<input type="text" class="khm-filter-topics" autocomplete="off" placeholder="<?php esc_attr_e( 'Topics', 'khm-membership' ); ?>">
-					<div class="khm-topic-suggest-menu" role="listbox" aria-label="<?php esc_attr_e( 'Topic suggestions', 'khm-membership' ); ?>"></div>
+					<input type="text" class="khm-filter-topics" autocomplete="off" placeholder="<?php esc_attr_e( 'Topics', 'kh-quote-club' ); ?>">
+					<div class="khm-topic-suggest-menu" role="listbox" aria-label="<?php esc_attr_e( 'Topic suggestions', 'kh-quote-club' ); ?>"></div>
 				</div>
-				<input type="text" class="khm-filter-keywords" placeholder="<?php esc_attr_e( 'Keywords', 'khm-membership' ); ?>">
-				<select class="khm-filter-operator" aria-label="<?php esc_attr_e( 'Keyword operator', 'khm-membership' ); ?>">
-					<option value="AND"><?php esc_html_e( 'AND', 'khm-membership' ); ?></option>
-					<option value="OR"><?php esc_html_e( 'OR', 'khm-membership' ); ?></option>
+				<input type="text" class="khm-filter-keywords" placeholder="<?php esc_attr_e( 'Keywords', 'kh-quote-club' ); ?>">
+				<select class="khm-filter-operator" aria-label="<?php esc_attr_e( 'Keyword operator', 'kh-quote-club' ); ?>">
+					<option value="AND"><?php esc_html_e( 'AND', 'kh-quote-club' ); ?></option>
+					<option value="OR"><?php esc_html_e( 'OR', 'kh-quote-club' ); ?></option>
 				</select>
-				<p class="khm-filter-operator-help"><?php esc_html_e( 'Keyword match: AND requires all words, OR matches any word. Use AND to narrow and OR to broaden.', 'khm-membership' ); ?></p>
-				<select class="khm-saved-searches" aria-label="<?php esc_attr_e( 'Saved searches', 'khm-membership' ); ?>">
-					<option value=""><?php esc_html_e( '— Saved Searches —', 'khm-membership' ); ?></option>
+				<p class="khm-filter-operator-help"><?php esc_html_e( 'Keyword match: AND requires all words, OR matches any word. Use AND to narrow and OR to broaden.', 'kh-quote-club' ); ?></p>
+				<select class="khm-saved-searches" aria-label="<?php esc_attr_e( 'Saved searches', 'kh-quote-club' ); ?>">
+					<option value=""><?php esc_html_e( '— Saved Searches —', 'kh-quote-club' ); ?></option>
 				</select>
-				<button type="button" class="button khm-quoteclub-search-btn"><?php esc_html_e( 'Search', 'khm-membership' ); ?></button>
-				<button type="button" class="button khm-save-search-btn"><?php esc_html_e( 'Save Search', 'khm-membership' ); ?></button>
+				<button type="button" class="button khm-quoteclub-search-btn"><?php esc_html_e( 'Search', 'kh-quote-club' ); ?></button>
+				<button type="button" class="button khm-save-search-btn"><?php esc_html_e( 'Save Search', 'kh-quote-club' ); ?></button>
 			</div>
 			<div class="khm-quoteclub-layout">
-				<div class="khm-quoteclub-results" role="list" aria-label="<?php esc_attr_e( 'Search results', 'khm-membership' ); ?>"></div>
+				<div class="khm-quoteclub-results" role="list" aria-label="<?php esc_attr_e( 'Search results', 'kh-quote-club' ); ?>"></div>
 				<div class="khm-quoteclub-detail">
 					<p class="khm-quoteclub-detail-placeholder">
-						<?php esc_html_e( 'Select a result to view the brief and submit commentary.', 'khm-membership' ); ?>
+						<?php esc_html_e( 'Select a result to view the brief and submit commentary.', 'kh-quote-club' ); ?>
 					</p>
 				</div>
 			</div>
@@ -3174,11 +3174,11 @@ class QuoteClubPortalShortcode {
 		$current_blog_id      = is_multisite() ? (int) get_current_blog_id() : 0;
 		?>
 		<div class="khm-partner-section khm-partner-press-releases">
-			<h2><?php esc_html_e( 'Press Releases', 'khm-membership' ); ?></h2>
+			<h2><?php esc_html_e( 'Press Releases', 'kh-quote-club' ); ?></h2>
 			
 			<div class="khm-partner-pr-toolbar">
 				<button class="khm-partner-btn khm-partner-btn-primary" id="pr-create-btn">
-					<?php esc_html_e( '+ Create New Press Release', 'khm-membership' ); ?>
+					<?php esc_html_e( '+ Create New Press Release', 'kh-quote-club' ); ?>
 				</button>
 			</div>
 			<!-- Press release list -->
@@ -3187,27 +3187,27 @@ class QuoteClubPortalShortcode {
 			<div id="pr-form-modal" class="khm-partner-modal" style="display:none">
 				<div class="khm-partner-modal-content">
 					<div class="khm-partner-modal-header">
-						<h3 id="pr-form-title"><?php esc_html_e( 'Create Press Release', 'khm-membership' ); ?></h3>
+						<h3 id="pr-form-title"><?php esc_html_e( 'Create Press Release', 'kh-quote-club' ); ?></h3>
 						<button class="khm-partner-modal-close" id="pr-form-close">×</button>
 					</div>
 					<div class="khm-partner-modal-body">
 						<form id="pr-form">
 							<div class="khm-partner-form-group">
-								<label for="pr-title"><?php esc_html_e( 'Title', 'khm-membership' ); ?> *</label>
+								<label for="pr-title"><?php esc_html_e( 'Title', 'kh-quote-club' ); ?> *</label>
 								<input type="text" id="pr-title" name="title" required maxlength="255"
-									   placeholder="<?php esc_attr_e( 'Press release title', 'khm-membership' ); ?>"
+									   placeholder="<?php esc_attr_e( 'Press release title', 'kh-quote-club' ); ?>"
 									   class="khm-partner-input">
 							</div>
 							<div class="khm-partner-form-group">
-								<label for="pr-content"><?php esc_html_e( 'Content', 'khm-membership' ); ?> *</label>
+								<label for="pr-content"><?php esc_html_e( 'Content', 'kh-quote-club' ); ?> *</label>
 								<textarea id="pr-content" name="content" required rows="8"
-										  placeholder="<?php esc_attr_e( 'Write your press release content here...', 'khm-membership' ); ?>"
+										  placeholder="<?php esc_attr_e( 'Write your press release content here...', 'kh-quote-club' ); ?>"
 										  class="khm-partner-textarea"></textarea>
-								<small><?php esc_html_e( 'Press releases can be any length.', 'khm-membership' ); ?></small>
+								<small><?php esc_html_e( 'Press releases can be any length.', 'kh-quote-club' ); ?></small>
 							</div>
 							<?php if ( ! empty( $portfolio_sites ) ) : ?>
 							<div class="khm-partner-form-group" id="pr-dist-group">
-								<label><?php esc_html_e( 'Also distribute to portfolio sites (S7):', 'khm-membership' ); ?></label>
+								<label><?php esc_html_e( 'Also distribute to portfolio sites (S7):', 'kh-quote-club' ); ?></label>
 								<div id="pr-dist-sites" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">
 								<?php foreach ( $portfolio_sites as $site ) : ?>
 									<label style="font-size:13px;display:flex;align-items:center;gap:4px;">
@@ -3217,21 +3217,21 @@ class QuoteClubPortalShortcode {
 											   <?php disabled( (int) $site['id'], $current_blog_id ); ?> />
 										<?php echo esc_html( $site['name'] ); ?>
 										<?php if ( (int) $site['id'] === $current_blog_id ) : ?>
-											<em style="color:#777;font-size:11px;">(<?php esc_html_e( 'this site', 'khm-membership' ); ?>)</em>
+											<em style="color:#777;font-size:11px;">(<?php esc_html_e( 'this site', 'kh-quote-club' ); ?>)</em>
 										<?php endif; ?>
 									</label>
 								<?php endforeach; ?>
 								</div>
-								<small><?php esc_html_e( 'The current site is always included. Extra sites require editorial approval on each.', 'khm-membership' ); ?></small>
+								<small><?php esc_html_e( 'The current site is always included. Extra sites require editorial approval on each.', 'kh-quote-club' ); ?></small>
 							</div>
 							<?php endif; ?>
 						</form>
 					</div>
 					<div class="khm-partner-modal-footer">
-						<button class="khm-partner-btn" id="pr-form-cancel"><?php esc_html_e( 'Cancel', 'khm-membership' ); ?></button>
-						<button class="khm-partner-btn khm-partner-btn-primary" id="pr-form-save-draft"><?php esc_html_e( 'Save Draft', 'khm-membership' ); ?></button>
+						<button class="khm-partner-btn" id="pr-form-cancel"><?php esc_html_e( 'Cancel', 'kh-quote-club' ); ?></button>
+						<button class="khm-partner-btn khm-partner-btn-primary" id="pr-form-save-draft"><?php esc_html_e( 'Save Draft', 'kh-quote-club' ); ?></button>
 						<button class="khm-partner-btn khm-partner-btn-success" id="pr-form-submit" style="display:none">
-							<?php esc_html_e( 'Save & Submit (1 Credit)', 'khm-membership' ); ?>
+							<?php esc_html_e( 'Save & Submit (1 Credit)', 'kh-quote-club' ); ?>
 						</button>
 					</div>
 				</div>
@@ -3240,19 +3240,19 @@ class QuoteClubPortalShortcode {
 			<div id="pr-confirm-modal" class="khm-partner-modal" style="display:none">
 				<div class="khm-partner-modal-content" style="max-width:700px">
 					<div class="khm-partner-modal-header">
-						<h3><?php esc_html_e( 'Confirm Submission', 'khm-membership' ); ?></h3>
+						<h3><?php esc_html_e( 'Confirm Submission', 'kh-quote-club' ); ?></h3>
 						<button class="khm-partner-modal-close" id="pr-confirm-close">×</button>
 					</div>
 					<div class="khm-partner-modal-body">
 						<div id="pr-confirm-preview" style="background:#f9f9f9;padding:1rem;border-radius:4px;margin-bottom:1rem"></div>
 						<div class="khm-partner-alert khm-partner-alert-info">
-							<strong><?php esc_html_e( 'Cost:', 'khm-membership' ); ?></strong> 
-							<?php esc_html_e( '1 Press Release Credit', 'khm-membership' ); ?>
+							<strong><?php esc_html_e( 'Cost:', 'kh-quote-club' ); ?></strong> 
+							<?php esc_html_e( '1 Press Release Credit', 'kh-quote-club' ); ?>
 						</div>
 					</div>
 					<div class="khm-partner-modal-footer">
-						<button class="khm-partner-btn" id="pr-confirm-cancel"><?php esc_html_e( 'Back to Edit', 'khm-membership' ); ?></button>
-						<button class="khm-partner-btn khm-partner-btn-success" id="pr-confirm-submit"><?php esc_html_e( 'Confirm & Submit', 'khm-membership' ); ?></button>
+						<button class="khm-partner-btn" id="pr-confirm-cancel"><?php esc_html_e( 'Back to Edit', 'kh-quote-club' ); ?></button>
+						<button class="khm-partner-btn khm-partner-btn-success" id="pr-confirm-submit"><?php esc_html_e( 'Confirm & Submit', 'kh-quote-club' ); ?></button>
 					</div>
 				</div>
 			</div>
@@ -3280,7 +3280,7 @@ class QuoteClubPortalShortcode {
 				function renderPrList() {
 					var html = '';
 					if (prList.length === 0) {
-						html = '<p class="khm-partner-empty"><?php esc_html_e( 'No press releases yet. Create one to get started.', 'khm-membership' ); ?></p>';
+						html = '<p class="khm-partner-empty"><?php esc_html_e( 'No press releases yet. Create one to get started.', 'kh-quote-club' ); ?></p>';
 					} else {
 						html = '<div class="khm-partner-pr-items">';
 						$.each(prList, function(i, pr) {
@@ -3319,7 +3319,7 @@ class QuoteClubPortalShortcode {
 						}
 					});
 					$('.pr-delete-btn').on('click', function() {
-						if (confirm('<?php esc_attr_e( 'Delete this draft?', 'khm-membership' ); ?>')) {
+						if (confirm('<?php esc_attr_e( 'Delete this draft?', 'kh-quote-club' ); ?>')) {
 							var id = $(this).data('id');
 							$.ajax({
 								url: restUrl + '/' + id,
@@ -3335,7 +3335,7 @@ class QuoteClubPortalShortcode {
 				$('#pr-create-btn').on('click', function() {
 					currentPrId = null;
 					$('#pr-form').trigger('reset');
-					$('#pr-form-title').text('<?php esc_html_e( 'Create Press Release', 'khm-membership' ); ?>');
+					$('#pr-form-title').text('<?php esc_html_e( 'Create Press Release', 'kh-quote-club' ); ?>');
 					$('#pr-form-submit').hide();
 					$('#pr-form-save-draft').show();
 					$('#pr-form-modal').fadeIn();
@@ -3345,9 +3345,9 @@ class QuoteClubPortalShortcode {
 					currentPrId = id;
 					$('#pr-title').val(title || '');
 					$('#pr-content').val(content || '');
-					$('#pr-form-title').text('<?php esc_html_e( 'Edit Press Release', 'khm-membership' ); ?>');
+					$('#pr-form-title').text('<?php esc_html_e( 'Edit Press Release', 'kh-quote-club' ); ?>');
 					$('#pr-form-submit').show();
-					$('#pr-form-save-draft').text('<?php esc_html_e( 'Save Changes', 'khm-membership' ); ?>');
+					$('#pr-form-save-draft').text('<?php esc_html_e( 'Save Changes', 'kh-quote-club' ); ?>');
 					$('#pr-form-modal').fadeIn();
 				}
 				// Save draft
@@ -3355,7 +3355,7 @@ class QuoteClubPortalShortcode {
 					var title = $('#pr-title').val().trim();
 					var content = $('#pr-content').val().trim();
 					if (!title || !content) {
-						alert('<?php esc_attr_e( 'Please fill in title and content.', 'khm-membership' ); ?>');
+						alert('<?php esc_attr_e( 'Please fill in title and content.', 'kh-quote-club' ); ?>');
 						return;
 					}
 					$(this).prop('disabled', true).text('Saving…');
@@ -3383,10 +3383,10 @@ class QuoteClubPortalShortcode {
 						$('#pr-form-modal').fadeOut();
 						loadPrList();
 						if (!currentPrId) {
-							$('#pr-form-save-draft').prop('disabled', false).text('<?php esc_html_e( 'Save Draft', 'khm-membership' ); ?>');
+							$('#pr-form-save-draft').prop('disabled', false).text('<?php esc_html_e( 'Save Draft', 'kh-quote-club' ); ?>');
 						}
 					}).fail(function() {
-						alert('<?php esc_attr_e( 'Failed to save draft.', 'khm-membership' ); ?>');
+						alert('<?php esc_attr_e( 'Failed to save draft.', 'kh-quote-club' ); ?>');
 						$('#pr-form-save-draft').prop('disabled', false);
 					});
 				});
@@ -3417,10 +3417,10 @@ class QuoteClubPortalShortcode {
 								$('#qc-pr-balance').text(res.credits_remaining);
 							}
 						} else if (res.error === 'insufficient_press_release_credits') {
-							alert('<?php esc_attr_e( 'Insufficient credits. Please purchase more.', 'khm-membership' ); ?>');
+							alert('<?php esc_attr_e( 'Insufficient credits. Please purchase more.', 'kh-quote-club' ); ?>');
 						}
 					}).always(function() {
-						$('#pr-confirm-submit').prop('disabled', false).text('<?php esc_html_e( 'Confirm & Submit', 'khm-membership' ); ?>');
+						$('#pr-confirm-submit').prop('disabled', false).text('<?php esc_html_e( 'Confirm & Submit', 'kh-quote-club' ); ?>');
 					});
 				});
 				// Close modals
@@ -3440,9 +3440,9 @@ class QuoteClubPortalShortcode {
 	private function render_tracking_section( int $user_id, ?array $sponsor ): void {
 		?>
 		<div class="khm-partner-section khm-partner-tracking">
-			<h2><?php esc_html_e( 'Tracking', 'khm-membership' ); ?></h2>
+			<h2><?php esc_html_e( 'Tracking', 'kh-quote-club' ); ?></h2>
 			<p class="khm-partner-coming-soon">
-				<?php esc_html_e( 'Submission tracking and GEO / SEO performance metrics for your articles and press releases will appear here.', 'khm-membership' ); ?>
+				<?php esc_html_e( 'Submission tracking and GEO / SEO performance metrics for your articles and press releases will appear here.', 'kh-quote-club' ); ?>
 			</p>
 		</div>
 		<?php
@@ -3457,9 +3457,9 @@ class QuoteClubPortalShortcode {
 		$upload_url = esc_url( admin_url( 'media-new.php' ) );
 		?>
 		<div class="khm-partner-section khm-partner-adverts">
-			<h2><?php esc_html_e( 'Advert Creatives', 'khm-membership' ); ?></h2>
+			<h2><?php esc_html_e( 'Advert Creatives', 'kh-quote-club' ); ?></h2>
 			<p class="khm-partner-lead">
-				<?php esc_html_e( 'Upload banner or image ad creatives for review. Once approved, they will appear alongside relevant content on the site.', 'khm-membership' ); ?>
+				<?php esc_html_e( 'Upload banner or image ad creatives for review. Once approved, they will appear alongside relevant content on the site.', 'kh-quote-club' ); ?>
 			</p>
 			<style>
 				.khm-partner-adverts-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin:20px 0}
@@ -3506,80 +3506,80 @@ class QuoteClubPortalShortcode {
 			<!-- Create button -->
 			<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
 			<button class="button button-primary" id="khm-partner-advert-new-btn">
-				+ <?php esc_html_e( 'New Creative', 'khm-membership' ); ?>
+				+ <?php esc_html_e( 'New Creative', 'kh-quote-club' ); ?>
 			</button>
 			<button class="button" id="khm-partner-advert-analytics-btn">
-				<?php esc_html_e( 'Analytics', 'khm-membership' ); ?>
+				<?php esc_html_e( 'Analytics', 'kh-quote-club' ); ?>
 			</button>
 			</div>
 			<p style="font-size:12px;color:#6b7280;margin-top:6px">
 				<?php
 				printf(
 					/* translators: %s: WP Media Library URL */
-					wp_kses( __( 'Need to upload an image first? <a href="%s" target="_blank">Open the Media Library</a>, then paste the attachment ID below.', 'khm-membership' ), [ 'a' => [ 'href' => [], 'target' => [] ] ] ),
+					wp_kses( __( 'Need to upload an image first? <a href="%s" target="_blank">Open the Media Library</a>, then paste the attachment ID below.', 'kh-quote-club' ), [ 'a' => [ 'href' => [], 'target' => [] ] ] ),
 					esc_url( $upload_url )
 				);
 				?>
 			</p>
 			<!-- Analytics panel -->
 			<div id="khm-partner-advert-analytics">
-				<h3><?php esc_html_e( 'Your Advert Analytics', 'khm-membership' ); ?></h3>
+				<h3><?php esc_html_e( 'Your Advert Analytics', 'kh-quote-club' ); ?></h3>
 				<div class="khm-analytics-kpis">
-					<div class="khm-analytics-kpi"><div class="khm-kpi-val" id="khm-kpi-total">—</div><div class="khm-kpi-lbl"><?php esc_html_e( 'Creatives', 'khm-membership' ); ?></div></div>
-					<div class="khm-analytics-kpi"><div class="khm-kpi-val" id="khm-kpi-impressions">—</div><div class="khm-kpi-lbl"><?php esc_html_e( 'Total Impressions', 'khm-membership' ); ?></div></div>
-					<div class="khm-analytics-kpi"><div class="khm-kpi-val" id="khm-kpi-clicks">—</div><div class="khm-kpi-lbl"><?php esc_html_e( 'Total Clicks', 'khm-membership' ); ?></div></div>
-					<div class="khm-analytics-kpi"><div class="khm-kpi-val" id="khm-kpi-ctr">—</div><div class="khm-kpi-lbl"><?php esc_html_e( 'Overall CTR', 'khm-membership' ); ?></div></div>
+					<div class="khm-analytics-kpi"><div class="khm-kpi-val" id="khm-kpi-total">—</div><div class="khm-kpi-lbl"><?php esc_html_e( 'Creatives', 'kh-quote-club' ); ?></div></div>
+					<div class="khm-analytics-kpi"><div class="khm-kpi-val" id="khm-kpi-impressions">—</div><div class="khm-kpi-lbl"><?php esc_html_e( 'Total Impressions', 'kh-quote-club' ); ?></div></div>
+					<div class="khm-analytics-kpi"><div class="khm-kpi-val" id="khm-kpi-clicks">—</div><div class="khm-kpi-lbl"><?php esc_html_e( 'Total Clicks', 'kh-quote-club' ); ?></div></div>
+					<div class="khm-analytics-kpi"><div class="khm-kpi-val" id="khm-kpi-ctr">—</div><div class="khm-kpi-lbl"><?php esc_html_e( 'Overall CTR', 'kh-quote-club' ); ?></div></div>
 				</div>
 				<table>
 					<thead><tr>
-						<th><?php esc_html_e( 'Creative', 'khm-membership' ); ?></th>
-						<th><?php esc_html_e( 'Placement', 'khm-membership' ); ?></th>
-						<th><?php esc_html_e( 'Status', 'khm-membership' ); ?></th>
-						<th><?php esc_html_e( 'Impr.', 'khm-membership' ); ?></th>
-						<th><?php esc_html_e( 'Clicks', 'khm-membership' ); ?></th>
-						<th><?php esc_html_e( 'CTR', 'khm-membership' ); ?></th>
-						<th><?php esc_html_e( 'Weight', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Creative', 'kh-quote-club' ); ?></th>
+						<th><?php esc_html_e( 'Placement', 'kh-quote-club' ); ?></th>
+						<th><?php esc_html_e( 'Status', 'kh-quote-club' ); ?></th>
+						<th><?php esc_html_e( 'Impr.', 'kh-quote-club' ); ?></th>
+						<th><?php esc_html_e( 'Clicks', 'kh-quote-club' ); ?></th>
+						<th><?php esc_html_e( 'CTR', 'kh-quote-club' ); ?></th>
+						<th><?php esc_html_e( 'Weight', 'kh-quote-club' ); ?></th>
 					</tr></thead>
 					<tbody id="khm-analytics-rows"></tbody>
 				</table>
 			</div>
 			<!-- Create / Edit form -->
 			<div id="khm-partner-advert-form">
-				<h3 id="khm-partner-advert-form-title"><?php esc_html_e( 'New Ad Creative', 'khm-membership' ); ?></h3>
+				<h3 id="khm-partner-advert-form-title"><?php esc_html_e( 'New Ad Creative', 'kh-quote-club' ); ?></h3>
 				<input type="hidden" id="khm-partner-advert-edit-id" value="">
-				<label for="khm-partner-advert-title"><?php esc_html_e( 'Internal title', 'khm-membership' ); ?></label>
-				<input type="text" id="khm-partner-advert-title" placeholder="<?php esc_attr_e( 'e.g. Summer banner – commentary', 'khm-membership' ); ?>">
-				<label for="khm-partner-advert-placement"><?php esc_html_e( 'Placement', 'khm-membership' ); ?></label>
+				<label for="khm-partner-advert-title"><?php esc_html_e( 'Internal title', 'kh-quote-club' ); ?></label>
+				<input type="text" id="khm-partner-advert-title" placeholder="<?php esc_attr_e( 'e.g. Summer banner – commentary', 'kh-quote-club' ); ?>">
+				<label for="khm-partner-advert-placement"><?php esc_html_e( 'Placement', 'kh-quote-club' ); ?></label>
 				<select id="khm-partner-advert-placement">
-					<option value="commentary"><?php esc_html_e( 'Commentary', 'khm-membership' ); ?></option>
-					<option value="press-release"><?php esc_html_e( 'Press Releases', 'khm-membership' ); ?></option>
-					<option value="overview"><?php esc_html_e( 'Overview dashboard', 'khm-membership' ); ?></option>
-					<option value="sidebar"><?php esc_html_e( 'Sidebar', 'khm-membership' ); ?></option>
+					<option value="commentary"><?php esc_html_e( 'Commentary', 'kh-quote-club' ); ?></option>
+					<option value="press-release"><?php esc_html_e( 'Press Releases', 'kh-quote-club' ); ?></option>
+					<option value="overview"><?php esc_html_e( 'Overview dashboard', 'kh-quote-club' ); ?></option>
+					<option value="sidebar"><?php esc_html_e( 'Sidebar', 'kh-quote-club' ); ?></option>
 				</select>
-				<label for="khm-partner-advert-media-id"><?php esc_html_e( 'Attachment ID (from Media Library)', 'khm-membership' ); ?></label>
+				<label for="khm-partner-advert-media-id"><?php esc_html_e( 'Attachment ID (from Media Library)', 'kh-quote-club' ); ?></label>
 				<input type="text" id="khm-partner-advert-media-id" placeholder="e.g. 42" inputmode="numeric">
 				<img id="khm-partner-advert-media-preview" class="khm-partner-media-preview" src="" alt="">
-				<label for="khm-partner-advert-click-url"><?php esc_html_e( 'Click-through URL', 'khm-membership' ); ?></label>
+				<label for="khm-partner-advert-click-url"><?php esc_html_e( 'Click-through URL', 'kh-quote-club' ); ?></label>
 				<input type="url" id="khm-partner-advert-click-url" placeholder="https://example.com/landing-page">
-				<label for="khm-partner-advert-alt"><?php esc_html_e( 'Alt text', 'khm-membership' ); ?></label>
-				<input type="text" id="khm-partner-advert-alt" placeholder="<?php esc_attr_e( 'Short description of the image', 'khm-membership' ); ?>">
-				<label for="khm-partner-advert-start"><?php esc_html_e( 'Start date (optional)', 'khm-membership' ); ?></label>
-				<input type="date" id="khm-partner-advert-start" title="<?php esc_attr_e( 'Leave blank to serve immediately when approved', 'khm-membership' ); ?>">
-				<label for="khm-partner-advert-end"><?php esc_html_e( 'End date (optional)', 'khm-membership' ); ?></label>
-				<input type="date" id="khm-partner-advert-end" title="<?php esc_attr_e( 'Leave blank to run indefinitely', 'khm-membership' ); ?>">
+				<label for="khm-partner-advert-alt"><?php esc_html_e( 'Alt text', 'kh-quote-club' ); ?></label>
+				<input type="text" id="khm-partner-advert-alt" placeholder="<?php esc_attr_e( 'Short description of the image', 'kh-quote-club' ); ?>">
+				<label for="khm-partner-advert-start"><?php esc_html_e( 'Start date (optional)', 'kh-quote-club' ); ?></label>
+				<input type="date" id="khm-partner-advert-start" title="<?php esc_attr_e( 'Leave blank to serve immediately when approved', 'kh-quote-club' ); ?>">
+				<label for="khm-partner-advert-end"><?php esc_html_e( 'End date (optional)', 'kh-quote-club' ); ?></label>
+				<input type="date" id="khm-partner-advert-end" title="<?php esc_attr_e( 'Leave blank to run indefinitely', 'kh-quote-club' ); ?>">
 				<div class="khm-partner-form-actions">
-					<button class="button button-primary" id="khm-partner-advert-save-btn"><?php esc_html_e( 'Save draft', 'khm-membership' ); ?></button>
-					<button class="button button-secondary" id="khm-partner-advert-submit-btn" style="display:none"><?php esc_html_e( 'Submit for review', 'khm-membership' ); ?></button>
-					<button class="button" id="khm-partner-advert-cancel-btn"><?php esc_html_e( 'Cancel', 'khm-membership' ); ?></button>
+					<button class="button button-primary" id="khm-partner-advert-save-btn"><?php esc_html_e( 'Save draft', 'kh-quote-club' ); ?></button>
+					<button class="button button-secondary" id="khm-partner-advert-submit-btn" style="display:none"><?php esc_html_e( 'Submit for review', 'kh-quote-club' ); ?></button>
+					<button class="button" id="khm-partner-advert-cancel-btn"><?php esc_html_e( 'Cancel', 'kh-quote-club' ); ?></button>
 				</div>
 				<p id="khm-partner-advert-form-msg" style="margin-top:10px;font-size:13px"></p>
 			</div>
 			<!-- Adverts list -->
 			<div class="khm-partner-adverts-grid" id="khm-partner-adverts-grid">
-				<p style="color:#6b7280;font-style:italic"><?php esc_html_e( 'Loading your creatives…', 'khm-membership' ); ?></p>
+				<p style="color:#6b7280;font-style:italic"><?php esc_html_e( 'Loading your creatives…', 'kh-quote-club' ); ?></p>
 			</div>
 			<!-- Preview modal -->
-			<div id="khm-partner-advert-preview-modal" role="dialog" aria-modal="true" aria-label="<?php esc_attr_e( 'Ad preview', 'khm-membership' ); ?>">
+			<div id="khm-partner-advert-preview-modal" role="dialog" aria-modal="true" aria-label="<?php esc_attr_e( 'Ad preview', 'kh-quote-club' ); ?>">
 				<div id="khm-partner-advert-preview-box">
 					<button id="khm-partner-advert-preview-close" aria-label="Close">&times;</button>
 					<div id="khm-partner-advert-preview-content"></div>
@@ -3848,9 +3848,9 @@ class QuoteClubPortalShortcode {
 		$rest_root = esc_url( rest_url( 'khm/v1' ) );
 		?>
 		<div class="khm-partner-section khm-partner-social">
-			<h2><?php esc_html_e( 'LinkedIn Scheduling', 'khm-membership' ); ?></h2>
+			<h2><?php esc_html_e( 'LinkedIn Scheduling', 'kh-quote-club' ); ?></h2>
 			<p class="khm-partner-lead">
-				<?php esc_html_e( 'Connect your LinkedIn account to schedule posts that go out alongside your press releases and commentary.', 'khm-membership' ); ?>
+				<?php esc_html_e( 'Connect your LinkedIn account to schedule posts that go out alongside your press releases and commentary.', 'kh-quote-club' ); ?>
 			</p>
 			<style>
 				#khm-partner-li-connect-panel,#khm-partner-li-queue-panel{transition:all .2s}
@@ -3874,45 +3874,45 @@ class QuoteClubPortalShortcode {
 			<!-- Connected banner (hidden until JS loads status) -->
 			<div id="khm-partner-li-connected-banner" style="display:none">
 				<span id="khm-partner-li-profile-label" style="font-size:13px;color:#065f46;font-weight:600">
-					<?php esc_html_e( 'LinkedIn connected', 'khm-membership' ); ?>
+					<?php esc_html_e( 'LinkedIn connected', 'kh-quote-club' ); ?>
 				</span>
 				<button class="button" id="khm-partner-li-disconnect-btn" style="font-size:12px;padding:3px 10px">
-					<?php esc_html_e( 'Disconnect', 'khm-membership' ); ?>
+					<?php esc_html_e( 'Disconnect', 'kh-quote-club' ); ?>
 				</button>
 			</div>
 			<!-- Disconnected banner -->
 			<div id="khm-partner-li-disconnected-banner">
-				<p style="margin:0 0 10px;font-size:14px;font-weight:600"><?php esc_html_e( 'Not connected', 'khm-membership' ); ?></p>
+				<p style="margin:0 0 10px;font-size:14px;font-weight:600"><?php esc_html_e( 'Not connected', 'kh-quote-club' ); ?></p>
 				<p style="margin:0 0 12px;font-size:13px;color:#6b7280">
-					<?php esc_html_e( 'Authorise QuoteClub to post on your behalf. You can disconnect at any time.', 'khm-membership' ); ?>
+					<?php esc_html_e( 'Authorise QuoteClub to post on your behalf. You can disconnect at any time.', 'kh-quote-club' ); ?>
 				</p>
 				<button class="button button-primary" id="khm-partner-li-connect-btn">
-					<?php esc_html_e( 'Connect LinkedIn', 'khm-membership' ); ?>
+					<?php esc_html_e( 'Connect LinkedIn', 'kh-quote-club' ); ?>
 				</button>
 				<p id="khm-partner-li-not-configured" style="display:none;font-size:12px;color:#991b1b;margin-top:8px">
-					<?php esc_html_e( 'LinkedIn integration is not yet configured. Please contact support.', 'khm-membership' ); ?>
+					<?php esc_html_e( 'LinkedIn integration is not yet configured. Please contact support.', 'kh-quote-club' ); ?>
 				</p>
 			</div>
 			<!-- Schedule form (shown when connected) -->
 			<div id="khm-partner-li-schedule-form" style="display:none">
-				<h3 style="margin-top:0"><?php esc_html_e( 'Schedule a post', 'khm-membership' ); ?></h3>
-				<label for="khm-partner-li-text"><?php esc_html_e( 'Post text', 'khm-membership' ); ?></label>
-				<textarea id="khm-partner-li-text" maxlength="3000" placeholder="<?php esc_attr_e( 'Write your LinkedIn post here (max 3000 characters)…', 'khm-membership' ); ?>"></textarea>
+				<h3 style="margin-top:0"><?php esc_html_e( 'Schedule a post', 'kh-quote-club' ); ?></h3>
+				<label for="khm-partner-li-text"><?php esc_html_e( 'Post text', 'kh-quote-club' ); ?></label>
+				<textarea id="khm-partner-li-text" maxlength="3000" placeholder="<?php esc_attr_e( 'Write your LinkedIn post here (max 3000 characters)…', 'kh-quote-club' ); ?>"></textarea>
 				<div id="khm-partner-li-char-count">0 / 3000</div>
-				<label for="khm-partner-li-url"><?php esc_html_e( 'Link URL (optional)', 'khm-membership' ); ?></label>
+				<label for="khm-partner-li-url"><?php esc_html_e( 'Link URL (optional)', 'kh-quote-club' ); ?></label>
 				<input type="url" id="khm-partner-li-url" placeholder="https://example.com/article">
-				<label for="khm-partner-li-when"><?php esc_html_e( 'Schedule time', 'khm-membership' ); ?></label>
+				<label for="khm-partner-li-when"><?php esc_html_e( 'Schedule time', 'kh-quote-club' ); ?></label>
 				<input type="datetime-local" id="khm-partner-li-when">
 				<div style="margin-top:14px;display:flex;gap:8px;align-items:center">
-					<button class="button button-primary" id="khm-partner-li-schedule-btn"><?php esc_html_e( 'Schedule post', 'khm-membership' ); ?></button>
+					<button class="button button-primary" id="khm-partner-li-schedule-btn"><?php esc_html_e( 'Schedule post', 'kh-quote-club' ); ?></button>
 					<span id="khm-partner-li-schedule-msg" style="font-size:13px"></span>
 				</div>
 			</div>
 			<!-- Queue -->
 			<div id="khm-partner-li-queue-panel" style="display:none">
-				<h3><?php esc_html_e( 'Scheduled posts', 'khm-membership' ); ?></h3>
+				<h3><?php esc_html_e( 'Scheduled posts', 'kh-quote-club' ); ?></h3>
 				<div id="khm-partner-li-queue-list">
-					<p id="khm-partner-li-queue-empty"><?php esc_html_e( 'No scheduled posts yet.', 'khm-membership' ); ?></p>
+					<p id="khm-partner-li-queue-empty"><?php esc_html_e( 'No scheduled posts yet.', 'kh-quote-club' ); ?></p>
 				</div>
 			</div>
 		</div>
@@ -4134,9 +4134,9 @@ class QuoteClubPortalShortcode {
 
 		// Accordion group config
 		$accordion_groups = [
-			'software'    => [ 'label' => __( 'Software', 'khm-membership' ),    'icon' => 'dashicons-desktop' ],
-			'hardware'    => [ 'label' => __( 'Hardware', 'khm-membership' ),    'icon' => 'dashicons-admin-generic' ],
-			'consultancy' => [ 'label' => __( 'Consultancy', 'khm-membership' ), 'icon' => 'dashicons-groups' ],
+			'software'    => [ 'label' => __( 'Software', 'kh-quote-club' ),    'icon' => 'dashicons-desktop' ],
+			'hardware'    => [ 'label' => __( 'Hardware', 'kh-quote-club' ),    'icon' => 'dashicons-admin-generic' ],
+			'consultancy' => [ 'label' => __( 'Consultancy', 'kh-quote-club' ), 'icon' => 'dashicons-groups' ],
 		];
 
 		// Fetch the current sponsor's mapped solution IDs
@@ -4162,7 +4162,7 @@ class QuoteClubPortalShortcode {
 			<section class="khm-partner-connect-panel khm-partner-connect-list-panel">
 						<div class="khm-partner-connect-panel-head">
 							<div>
-								<h3><?php esc_html_e( 'Live Listings', 'khm-membership' ); ?></h3>
+								<h3><?php esc_html_e( 'Live Listings', 'kh-quote-club' ); ?></h3>
 							</div>
 						</div>
 						<div class="khm-partner-connect-list"></div>
@@ -4174,231 +4174,231 @@ class QuoteClubPortalShortcode {
 				<!-- ── Company Profile Block ─────────────────────────────── -->
 				<div class="khm-partner-account-block">
 					<div class="khm-partner-block-header">
-						<h3><span class="dashicons dashicons-building"></span> <?php esc_html_e( 'Company Profile', 'khm-membership' ); ?></h3>
+						<h3><span class="dashicons dashicons-building"></span> <?php esc_html_e( 'Company Profile', 'kh-quote-club' ); ?></h3>
 					</div>
 					<div class="khm-partner-connect-form-grid">
 						<label>
-							<span><?php esc_html_e( 'Company Name', 'khm-membership' ); ?></span>
-							<input type="text" name="company_name" value="<?php echo esc_attr( $sponsor_name ); ?>" placeholder="<?php esc_attr_e( 'Your company name', 'khm-membership' ); ?>" />
+							<span><?php esc_html_e( 'Company Name', 'kh-quote-club' ); ?></span>
+							<input type="text" name="company_name" value="<?php echo esc_attr( $sponsor_name ); ?>" placeholder="<?php esc_attr_e( 'Your company name', 'kh-quote-club' ); ?>" />
 						</label>
 						<label>
-							<span><?php esc_html_e( 'Company URL', 'khm-membership' ); ?></span>
+							<span><?php esc_html_e( 'Company URL', 'kh-quote-club' ); ?></span>
 							<input type="url" name="company_url" value="<?php echo esc_attr( $sponsor_company_url ); ?>" placeholder="https://example.com" />
 						</label>
 						<label>
-							<span><?php esc_html_e( 'HQ Location', 'khm-membership' ); ?></span>
+							<span><?php esc_html_e( 'HQ Location', 'kh-quote-club' ); ?></span>
 							<select name="hq_location">
-								<option value=""><?php esc_html_e( '— Select country —', 'khm-membership' ); ?></option>
-								<optgroup label="<?php esc_attr_e( 'Top countries', 'khm-membership' ); ?>">
-									<option value="UK" <?php selected( $sponsor_hq, 'UK' ); ?>><?php esc_html_e( 'UK', 'khm-membership' ); ?></option>
-									<option value="USA" <?php selected( $sponsor_hq, 'USA' ); ?>><?php esc_html_e( 'USA', 'khm-membership' ); ?></option>
-									<option value="Germany" <?php selected( $sponsor_hq, 'Germany' ); ?>><?php esc_html_e( 'Germany', 'khm-membership' ); ?></option>
-									<option value="France" <?php selected( $sponsor_hq, 'France' ); ?>><?php esc_html_e( 'France', 'khm-membership' ); ?></option>
+								<option value=""><?php esc_html_e( '— Select country —', 'kh-quote-club' ); ?></option>
+								<optgroup label="<?php esc_attr_e( 'Top countries', 'kh-quote-club' ); ?>">
+									<option value="UK" <?php selected( $sponsor_hq, 'UK' ); ?>><?php esc_html_e( 'UK', 'kh-quote-club' ); ?></option>
+									<option value="USA" <?php selected( $sponsor_hq, 'USA' ); ?>><?php esc_html_e( 'USA', 'kh-quote-club' ); ?></option>
+									<option value="Germany" <?php selected( $sponsor_hq, 'Germany' ); ?>><?php esc_html_e( 'Germany', 'kh-quote-club' ); ?></option>
+									<option value="France" <?php selected( $sponsor_hq, 'France' ); ?>><?php esc_html_e( 'France', 'kh-quote-club' ); ?></option>
 								</optgroup>
-								<optgroup label="<?php esc_attr_e( 'All countries', 'khm-membership' ); ?>">
-									<option value="Afghanistan" <?php selected( $sponsor_hq, 'Afghanistan' ); ?>><?php esc_html_e( 'Afghanistan', 'khm-membership' ); ?></option>
-									<option value="Albania" <?php selected( $sponsor_hq, 'Albania' ); ?>><?php esc_html_e( 'Albania', 'khm-membership' ); ?></option>
-									<option value="Algeria" <?php selected( $sponsor_hq, 'Algeria' ); ?>><?php esc_html_e( 'Algeria', 'khm-membership' ); ?></option>
-									<option value="Andorra" <?php selected( $sponsor_hq, 'Andorra' ); ?>><?php esc_html_e( 'Andorra', 'khm-membership' ); ?></option>
-									<option value="Angola" <?php selected( $sponsor_hq, 'Angola' ); ?>><?php esc_html_e( 'Angola', 'khm-membership' ); ?></option>
-									<option value="Antigua and Barbuda" <?php selected( $sponsor_hq, 'Antigua and Barbuda' ); ?>><?php esc_html_e( 'Antigua and Barbuda', 'khm-membership' ); ?></option>
-									<option value="Argentina" <?php selected( $sponsor_hq, 'Argentina' ); ?>><?php esc_html_e( 'Argentina', 'khm-membership' ); ?></option>
-									<option value="Armenia" <?php selected( $sponsor_hq, 'Armenia' ); ?>><?php esc_html_e( 'Armenia', 'khm-membership' ); ?></option>
-									<option value="Australia" <?php selected( $sponsor_hq, 'Australia' ); ?>><?php esc_html_e( 'Australia', 'khm-membership' ); ?></option>
-									<option value="Austria" <?php selected( $sponsor_hq, 'Austria' ); ?>><?php esc_html_e( 'Austria', 'khm-membership' ); ?></option>
-									<option value="Azerbaijan" <?php selected( $sponsor_hq, 'Azerbaijan' ); ?>><?php esc_html_e( 'Azerbaijan', 'khm-membership' ); ?></option>
-									<option value="Bahamas" <?php selected( $sponsor_hq, 'Bahamas' ); ?>><?php esc_html_e( 'Bahamas', 'khm-membership' ); ?></option>
-									<option value="Bahrain" <?php selected( $sponsor_hq, 'Bahrain' ); ?>><?php esc_html_e( 'Bahrain', 'khm-membership' ); ?></option>
-									<option value="Bangladesh" <?php selected( $sponsor_hq, 'Bangladesh' ); ?>><?php esc_html_e( 'Bangladesh', 'khm-membership' ); ?></option>
-									<option value="Barbados" <?php selected( $sponsor_hq, 'Barbados' ); ?>><?php esc_html_e( 'Barbados', 'khm-membership' ); ?></option>
-									<option value="Belarus" <?php selected( $sponsor_hq, 'Belarus' ); ?>><?php esc_html_e( 'Belarus', 'khm-membership' ); ?></option>
-									<option value="Belgium" <?php selected( $sponsor_hq, 'Belgium' ); ?>><?php esc_html_e( 'Belgium', 'khm-membership' ); ?></option>
-									<option value="Belize" <?php selected( $sponsor_hq, 'Belize' ); ?>><?php esc_html_e( 'Belize', 'khm-membership' ); ?></option>
-									<option value="Benin" <?php selected( $sponsor_hq, 'Benin' ); ?>><?php esc_html_e( 'Benin', 'khm-membership' ); ?></option>
-									<option value="Bhutan" <?php selected( $sponsor_hq, 'Bhutan' ); ?>><?php esc_html_e( 'Bhutan', 'khm-membership' ); ?></option>
-									<option value="Bolivia" <?php selected( $sponsor_hq, 'Bolivia' ); ?>><?php esc_html_e( 'Bolivia', 'khm-membership' ); ?></option>
-									<option value="Bosnia and Herzegovina" <?php selected( $sponsor_hq, 'Bosnia and Herzegovina' ); ?>><?php esc_html_e( 'Bosnia and Herzegovina', 'khm-membership' ); ?></option>
-									<option value="Botswana" <?php selected( $sponsor_hq, 'Botswana' ); ?>><?php esc_html_e( 'Botswana', 'khm-membership' ); ?></option>
-									<option value="Brazil" <?php selected( $sponsor_hq, 'Brazil' ); ?>><?php esc_html_e( 'Brazil', 'khm-membership' ); ?></option>
-									<option value="Brunei" <?php selected( $sponsor_hq, 'Brunei' ); ?>><?php esc_html_e( 'Brunei', 'khm-membership' ); ?></option>
-									<option value="Bulgaria" <?php selected( $sponsor_hq, 'Bulgaria' ); ?>><?php esc_html_e( 'Bulgaria', 'khm-membership' ); ?></option>
-									<option value="Burkina Faso" <?php selected( $sponsor_hq, 'Burkina Faso' ); ?>><?php esc_html_e( 'Burkina Faso', 'khm-membership' ); ?></option>
-									<option value="Burundi" <?php selected( $sponsor_hq, 'Burundi' ); ?>><?php esc_html_e( 'Burundi', 'khm-membership' ); ?></option>
-									<option value="Cambodia" <?php selected( $sponsor_hq, 'Cambodia' ); ?>><?php esc_html_e( 'Cambodia', 'khm-membership' ); ?></option>
-									<option value="Cameroon" <?php selected( $sponsor_hq, 'Cameroon' ); ?>><?php esc_html_e( 'Cameroon', 'khm-membership' ); ?></option>
-									<option value="Canada" <?php selected( $sponsor_hq, 'Canada' ); ?>><?php esc_html_e( 'Canada', 'khm-membership' ); ?></option>
-									<option value="Cape Verde" <?php selected( $sponsor_hq, 'Cape Verde' ); ?>><?php esc_html_e( 'Cape Verde', 'khm-membership' ); ?></option>
-									<option value="Central African Republic" <?php selected( $sponsor_hq, 'Central African Republic' ); ?>><?php esc_html_e( 'Central African Republic', 'khm-membership' ); ?></option>
-									<option value="Chad" <?php selected( $sponsor_hq, 'Chad' ); ?>><?php esc_html_e( 'Chad', 'khm-membership' ); ?></option>
-									<option value="Chile" <?php selected( $sponsor_hq, 'Chile' ); ?>><?php esc_html_e( 'Chile', 'khm-membership' ); ?></option>
-									<option value="China" <?php selected( $sponsor_hq, 'China' ); ?>><?php esc_html_e( 'China', 'khm-membership' ); ?></option>
-									<option value="Colombia" <?php selected( $sponsor_hq, 'Colombia' ); ?>><?php esc_html_e( 'Colombia', 'khm-membership' ); ?></option>
-									<option value="Comoros" <?php selected( $sponsor_hq, 'Comoros' ); ?>><?php esc_html_e( 'Comoros', 'khm-membership' ); ?></option>
-									<option value="Congo" <?php selected( $sponsor_hq, 'Congo' ); ?>><?php esc_html_e( 'Congo', 'khm-membership' ); ?></option>
-									<option value="Costa Rica" <?php selected( $sponsor_hq, 'Costa Rica' ); ?>><?php esc_html_e( 'Costa Rica', 'khm-membership' ); ?></option>
-									<option value="Croatia" <?php selected( $sponsor_hq, 'Croatia' ); ?>><?php esc_html_e( 'Croatia', 'khm-membership' ); ?></option>
-									<option value="Cuba" <?php selected( $sponsor_hq, 'Cuba' ); ?>><?php esc_html_e( 'Cuba', 'khm-membership' ); ?></option>
-									<option value="Cyprus" <?php selected( $sponsor_hq, 'Cyprus' ); ?>><?php esc_html_e( 'Cyprus', 'khm-membership' ); ?></option>
-									<option value="Czech Republic" <?php selected( $sponsor_hq, 'Czech Republic' ); ?>><?php esc_html_e( 'Czech Republic', 'khm-membership' ); ?></option>
-									<option value="Denmark" <?php selected( $sponsor_hq, 'Denmark' ); ?>><?php esc_html_e( 'Denmark', 'khm-membership' ); ?></option>
-									<option value="Djibouti" <?php selected( $sponsor_hq, 'Djibouti' ); ?>><?php esc_html_e( 'Djibouti', 'khm-membership' ); ?></option>
-									<option value="Dominica" <?php selected( $sponsor_hq, 'Dominica' ); ?>><?php esc_html_e( 'Dominica', 'khm-membership' ); ?></option>
-									<option value="Dominican Republic" <?php selected( $sponsor_hq, 'Dominican Republic' ); ?>><?php esc_html_e( 'Dominican Republic', 'khm-membership' ); ?></option>
-									<option value="East Timor" <?php selected( $sponsor_hq, 'East Timor' ); ?>><?php esc_html_e( 'East Timor', 'khm-membership' ); ?></option>
-									<option value="Ecuador" <?php selected( $sponsor_hq, 'Ecuador' ); ?>><?php esc_html_e( 'Ecuador', 'khm-membership' ); ?></option>
-									<option value="Egypt" <?php selected( $sponsor_hq, 'Egypt' ); ?>><?php esc_html_e( 'Egypt', 'khm-membership' ); ?></option>
-									<option value="El Salvador" <?php selected( $sponsor_hq, 'El Salvador' ); ?>><?php esc_html_e( 'El Salvador', 'khm-membership' ); ?></option>
-									<option value="Equatorial Guinea" <?php selected( $sponsor_hq, 'Equatorial Guinea' ); ?>><?php esc_html_e( 'Equatorial Guinea', 'khm-membership' ); ?></option>
-									<option value="Eritrea" <?php selected( $sponsor_hq, 'Eritrea' ); ?>><?php esc_html_e( 'Eritrea', 'khm-membership' ); ?></option>
-									<option value="Estonia" <?php selected( $sponsor_hq, 'Estonia' ); ?>><?php esc_html_e( 'Estonia', 'khm-membership' ); ?></option>
-									<option value="Eswatini" <?php selected( $sponsor_hq, 'Eswatini' ); ?>><?php esc_html_e( 'Eswatini', 'khm-membership' ); ?></option>
-									<option value="Ethiopia" <?php selected( $sponsor_hq, 'Ethiopia' ); ?>><?php esc_html_e( 'Ethiopia', 'khm-membership' ); ?></option>
-									<option value="Fiji" <?php selected( $sponsor_hq, 'Fiji' ); ?>><?php esc_html_e( 'Fiji', 'khm-membership' ); ?></option>
-									<option value="Finland" <?php selected( $sponsor_hq, 'Finland' ); ?>><?php esc_html_e( 'Finland', 'khm-membership' ); ?></option>
-									<option value="Gabon" <?php selected( $sponsor_hq, 'Gabon' ); ?>><?php esc_html_e( 'Gabon', 'khm-membership' ); ?></option>
-									<option value="Gambia" <?php selected( $sponsor_hq, 'Gambia' ); ?>><?php esc_html_e( 'Gambia', 'khm-membership' ); ?></option>
-									<option value="Georgia" <?php selected( $sponsor_hq, 'Georgia' ); ?>><?php esc_html_e( 'Georgia', 'khm-membership' ); ?></option>
-									<option value="Ghana" <?php selected( $sponsor_hq, 'Ghana' ); ?>><?php esc_html_e( 'Ghana', 'khm-membership' ); ?></option>
-									<option value="Greece" <?php selected( $sponsor_hq, 'Greece' ); ?>><?php esc_html_e( 'Greece', 'khm-membership' ); ?></option>
-									<option value="Grenada" <?php selected( $sponsor_hq, 'Grenada' ); ?>><?php esc_html_e( 'Grenada', 'khm-membership' ); ?></option>
-									<option value="Guatemala" <?php selected( $sponsor_hq, 'Guatemala' ); ?>><?php esc_html_e( 'Guatemala', 'khm-membership' ); ?></option>
-									<option value="Guinea" <?php selected( $sponsor_hq, 'Guinea' ); ?>><?php esc_html_e( 'Guinea', 'khm-membership' ); ?></option>
-									<option value="Guinea-Bissau" <?php selected( $sponsor_hq, 'Guinea-Bissau' ); ?>><?php esc_html_e( 'Guinea-Bissau', 'khm-membership' ); ?></option>
-									<option value="Guyana" <?php selected( $sponsor_hq, 'Guyana' ); ?>><?php esc_html_e( 'Guyana', 'khm-membership' ); ?></option>
-									<option value="Haiti" <?php selected( $sponsor_hq, 'Haiti' ); ?>><?php esc_html_e( 'Haiti', 'khm-membership' ); ?></option>
-									<option value="Honduras" <?php selected( $sponsor_hq, 'Honduras' ); ?>><?php esc_html_e( 'Honduras', 'khm-membership' ); ?></option>
-									<option value="Hungary" <?php selected( $sponsor_hq, 'Hungary' ); ?>><?php esc_html_e( 'Hungary', 'khm-membership' ); ?></option>
-									<option value="Iceland" <?php selected( $sponsor_hq, 'Iceland' ); ?>><?php esc_html_e( 'Iceland', 'khm-membership' ); ?></option>
-									<option value="India" <?php selected( $sponsor_hq, 'India' ); ?>><?php esc_html_e( 'India', 'khm-membership' ); ?></option>
-									<option value="Indonesia" <?php selected( $sponsor_hq, 'Indonesia' ); ?>><?php esc_html_e( 'Indonesia', 'khm-membership' ); ?></option>
-									<option value="Iran" <?php selected( $sponsor_hq, 'Iran' ); ?>><?php esc_html_e( 'Iran', 'khm-membership' ); ?></option>
-									<option value="Iraq" <?php selected( $sponsor_hq, 'Iraq' ); ?>><?php esc_html_e( 'Iraq', 'khm-membership' ); ?></option>
-									<option value="Ireland" <?php selected( $sponsor_hq, 'Ireland' ); ?>><?php esc_html_e( 'Ireland', 'khm-membership' ); ?></option>
-									<option value="Israel" <?php selected( $sponsor_hq, 'Israel' ); ?>><?php esc_html_e( 'Israel', 'khm-membership' ); ?></option>
-									<option value="Italy" <?php selected( $sponsor_hq, 'Italy' ); ?>><?php esc_html_e( 'Italy', 'khm-membership' ); ?></option>
-									<option value="Ivory Coast" <?php selected( $sponsor_hq, 'Ivory Coast' ); ?>><?php esc_html_e( 'Ivory Coast', 'khm-membership' ); ?></option>
-									<option value="Jamaica" <?php selected( $sponsor_hq, 'Jamaica' ); ?>><?php esc_html_e( 'Jamaica', 'khm-membership' ); ?></option>
-									<option value="Japan" <?php selected( $sponsor_hq, 'Japan' ); ?>><?php esc_html_e( 'Japan', 'khm-membership' ); ?></option>
-									<option value="Jordan" <?php selected( $sponsor_hq, 'Jordan' ); ?>><?php esc_html_e( 'Jordan', 'khm-membership' ); ?></option>
-									<option value="Kazakhstan" <?php selected( $sponsor_hq, 'Kazakhstan' ); ?>><?php esc_html_e( 'Kazakhstan', 'khm-membership' ); ?></option>
-									<option value="Kenya" <?php selected( $sponsor_hq, 'Kenya' ); ?>><?php esc_html_e( 'Kenya', 'khm-membership' ); ?></option>
-									<option value="Kiribati" <?php selected( $sponsor_hq, 'Kiribati' ); ?>><?php esc_html_e( 'Kiribati', 'khm-membership' ); ?></option>
-									<option value="Kosovo" <?php selected( $sponsor_hq, 'Kosovo' ); ?>><?php esc_html_e( 'Kosovo', 'khm-membership' ); ?></option>
-									<option value="Kuwait" <?php selected( $sponsor_hq, 'Kuwait' ); ?>><?php esc_html_e( 'Kuwait', 'khm-membership' ); ?></option>
-									<option value="Kyrgyzstan" <?php selected( $sponsor_hq, 'Kyrgyzstan' ); ?>><?php esc_html_e( 'Kyrgyzstan', 'khm-membership' ); ?></option>
-									<option value="Laos" <?php selected( $sponsor_hq, 'Laos' ); ?>><?php esc_html_e( 'Laos', 'khm-membership' ); ?></option>
-									<option value="Latvia" <?php selected( $sponsor_hq, 'Latvia' ); ?>><?php esc_html_e( 'Latvia', 'khm-membership' ); ?></option>
-									<option value="Lebanon" <?php selected( $sponsor_hq, 'Lebanon' ); ?>><?php esc_html_e( 'Lebanon', 'khm-membership' ); ?></option>
-									<option value="Lesotho" <?php selected( $sponsor_hq, 'Lesotho' ); ?>><?php esc_html_e( 'Lesotho', 'khm-membership' ); ?></option>
-									<option value="Liberia" <?php selected( $sponsor_hq, 'Liberia' ); ?>><?php esc_html_e( 'Liberia', 'khm-membership' ); ?></option>
-									<option value="Libya" <?php selected( $sponsor_hq, 'Libya' ); ?>><?php esc_html_e( 'Libya', 'khm-membership' ); ?></option>
-									<option value="Liechtenstein" <?php selected( $sponsor_hq, 'Liechtenstein' ); ?>><?php esc_html_e( 'Liechtenstein', 'khm-membership' ); ?></option>
-									<option value="Lithuania" <?php selected( $sponsor_hq, 'Lithuania' ); ?>><?php esc_html_e( 'Lithuania', 'khm-membership' ); ?></option>
-									<option value="Luxembourg" <?php selected( $sponsor_hq, 'Luxembourg' ); ?>><?php esc_html_e( 'Luxembourg', 'khm-membership' ); ?></option>
-									<option value="Madagascar" <?php selected( $sponsor_hq, 'Madagascar' ); ?>><?php esc_html_e( 'Madagascar', 'khm-membership' ); ?></option>
-									<option value="Malawi" <?php selected( $sponsor_hq, 'Malawi' ); ?>><?php esc_html_e( 'Malawi', 'khm-membership' ); ?></option>
-									<option value="Malaysia" <?php selected( $sponsor_hq, 'Malaysia' ); ?>><?php esc_html_e( 'Malaysia', 'khm-membership' ); ?></option>
-									<option value="Maldives" <?php selected( $sponsor_hq, 'Maldives' ); ?>><?php esc_html_e( 'Maldives', 'khm-membership' ); ?></option>
-									<option value="Mali" <?php selected( $sponsor_hq, 'Mali' ); ?>><?php esc_html_e( 'Mali', 'khm-membership' ); ?></option>
-									<option value="Malta" <?php selected( $sponsor_hq, 'Malta' ); ?>><?php esc_html_e( 'Malta', 'khm-membership' ); ?></option>
-									<option value="Marshall Islands" <?php selected( $sponsor_hq, 'Marshall Islands' ); ?>><?php esc_html_e( 'Marshall Islands', 'khm-membership' ); ?></option>
-									<option value="Mauritania" <?php selected( $sponsor_hq, 'Mauritania' ); ?>><?php esc_html_e( 'Mauritania', 'khm-membership' ); ?></option>
-									<option value="Mauritius" <?php selected( $sponsor_hq, 'Mauritius' ); ?>><?php esc_html_e( 'Mauritius', 'khm-membership' ); ?></option>
-									<option value="Mexico" <?php selected( $sponsor_hq, 'Mexico' ); ?>><?php esc_html_e( 'Mexico', 'khm-membership' ); ?></option>
-									<option value="Micronesia" <?php selected( $sponsor_hq, 'Micronesia' ); ?>><?php esc_html_e( 'Micronesia', 'khm-membership' ); ?></option>
-									<option value="Moldova" <?php selected( $sponsor_hq, 'Moldova' ); ?>><?php esc_html_e( 'Moldova', 'khm-membership' ); ?></option>
-									<option value="Monaco" <?php selected( $sponsor_hq, 'Monaco' ); ?>><?php esc_html_e( 'Monaco', 'khm-membership' ); ?></option>
-									<option value="Mongolia" <?php selected( $sponsor_hq, 'Mongolia' ); ?>><?php esc_html_e( 'Mongolia', 'khm-membership' ); ?></option>
-									<option value="Montenegro" <?php selected( $sponsor_hq, 'Montenegro' ); ?>><?php esc_html_e( 'Montenegro', 'khm-membership' ); ?></option>
-									<option value="Morocco" <?php selected( $sponsor_hq, 'Morocco' ); ?>><?php esc_html_e( 'Morocco', 'khm-membership' ); ?></option>
-									<option value="Mozambique" <?php selected( $sponsor_hq, 'Mozambique' ); ?>><?php esc_html_e( 'Mozambique', 'khm-membership' ); ?></option>
-									<option value="Myanmar" <?php selected( $sponsor_hq, 'Myanmar' ); ?>><?php esc_html_e( 'Myanmar', 'khm-membership' ); ?></option>
-									<option value="Namibia" <?php selected( $sponsor_hq, 'Namibia' ); ?>><?php esc_html_e( 'Namibia', 'khm-membership' ); ?></option>
-									<option value="Nauru" <?php selected( $sponsor_hq, 'Nauru' ); ?>><?php esc_html_e( 'Nauru', 'khm-membership' ); ?></option>
-									<option value="Nepal" <?php selected( $sponsor_hq, 'Nepal' ); ?>><?php esc_html_e( 'Nepal', 'khm-membership' ); ?></option>
-									<option value="Netherlands" <?php selected( $sponsor_hq, 'Netherlands' ); ?>><?php esc_html_e( 'Netherlands', 'khm-membership' ); ?></option>
-									<option value="New Zealand" <?php selected( $sponsor_hq, 'New Zealand' ); ?>><?php esc_html_e( 'New Zealand', 'khm-membership' ); ?></option>
-									<option value="Nicaragua" <?php selected( $sponsor_hq, 'Nicaragua' ); ?>><?php esc_html_e( 'Nicaragua', 'khm-membership' ); ?></option>
-									<option value="Niger" <?php selected( $sponsor_hq, 'Niger' ); ?>><?php esc_html_e( 'Niger', 'khm-membership' ); ?></option>
-									<option value="Nigeria" <?php selected( $sponsor_hq, 'Nigeria' ); ?>><?php esc_html_e( 'Nigeria', 'khm-membership' ); ?></option>
-									<option value="North Korea" <?php selected( $sponsor_hq, 'North Korea' ); ?>><?php esc_html_e( 'North Korea', 'khm-membership' ); ?></option>
-									<option value="North Macedonia" <?php selected( $sponsor_hq, 'North Macedonia' ); ?>><?php esc_html_e( 'North Macedonia', 'khm-membership' ); ?></option>
-									<option value="Norway" <?php selected( $sponsor_hq, 'Norway' ); ?>><?php esc_html_e( 'Norway', 'khm-membership' ); ?></option>
-									<option value="Oman" <?php selected( $sponsor_hq, 'Oman' ); ?>><?php esc_html_e( 'Oman', 'khm-membership' ); ?></option>
-									<option value="Pakistan" <?php selected( $sponsor_hq, 'Pakistan' ); ?>><?php esc_html_e( 'Pakistan', 'khm-membership' ); ?></option>
-									<option value="Palau" <?php selected( $sponsor_hq, 'Palau' ); ?>><?php esc_html_e( 'Palau', 'khm-membership' ); ?></option>
-									<option value="Palestine" <?php selected( $sponsor_hq, 'Palestine' ); ?>><?php esc_html_e( 'Palestine', 'khm-membership' ); ?></option>
-									<option value="Panama" <?php selected( $sponsor_hq, 'Panama' ); ?>><?php esc_html_e( 'Panama', 'khm-membership' ); ?></option>
-									<option value="Papua New Guinea" <?php selected( $sponsor_hq, 'Papua New Guinea' ); ?>><?php esc_html_e( 'Papua New Guinea', 'khm-membership' ); ?></option>
-									<option value="Paraguay" <?php selected( $sponsor_hq, 'Paraguay' ); ?>><?php esc_html_e( 'Paraguay', 'khm-membership' ); ?></option>
-									<option value="Peru" <?php selected( $sponsor_hq, 'Peru' ); ?>><?php esc_html_e( 'Peru', 'khm-membership' ); ?></option>
-									<option value="Philippines" <?php selected( $sponsor_hq, 'Philippines' ); ?>><?php esc_html_e( 'Philippines', 'khm-membership' ); ?></option>
-									<option value="Poland" <?php selected( $sponsor_hq, 'Poland' ); ?>><?php esc_html_e( 'Poland', 'khm-membership' ); ?></option>
-									<option value="Portugal" <?php selected( $sponsor_hq, 'Portugal' ); ?>><?php esc_html_e( 'Portugal', 'khm-membership' ); ?></option>
-									<option value="Qatar" <?php selected( $sponsor_hq, 'Qatar' ); ?>><?php esc_html_e( 'Qatar', 'khm-membership' ); ?></option>
-									<option value="Romania" <?php selected( $sponsor_hq, 'Romania' ); ?>><?php esc_html_e( 'Romania', 'khm-membership' ); ?></option>
-									<option value="Russia" <?php selected( $sponsor_hq, 'Russia' ); ?>><?php esc_html_e( 'Russia', 'khm-membership' ); ?></option>
-									<option value="Rwanda" <?php selected( $sponsor_hq, 'Rwanda' ); ?>><?php esc_html_e( 'Rwanda', 'khm-membership' ); ?></option>
-									<option value="Saint Kitts and Nevis" <?php selected( $sponsor_hq, 'Saint Kitts and Nevis' ); ?>><?php esc_html_e( 'Saint Kitts and Nevis', 'khm-membership' ); ?></option>
-									<option value="Saint Lucia" <?php selected( $sponsor_hq, 'Saint Lucia' ); ?>><?php esc_html_e( 'Saint Lucia', 'khm-membership' ); ?></option>
-									<option value="Saint Vincent" <?php selected( $sponsor_hq, 'Saint Vincent' ); ?>><?php esc_html_e( 'Saint Vincent', 'khm-membership' ); ?></option>
-									<option value="Samoa" <?php selected( $sponsor_hq, 'Samoa' ); ?>><?php esc_html_e( 'Samoa', 'khm-membership' ); ?></option>
-									<option value="San Marino" <?php selected( $sponsor_hq, 'San Marino' ); ?>><?php esc_html_e( 'San Marino', 'khm-membership' ); ?></option>
-									<option value="Sao Tome and Principe" <?php selected( $sponsor_hq, 'Sao Tome and Principe' ); ?>><?php esc_html_e( 'Sao Tome and Principe', 'khm-membership' ); ?></option>
-									<option value="Saudi Arabia" <?php selected( $sponsor_hq, 'Saudi Arabia' ); ?>><?php esc_html_e( 'Saudi Arabia', 'khm-membership' ); ?></option>
-									<option value="Senegal" <?php selected( $sponsor_hq, 'Senegal' ); ?>><?php esc_html_e( 'Senegal', 'khm-membership' ); ?></option>
-									<option value="Serbia" <?php selected( $sponsor_hq, 'Serbia' ); ?>><?php esc_html_e( 'Serbia', 'khm-membership' ); ?></option>
-									<option value="Seychelles" <?php selected( $sponsor_hq, 'Seychelles' ); ?>><?php esc_html_e( 'Seychelles', 'khm-membership' ); ?></option>
-									<option value="Sierra Leone" <?php selected( $sponsor_hq, 'Sierra Leone' ); ?>><?php esc_html_e( 'Sierra Leone', 'khm-membership' ); ?></option>
-									<option value="Singapore" <?php selected( $sponsor_hq, 'Singapore' ); ?>><?php esc_html_e( 'Singapore', 'khm-membership' ); ?></option>
-									<option value="Slovakia" <?php selected( $sponsor_hq, 'Slovakia' ); ?>><?php esc_html_e( 'Slovakia', 'khm-membership' ); ?></option>
-									<option value="Slovenia" <?php selected( $sponsor_hq, 'Slovenia' ); ?>><?php esc_html_e( 'Slovenia', 'khm-membership' ); ?></option>
-									<option value="Solomon Islands" <?php selected( $sponsor_hq, 'Solomon Islands' ); ?>><?php esc_html_e( 'Solomon Islands', 'khm-membership' ); ?></option>
-									<option value="Somalia" <?php selected( $sponsor_hq, 'Somalia' ); ?>><?php esc_html_e( 'Somalia', 'khm-membership' ); ?></option>
-									<option value="South Africa" <?php selected( $sponsor_hq, 'South Africa' ); ?>><?php esc_html_e( 'South Africa', 'khm-membership' ); ?></option>
-									<option value="South Korea" <?php selected( $sponsor_hq, 'South Korea' ); ?>><?php esc_html_e( 'South Korea', 'khm-membership' ); ?></option>
-									<option value="South Sudan" <?php selected( $sponsor_hq, 'South Sudan' ); ?>><?php esc_html_e( 'South Sudan', 'khm-membership' ); ?></option>
-									<option value="Spain" <?php selected( $sponsor_hq, 'Spain' ); ?>><?php esc_html_e( 'Spain', 'khm-membership' ); ?></option>
-									<option value="Sri Lanka" <?php selected( $sponsor_hq, 'Sri Lanka' ); ?>><?php esc_html_e( 'Sri Lanka', 'khm-membership' ); ?></option>
-									<option value="Sudan" <?php selected( $sponsor_hq, 'Sudan' ); ?>><?php esc_html_e( 'Sudan', 'khm-membership' ); ?></option>
-									<option value="Suriname" <?php selected( $sponsor_hq, 'Suriname' ); ?>><?php esc_html_e( 'Suriname', 'khm-membership' ); ?></option>
-									<option value="Sweden" <?php selected( $sponsor_hq, 'Sweden' ); ?>><?php esc_html_e( 'Sweden', 'khm-membership' ); ?></option>
-									<option value="Switzerland" <?php selected( $sponsor_hq, 'Switzerland' ); ?>><?php esc_html_e( 'Switzerland', 'khm-membership' ); ?></option>
-									<option value="Syria" <?php selected( $sponsor_hq, 'Syria' ); ?>><?php esc_html_e( 'Syria', 'khm-membership' ); ?></option>
-									<option value="Taiwan" <?php selected( $sponsor_hq, 'Taiwan' ); ?>><?php esc_html_e( 'Taiwan', 'khm-membership' ); ?></option>
-									<option value="Tajikistan" <?php selected( $sponsor_hq, 'Tajikistan' ); ?>><?php esc_html_e( 'Tajikistan', 'khm-membership' ); ?></option>
-									<option value="Tanzania" <?php selected( $sponsor_hq, 'Tanzania' ); ?>><?php esc_html_e( 'Tanzania', 'khm-membership' ); ?></option>
-									<option value="Thailand" <?php selected( $sponsor_hq, 'Thailand' ); ?>><?php esc_html_e( 'Thailand', 'khm-membership' ); ?></option>
-									<option value="Togo" <?php selected( $sponsor_hq, 'Togo' ); ?>><?php esc_html_e( 'Togo', 'khm-membership' ); ?></option>
-									<option value="Tonga" <?php selected( $sponsor_hq, 'Tonga' ); ?>><?php esc_html_e( 'Tonga', 'khm-membership' ); ?></option>
-									<option value="Trinidad and Tobago" <?php selected( $sponsor_hq, 'Trinidad and Tobago' ); ?>><?php esc_html_e( 'Trinidad and Tobago', 'khm-membership' ); ?></option>
-									<option value="Tunisia" <?php selected( $sponsor_hq, 'Tunisia' ); ?>><?php esc_html_e( 'Tunisia', 'khm-membership' ); ?></option>
-									<option value="Turkey" <?php selected( $sponsor_hq, 'Turkey' ); ?>><?php esc_html_e( 'Turkey', 'khm-membership' ); ?></option>
-									<option value="Turkmenistan" <?php selected( $sponsor_hq, 'Turkmenistan' ); ?>><?php esc_html_e( 'Turkmenistan', 'khm-membership' ); ?></option>
-									<option value="Tuvalu" <?php selected( $sponsor_hq, 'Tuvalu' ); ?>><?php esc_html_e( 'Tuvalu', 'khm-membership' ); ?></option>
-									<option value="Uganda" <?php selected( $sponsor_hq, 'Uganda' ); ?>><?php esc_html_e( 'Uganda', 'khm-membership' ); ?></option>
-									<option value="Ukraine" <?php selected( $sponsor_hq, 'Ukraine' ); ?>><?php esc_html_e( 'Ukraine', 'khm-membership' ); ?></option>
-									<option value="United Arab Emirates" <?php selected( $sponsor_hq, 'United Arab Emirates' ); ?>><?php esc_html_e( 'United Arab Emirates', 'khm-membership' ); ?></option>
-									<option value="Uruguay" <?php selected( $sponsor_hq, 'Uruguay' ); ?>><?php esc_html_e( 'Uruguay', 'khm-membership' ); ?></option>
-									<option value="Uzbekistan" <?php selected( $sponsor_hq, 'Uzbekistan' ); ?>><?php esc_html_e( 'Uzbekistan', 'khm-membership' ); ?></option>
-									<option value="Vanuatu" <?php selected( $sponsor_hq, 'Vanuatu' ); ?>><?php esc_html_e( 'Vanuatu', 'khm-membership' ); ?></option>
-									<option value="Vatican City" <?php selected( $sponsor_hq, 'Vatican City' ); ?>><?php esc_html_e( 'Vatican City', 'khm-membership' ); ?></option>
-									<option value="Venezuela" <?php selected( $sponsor_hq, 'Venezuela' ); ?>><?php esc_html_e( 'Venezuela', 'khm-membership' ); ?></option>
-									<option value="Vietnam" <?php selected( $sponsor_hq, 'Vietnam' ); ?>><?php esc_html_e( 'Vietnam', 'khm-membership' ); ?></option>
-									<option value="Yemen" <?php selected( $sponsor_hq, 'Yemen' ); ?>><?php esc_html_e( 'Yemen', 'khm-membership' ); ?></option>
-									<option value="Zambia" <?php selected( $sponsor_hq, 'Zambia' ); ?>><?php esc_html_e( 'Zambia', 'khm-membership' ); ?></option>
-									<option value="Zimbabwe" <?php selected( $sponsor_hq, 'Zimbabwe' ); ?>><?php esc_html_e( 'Zimbabwe', 'khm-membership' ); ?></option>
+								<optgroup label="<?php esc_attr_e( 'All countries', 'kh-quote-club' ); ?>">
+									<option value="Afghanistan" <?php selected( $sponsor_hq, 'Afghanistan' ); ?>><?php esc_html_e( 'Afghanistan', 'kh-quote-club' ); ?></option>
+									<option value="Albania" <?php selected( $sponsor_hq, 'Albania' ); ?>><?php esc_html_e( 'Albania', 'kh-quote-club' ); ?></option>
+									<option value="Algeria" <?php selected( $sponsor_hq, 'Algeria' ); ?>><?php esc_html_e( 'Algeria', 'kh-quote-club' ); ?></option>
+									<option value="Andorra" <?php selected( $sponsor_hq, 'Andorra' ); ?>><?php esc_html_e( 'Andorra', 'kh-quote-club' ); ?></option>
+									<option value="Angola" <?php selected( $sponsor_hq, 'Angola' ); ?>><?php esc_html_e( 'Angola', 'kh-quote-club' ); ?></option>
+									<option value="Antigua and Barbuda" <?php selected( $sponsor_hq, 'Antigua and Barbuda' ); ?>><?php esc_html_e( 'Antigua and Barbuda', 'kh-quote-club' ); ?></option>
+									<option value="Argentina" <?php selected( $sponsor_hq, 'Argentina' ); ?>><?php esc_html_e( 'Argentina', 'kh-quote-club' ); ?></option>
+									<option value="Armenia" <?php selected( $sponsor_hq, 'Armenia' ); ?>><?php esc_html_e( 'Armenia', 'kh-quote-club' ); ?></option>
+									<option value="Australia" <?php selected( $sponsor_hq, 'Australia' ); ?>><?php esc_html_e( 'Australia', 'kh-quote-club' ); ?></option>
+									<option value="Austria" <?php selected( $sponsor_hq, 'Austria' ); ?>><?php esc_html_e( 'Austria', 'kh-quote-club' ); ?></option>
+									<option value="Azerbaijan" <?php selected( $sponsor_hq, 'Azerbaijan' ); ?>><?php esc_html_e( 'Azerbaijan', 'kh-quote-club' ); ?></option>
+									<option value="Bahamas" <?php selected( $sponsor_hq, 'Bahamas' ); ?>><?php esc_html_e( 'Bahamas', 'kh-quote-club' ); ?></option>
+									<option value="Bahrain" <?php selected( $sponsor_hq, 'Bahrain' ); ?>><?php esc_html_e( 'Bahrain', 'kh-quote-club' ); ?></option>
+									<option value="Bangladesh" <?php selected( $sponsor_hq, 'Bangladesh' ); ?>><?php esc_html_e( 'Bangladesh', 'kh-quote-club' ); ?></option>
+									<option value="Barbados" <?php selected( $sponsor_hq, 'Barbados' ); ?>><?php esc_html_e( 'Barbados', 'kh-quote-club' ); ?></option>
+									<option value="Belarus" <?php selected( $sponsor_hq, 'Belarus' ); ?>><?php esc_html_e( 'Belarus', 'kh-quote-club' ); ?></option>
+									<option value="Belgium" <?php selected( $sponsor_hq, 'Belgium' ); ?>><?php esc_html_e( 'Belgium', 'kh-quote-club' ); ?></option>
+									<option value="Belize" <?php selected( $sponsor_hq, 'Belize' ); ?>><?php esc_html_e( 'Belize', 'kh-quote-club' ); ?></option>
+									<option value="Benin" <?php selected( $sponsor_hq, 'Benin' ); ?>><?php esc_html_e( 'Benin', 'kh-quote-club' ); ?></option>
+									<option value="Bhutan" <?php selected( $sponsor_hq, 'Bhutan' ); ?>><?php esc_html_e( 'Bhutan', 'kh-quote-club' ); ?></option>
+									<option value="Bolivia" <?php selected( $sponsor_hq, 'Bolivia' ); ?>><?php esc_html_e( 'Bolivia', 'kh-quote-club' ); ?></option>
+									<option value="Bosnia and Herzegovina" <?php selected( $sponsor_hq, 'Bosnia and Herzegovina' ); ?>><?php esc_html_e( 'Bosnia and Herzegovina', 'kh-quote-club' ); ?></option>
+									<option value="Botswana" <?php selected( $sponsor_hq, 'Botswana' ); ?>><?php esc_html_e( 'Botswana', 'kh-quote-club' ); ?></option>
+									<option value="Brazil" <?php selected( $sponsor_hq, 'Brazil' ); ?>><?php esc_html_e( 'Brazil', 'kh-quote-club' ); ?></option>
+									<option value="Brunei" <?php selected( $sponsor_hq, 'Brunei' ); ?>><?php esc_html_e( 'Brunei', 'kh-quote-club' ); ?></option>
+									<option value="Bulgaria" <?php selected( $sponsor_hq, 'Bulgaria' ); ?>><?php esc_html_e( 'Bulgaria', 'kh-quote-club' ); ?></option>
+									<option value="Burkina Faso" <?php selected( $sponsor_hq, 'Burkina Faso' ); ?>><?php esc_html_e( 'Burkina Faso', 'kh-quote-club' ); ?></option>
+									<option value="Burundi" <?php selected( $sponsor_hq, 'Burundi' ); ?>><?php esc_html_e( 'Burundi', 'kh-quote-club' ); ?></option>
+									<option value="Cambodia" <?php selected( $sponsor_hq, 'Cambodia' ); ?>><?php esc_html_e( 'Cambodia', 'kh-quote-club' ); ?></option>
+									<option value="Cameroon" <?php selected( $sponsor_hq, 'Cameroon' ); ?>><?php esc_html_e( 'Cameroon', 'kh-quote-club' ); ?></option>
+									<option value="Canada" <?php selected( $sponsor_hq, 'Canada' ); ?>><?php esc_html_e( 'Canada', 'kh-quote-club' ); ?></option>
+									<option value="Cape Verde" <?php selected( $sponsor_hq, 'Cape Verde' ); ?>><?php esc_html_e( 'Cape Verde', 'kh-quote-club' ); ?></option>
+									<option value="Central African Republic" <?php selected( $sponsor_hq, 'Central African Republic' ); ?>><?php esc_html_e( 'Central African Republic', 'kh-quote-club' ); ?></option>
+									<option value="Chad" <?php selected( $sponsor_hq, 'Chad' ); ?>><?php esc_html_e( 'Chad', 'kh-quote-club' ); ?></option>
+									<option value="Chile" <?php selected( $sponsor_hq, 'Chile' ); ?>><?php esc_html_e( 'Chile', 'kh-quote-club' ); ?></option>
+									<option value="China" <?php selected( $sponsor_hq, 'China' ); ?>><?php esc_html_e( 'China', 'kh-quote-club' ); ?></option>
+									<option value="Colombia" <?php selected( $sponsor_hq, 'Colombia' ); ?>><?php esc_html_e( 'Colombia', 'kh-quote-club' ); ?></option>
+									<option value="Comoros" <?php selected( $sponsor_hq, 'Comoros' ); ?>><?php esc_html_e( 'Comoros', 'kh-quote-club' ); ?></option>
+									<option value="Congo" <?php selected( $sponsor_hq, 'Congo' ); ?>><?php esc_html_e( 'Congo', 'kh-quote-club' ); ?></option>
+									<option value="Costa Rica" <?php selected( $sponsor_hq, 'Costa Rica' ); ?>><?php esc_html_e( 'Costa Rica', 'kh-quote-club' ); ?></option>
+									<option value="Croatia" <?php selected( $sponsor_hq, 'Croatia' ); ?>><?php esc_html_e( 'Croatia', 'kh-quote-club' ); ?></option>
+									<option value="Cuba" <?php selected( $sponsor_hq, 'Cuba' ); ?>><?php esc_html_e( 'Cuba', 'kh-quote-club' ); ?></option>
+									<option value="Cyprus" <?php selected( $sponsor_hq, 'Cyprus' ); ?>><?php esc_html_e( 'Cyprus', 'kh-quote-club' ); ?></option>
+									<option value="Czech Republic" <?php selected( $sponsor_hq, 'Czech Republic' ); ?>><?php esc_html_e( 'Czech Republic', 'kh-quote-club' ); ?></option>
+									<option value="Denmark" <?php selected( $sponsor_hq, 'Denmark' ); ?>><?php esc_html_e( 'Denmark', 'kh-quote-club' ); ?></option>
+									<option value="Djibouti" <?php selected( $sponsor_hq, 'Djibouti' ); ?>><?php esc_html_e( 'Djibouti', 'kh-quote-club' ); ?></option>
+									<option value="Dominica" <?php selected( $sponsor_hq, 'Dominica' ); ?>><?php esc_html_e( 'Dominica', 'kh-quote-club' ); ?></option>
+									<option value="Dominican Republic" <?php selected( $sponsor_hq, 'Dominican Republic' ); ?>><?php esc_html_e( 'Dominican Republic', 'kh-quote-club' ); ?></option>
+									<option value="East Timor" <?php selected( $sponsor_hq, 'East Timor' ); ?>><?php esc_html_e( 'East Timor', 'kh-quote-club' ); ?></option>
+									<option value="Ecuador" <?php selected( $sponsor_hq, 'Ecuador' ); ?>><?php esc_html_e( 'Ecuador', 'kh-quote-club' ); ?></option>
+									<option value="Egypt" <?php selected( $sponsor_hq, 'Egypt' ); ?>><?php esc_html_e( 'Egypt', 'kh-quote-club' ); ?></option>
+									<option value="El Salvador" <?php selected( $sponsor_hq, 'El Salvador' ); ?>><?php esc_html_e( 'El Salvador', 'kh-quote-club' ); ?></option>
+									<option value="Equatorial Guinea" <?php selected( $sponsor_hq, 'Equatorial Guinea' ); ?>><?php esc_html_e( 'Equatorial Guinea', 'kh-quote-club' ); ?></option>
+									<option value="Eritrea" <?php selected( $sponsor_hq, 'Eritrea' ); ?>><?php esc_html_e( 'Eritrea', 'kh-quote-club' ); ?></option>
+									<option value="Estonia" <?php selected( $sponsor_hq, 'Estonia' ); ?>><?php esc_html_e( 'Estonia', 'kh-quote-club' ); ?></option>
+									<option value="Eswatini" <?php selected( $sponsor_hq, 'Eswatini' ); ?>><?php esc_html_e( 'Eswatini', 'kh-quote-club' ); ?></option>
+									<option value="Ethiopia" <?php selected( $sponsor_hq, 'Ethiopia' ); ?>><?php esc_html_e( 'Ethiopia', 'kh-quote-club' ); ?></option>
+									<option value="Fiji" <?php selected( $sponsor_hq, 'Fiji' ); ?>><?php esc_html_e( 'Fiji', 'kh-quote-club' ); ?></option>
+									<option value="Finland" <?php selected( $sponsor_hq, 'Finland' ); ?>><?php esc_html_e( 'Finland', 'kh-quote-club' ); ?></option>
+									<option value="Gabon" <?php selected( $sponsor_hq, 'Gabon' ); ?>><?php esc_html_e( 'Gabon', 'kh-quote-club' ); ?></option>
+									<option value="Gambia" <?php selected( $sponsor_hq, 'Gambia' ); ?>><?php esc_html_e( 'Gambia', 'kh-quote-club' ); ?></option>
+									<option value="Georgia" <?php selected( $sponsor_hq, 'Georgia' ); ?>><?php esc_html_e( 'Georgia', 'kh-quote-club' ); ?></option>
+									<option value="Ghana" <?php selected( $sponsor_hq, 'Ghana' ); ?>><?php esc_html_e( 'Ghana', 'kh-quote-club' ); ?></option>
+									<option value="Greece" <?php selected( $sponsor_hq, 'Greece' ); ?>><?php esc_html_e( 'Greece', 'kh-quote-club' ); ?></option>
+									<option value="Grenada" <?php selected( $sponsor_hq, 'Grenada' ); ?>><?php esc_html_e( 'Grenada', 'kh-quote-club' ); ?></option>
+									<option value="Guatemala" <?php selected( $sponsor_hq, 'Guatemala' ); ?>><?php esc_html_e( 'Guatemala', 'kh-quote-club' ); ?></option>
+									<option value="Guinea" <?php selected( $sponsor_hq, 'Guinea' ); ?>><?php esc_html_e( 'Guinea', 'kh-quote-club' ); ?></option>
+									<option value="Guinea-Bissau" <?php selected( $sponsor_hq, 'Guinea-Bissau' ); ?>><?php esc_html_e( 'Guinea-Bissau', 'kh-quote-club' ); ?></option>
+									<option value="Guyana" <?php selected( $sponsor_hq, 'Guyana' ); ?>><?php esc_html_e( 'Guyana', 'kh-quote-club' ); ?></option>
+									<option value="Haiti" <?php selected( $sponsor_hq, 'Haiti' ); ?>><?php esc_html_e( 'Haiti', 'kh-quote-club' ); ?></option>
+									<option value="Honduras" <?php selected( $sponsor_hq, 'Honduras' ); ?>><?php esc_html_e( 'Honduras', 'kh-quote-club' ); ?></option>
+									<option value="Hungary" <?php selected( $sponsor_hq, 'Hungary' ); ?>><?php esc_html_e( 'Hungary', 'kh-quote-club' ); ?></option>
+									<option value="Iceland" <?php selected( $sponsor_hq, 'Iceland' ); ?>><?php esc_html_e( 'Iceland', 'kh-quote-club' ); ?></option>
+									<option value="India" <?php selected( $sponsor_hq, 'India' ); ?>><?php esc_html_e( 'India', 'kh-quote-club' ); ?></option>
+									<option value="Indonesia" <?php selected( $sponsor_hq, 'Indonesia' ); ?>><?php esc_html_e( 'Indonesia', 'kh-quote-club' ); ?></option>
+									<option value="Iran" <?php selected( $sponsor_hq, 'Iran' ); ?>><?php esc_html_e( 'Iran', 'kh-quote-club' ); ?></option>
+									<option value="Iraq" <?php selected( $sponsor_hq, 'Iraq' ); ?>><?php esc_html_e( 'Iraq', 'kh-quote-club' ); ?></option>
+									<option value="Ireland" <?php selected( $sponsor_hq, 'Ireland' ); ?>><?php esc_html_e( 'Ireland', 'kh-quote-club' ); ?></option>
+									<option value="Israel" <?php selected( $sponsor_hq, 'Israel' ); ?>><?php esc_html_e( 'Israel', 'kh-quote-club' ); ?></option>
+									<option value="Italy" <?php selected( $sponsor_hq, 'Italy' ); ?>><?php esc_html_e( 'Italy', 'kh-quote-club' ); ?></option>
+									<option value="Ivory Coast" <?php selected( $sponsor_hq, 'Ivory Coast' ); ?>><?php esc_html_e( 'Ivory Coast', 'kh-quote-club' ); ?></option>
+									<option value="Jamaica" <?php selected( $sponsor_hq, 'Jamaica' ); ?>><?php esc_html_e( 'Jamaica', 'kh-quote-club' ); ?></option>
+									<option value="Japan" <?php selected( $sponsor_hq, 'Japan' ); ?>><?php esc_html_e( 'Japan', 'kh-quote-club' ); ?></option>
+									<option value="Jordan" <?php selected( $sponsor_hq, 'Jordan' ); ?>><?php esc_html_e( 'Jordan', 'kh-quote-club' ); ?></option>
+									<option value="Kazakhstan" <?php selected( $sponsor_hq, 'Kazakhstan' ); ?>><?php esc_html_e( 'Kazakhstan', 'kh-quote-club' ); ?></option>
+									<option value="Kenya" <?php selected( $sponsor_hq, 'Kenya' ); ?>><?php esc_html_e( 'Kenya', 'kh-quote-club' ); ?></option>
+									<option value="Kiribati" <?php selected( $sponsor_hq, 'Kiribati' ); ?>><?php esc_html_e( 'Kiribati', 'kh-quote-club' ); ?></option>
+									<option value="Kosovo" <?php selected( $sponsor_hq, 'Kosovo' ); ?>><?php esc_html_e( 'Kosovo', 'kh-quote-club' ); ?></option>
+									<option value="Kuwait" <?php selected( $sponsor_hq, 'Kuwait' ); ?>><?php esc_html_e( 'Kuwait', 'kh-quote-club' ); ?></option>
+									<option value="Kyrgyzstan" <?php selected( $sponsor_hq, 'Kyrgyzstan' ); ?>><?php esc_html_e( 'Kyrgyzstan', 'kh-quote-club' ); ?></option>
+									<option value="Laos" <?php selected( $sponsor_hq, 'Laos' ); ?>><?php esc_html_e( 'Laos', 'kh-quote-club' ); ?></option>
+									<option value="Latvia" <?php selected( $sponsor_hq, 'Latvia' ); ?>><?php esc_html_e( 'Latvia', 'kh-quote-club' ); ?></option>
+									<option value="Lebanon" <?php selected( $sponsor_hq, 'Lebanon' ); ?>><?php esc_html_e( 'Lebanon', 'kh-quote-club' ); ?></option>
+									<option value="Lesotho" <?php selected( $sponsor_hq, 'Lesotho' ); ?>><?php esc_html_e( 'Lesotho', 'kh-quote-club' ); ?></option>
+									<option value="Liberia" <?php selected( $sponsor_hq, 'Liberia' ); ?>><?php esc_html_e( 'Liberia', 'kh-quote-club' ); ?></option>
+									<option value="Libya" <?php selected( $sponsor_hq, 'Libya' ); ?>><?php esc_html_e( 'Libya', 'kh-quote-club' ); ?></option>
+									<option value="Liechtenstein" <?php selected( $sponsor_hq, 'Liechtenstein' ); ?>><?php esc_html_e( 'Liechtenstein', 'kh-quote-club' ); ?></option>
+									<option value="Lithuania" <?php selected( $sponsor_hq, 'Lithuania' ); ?>><?php esc_html_e( 'Lithuania', 'kh-quote-club' ); ?></option>
+									<option value="Luxembourg" <?php selected( $sponsor_hq, 'Luxembourg' ); ?>><?php esc_html_e( 'Luxembourg', 'kh-quote-club' ); ?></option>
+									<option value="Madagascar" <?php selected( $sponsor_hq, 'Madagascar' ); ?>><?php esc_html_e( 'Madagascar', 'kh-quote-club' ); ?></option>
+									<option value="Malawi" <?php selected( $sponsor_hq, 'Malawi' ); ?>><?php esc_html_e( 'Malawi', 'kh-quote-club' ); ?></option>
+									<option value="Malaysia" <?php selected( $sponsor_hq, 'Malaysia' ); ?>><?php esc_html_e( 'Malaysia', 'kh-quote-club' ); ?></option>
+									<option value="Maldives" <?php selected( $sponsor_hq, 'Maldives' ); ?>><?php esc_html_e( 'Maldives', 'kh-quote-club' ); ?></option>
+									<option value="Mali" <?php selected( $sponsor_hq, 'Mali' ); ?>><?php esc_html_e( 'Mali', 'kh-quote-club' ); ?></option>
+									<option value="Malta" <?php selected( $sponsor_hq, 'Malta' ); ?>><?php esc_html_e( 'Malta', 'kh-quote-club' ); ?></option>
+									<option value="Marshall Islands" <?php selected( $sponsor_hq, 'Marshall Islands' ); ?>><?php esc_html_e( 'Marshall Islands', 'kh-quote-club' ); ?></option>
+									<option value="Mauritania" <?php selected( $sponsor_hq, 'Mauritania' ); ?>><?php esc_html_e( 'Mauritania', 'kh-quote-club' ); ?></option>
+									<option value="Mauritius" <?php selected( $sponsor_hq, 'Mauritius' ); ?>><?php esc_html_e( 'Mauritius', 'kh-quote-club' ); ?></option>
+									<option value="Mexico" <?php selected( $sponsor_hq, 'Mexico' ); ?>><?php esc_html_e( 'Mexico', 'kh-quote-club' ); ?></option>
+									<option value="Micronesia" <?php selected( $sponsor_hq, 'Micronesia' ); ?>><?php esc_html_e( 'Micronesia', 'kh-quote-club' ); ?></option>
+									<option value="Moldova" <?php selected( $sponsor_hq, 'Moldova' ); ?>><?php esc_html_e( 'Moldova', 'kh-quote-club' ); ?></option>
+									<option value="Monaco" <?php selected( $sponsor_hq, 'Monaco' ); ?>><?php esc_html_e( 'Monaco', 'kh-quote-club' ); ?></option>
+									<option value="Mongolia" <?php selected( $sponsor_hq, 'Mongolia' ); ?>><?php esc_html_e( 'Mongolia', 'kh-quote-club' ); ?></option>
+									<option value="Montenegro" <?php selected( $sponsor_hq, 'Montenegro' ); ?>><?php esc_html_e( 'Montenegro', 'kh-quote-club' ); ?></option>
+									<option value="Morocco" <?php selected( $sponsor_hq, 'Morocco' ); ?>><?php esc_html_e( 'Morocco', 'kh-quote-club' ); ?></option>
+									<option value="Mozambique" <?php selected( $sponsor_hq, 'Mozambique' ); ?>><?php esc_html_e( 'Mozambique', 'kh-quote-club' ); ?></option>
+									<option value="Myanmar" <?php selected( $sponsor_hq, 'Myanmar' ); ?>><?php esc_html_e( 'Myanmar', 'kh-quote-club' ); ?></option>
+									<option value="Namibia" <?php selected( $sponsor_hq, 'Namibia' ); ?>><?php esc_html_e( 'Namibia', 'kh-quote-club' ); ?></option>
+									<option value="Nauru" <?php selected( $sponsor_hq, 'Nauru' ); ?>><?php esc_html_e( 'Nauru', 'kh-quote-club' ); ?></option>
+									<option value="Nepal" <?php selected( $sponsor_hq, 'Nepal' ); ?>><?php esc_html_e( 'Nepal', 'kh-quote-club' ); ?></option>
+									<option value="Netherlands" <?php selected( $sponsor_hq, 'Netherlands' ); ?>><?php esc_html_e( 'Netherlands', 'kh-quote-club' ); ?></option>
+									<option value="New Zealand" <?php selected( $sponsor_hq, 'New Zealand' ); ?>><?php esc_html_e( 'New Zealand', 'kh-quote-club' ); ?></option>
+									<option value="Nicaragua" <?php selected( $sponsor_hq, 'Nicaragua' ); ?>><?php esc_html_e( 'Nicaragua', 'kh-quote-club' ); ?></option>
+									<option value="Niger" <?php selected( $sponsor_hq, 'Niger' ); ?>><?php esc_html_e( 'Niger', 'kh-quote-club' ); ?></option>
+									<option value="Nigeria" <?php selected( $sponsor_hq, 'Nigeria' ); ?>><?php esc_html_e( 'Nigeria', 'kh-quote-club' ); ?></option>
+									<option value="North Korea" <?php selected( $sponsor_hq, 'North Korea' ); ?>><?php esc_html_e( 'North Korea', 'kh-quote-club' ); ?></option>
+									<option value="North Macedonia" <?php selected( $sponsor_hq, 'North Macedonia' ); ?>><?php esc_html_e( 'North Macedonia', 'kh-quote-club' ); ?></option>
+									<option value="Norway" <?php selected( $sponsor_hq, 'Norway' ); ?>><?php esc_html_e( 'Norway', 'kh-quote-club' ); ?></option>
+									<option value="Oman" <?php selected( $sponsor_hq, 'Oman' ); ?>><?php esc_html_e( 'Oman', 'kh-quote-club' ); ?></option>
+									<option value="Pakistan" <?php selected( $sponsor_hq, 'Pakistan' ); ?>><?php esc_html_e( 'Pakistan', 'kh-quote-club' ); ?></option>
+									<option value="Palau" <?php selected( $sponsor_hq, 'Palau' ); ?>><?php esc_html_e( 'Palau', 'kh-quote-club' ); ?></option>
+									<option value="Palestine" <?php selected( $sponsor_hq, 'Palestine' ); ?>><?php esc_html_e( 'Palestine', 'kh-quote-club' ); ?></option>
+									<option value="Panama" <?php selected( $sponsor_hq, 'Panama' ); ?>><?php esc_html_e( 'Panama', 'kh-quote-club' ); ?></option>
+									<option value="Papua New Guinea" <?php selected( $sponsor_hq, 'Papua New Guinea' ); ?>><?php esc_html_e( 'Papua New Guinea', 'kh-quote-club' ); ?></option>
+									<option value="Paraguay" <?php selected( $sponsor_hq, 'Paraguay' ); ?>><?php esc_html_e( 'Paraguay', 'kh-quote-club' ); ?></option>
+									<option value="Peru" <?php selected( $sponsor_hq, 'Peru' ); ?>><?php esc_html_e( 'Peru', 'kh-quote-club' ); ?></option>
+									<option value="Philippines" <?php selected( $sponsor_hq, 'Philippines' ); ?>><?php esc_html_e( 'Philippines', 'kh-quote-club' ); ?></option>
+									<option value="Poland" <?php selected( $sponsor_hq, 'Poland' ); ?>><?php esc_html_e( 'Poland', 'kh-quote-club' ); ?></option>
+									<option value="Portugal" <?php selected( $sponsor_hq, 'Portugal' ); ?>><?php esc_html_e( 'Portugal', 'kh-quote-club' ); ?></option>
+									<option value="Qatar" <?php selected( $sponsor_hq, 'Qatar' ); ?>><?php esc_html_e( 'Qatar', 'kh-quote-club' ); ?></option>
+									<option value="Romania" <?php selected( $sponsor_hq, 'Romania' ); ?>><?php esc_html_e( 'Romania', 'kh-quote-club' ); ?></option>
+									<option value="Russia" <?php selected( $sponsor_hq, 'Russia' ); ?>><?php esc_html_e( 'Russia', 'kh-quote-club' ); ?></option>
+									<option value="Rwanda" <?php selected( $sponsor_hq, 'Rwanda' ); ?>><?php esc_html_e( 'Rwanda', 'kh-quote-club' ); ?></option>
+									<option value="Saint Kitts and Nevis" <?php selected( $sponsor_hq, 'Saint Kitts and Nevis' ); ?>><?php esc_html_e( 'Saint Kitts and Nevis', 'kh-quote-club' ); ?></option>
+									<option value="Saint Lucia" <?php selected( $sponsor_hq, 'Saint Lucia' ); ?>><?php esc_html_e( 'Saint Lucia', 'kh-quote-club' ); ?></option>
+									<option value="Saint Vincent" <?php selected( $sponsor_hq, 'Saint Vincent' ); ?>><?php esc_html_e( 'Saint Vincent', 'kh-quote-club' ); ?></option>
+									<option value="Samoa" <?php selected( $sponsor_hq, 'Samoa' ); ?>><?php esc_html_e( 'Samoa', 'kh-quote-club' ); ?></option>
+									<option value="San Marino" <?php selected( $sponsor_hq, 'San Marino' ); ?>><?php esc_html_e( 'San Marino', 'kh-quote-club' ); ?></option>
+									<option value="Sao Tome and Principe" <?php selected( $sponsor_hq, 'Sao Tome and Principe' ); ?>><?php esc_html_e( 'Sao Tome and Principe', 'kh-quote-club' ); ?></option>
+									<option value="Saudi Arabia" <?php selected( $sponsor_hq, 'Saudi Arabia' ); ?>><?php esc_html_e( 'Saudi Arabia', 'kh-quote-club' ); ?></option>
+									<option value="Senegal" <?php selected( $sponsor_hq, 'Senegal' ); ?>><?php esc_html_e( 'Senegal', 'kh-quote-club' ); ?></option>
+									<option value="Serbia" <?php selected( $sponsor_hq, 'Serbia' ); ?>><?php esc_html_e( 'Serbia', 'kh-quote-club' ); ?></option>
+									<option value="Seychelles" <?php selected( $sponsor_hq, 'Seychelles' ); ?>><?php esc_html_e( 'Seychelles', 'kh-quote-club' ); ?></option>
+									<option value="Sierra Leone" <?php selected( $sponsor_hq, 'Sierra Leone' ); ?>><?php esc_html_e( 'Sierra Leone', 'kh-quote-club' ); ?></option>
+									<option value="Singapore" <?php selected( $sponsor_hq, 'Singapore' ); ?>><?php esc_html_e( 'Singapore', 'kh-quote-club' ); ?></option>
+									<option value="Slovakia" <?php selected( $sponsor_hq, 'Slovakia' ); ?>><?php esc_html_e( 'Slovakia', 'kh-quote-club' ); ?></option>
+									<option value="Slovenia" <?php selected( $sponsor_hq, 'Slovenia' ); ?>><?php esc_html_e( 'Slovenia', 'kh-quote-club' ); ?></option>
+									<option value="Solomon Islands" <?php selected( $sponsor_hq, 'Solomon Islands' ); ?>><?php esc_html_e( 'Solomon Islands', 'kh-quote-club' ); ?></option>
+									<option value="Somalia" <?php selected( $sponsor_hq, 'Somalia' ); ?>><?php esc_html_e( 'Somalia', 'kh-quote-club' ); ?></option>
+									<option value="South Africa" <?php selected( $sponsor_hq, 'South Africa' ); ?>><?php esc_html_e( 'South Africa', 'kh-quote-club' ); ?></option>
+									<option value="South Korea" <?php selected( $sponsor_hq, 'South Korea' ); ?>><?php esc_html_e( 'South Korea', 'kh-quote-club' ); ?></option>
+									<option value="South Sudan" <?php selected( $sponsor_hq, 'South Sudan' ); ?>><?php esc_html_e( 'South Sudan', 'kh-quote-club' ); ?></option>
+									<option value="Spain" <?php selected( $sponsor_hq, 'Spain' ); ?>><?php esc_html_e( 'Spain', 'kh-quote-club' ); ?></option>
+									<option value="Sri Lanka" <?php selected( $sponsor_hq, 'Sri Lanka' ); ?>><?php esc_html_e( 'Sri Lanka', 'kh-quote-club' ); ?></option>
+									<option value="Sudan" <?php selected( $sponsor_hq, 'Sudan' ); ?>><?php esc_html_e( 'Sudan', 'kh-quote-club' ); ?></option>
+									<option value="Suriname" <?php selected( $sponsor_hq, 'Suriname' ); ?>><?php esc_html_e( 'Suriname', 'kh-quote-club' ); ?></option>
+									<option value="Sweden" <?php selected( $sponsor_hq, 'Sweden' ); ?>><?php esc_html_e( 'Sweden', 'kh-quote-club' ); ?></option>
+									<option value="Switzerland" <?php selected( $sponsor_hq, 'Switzerland' ); ?>><?php esc_html_e( 'Switzerland', 'kh-quote-club' ); ?></option>
+									<option value="Syria" <?php selected( $sponsor_hq, 'Syria' ); ?>><?php esc_html_e( 'Syria', 'kh-quote-club' ); ?></option>
+									<option value="Taiwan" <?php selected( $sponsor_hq, 'Taiwan' ); ?>><?php esc_html_e( 'Taiwan', 'kh-quote-club' ); ?></option>
+									<option value="Tajikistan" <?php selected( $sponsor_hq, 'Tajikistan' ); ?>><?php esc_html_e( 'Tajikistan', 'kh-quote-club' ); ?></option>
+									<option value="Tanzania" <?php selected( $sponsor_hq, 'Tanzania' ); ?>><?php esc_html_e( 'Tanzania', 'kh-quote-club' ); ?></option>
+									<option value="Thailand" <?php selected( $sponsor_hq, 'Thailand' ); ?>><?php esc_html_e( 'Thailand', 'kh-quote-club' ); ?></option>
+									<option value="Togo" <?php selected( $sponsor_hq, 'Togo' ); ?>><?php esc_html_e( 'Togo', 'kh-quote-club' ); ?></option>
+									<option value="Tonga" <?php selected( $sponsor_hq, 'Tonga' ); ?>><?php esc_html_e( 'Tonga', 'kh-quote-club' ); ?></option>
+									<option value="Trinidad and Tobago" <?php selected( $sponsor_hq, 'Trinidad and Tobago' ); ?>><?php esc_html_e( 'Trinidad and Tobago', 'kh-quote-club' ); ?></option>
+									<option value="Tunisia" <?php selected( $sponsor_hq, 'Tunisia' ); ?>><?php esc_html_e( 'Tunisia', 'kh-quote-club' ); ?></option>
+									<option value="Turkey" <?php selected( $sponsor_hq, 'Turkey' ); ?>><?php esc_html_e( 'Turkey', 'kh-quote-club' ); ?></option>
+									<option value="Turkmenistan" <?php selected( $sponsor_hq, 'Turkmenistan' ); ?>><?php esc_html_e( 'Turkmenistan', 'kh-quote-club' ); ?></option>
+									<option value="Tuvalu" <?php selected( $sponsor_hq, 'Tuvalu' ); ?>><?php esc_html_e( 'Tuvalu', 'kh-quote-club' ); ?></option>
+									<option value="Uganda" <?php selected( $sponsor_hq, 'Uganda' ); ?>><?php esc_html_e( 'Uganda', 'kh-quote-club' ); ?></option>
+									<option value="Ukraine" <?php selected( $sponsor_hq, 'Ukraine' ); ?>><?php esc_html_e( 'Ukraine', 'kh-quote-club' ); ?></option>
+									<option value="United Arab Emirates" <?php selected( $sponsor_hq, 'United Arab Emirates' ); ?>><?php esc_html_e( 'United Arab Emirates', 'kh-quote-club' ); ?></option>
+									<option value="Uruguay" <?php selected( $sponsor_hq, 'Uruguay' ); ?>><?php esc_html_e( 'Uruguay', 'kh-quote-club' ); ?></option>
+									<option value="Uzbekistan" <?php selected( $sponsor_hq, 'Uzbekistan' ); ?>><?php esc_html_e( 'Uzbekistan', 'kh-quote-club' ); ?></option>
+									<option value="Vanuatu" <?php selected( $sponsor_hq, 'Vanuatu' ); ?>><?php esc_html_e( 'Vanuatu', 'kh-quote-club' ); ?></option>
+									<option value="Vatican City" <?php selected( $sponsor_hq, 'Vatican City' ); ?>><?php esc_html_e( 'Vatican City', 'kh-quote-club' ); ?></option>
+									<option value="Venezuela" <?php selected( $sponsor_hq, 'Venezuela' ); ?>><?php esc_html_e( 'Venezuela', 'kh-quote-club' ); ?></option>
+									<option value="Vietnam" <?php selected( $sponsor_hq, 'Vietnam' ); ?>><?php esc_html_e( 'Vietnam', 'kh-quote-club' ); ?></option>
+									<option value="Yemen" <?php selected( $sponsor_hq, 'Yemen' ); ?>><?php esc_html_e( 'Yemen', 'kh-quote-club' ); ?></option>
+									<option value="Zambia" <?php selected( $sponsor_hq, 'Zambia' ); ?>><?php esc_html_e( 'Zambia', 'kh-quote-club' ); ?></option>
+									<option value="Zimbabwe" <?php selected( $sponsor_hq, 'Zimbabwe' ); ?>><?php esc_html_e( 'Zimbabwe', 'kh-quote-club' ); ?></option>
 								</optgroup>
 							</select>
 						</label>
 						<div class="khm-partner-regions-container">
 							<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;">
-								<span style="font-size:0.875rem;font-weight:600;"><?php esc_html_e( 'Regions Served', 'khm-membership' ); ?></span>
+								<span style="font-size:0.875rem;font-weight:600;"><?php esc_html_e( 'Regions Served', 'kh-quote-club' ); ?></span>
 							</div>
 							<div class="khm-partner-accordion">
 								<button type="button" class="khm-partner-accordion-trigger" aria-expanded="false" aria-controls="khm-regions-accordion-panel">
 									<span class="dashicons dashicons-admin-site"></span>
-									<?php esc_html_e( 'Regions Served', 'khm-membership' ); ?>
+									<?php esc_html_e( 'Regions Served', 'kh-quote-club' ); ?>
 									<span class="khm-partner-version-tag khm-regions-badge"><?php echo count( $regions ); ?> regions selected</span>
 								</button>
 								<div class="khm-partner-accordion-panel" id="khm-regions-accordion-panel" hidden>
@@ -4421,12 +4421,12 @@ class QuoteClubPortalShortcode {
 				<!-- ── Solutions Offered Block ──────────────────────────── -->
 				<div class="khm-partner-account-block">
 					<div class="khm-partner-block-header">
-						<h3><span class="dashicons dashicons-grid-view"></span> <?php esc_html_e( 'Solutions Offered', 'khm-membership' ); ?></h3>
+						<h3><span class="dashicons dashicons-grid-view"></span> <?php esc_html_e( 'Solutions Offered', 'kh-quote-club' ); ?></h3>
 					</div>
-					<p class="khm-partner-field-helper"><?php esc_html_e( 'Select the Tech.Connect solution categories your company offers, grouped by type (Software, Hardware, Consultancy). These map your business to buyer discovery queries on the portal.', 'khm-membership' ); ?></p>
+					<p class="khm-partner-field-helper"><?php esc_html_e( 'Select the Tech.Connect solution categories your company offers, grouped by type (Software, Hardware, Consultancy). These map your business to buyer discovery queries on the portal.', 'kh-quote-club' ); ?></p>
 					<div class="khm-partner-solutions-accordion" id="khm-solutions-accordion">
 						<?php if ( empty( $all_solutions ) ) : ?>
-							<p class="khm-partner-field-helper"><?php esc_html_e( 'No solutions catalog available yet. Please run the Tech.Connect migration.', 'khm-membership' ); ?></p>
+							<p class="khm-partner-field-helper"><?php esc_html_e( 'No solutions catalog available yet. Please run the Tech.Connect migration.', 'kh-quote-club' ); ?></p>
 						<?php else : ?>
 							<?php foreach ( $accordion_groups as $group_key => $group_config ) : ?>
 								<?php
@@ -4468,36 +4468,36 @@ class QuoteClubPortalShortcode {
 				<!-- ── Deployment & Support Block ───────────────────────── -->
 				<div class="khm-partner-account-block">
 					<div class="khm-partner-block-header">
-						<h3><span class="dashicons dashicons-admin-tools"></span> <?php esc_html_e( 'Deployment & Support', 'khm-membership' ); ?></h3>
+						<h3><span class="dashicons dashicons-admin-tools"></span> <?php esc_html_e( 'Deployment & Support', 'kh-quote-club' ); ?></h3>
 					</div>
 					<div class="khm-partner-sub-sections-container">
 						<div class="khm-partner-sub-section">
-							<h4><?php esc_html_e( 'Deployment Mode', 'khm-membership' ); ?></h4>
-							<p style="margin:0 0 0.5rem; font-size:0.8rem; color:var(--partner-muted);"><?php esc_html_e( 'Select all that apply', 'khm-membership' ); ?></p>
+							<h4><?php esc_html_e( 'Deployment Mode', 'kh-quote-club' ); ?></h4>
+							<p style="margin:0 0 0.5rem; font-size:0.8rem; color:var(--partner-muted);"><?php esc_html_e( 'Select all that apply', 'kh-quote-club' ); ?></p>
 							<div class="khm-partner-sub-section-content">
 								<?php
 								$deployment_modes = $deployment_mode ? (array) json_decode( $deployment_mode, true ) : [];
 								?>
-								<label><input type="checkbox" name="deployment_mode[]" value="cloud" <?php echo in_array( 'cloud', $deployment_modes, true ) ? 'checked' : ''; ?> /> <?php esc_html_e( 'Cloud / SaaS', 'khm-membership' ); ?></label>
-								<label><input type="checkbox" name="deployment_mode[]" value="on-premise" <?php echo in_array( 'on-premise', $deployment_modes, true ) ? 'checked' : ''; ?> /> <?php esc_html_e( 'On-Premise', 'khm-membership' ); ?></label>
-								<label><input type="checkbox" name="deployment_mode[]" value="hybrid" <?php echo in_array( 'hybrid', $deployment_modes, true ) ? 'checked' : ''; ?> /> <?php esc_html_e( 'Hybrid', 'khm-membership' ); ?></label>
-								<label><input type="checkbox" name="deployment_mode[]" value="private-cloud" <?php echo in_array( 'private-cloud', $deployment_modes, true ) ? 'checked' : ''; ?> /> <?php esc_html_e( 'Private Cloud', 'khm-membership' ); ?></label>
+								<label><input type="checkbox" name="deployment_mode[]" value="cloud" <?php echo in_array( 'cloud', $deployment_modes, true ) ? 'checked' : ''; ?> /> <?php esc_html_e( 'Cloud / SaaS', 'kh-quote-club' ); ?></label>
+								<label><input type="checkbox" name="deployment_mode[]" value="on-premise" <?php echo in_array( 'on-premise', $deployment_modes, true ) ? 'checked' : ''; ?> /> <?php esc_html_e( 'On-Premise', 'kh-quote-club' ); ?></label>
+								<label><input type="checkbox" name="deployment_mode[]" value="hybrid" <?php echo in_array( 'hybrid', $deployment_modes, true ) ? 'checked' : ''; ?> /> <?php esc_html_e( 'Hybrid', 'kh-quote-club' ); ?></label>
+								<label><input type="checkbox" name="deployment_mode[]" value="private-cloud" <?php echo in_array( 'private-cloud', $deployment_modes, true ) ? 'checked' : ''; ?> /> <?php esc_html_e( 'Private Cloud', 'kh-quote-club' ); ?></label>
 							</div>
 						</div>
 						<div class="khm-partner-sub-section">
-							<h4><?php esc_html_e( 'Implementation Support', 'khm-membership' ); ?></h4>
+							<h4><?php esc_html_e( 'Implementation Support', 'kh-quote-club' ); ?></h4>
 							<div class="khm-partner-sub-section-content">
 								<label>
 									<input type="checkbox" name="implementation_support" value="1" <?php checked( $impl_support ); ?> />
-									<?php esc_html_e( 'Offer implementation support', 'khm-membership' ); ?>
+									<?php esc_html_e( 'Offer implementation support', 'kh-quote-club' ); ?>
 								</label>
 							</div>
 						</div>
 						<div class="khm-partner-sub-section">
-							<h4><?php esc_html_e( 'Support Desk Hours', 'khm-membership' ); ?></h4>
+							<h4><?php esc_html_e( 'Support Desk Hours', 'kh-quote-club' ); ?></h4>
 							<div class="khm-partner-sub-section-content">
-								<label><input type="radio" name="support_hours" value="business" <?php checked( $support_hours, 'business' ); ?> /> <?php esc_html_e( 'Business Hours', 'khm-membership' ); ?></label>
-								<label><input type="radio" name="support_hours" value="24x7" <?php checked( $support_hours, '24x7' ); ?> /> <?php esc_html_e( '24/7 Support', 'khm-membership' ); ?></label>
+								<label><input type="radio" name="support_hours" value="business" <?php checked( $support_hours, 'business' ); ?> /> <?php esc_html_e( 'Business Hours', 'kh-quote-club' ); ?></label>
+								<label><input type="radio" name="support_hours" value="24x7" <?php checked( $support_hours, '24x7' ); ?> /> <?php esc_html_e( '24/7 Support', 'kh-quote-club' ); ?></label>
 							</div>
 						</div>
 					</div>
@@ -4505,8 +4505,8 @@ class QuoteClubPortalShortcode {
 
 				<!-- ── Save Button ──────────────────────────────────────── -->
 				<div class="khm-partner-account-block" style="border:none;box-shadow:none;background:transparent;padding:1rem 0;text-align:right;">
-					<button type="submit" class="khm-partner-btn khm-partner-btn-primary"><?php esc_html_e( 'Save Global Settings', 'khm-membership' ); ?></button>
-					<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-new" style="margin-left: 0.5rem;"><?php esc_html_e( 'New Listing', 'khm-membership' ); ?></button>
+					<button type="submit" class="khm-partner-btn khm-partner-btn-primary"><?php esc_html_e( 'Save Global Settings', 'kh-quote-club' ); ?></button>
+					<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-new" style="margin-left: 0.5rem;"><?php esc_html_e( 'New Listing', 'kh-quote-club' ); ?></button>
 					<span class="khm-partner-form-message" style="margin-left:1rem;font-size:0.875rem;"></span>
 				</div>
 			</form>
@@ -4515,55 +4515,55 @@ class QuoteClubPortalShortcode {
 					<div id="khm-offering-modal" class="khm-partner-modal" style="display:none; position:fixed; inset:0; z-index:100000; background:rgba(15,23,42,.45); align-items:center; justify-content:center; padding:16px;">
 						<div class="khm-partner-modal-dialog" style="background:#fff; border-radius:12px; box-shadow:0 20px 50px rgba(15,23,42,.18); width:min(700px,100%); max-height:90vh; overflow-y:auto; position:relative;">
 							<div class="khm-partner-modal-header" style="display:flex; justify-content:space-between; align-items:center; padding:8px 20px; border-bottom:1px solid #e5e7eb; position:sticky; top:0; background:#fff; z-index:10;">
-								<h3 style="margin:0; font-size:18px; color:#111827;"><?php esc_html_e( 'Listing Details', 'khm-membership' ); ?></h3>
-								<button type="button" class="khm-partner-modal-close khm-offering-modal-close" aria-label="<?php esc_attr_e( 'Close', 'khm-membership' ); ?>" style="border:none; background:transparent; font-size:24px; cursor:pointer; color:#6b7280; padding:0;">&times;</button>
+								<h3 style="margin:0; font-size:18px; color:#111827;"><?php esc_html_e( 'Listing Details', 'kh-quote-club' ); ?></h3>
+								<button type="button" class="khm-partner-modal-close khm-offering-modal-close" aria-label="<?php esc_attr_e( 'Close', 'kh-quote-club' ); ?>" style="border:none; background:transparent; font-size:24px; cursor:pointer; color:#6b7280; padding:0;">&times;</button>
 							</div>
 							<div class="khm-partner-modal-body" style="padding:8px 3% 3%;">
 								<form class="khm-partner-connect-form" id="khm-partner-connect-form">
 							<input type="hidden" name="id" value="" />
 							<div class="khm-partner-connect-form-grid">
 								<label>
-									<span><?php esc_html_e( 'Solution Name', 'khm-membership' ); ?></span>
+									<span><?php esc_html_e( 'Solution Name', 'kh-quote-club' ); ?></span>
 									<input type="text" name="name" required />
 								</label>
 								
 								
 								<label class="khm-partner-connect-span-2">
-									<span><?php esc_html_e( 'Description', 'khm-membership' ); ?></span>
+									<span><?php esc_html_e( 'Description', 'kh-quote-club' ); ?></span>
 									<textarea name="description" rows="3" placeholder="Tell us about your solution — what are your strengths and USPs?"></textarea>
 								</label>
 								<label class="khm-partner-connect-span-2">
-									<span><?php esc_html_e( 'Sweet Spot Summary', 'khm-membership' ); ?></span>
+									<span><?php esc_html_e( 'Sweet Spot Summary', 'kh-quote-club' ); ?></span>
 									<textarea name="sweet_spot_summary" rows="3" placeholder="Who you are best for, typical use cases, and what makes the fit strong."></textarea>
 								</label>
 								
 									<fieldset style="grid-column: 1 / -1; border: 1px solid #dcdcde; border-radius: 6px; padding: 14px; background: #fafbfc; margin: 8px 0;">
-									<legend style="padding: 0 8px; font-weight: 600; font-size: 13px; color: #3c434a; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'Ideal Customer Profile (ICP)', 'khm-membership' ); ?></legend>
+									<legend style="padding: 0 8px; font-weight: 600; font-size: 13px; color: #3c434a; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'Ideal Customer Profile (ICP)', 'kh-quote-club' ); ?></legend>
 									<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 8px;">
 										<label>
-											<span><?php esc_html_e( 'Minimum Company Size (employees)', 'khm-membership' ); ?></span>
+											<span><?php esc_html_e( 'Minimum Company Size (employees)', 'kh-quote-club' ); ?></span>
 											<select name="company_size_min">
-												<option value=""><?php esc_html_e( 'Select minimum company size…', 'khm-membership' ); ?></option>
-												<option value="10"><?php esc_html_e( '10 employees', 'khm-membership' ); ?></option>
-												<option value="50"><?php esc_html_e( '50 employees', 'khm-membership' ); ?></option>
-												<option value="200"><?php esc_html_e( '200 employees', 'khm-membership' ); ?></option>
-												<option value="500"><?php esc_html_e( '500 employees', 'khm-membership' ); ?></option>
-												<option value="1_000"><?php esc_html_e( '1,000 employees', 'khm-membership' ); ?></option>
-												<option value="5_000"><?php esc_html_e( '5,000 employees', 'khm-membership' ); ?></option>
-												<option value="10_000"><?php esc_html_e( '10,000 employees', 'khm-membership' ); ?></option>
+												<option value=""><?php esc_html_e( 'Select minimum company size…', 'kh-quote-club' ); ?></option>
+												<option value="10"><?php esc_html_e( '10 employees', 'kh-quote-club' ); ?></option>
+												<option value="50"><?php esc_html_e( '50 employees', 'kh-quote-club' ); ?></option>
+												<option value="200"><?php esc_html_e( '200 employees', 'kh-quote-club' ); ?></option>
+												<option value="500"><?php esc_html_e( '500 employees', 'kh-quote-club' ); ?></option>
+												<option value="1_000"><?php esc_html_e( '1,000 employees', 'kh-quote-club' ); ?></option>
+												<option value="5_000"><?php esc_html_e( '5,000 employees', 'kh-quote-club' ); ?></option>
+												<option value="10_000"><?php esc_html_e( '10,000 employees', 'kh-quote-club' ); ?></option>
 											</select>
-											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum company headcount in your ideal segment', 'khm-membership' ); ?></p>
+											<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum company headcount in your ideal segment', 'kh-quote-club' ); ?></p>
 										</label>
 									<label>
-										<span><?php esc_html_e( 'Minimum Annual Budget ($)', 'khm-membership' ); ?></span>
+										<span><?php esc_html_e( 'Minimum Annual Budget ($)', 'kh-quote-club' ); ?></span>
 										<select name="budget_min">
-											<option value=""><?php esc_html_e( 'Select minimum budget…', 'khm-membership' ); ?></option>
-											<option value="15_000"><?php esc_html_e( '$15,000 / year', 'khm-membership' ); ?></option>
-											<option value="35_000"><?php esc_html_e( '$35,000 / year', 'khm-membership' ); ?></option>
-											<option value="150_000"><?php esc_html_e( '$150,000 / year', 'khm-membership' ); ?></option>
-											<option value="350_000"><?php esc_html_e( '$350,000 / year', 'khm-membership' ); ?></option>
+											<option value=""><?php esc_html_e( 'Select minimum budget…', 'kh-quote-club' ); ?></option>
+											<option value="15_000"><?php esc_html_e( '$15,000 / year', 'kh-quote-club' ); ?></option>
+											<option value="35_000"><?php esc_html_e( '$35,000 / year', 'kh-quote-club' ); ?></option>
+											<option value="150_000"><?php esc_html_e( '$150,000 / year', 'kh-quote-club' ); ?></option>
+											<option value="350_000"><?php esc_html_e( '$350,000 / year', 'kh-quote-club' ); ?></option>
 										</select>
-										<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum annual budget threshold for your ideal client', 'khm-membership' ); ?></p>
+										<p style="margin: 4px 0 0; font-size: 11px; color: #666;"><?php esc_html_e( 'Minimum annual budget threshold for your ideal client', 'kh-quote-club' ); ?></p>
 									</label>
 								</div>
 									<div class="khm-partner-regions-tags" id="khm-icp-sector-tags">
@@ -4571,59 +4571,59 @@ class QuoteClubPortalShortcode {
 									<div class="khm-partner-accordion">
 										<button type="button" class="khm-partner-accordion-trigger" aria-expanded="false" aria-controls="khm-icp-sectors-accordion-panel">
 											<span class="dashicons dashicons-category"></span>
-											<?php esc_html_e( 'Target Sectors', 'khm-membership' ); ?>
+											<?php esc_html_e( 'Target Sectors', 'kh-quote-club' ); ?>
 											<span class="khm-partner-version-tag khm-icp-sectors-badge">0 sectors selected</span>
 										</button>
 										<div class="khm-partner-accordion-panel" id="khm-icp-sectors-accordion-panel" hidden>
 											<label class="khm-partner-solution-row">
 												<input type="checkbox" name="sectors[]" value="aerospace_aviation" class="khm-icp-sector-cb" />
-												<span><?php esc_html_e( 'Aerospace & Aviation', 'khm-membership' ); ?></span>
+												<span><?php esc_html_e( 'Aerospace & Aviation', 'kh-quote-club' ); ?></span>
 											</label>
 											<label class="khm-partner-solution-row">
 												<input type="checkbox" name="sectors[]" value="infrastructure_construction" class="khm-icp-sector-cb" />
-												<span><?php esc_html_e( 'Infrastructure, Construction and Asset Management', 'khm-membership' ); ?></span>
+												<span><?php esc_html_e( 'Infrastructure, Construction and Asset Management', 'kh-quote-club' ); ?></span>
 											</label>
 											<label class="khm-partner-solution-row">
 												<input type="checkbox" name="sectors[]" value="industrial_engineering" class="khm-icp-sector-cb" />
-												<span><?php esc_html_e( 'Industrial Engineering and Heavy Manufacturing', 'khm-membership' ); ?></span>
+												<span><?php esc_html_e( 'Industrial Engineering and Heavy Manufacturing', 'kh-quote-club' ); ?></span>
 											</label>
 											<label class="khm-partner-solution-row">
 												<input type="checkbox" name="sectors[]" value="energy_utilities" class="khm-icp-sector-cb" />
-												<span><?php esc_html_e( 'Energy & Utilities', 'khm-membership' ); ?></span>
+												<span><?php esc_html_e( 'Energy & Utilities', 'kh-quote-club' ); ?></span>
 											</label>
 											<label class="khm-partner-solution-row">
 												<input type="checkbox" name="sectors[]" value="manufacturing_other" class="khm-icp-sector-cb" />
-												<span><?php esc_html_e( 'Manufacturing (Other)', 'khm-membership' ); ?></span>
+												<span><?php esc_html_e( 'Manufacturing (Other)', 'kh-quote-club' ); ?></span>
 											</label>
 										</div>
 									</div>
 							</fieldset>
 								<fieldset style="grid-column: 1 / -1; border: 1px solid #dcdcde; border-radius: 6px; padding: 14px; background: #fafbfc; margin: 8px 0;">
-									<legend style="padding: 0 8px; font-weight: 600; font-size: 13px; color: #3c434a; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'RFQ Response Defaults', 'khm-membership' ); ?></legend>
+									<legend style="padding: 0 8px; font-weight: 600; font-size: 13px; color: #3c434a; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'RFQ Response Defaults', 'kh-quote-club' ); ?></legend>
 									<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 8px;">
 										<label>
-											<span><?php esc_html_e( 'Average number of licences per client', 'khm-membership' ); ?></span>
+											<span><?php esc_html_e( 'Average number of licences per client', 'kh-quote-club' ); ?></span>
 											<select name="rfq_default_seats">
-												<option value=""><?php esc_html_e( 'Select average licence count…', 'khm-membership' ); ?></option>
-												<option value="1_50"><?php esc_html_e( '1-50', 'khm-membership' ); ?></option>
-												<option value="51_150"><?php esc_html_e( '51-150', 'khm-membership' ); ?></option>
-												<option value="151_300"><?php esc_html_e( '151-300', 'khm-membership' ); ?></option>
-												<option value="301_500"><?php esc_html_e( '301-500', 'khm-membership' ); ?></option>
-												<option value="501_1000"><?php esc_html_e( '501-1000', 'khm-membership' ); ?></option>
-												<option value="1000_plus"><?php esc_html_e( '1000+', 'khm-membership' ); ?></option>
+												<option value=""><?php esc_html_e( 'Select average licence count…', 'kh-quote-club' ); ?></option>
+												<option value="1_50"><?php esc_html_e( '1-50', 'kh-quote-club' ); ?></option>
+												<option value="51_150"><?php esc_html_e( '51-150', 'kh-quote-club' ); ?></option>
+												<option value="151_300"><?php esc_html_e( '151-300', 'kh-quote-club' ); ?></option>
+												<option value="301_500"><?php esc_html_e( '301-500', 'kh-quote-club' ); ?></option>
+												<option value="501_1000"><?php esc_html_e( '501-1000', 'kh-quote-club' ); ?></option>
+												<option value="1000_plus"><?php esc_html_e( '1000+', 'kh-quote-club' ); ?></option>
 											</select>
 										</label>
 										<label>
-											<span><?php esc_html_e( 'Default Cost Per Licence / Month (£)', 'khm-membership' ); ?></span>
+											<span><?php esc_html_e( 'Default Cost Per Licence / Month (£)', 'kh-quote-club' ); ?></span>
 											<input type="number" min="0" step="0.01" name="rfq_default_cpl_gbp" placeholder="e.g., 325" class="khm-rfq-estimate-input" />
 										</label>
 										<div style="grid-column: 1 / -1; background: #f0f6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 12px;">
-											<span style="display: block; font-size: 12px; font-weight: 600; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'Estimated Annual Cost', 'khm-membership' ); ?></span>
-											<span id="khm-rfq-estimated-cost" style="display: block; font-size: 22px; font-weight: 700; color: #111827; margin-top: 2px;"><?php esc_html_e( '—', 'khm-membership' ); ?></span>
-											<p style="margin: 4px 0 0; font-size: 11px; color: #6b7280;"><?php esc_html_e( 'Calculated as licence midpoint × cost per licence × 12 months.', 'khm-membership' ); ?></p>
+											<span style="display: block; font-size: 12px; font-weight: 600; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.04em;"><?php esc_html_e( 'Estimated Annual Cost', 'kh-quote-club' ); ?></span>
+											<span id="khm-rfq-estimated-cost" style="display: block; font-size: 22px; font-weight: 700; color: #111827; margin-top: 2px;"><?php esc_html_e( '—', 'kh-quote-club' ); ?></span>
+											<p style="margin: 4px 0 0; font-size: 11px; color: #6b7280;"><?php esc_html_e( 'Calculated as licence midpoint × cost per licence × 12 months.', 'kh-quote-club' ); ?></p>
 										</div>
 										<label>
-											<span><?php esc_html_e( 'Max Discount You Will Offer (%)', 'khm-membership' ); ?></span>
+											<span><?php esc_html_e( 'Max Discount You Will Offer (%)', 'kh-quote-club' ); ?></span>
 											<select name="rfq_discount_pct">
 												<option value="0">0% — No discount</option>
 												<option value="5">5%</option>
@@ -4634,45 +4634,45 @@ class QuoteClubPortalShortcode {
 											</select>
 										</label>
 										<div id="khm-rfq-discount-fee-card" style="grid-column: 1 / -1; display:none; background:#f8fafc; border:1px solid #dbe4ea; border-radius:8px; padding:12px;">
-											<span style="display:block; font-size:12px; font-weight:600; color:#3c434a; text-transform:uppercase; letter-spacing:.04em;"><?php esc_html_e( 'Estimated Discount and Fees', 'khm-membership' ); ?></span>
+											<span style="display:block; font-size:12px; font-weight:600; color:#3c434a; text-transform:uppercase; letter-spacing:.04em;"><?php esc_html_e( 'Estimated Discount and Fees', 'kh-quote-club' ); ?></span>
 											<div style="display:flex; justify-content:space-between; gap:12px; font-size:13px; margin-top:8px;">
 												<span style="color:#3c434a;">
-													<?php esc_html_e( 'Platform discount (client receives)', 'khm-membership' ); ?>
-													<strong id="khm-rfq-client-discount" style="display:block; font-size:18px; color:#111827; margin-top:2px;"><?php esc_html_e( '—', 'khm-membership' ); ?></strong>
+													<?php esc_html_e( 'Platform discount (client receives)', 'kh-quote-club' ); ?>
+													<strong id="khm-rfq-client-discount" style="display:block; font-size:18px; color:#111827; margin-top:2px;"><?php esc_html_e( '—', 'kh-quote-club' ); ?></strong>
 												</span>
 												<span style="color:#3c434a;">
-													<?php esc_html_e( 'Platform fee', 'khm-membership' ); ?>
-													<strong id="khm-rfq-platform-fee" style="display:block; font-size:18px; color:#111827; margin-top:2px;"><?php esc_html_e( '—', 'khm-membership' ); ?></strong>
+													<?php esc_html_e( 'Platform fee', 'kh-quote-club' ); ?>
+													<strong id="khm-rfq-platform-fee" style="display:block; font-size:18px; color:#111827; margin-top:2px;"><?php esc_html_e( '—', 'kh-quote-club' ); ?></strong>
 												</span>
 											</div>
 										</div>
 										<label>
-											<span><?php esc_html_e( 'Average Deployment Time', 'khm-membership' ); ?></span>
+											<span><?php esc_html_e( 'Average Deployment Time', 'kh-quote-club' ); ?></span>
 											<select name="rfq_default_timeframe">
-												<option value=""><?php esc_html_e( 'Select average deployment time…', 'khm-membership' ); ?></option>
-												<option value="under_1_week"><?php esc_html_e( 'Immediate / Under 1 week', 'khm-membership' ); ?></option>
-												<option value="1_2_weeks"><?php esc_html_e( '1 – 2 weeks', 'khm-membership' ); ?></option>
-												<option value="2_4_weeks"><?php esc_html_e( '2 – 4 weeks', 'khm-membership' ); ?></option>
-												<option value="1_2_months"><?php esc_html_e( '1 – 2 months', 'khm-membership' ); ?></option>
-												<option value="2_plus_months"><?php esc_html_e( '2+ months', 'khm-membership' ); ?></option>
+												<option value=""><?php esc_html_e( 'Select average deployment time…', 'kh-quote-club' ); ?></option>
+												<option value="under_1_week"><?php esc_html_e( 'Immediate / Under 1 week', 'kh-quote-club' ); ?></option>
+												<option value="1_2_weeks"><?php esc_html_e( '1 – 2 weeks', 'kh-quote-club' ); ?></option>
+												<option value="2_4_weeks"><?php esc_html_e( '2 – 4 weeks', 'kh-quote-club' ); ?></option>
+												<option value="1_2_months"><?php esc_html_e( '1 – 2 months', 'kh-quote-club' ); ?></option>
+												<option value="2_plus_months"><?php esc_html_e( '2+ months', 'kh-quote-club' ); ?></option>
 											</select>
 										</label>
 										<label>
-											<span><?php esc_html_e( 'Average Onboarding Time', 'khm-membership' ); ?></span>
+											<span><?php esc_html_e( 'Average Onboarding Time', 'kh-quote-club' ); ?></span>
 											<select name="rfq_default_onboarding_time">
-												<option value=""><?php esc_html_e( 'Select average onboarding time…', 'khm-membership' ); ?></option>
-												<option value="under_1_week"><?php esc_html_e( 'Under 1 week', 'khm-membership' ); ?></option>
-												<option value="1_2_weeks"><?php esc_html_e( '1 – 2 weeks', 'khm-membership' ); ?></option>
-												<option value="2_4_weeks"><?php esc_html_e( '2 – 4 weeks', 'khm-membership' ); ?></option>
-												<option value="1_2_months"><?php esc_html_e( '1 – 2 months', 'khm-membership' ); ?></option>
-												<option value="2_plus_months"><?php esc_html_e( '2+ months', 'khm-membership' ); ?></option>
+												<option value=""><?php esc_html_e( 'Select average onboarding time…', 'kh-quote-club' ); ?></option>
+												<option value="under_1_week"><?php esc_html_e( 'Under 1 week', 'kh-quote-club' ); ?></option>
+												<option value="1_2_weeks"><?php esc_html_e( '1 – 2 weeks', 'kh-quote-club' ); ?></option>
+												<option value="2_4_weeks"><?php esc_html_e( '2 – 4 weeks', 'kh-quote-club' ); ?></option>
+												<option value="1_2_months"><?php esc_html_e( '1 – 2 months', 'kh-quote-club' ); ?></option>
+												<option value="2_plus_months"><?php esc_html_e( '2+ months', 'kh-quote-club' ); ?></option>
 											</select>
 										</label>
 											<div class="khm-form-group khm-partner-connect-span-2" style="grid-column: 1 / -1;">
 												<label>
-													<span><?php esc_html_e( 'Supported Features', 'khm-membership' ); ?></span>
+													<span><?php esc_html_e( 'Supported Features', 'kh-quote-club' ); ?></span>
 													<span class="khm-global-selection-hint" style="font-weight: 400; font-size: 12px; color: #6b7280;">
-														<?php esc_html_e( '(derived from your active solution domains)', 'khm-membership' ); ?>
+														<?php esc_html_e( '(derived from your active solution domains)', 'kh-quote-club' ); ?>
 													</span>
 												</label>
 												<div id="khm-modal-features-shortlist" class="khm-partner-connect-span-2">
@@ -4685,19 +4685,19 @@ class QuoteClubPortalShortcode {
 								
 								
 								<label>
-									<span><?php esc_html_e( 'Status', 'khm-membership' ); ?></span>
+									<span><?php esc_html_e( 'Status', 'kh-quote-club' ); ?></span>
 									<select name="status">
-										<option value="active"><?php esc_html_e( 'Live', 'khm-membership' ); ?></option>
-										<option value="inactive"><?php esc_html_e( 'Paused', 'khm-membership' ); ?></option>
+										<option value="active"><?php esc_html_e( 'Live', 'kh-quote-club' ); ?></option>
+										<option value="inactive"><?php esc_html_e( 'Paused', 'kh-quote-club' ); ?></option>
 									</select>
 								</label>
 								
 								
 							</div>
 							<div class="khm-partner-connect-actions">
-								<button type="submit" class="khm-partner-btn khm-partner-btn-primary khm-partner-connect-save"><?php esc_html_e( 'Save Offering', 'khm-membership' ); ?></button>
-								<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-reset"><?php esc_html_e( 'Reset', 'khm-membership' ); ?></button>
-								<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-delete" style="display:none"><?php esc_html_e( 'Delete', 'khm-membership' ); ?></button>
+								<button type="submit" class="khm-partner-btn khm-partner-btn-primary khm-partner-connect-save"><?php esc_html_e( 'Save Offering', 'kh-quote-club' ); ?></button>
+								<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-reset"><?php esc_html_e( 'Reset', 'kh-quote-club' ); ?></button>
+								<button type="button" class="khm-partner-btn khm-partner-btn-secondary khm-partner-connect-delete" style="display:none"><?php esc_html_e( 'Delete', 'kh-quote-club' ); ?></button>
 							</div>
 						</form>
 						<datalist id="khm-partner-connect-title-contexts">
@@ -4726,7 +4726,7 @@ class QuoteClubPortalShortcode {
 				if (!panel) return;
 				var isOpen = panel.style.display !== 'none';
 				panel.style.display = isOpen ? 'none' : 'block';
-				btn.textContent = isOpen ? '<?php echo esc_js( __( 'Show', 'khm-membership' ) ); ?>' : '<?php echo esc_js( __( 'Hide', 'khm-membership' ) ); ?>';
+				btn.textContent = isOpen ? '<?php echo esc_js( __( 'Show', 'kh-quote-club' ) ); ?>' : '<?php echo esc_js( __( 'Hide', 'kh-quote-club' ) ); ?>';
 				btn.setAttribute('aria-expanded', String(!isOpen));
 			});
 
@@ -4964,7 +4964,7 @@ class QuoteClubPortalShortcode {
 			form.addEventListener('submit', function(e) {
 				e.stopImmediatePropagation();
 				e.preventDefault();
-				if (msgEl) { msgEl.textContent = '<?php echo esc_js( __( 'Saving…', 'khm-membership' ) ); ?>'; msgEl.style.color = '#374151'; }
+				if (msgEl) { msgEl.textContent = '<?php echo esc_js( __( 'Saving…', 'kh-quote-club' ) ); ?>'; msgEl.style.color = '#374151'; }
 				var submitBtn = form.querySelector('button[type="submit"]');
 				if (submitBtn) submitBtn.disabled = true;
 
@@ -5009,13 +5009,13 @@ class QuoteClubPortalShortcode {
 				}).then(function(r) { return r.json(); }).then(function(res) {
 					if (submitBtn) submitBtn.disabled = false;
 					if (res.success) {
-						if (msgEl) { msgEl.textContent = '<?php echo esc_js( __( 'Settings saved successfully.', 'khm-membership' ) ); ?>'; msgEl.style.color = '#065f46'; }
+						if (msgEl) { msgEl.textContent = '<?php echo esc_js( __( 'Settings saved successfully.', 'kh-quote-club' ) ); ?>'; msgEl.style.color = '#065f46'; }
 					} else {
-						if (msgEl) { msgEl.textContent = (res.message || '<?php echo esc_js( __( 'Save failed.', 'khm-membership' ) ); ?>'); msgEl.style.color = '#991b1b'; }
+						if (msgEl) { msgEl.textContent = (res.message || '<?php echo esc_js( __( 'Save failed.', 'kh-quote-club' ) ); ?>'); msgEl.style.color = '#991b1b'; }
 					}
 				}).catch(function() {
 					if (submitBtn) submitBtn.disabled = false;
-					if (msgEl) { msgEl.textContent = '<?php echo esc_js( __( 'Network error.', 'khm-membership' ) ); ?>'; msgEl.style.color = '#991b1b'; }
+					if (msgEl) { msgEl.textContent = '<?php echo esc_js( __( 'Network error.', 'kh-quote-club' ) ); ?>'; msgEl.style.color = '#991b1b'; }
 				});
 			});
 		})();
@@ -5030,9 +5030,9 @@ class QuoteClubPortalShortcode {
 		ob_start();
 		?>
 		<div class="khm-partner-access-gate">
-			<h2><?php esc_html_e( 'Quote Club', 'khm-membership' ); ?></h2>
-			<p><?php esc_html_e( 'Please log in to access the Quote Club partner portal.', 'khm-membership' ); ?></p>
-			<a href="<?php echo esc_url( $login_url ); ?>" class="khm-partner-btn khm-partner-btn-primary"><?php esc_html_e( 'Log In', 'khm-membership' ); ?></a>
+			<h2><?php esc_html_e( 'Quote Club', 'kh-quote-club' ); ?></h2>
+			<p><?php esc_html_e( 'Please log in to access the Quote Club partner portal.', 'kh-quote-club' ); ?></p>
+			<a href="<?php echo esc_url( $login_url ); ?>" class="khm-partner-btn khm-partner-btn-primary"><?php esc_html_e( 'Log In', 'kh-quote-club' ); ?></a>
 		</div>
 		<?php
 		return ob_get_clean();
@@ -5063,8 +5063,8 @@ class QuoteClubPortalShortcode {
 		ob_start();
 		?>
 		<div class="khm-partner-access-gate">
-			<h2><?php esc_html_e( 'Quote Club', 'khm-membership' ); ?></h2>
-			<p><?php esc_html_e( 'This portal is available to Quote Club partner accounts. If you believe you should have access, please contact support.', 'khm-membership' ); ?></p>
+			<h2><?php esc_html_e( 'Quote Club', 'kh-quote-club' ); ?></h2>
+			<p><?php esc_html_e( 'This portal is available to Quote Club partner accounts. If you believe you should have access, please contact support.', 'kh-quote-club' ); ?></p>
 		</div>
 		<?php
 		return ob_get_clean();
@@ -5124,7 +5124,7 @@ class QuoteClubPortalShortcode {
 			<?php else : ?>
 			<img src="<?php echo $media_url; ?>" alt="<?php echo $alt_text; ?>" style="max-width:100%;height:auto">
 			<?php endif; ?>
-			<p style="font-size:10px;color:#9ca3af;margin-top:4px"><?php esc_html_e( 'Sponsored', 'khm-membership' ); ?></p>
+			<p style="font-size:10px;color:#9ca3af;margin-top:4px"><?php esc_html_e( 'Sponsored', 'kh-quote-club' ); ?></p>
 		</div>
 		<?php
 		return ob_get_clean();

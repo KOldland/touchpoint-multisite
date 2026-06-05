@@ -1,6 +1,6 @@
 <?php
 
-namespace KHM\Elementor\Widgets;
+namespace QuoteClub\Elementor\Widgets;
 
 use Elementor\Widget_Base;
 
@@ -14,7 +14,7 @@ class QuoteClubStats_Widget extends Widget_Base {
     }
 
     public function get_title() {
-        return __('Quote Club Stats', 'khm-membership');
+        return __('Quote Club Stats', 'kh-quote-club');
     }
 
     public function get_icon() {
@@ -34,7 +34,7 @@ class QuoteClubStats_Widget extends Widget_Base {
         $support->enqueue_assets();
 
         if (!is_user_logged_in()) {
-            $support->render_login_required(__('Please log in to view Quote Club stats.', 'khm-membership'));
+            $support->render_login_required(__('Please log in to view Quote Club stats.', 'kh-quote-club'));
             return;
         }
 
@@ -43,23 +43,23 @@ class QuoteClubStats_Widget extends Widget_Base {
         <div class="khm-qc-member-stats">
             <article class="khm-qc-member-card">
                 <span class="khm-qc-member-value"><?php echo esc_html($stats['editorial_credits']); ?></span>
-                <span class="khm-qc-member-label"><?php esc_html_e('Editorial Credits', 'khm-membership'); ?></span>
+                <span class="khm-qc-member-label"><?php esc_html_e('Editorial Credits', 'kh-quote-club'); ?></span>
             </article>
             <article class="khm-qc-member-card">
                 <span class="khm-qc-member-value"><?php echo esc_html($stats['press_release_credits']); ?></span>
-                <span class="khm-qc-member-label"><?php esc_html_e('Press Release Credits', 'khm-membership'); ?></span>
+                <span class="khm-qc-member-label"><?php esc_html_e('Press Release Credits', 'kh-quote-club'); ?></span>
             </article>
             <article class="khm-qc-member-card">
                 <span class="khm-qc-member-value"><?php echo esc_html($stats['my_drafts']); ?></span>
-                <span class="khm-qc-member-label"><?php esc_html_e('Drafts In Progress', 'khm-membership'); ?></span>
+                <span class="khm-qc-member-label"><?php esc_html_e('Drafts In Progress', 'kh-quote-club'); ?></span>
             </article>
             <article class="khm-qc-member-card">
                 <span class="khm-qc-member-value"><?php echo esc_html($stats['pending_review']); ?></span>
-                <span class="khm-qc-member-label"><?php esc_html_e('Awaiting Review', 'khm-membership'); ?></span>
+                <span class="khm-qc-member-label"><?php esc_html_e('Awaiting Review', 'kh-quote-club'); ?></span>
             </article>
             <article class="khm-qc-member-card">
                 <span class="khm-qc-member-value"><?php echo esc_html($stats['published_count']); ?></span>
-                <span class="khm-qc-member-label"><?php esc_html_e('Live To Date', 'khm-membership'); ?></span>
+                <span class="khm-qc-member-label"><?php esc_html_e('Live To Date', 'kh-quote-club'); ?></span>
             </article>
         </div>
         <?php

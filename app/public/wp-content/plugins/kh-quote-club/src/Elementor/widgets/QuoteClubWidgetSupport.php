@@ -1,6 +1,6 @@
 <?php
 
-namespace KHM\Elementor\Widgets;
+namespace QuoteClub\Elementor\Widgets;
 
 use KHM\Services\CreditService;
 use KHM\Services\LevelRepository;
@@ -51,12 +51,12 @@ class QuoteClubWidgetSupport {
                 'restNonce' => wp_create_nonce('wp_rest'),
                 'userId' => get_current_user_id(),
                 'strings' => [
-                    'loading' => __('Loading...', 'khm-membership'),
-                    'error' => __('An error occurred. Please try again.', 'khm-membership'),
-                    'saved' => __('Changes saved!', 'khm-membership'),
-                    'confirm_pause' => __('Are you sure you want to pause your membership?', 'khm-membership'),
-                    'confirm_cancel' => __('Are you sure you want to cancel your membership? You will retain access until the end of your billing period.', 'khm-membership'),
-                    'confirm_remove' => __('Remove this article from your library?', 'khm-membership'),
+                    'loading' => __('Loading...', 'kh-quote-club'),
+                    'error' => __('An error occurred. Please try again.', 'kh-quote-club'),
+                    'saved' => __('Changes saved!', 'kh-quote-club'),
+                    'confirm_pause' => __('Are you sure you want to pause your membership?', 'kh-quote-club'),
+                    'confirm_cancel' => __('Are you sure you want to cancel your membership? You will retain access until the end of your billing period.', 'kh-quote-club'),
+                    'confirm_remove' => __('Remove this article from your library?', 'kh-quote-club'),
                 ],
             ]);
         }
@@ -255,17 +255,17 @@ class QuoteClubWidgetSupport {
     public function map_activity_status(string $status): array {
         switch ($status) {
             case 'pending_editorial':
-                return ['label' => __('Awaiting Review', 'khm-membership'), 'class' => 'awaiting_review'];
+                return ['label' => __('Awaiting Review', 'kh-quote-club'), 'class' => 'awaiting_review'];
             case 'submitted':
-                return ['label' => __('Submitted', 'khm-membership'), 'class' => 'submitted'];
+                return ['label' => __('Submitted', 'kh-quote-club'), 'class' => 'submitted'];
             case 'approved':
-                return ['label' => __('Scheduled', 'khm-membership'), 'class' => 'scheduled'];
+                return ['label' => __('Scheduled', 'kh-quote-club'), 'class' => 'scheduled'];
             case 'published':
-                return ['label' => __('Live', 'khm-membership'), 'class' => 'live'];
+                return ['label' => __('Live', 'kh-quote-club'), 'class' => 'live'];
             case 'draft':
-                return ['label' => __('Draft', 'khm-membership'), 'class' => 'draft'];
+                return ['label' => __('Draft', 'kh-quote-club'), 'class' => 'draft'];
             case 'rejected':
-                return ['label' => __('Needs Revision', 'khm-membership'), 'class' => 'needs_revision'];
+                return ['label' => __('Needs Revision', 'kh-quote-club'), 'class' => 'needs_revision'];
             default:
                 return [
                     'label' => ucfirst(str_replace('_', ' ', $status)),

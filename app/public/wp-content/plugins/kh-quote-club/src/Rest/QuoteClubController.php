@@ -1,13 +1,13 @@
 <?php
 
-namespace KHM\Rest;
+namespace QuoteClub\Rest;
 
-use KHM\Connect\ConnectQuoteClubService;
+use KHConnect\ConnectQuoteClubService;
 use KHM\Services\CreditService;
 use KHM\Services\MembershipRepository;
 use KHM\Services\LevelRepository;
 use KHM\Services\SponsorService;
-use KHM\Services\QuoteClubCreditBundleService;
+use QuoteClub\Services\QuoteClubCreditBundleService;
 use KHM\Services\PressReleaseService;
 use KHM\Sponsors\SponsorMigration;
 use WP_Error;
@@ -1100,7 +1100,7 @@ class QuoteClubController {
 
         wp_mail(
             $email,
-            __('You have been invited to join a sponsor team', 'khm-membership'),
+            __('You have been invited to join a sponsor team', 'kh-quote-club'),
             sprintf(
                 "You have been invited to join the sponsor team.\n\nAccept invite: %s",
                 esc_url_raw($invite_link)

@@ -384,21 +384,6 @@ add_action( 'khm_press_release_rejected', function( int $press_release_id, int $
 
 // Load Attribution Admin Interface
 if (is_admin()) {
-    if ( class_exists( 'KHM\\Admin\\QuoteClubBundleAdminPage' ) ) {
-        $qc_credits  = new KHM\Services\CreditService(new KHM\Services\MembershipRepository(), new KHM\Services\LevelRepository());
-        $qc_bundles  = new KHM\Services\QuoteClubCreditBundleService($qc_credits);
-        ( new KHM\Admin\QuoteClubBundleAdminPage($qc_bundles) )->register();
-    }
-    if ( class_exists( 'KHM\\Admin\\QuoteClubCommentaryAdminPage' ) ) {
-        ( new KHM\Admin\QuoteClubCommentaryAdminPage() )->register();
-    }
-    if ( class_exists( 'KHM\\Admin\\QuoteClubPressReleaseAdminPage' ) ) {
-        ( new KHM\Admin\QuoteClubPressReleaseAdminPage() )->register();
-    }
-
-    if ( class_exists( 'KHM\\Admin\\QuoteClubAdvertAdminPage' ) ) {
-        ( new KHM\Admin\QuoteClubAdvertAdminPage() )->register();
-    }
 
 ////    if ( class_exists( 'KHM\\Sponsors\\SponsorAdminUI' ) ) {
 //        $sponsor_admin = new KHM\Sponsors\SponsorAdminUI();
@@ -426,9 +411,6 @@ if (is_admin()) {
 
 // Register dedicated Quote Club sponsor portal shortcode.
 // Keep this outside is_admin so shortcodes are available consistently.
-if ( class_exists( 'KHM\\PublicFrontend\\QuoteClubPortalShortcode' ) ) {
-    ( new KHM\PublicFrontend\QuoteClubPortalShortcode() )->register();
-}
 
 // Load Connect directory shortcode (enqueues connect-directory.css + js)
 if ( class_exists( 'KHM\\PublicFrontend\\ConnectDirectoryShortcode' ) ) {
@@ -494,14 +476,6 @@ function khm_register_elementor_widgets( $widgets_manager ) {
         'TestPortalDashboard_Widget.php',
         'MembershipCheckoutButton_Widget.php',
         'CommerceCheckoutButton_Widget.php',
-        'QuoteClubWidgetSupport.php',
-        'QuoteClubInviteStatus_Widget.php',
-        'QuoteClubHeader_Widget.php',
-        'QuoteClubStats_Widget.php',
-        'QuoteClubActivity_Widget.php',
-        'QuoteClubSearchToolbar_Widget.php',
-        'QuoteClubResults_Widget.php',
-        'QuoteClubSessionDetail_Widget.php',
     ];
 
     foreach ( $widget_files as $file ) {
@@ -644,61 +618,6 @@ function khm_register_elementor_widgets( $widgets_manager ) {
     }
 
     // Quote Club modular widgets
-    if ( class_exists( '\KHM\Elementor\Widgets\QuoteClubInviteStatus_Widget' ) ) {
-        if ( method_exists( $widgets_manager, 'register' ) ) {
-            $widgets_manager->register( new \KHM\Elementor\Widgets\QuoteClubInviteStatus_Widget() );
-        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
-            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\QuoteClubInviteStatus_Widget() );
-        }
-    }
-
-    if ( class_exists( '\KHM\Elementor\Widgets\QuoteClubHeader_Widget' ) ) {
-        if ( method_exists( $widgets_manager, 'register' ) ) {
-            $widgets_manager->register( new \KHM\Elementor\Widgets\QuoteClubHeader_Widget() );
-        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
-            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\QuoteClubHeader_Widget() );
-        }
-    }
-
-    if ( class_exists( '\KHM\Elementor\Widgets\QuoteClubStats_Widget' ) ) {
-        if ( method_exists( $widgets_manager, 'register' ) ) {
-            $widgets_manager->register( new \KHM\Elementor\Widgets\QuoteClubStats_Widget() );
-        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
-            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\QuoteClubStats_Widget() );
-        }
-    }
-
-    if ( class_exists( '\KHM\Elementor\Widgets\QuoteClubActivity_Widget' ) ) {
-        if ( method_exists( $widgets_manager, 'register' ) ) {
-            $widgets_manager->register( new \KHM\Elementor\Widgets\QuoteClubActivity_Widget() );
-        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
-            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\QuoteClubActivity_Widget() );
-        }
-    }
-
-    if ( class_exists( '\KHM\Elementor\Widgets\QuoteClubSearchToolbar_Widget' ) ) {
-        if ( method_exists( $widgets_manager, 'register' ) ) {
-            $widgets_manager->register( new \KHM\Elementor\Widgets\QuoteClubSearchToolbar_Widget() );
-        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
-            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\QuoteClubSearchToolbar_Widget() );
-        }
-    }
-
-    if ( class_exists( '\KHM\Elementor\Widgets\QuoteClubResults_Widget' ) ) {
-        if ( method_exists( $widgets_manager, 'register' ) ) {
-            $widgets_manager->register( new \KHM\Elementor\Widgets\QuoteClubResults_Widget() );
-        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
-            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\QuoteClubResults_Widget() );
-        }
-    }
-
-    if ( class_exists( '\KHM\Elementor\Widgets\QuoteClubSessionDetail_Widget' ) ) {
-        if ( method_exists( $widgets_manager, 'register' ) ) {
-            $widgets_manager->register( new \KHM\Elementor\Widgets\QuoteClubSessionDetail_Widget() );
-        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
-            $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\QuoteClubSessionDetail_Widget() );
-        }
-    }
 
     if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
         $registered = method_exists( $widgets_manager, 'get_widget_types' )
@@ -1425,9 +1344,6 @@ add_action('rest_api_init', function () {
         ( new KHM\Rest\MemberPortalController() )->register();
     }
     // Register Quote Club routes
-    if ( class_exists('KHM\\Rest\\QuoteClubController') ) {
-        ( new KHM\Rest\QuoteClubController() )->register();
-    }
 
     // Register sponsor advert routes (S16/S17 – creative portal + ad serving).
 //    if ( class_exists('KHM\\REST\\SponsorAdvertController') ) {
@@ -1440,31 +1356,6 @@ add_action('rest_api_init', function () {
     }
 
     // Fulfil Quote Club credit bundle purchases when Stripe checkout completes.
-    add_action( 'khm_webhook_stripe_checkout_session_completed', function( $event ) {
-        if ( ! class_exists( 'KHM\\Services\\QuoteClubCreditBundleService' ) ) {
-            return;
-        }
-        try {
-            $session = $event->data->object ?? null;
-            if ( ! $session ) {
-                return;
-            }
-            $metadata      = (array) ( $session->metadata ?? [] );
-            $purchase_type = $metadata['purchase_type'] ?? '';
-            if ( $purchase_type !== 'qc_bundle' ) {
-                return;
-            }
-            $stripe_session_id = $session->id ?? '';
-            if ( empty( $stripe_session_id ) ) {
-                return;
-            }
-            $credits  = new KHM\Services\CreditService( new KHM\Services\MembershipRepository(), new KHM\Services\LevelRepository() );
-            $service  = new KHM\Services\QuoteClubCreditBundleService( $credits );
-            $service->fulfil_purchase( $stripe_session_id );
-        } catch ( \Throwable $e ) {
-            error_log( '[KHM QC] Bundle fulfilment error: ' . $e->getMessage() );
-        }
-    } );
     // Register checkout routes
     if ( class_exists('KHM\\Rest\\CheckoutController') ) {
         ( new KHM\Rest\CheckoutController() )->register();

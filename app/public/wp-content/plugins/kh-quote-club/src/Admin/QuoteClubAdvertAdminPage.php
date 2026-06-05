@@ -1,6 +1,6 @@
 <?php
 
-namespace KHM\Admin;
+namespace QuoteClub\Admin;
 
 /**
  * Admin page: Sponsor advert creative review queue.
@@ -19,8 +19,8 @@ class QuoteClubAdvertAdminPage {
 	public function add_menu(): void {
 		add_submenu_page(
 			'editorial_planner',
-			__( 'Sponsor Adverts', 'khm-membership' ),
-			__( 'Sponsor Adverts', 'khm-membership' ),
+			__( 'Sponsor Adverts', 'kh-quote-club' ),
+			__( 'Sponsor Adverts', 'kh-quote-club' ),
 			'edit_posts',
 			'khm-qc-adverts',
 			[ $this, 'render' ]
@@ -168,9 +168,9 @@ class QuoteClubAdvertAdminPage {
 		];
 		?>
 		<div class="wrap khm-advert-admin">
-			<h1><?php esc_html_e( 'Sponsor Advert Creatives', 'khm-membership' ); ?></h1>
+			<h1><?php esc_html_e( 'Sponsor Advert Creatives', 'kh-quote-club' ); ?></h1>
 			<p style="color:#6b7280;font-size:13px;margin-bottom:8px">
-				<?php esc_html_e( 'Review sponsor-submitted ad creatives. Approve to make live, reject with a reason (sponsor is notified by email), or pause to temporarily hide from rotation.', 'khm-membership' ); ?>
+				<?php esc_html_e( 'Review sponsor-submitted ad creatives. Approve to make live, reject with a reason (sponsor is notified by email), or pause to temporarily hide from rotation.', 'kh-quote-club' ); ?>
 			</p>
 
 			<nav class="nav-tab-wrapper" style="margin-bottom:1.2rem">
@@ -185,7 +185,7 @@ class QuoteClubAdvertAdminPage {
 			<?php if ( $status_filter === 'analytics' ) : ?>
 				<?php $this->render_analytics( $table, $placement_labels ); ?>
 			<?php elseif ( empty( $rows ) ) : ?>
-				<p><?php esc_html_e( 'No adverts found for this status.', 'khm-membership' ); ?></p>
+				<p><?php esc_html_e( 'No adverts found for this status.', 'kh-quote-club' ); ?></p>
 			<?php else : ?>
 
 			<style>
@@ -209,10 +209,10 @@ class QuoteClubAdvertAdminPage {
 			<table class="wp-list-table widefat fixed striped">
 				<thead>
 					<tr>
-						<th style="width:130px"><?php esc_html_e( 'Creative', 'khm-membership' ); ?></th>
-						<th><?php esc_html_e( 'Details', 'khm-membership' ); ?></th>
-						<th style="width:100px"><?php esc_html_e( 'Metrics', 'khm-membership' ); ?></th>
-						<th style="width:200px"><?php esc_html_e( 'Actions', 'khm-membership' ); ?></th>
+						<th style="width:130px"><?php esc_html_e( 'Creative', 'kh-quote-club' ); ?></th>
+						<th><?php esc_html_e( 'Details', 'kh-quote-club' ); ?></th>
+						<th style="width:100px"><?php esc_html_e( 'Metrics', 'kh-quote-club' ); ?></th>
+						<th style="width:200px"><?php esc_html_e( 'Actions', 'kh-quote-club' ); ?></th>
 					</tr>
 				</thead>
 				<tbody>
@@ -230,20 +230,20 @@ class QuoteClubAdvertAdminPage {
 							<span class="advert-status <?php echo esc_attr( $status_cls ); ?>"><?php echo esc_html( ucfirst( $row['status'] ) ); ?></span>
 							<?php echo $rej_reason; ?>
 							<div style="margin-top:6px;font-size:12px;color:#374151">
-								<strong><?php esc_html_e( 'Sponsor:', 'khm-membership' ); ?></strong>
+								<strong><?php esc_html_e( 'Sponsor:', 'kh-quote-club' ); ?></strong>
 								<?php echo esc_html( $row['sponsor_name'] ?: '—' ); ?>
 								(<?php echo esc_html( $row['display_name'] ?: $row['user_email'] ); ?>)<br>
-								<strong><?php esc_html_e( 'Placement:', 'khm-membership' ); ?></strong>
+								<strong><?php esc_html_e( 'Placement:', 'kh-quote-club' ); ?></strong>
 								<?php echo esc_html( $placement_labels[ $row['placement'] ] ?? $row['placement'] ); ?><br>
-								<strong><?php esc_html_e( 'Click URL:', 'khm-membership' ); ?></strong> <?php echo $click_link; ?><br>
-								<strong><?php esc_html_e( 'Alt:', 'khm-membership' ); ?></strong> <?php echo esc_html( $row['alt_text'] ?: '—' ); ?><br>
+								<strong><?php esc_html_e( 'Click URL:', 'kh-quote-club' ); ?></strong> <?php echo $click_link; ?><br>
+								<strong><?php esc_html_e( 'Alt:', 'kh-quote-club' ); ?></strong> <?php echo esc_html( $row['alt_text'] ?: '—' ); ?><br>
 								<?php if ( ! empty( $row['start_date'] ) ) : ?>
-								<strong><?php esc_html_e( 'Start:', 'khm-membership' ); ?></strong> <?php echo esc_html( substr( $row['start_date'], 0, 10 ) ); ?><br>
+								<strong><?php esc_html_e( 'Start:', 'kh-quote-club' ); ?></strong> <?php echo esc_html( substr( $row['start_date'], 0, 10 ) ); ?><br>
 								<?php endif; ?>
 								<?php if ( ! empty( $row['end_date'] ) ) : ?>
-								<strong><?php esc_html_e( 'End:', 'khm-membership' ); ?></strong> <?php echo esc_html( substr( $row['end_date'], 0, 10 ) ); ?><br>
+								<strong><?php esc_html_e( 'End:', 'kh-quote-club' ); ?></strong> <?php echo esc_html( substr( $row['end_date'], 0, 10 ) ); ?><br>
 								<?php endif; ?>
-								<strong><?php esc_html_e( 'Submitted:', 'khm-membership' ); ?></strong> <?php echo esc_html( $row['created_at'] ); ?>
+								<strong><?php esc_html_e( 'Submitted:', 'kh-quote-club' ); ?></strong> <?php echo esc_html( $row['created_at'] ); ?>
 							</div>
 						</td>
 						<td style="font-size:12px">
@@ -258,19 +258,19 @@ class QuoteClubAdvertAdminPage {
 								<!-- Approve + optional weight -->
 								<div>
 									<div class="weight-row">
-										<label for="weight-<?php echo (int) $row['id']; ?>"><?php esc_html_e( 'Weight:', 'khm-membership' ); ?></label>
+										<label for="weight-<?php echo (int) $row['id']; ?>"><?php esc_html_e( 'Weight:', 'kh-quote-club' ); ?></label>
 										<input type="number" id="weight-<?php echo (int) $row['id']; ?>"
 										       class="advert-weight-input" min="1" max="10"
 										       value="<?php echo (int) $row['weight']; ?>">
 										<span style="color:#6b7280">/10</span>
 									</div>
 									<button class="button button-primary khm-advert-approve" style="margin-top:4px">
-										<?php esc_html_e( 'Approve', 'khm-membership' ); ?>
+										<?php esc_html_e( 'Approve', 'kh-quote-club' ); ?>
 									</button>
 								</div>
 								<?php else : ?>
 								<button class="button khm-advert-pause">
-									<?php esc_html_e( 'Pause', 'khm-membership' ); ?>
+									<?php esc_html_e( 'Pause', 'kh-quote-club' ); ?>
 								</button>
 								<?php endif; ?>
 
@@ -278,12 +278,12 @@ class QuoteClubAdvertAdminPage {
 								<!-- Reject -->
 								<div>
 									<button class="button khm-advert-reject-toggle" style="color:#991b1b;border-color:#fca5a5">
-										<?php esc_html_e( 'Reject…', 'khm-membership' ); ?>
+										<?php esc_html_e( 'Reject…', 'kh-quote-club' ); ?>
 									</button>
 									<div class="reject-form">
-										<textarea class="advert-reject-reason" placeholder="<?php esc_attr_e( 'Reason for rejection (will be emailed to sponsor)…', 'khm-membership' ); ?>"></textarea>
+										<textarea class="advert-reject-reason" placeholder="<?php esc_attr_e( 'Reason for rejection (will be emailed to sponsor)…', 'kh-quote-club' ); ?>"></textarea>
 										<button class="button khm-advert-reject-confirm" style="margin-top:4px;color:#991b1b;border-color:#fca5a5">
-											<?php esc_html_e( 'Confirm rejection', 'khm-membership' ); ?>
+											<?php esc_html_e( 'Confirm rejection', 'kh-quote-club' ); ?>
 										</button>
 									</div>
 								</div>
@@ -291,14 +291,14 @@ class QuoteClubAdvertAdminPage {
 
 								<?php if ( in_array( $row['status'], [ 'paused', 'rejected' ], true ) ) : ?>
 								<button class="button khm-advert-restore">
-									<?php esc_html_e( 'Restore to pending', 'khm-membership' ); ?>
+									<?php esc_html_e( 'Restore to pending', 'kh-quote-club' ); ?>
 								</button>
 								<?php endif; ?>
 
 								<div class="action-msg" id="advert-msg-<?php echo (int) $row['id']; ?>"></div>
 							</div>
 							<?php else : ?>
-							<span style="color:#9ca3af;font-size:12px"><?php esc_html_e( 'No actions available', 'khm-membership' ); ?></span>
+							<span style="color:#9ca3af;font-size:12px"><?php esc_html_e( 'No actions available', 'kh-quote-club' ); ?></span>
 							<?php endif; ?>
 						</td>
 					</tr>
@@ -468,49 +468,49 @@ class QuoteClubAdvertAdminPage {
 		</style>
 
 		<div class="khm-advert-analytics">
-			<h2><?php esc_html_e( 'Advert Analytics', 'khm-membership' ); ?></h2>
+			<h2><?php esc_html_e( 'Advert Analytics', 'kh-quote-club' ); ?></h2>
 			<p style="color:#6b7280;font-size:13px;margin-bottom:16px">
-				<?php esc_html_e( 'All-time impression and click totals across all creatives and placements.', 'khm-membership' ); ?>
+				<?php esc_html_e( 'All-time impression and click totals across all creatives and placements.', 'kh-quote-club' ); ?>
 			</p>
 
 			<!-- KPI tiles -->
 			<div class="khm-advert-kpis">
 				<div class="khm-advert-kpi">
 					<div class="kpi-val"><?php echo number_format( (int) ( $totals['total_creatives'] ?? 0 ) ); ?></div>
-					<div class="kpi-lbl"><?php esc_html_e( 'Total creatives', 'khm-membership' ); ?></div>
+					<div class="kpi-lbl"><?php esc_html_e( 'Total creatives', 'kh-quote-club' ); ?></div>
 				</div>
 				<div class="khm-advert-kpi">
 					<div class="kpi-val"><?php echo number_format( (int) ( $totals['live'] ?? 0 ) ); ?></div>
-					<div class="kpi-lbl"><?php esc_html_e( 'Live (approved)', 'khm-membership' ); ?></div>
+					<div class="kpi-lbl"><?php esc_html_e( 'Live (approved)', 'kh-quote-club' ); ?></div>
 				</div>
 				<div class="khm-advert-kpi">
 					<div class="kpi-val"><?php echo number_format( $total_imp ); ?></div>
-					<div class="kpi-lbl"><?php esc_html_e( 'Impressions', 'khm-membership' ); ?></div>
+					<div class="kpi-lbl"><?php esc_html_e( 'Impressions', 'kh-quote-club' ); ?></div>
 				</div>
 				<div class="khm-advert-kpi">
 					<div class="kpi-val"><?php echo number_format( $total_clicks ); ?></div>
-					<div class="kpi-lbl"><?php esc_html_e( 'Clicks', 'khm-membership' ); ?></div>
+					<div class="kpi-lbl"><?php esc_html_e( 'Clicks', 'kh-quote-club' ); ?></div>
 				</div>
 				<div class="khm-advert-kpi">
 					<div class="kpi-val"><?php echo $overall_ctr; ?>%</div>
-					<div class="kpi-lbl"><?php esc_html_e( 'Overall CTR', 'khm-membership' ); ?></div>
+					<div class="kpi-lbl"><?php esc_html_e( 'Overall CTR', 'kh-quote-club' ); ?></div>
 				</div>
 			</div>
 
 			<!-- By placement -->
-			<h3><?php esc_html_e( 'By Placement', 'khm-membership' ); ?></h3>
+			<h3><?php esc_html_e( 'By Placement', 'kh-quote-club' ); ?></h3>
 			<?php if ( empty( $by_placement ) ) : ?>
-				<p style="color:#9ca3af;font-size:13px"><?php esc_html_e( 'No data yet.', 'khm-membership' ); ?></p>
+				<p style="color:#9ca3af;font-size:13px"><?php esc_html_e( 'No data yet.', 'kh-quote-club' ); ?></p>
 			<?php else : ?>
 			<table>
 				<thead>
 					<tr>
-						<th><?php esc_html_e( 'Placement', 'khm-membership' ); ?></th>
-						<th><?php esc_html_e( 'Creatives', 'khm-membership' ); ?></th>
-						<th><?php esc_html_e( 'Live', 'khm-membership' ); ?></th>
-						<th><?php esc_html_e( 'Impressions', 'khm-membership' ); ?></th>
-						<th><?php esc_html_e( 'Clicks', 'khm-membership' ); ?></th>
-						<th><?php esc_html_e( 'CTR', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Placement', 'kh-quote-club' ); ?></th>
+						<th><?php esc_html_e( 'Creatives', 'kh-quote-club' ); ?></th>
+						<th><?php esc_html_e( 'Live', 'kh-quote-club' ); ?></th>
+						<th><?php esc_html_e( 'Impressions', 'kh-quote-club' ); ?></th>
+						<th><?php esc_html_e( 'Clicks', 'kh-quote-club' ); ?></th>
+						<th><?php esc_html_e( 'CTR', 'kh-quote-club' ); ?></th>
 					</tr>
 				</thead>
 				<tbody>
@@ -534,18 +534,18 @@ class QuoteClubAdvertAdminPage {
 			<?php endif; ?>
 
 			<!-- By sponsor -->
-			<h3><?php esc_html_e( 'By Sponsor', 'khm-membership' ); ?></h3>
+			<h3><?php esc_html_e( 'By Sponsor', 'kh-quote-club' ); ?></h3>
 			<?php if ( empty( $by_sponsor ) ) : ?>
-				<p style="color:#9ca3af;font-size:13px"><?php esc_html_e( 'No data yet.', 'khm-membership' ); ?></p>
+				<p style="color:#9ca3af;font-size:13px"><?php esc_html_e( 'No data yet.', 'kh-quote-club' ); ?></p>
 			<?php else : ?>
 			<table>
 				<thead>
 					<tr>
-						<th><?php esc_html_e( 'Sponsor', 'khm-membership' ); ?></th>
-						<th><?php esc_html_e( 'Creatives', 'khm-membership' ); ?></th>
-						<th><?php esc_html_e( 'Impressions', 'khm-membership' ); ?></th>
-						<th><?php esc_html_e( 'Clicks', 'khm-membership' ); ?></th>
-						<th><?php esc_html_e( 'CTR', 'khm-membership' ); ?></th>
+						<th><?php esc_html_e( 'Sponsor', 'kh-quote-club' ); ?></th>
+						<th><?php esc_html_e( 'Creatives', 'kh-quote-club' ); ?></th>
+						<th><?php esc_html_e( 'Impressions', 'kh-quote-club' ); ?></th>
+						<th><?php esc_html_e( 'Clicks', 'kh-quote-club' ); ?></th>
+						<th><?php esc_html_e( 'CTR', 'kh-quote-club' ); ?></th>
 					</tr>
 				</thead>
 				<tbody>

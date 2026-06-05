@@ -1,6 +1,6 @@
 <?php
 
-namespace KHM\Elementor\Widgets;
+namespace QuoteClub\Elementor\Widgets;
 
 use Elementor\Widget_Base;
 
@@ -14,7 +14,7 @@ class QuoteClubSearchToolbar_Widget extends Widget_Base {
     }
 
     public function get_title() {
-        return __('Quote Club Search Toolbar', 'khm-membership');
+        return __('Quote Club Search Toolbar', 'kh-quote-club');
     }
 
     public function get_icon() {
@@ -35,18 +35,18 @@ class QuoteClubSearchToolbar_Widget extends Widget_Base {
         $top_line_categories = $this->get_top_line_categories();
 
         if (!is_user_logged_in()) {
-            $support->render_login_required(__('Please log in to use Quote Club search.', 'khm-membership'));
+            $support->render_login_required(__('Please log in to use Quote Club search.', 'kh-quote-club'));
             return;
         }
         ?>
         <div class="khm-quoteclub-toolbar" id="khm-qc-search-workspace">
-            <select class="khm-filter-date-range" aria-label="<?php esc_attr_e('Date Range', 'khm-membership'); ?>">
-                <option value="all"><?php esc_html_e('All', 'khm-membership'); ?></option>
-                <option value="week"><?php esc_html_e('Within the next week', 'khm-membership'); ?></option>
-                <option value="month"><?php esc_html_e('Within the next month', 'khm-membership'); ?></option>
+            <select class="khm-filter-date-range" aria-label="<?php esc_attr_e('Date Range', 'kh-quote-club'); ?>">
+                <option value="all"><?php esc_html_e('All', 'kh-quote-club'); ?></option>
+                <option value="week"><?php esc_html_e('Within the next week', 'kh-quote-club'); ?></option>
+                <option value="month"><?php esc_html_e('Within the next month', 'kh-quote-club'); ?></option>
             </select>
             <?php if (!empty($top_line_categories)) : ?>
-            <select multiple class="khm-filter-categories" aria-label="<?php esc_attr_e('Categories', 'khm-membership'); ?>">
+            <select multiple class="khm-filter-categories" aria-label="<?php esc_attr_e('Categories', 'kh-quote-club'); ?>">
                 <?php foreach ($top_line_categories as $category) : ?>
                     <option value="<?php echo esc_attr($category); ?>"><?php echo esc_html($category); ?></option>
                 <?php endforeach; ?>
@@ -54,19 +54,19 @@ class QuoteClubSearchToolbar_Widget extends Widget_Base {
             <?php endif; ?>
             <div class="khm-topic-autocomplete">
                 <input type="text" class="khm-filter-topics" autocomplete="off" placeholder="Topics" />
-                <div class="khm-topic-suggest-menu" role="listbox" aria-label="<?php esc_attr_e('Topic suggestions', 'khm-membership'); ?>"></div>
+                <div class="khm-topic-suggest-menu" role="listbox" aria-label="<?php esc_attr_e('Topic suggestions', 'kh-quote-club'); ?>"></div>
             </div>
             <input type="text" class="khm-filter-keywords" placeholder="Keywords" />
-            <select class="khm-filter-operator" aria-label="<?php esc_attr_e('Keyword operator', 'khm-membership'); ?>">
-                <option value="AND"><?php esc_html_e('AND', 'khm-membership'); ?></option>
-                <option value="OR"><?php esc_html_e('OR', 'khm-membership'); ?></option>
+            <select class="khm-filter-operator" aria-label="<?php esc_attr_e('Keyword operator', 'kh-quote-club'); ?>">
+                <option value="AND"><?php esc_html_e('AND', 'kh-quote-club'); ?></option>
+                <option value="OR"><?php esc_html_e('OR', 'kh-quote-club'); ?></option>
             </select>
-            <p class="khm-filter-operator-help"><?php esc_html_e('Keyword match: AND requires all words, OR matches any word. Use AND to narrow and OR to broaden.', 'khm-membership'); ?></p>
-            <select class="khm-saved-searches" aria-label="<?php esc_attr_e('Saved searches', 'khm-membership'); ?>">
-                <option value=""><?php esc_html_e('— Saved Searches —', 'khm-membership'); ?></option>
+            <p class="khm-filter-operator-help"><?php esc_html_e('Keyword match: AND requires all words, OR matches any word. Use AND to narrow and OR to broaden.', 'kh-quote-club'); ?></p>
+            <select class="khm-saved-searches" aria-label="<?php esc_attr_e('Saved searches', 'kh-quote-club'); ?>">
+                <option value=""><?php esc_html_e('— Saved Searches —', 'kh-quote-club'); ?></option>
             </select>
-            <button type="button" class="button khm-quoteclub-search-btn"><?php esc_html_e('Search', 'khm-membership'); ?></button>
-            <button type="button" class="button khm-save-search-btn"><?php esc_html_e('Save Search', 'khm-membership'); ?></button>
+            <button type="button" class="button khm-quoteclub-search-btn"><?php esc_html_e('Search', 'kh-quote-club'); ?></button>
+            <button type="button" class="button khm-save-search-btn"><?php esc_html_e('Save Search', 'kh-quote-club'); ?></button>
         </div>
         <?php
     }
