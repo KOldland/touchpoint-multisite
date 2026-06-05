@@ -1,0 +1,13 @@
+{
+    "name": "touchpoint/kh-sponsorship-hub",
+    "description": "B2B Sponsorship Hub for Touchpoint Multisite",
+    "type": "wordpress-plugin",
+    "require": {
+        "php": ">=7.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "KhSponsorshipHub\\": "src/"
+        }
+    }
+}
