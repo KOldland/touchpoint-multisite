@@ -5,12 +5,12 @@
  * Provides the [khm_sponsor_apply] shortcode which renders a form for
  * potential sponsors to submit applications.
  *
- * @package KHM\Sponsors
+ * @package KhSponsorshipHub\Sponsors
  */
 
-namespace KHM\Sponsors;
+namespace KhSponsorshipHub\Sponsors;
 
-use KHM\Migrations\CreateSponsorApplicationsTable;
+use KhSponsorshipHub\Sponsors\SponsorMigration;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -65,7 +65,7 @@ class SponsorApplicationShortcode {
 	public function render_shortcode( $atts = array() ): string {
 		// Ensure table exists
 		if ( ! SponsorMigration::table_exists() ) {
-			CreateSponsorApplicationsTable::create_tables();
+			SponsorMigration::create_tables();
 		}
 
 		ob_start();

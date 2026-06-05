@@ -2,10 +2,10 @@
 /**
  * Sponsor Dashboard - Front-end access for sponsor team members.
  *
- * @package KHM\Sponsors
+ * @package KhSponsorshipHub\Sponsors
  */
 
-namespace KHM\Sponsors;
+namespace KhSponsorshipHub\Sponsors;
 
 defined( 'ABSPATH' ) || exit;
 

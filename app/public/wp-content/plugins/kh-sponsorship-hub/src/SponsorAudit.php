@@ -2,10 +2,10 @@
 /**
  * Sponsor audit helper.
  *
- * @package KHM\Sponsors
+ * @package KhSponsorshipHub\Sponsors
  */
 
-namespace KHM\Sponsors;
+namespace KhSponsorshipHub\Sponsors;
 
 defined( 'ABSPATH' ) || exit;
 

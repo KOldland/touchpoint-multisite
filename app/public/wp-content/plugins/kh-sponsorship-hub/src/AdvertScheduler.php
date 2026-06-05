@@ -1,6 +1,6 @@
 <?php
 
-namespace KHM\Sponsors;
+namespace KhSponsorshipHub\Sponsors;
 
 /**
  * Handles scheduled auto-pausing of expired adverts and auto-activating

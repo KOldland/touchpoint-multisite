@@ -4,10 +4,10 @@
  *
  * Manages sponsor applications in the WordPress admin panel.
  *
- * @package KHM\Sponsors
+ * @package KhSponsorshipHub\Sponsors
  */
 
-namespace KHM\Sponsors;
+namespace KhSponsorshipHub\Sponsors;
 
 defined( 'ABSPATH' ) || exit;
 
