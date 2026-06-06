@@ -321,7 +321,6 @@ function khm_register_elementor_widgets( $widgets_manager ) {
         'PortalMembership_Widget.php',
         'PortalAccount_Widget.php',
         'PortalVoucher_Widget.php',
-        'TestPortalDashboard_Widget.php',
         'MembershipCheckoutButton_Widget.php',
         'CommerceCheckoutButton_Widget.php',
     ];
@@ -429,24 +428,6 @@ function khm_register_elementor_widgets( $widgets_manager ) {
             $widgets_manager->register_widget_type( new \KHM\Elementor\Widgets\PortalVoucher_Widget() );
         }
     }
-    
-    // TEST WIDGET - no namespace, exactly like KH Suggested Reading
-    if ( class_exists( 'TestPortalDashboard_Widget' ) ) {
-        if ( method_exists( $widgets_manager, 'register' ) ) {
-            $widgets_manager->register( new TestPortalDashboard_Widget() );
-        } elseif ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
-            $widgets_manager->register_widget_type( new TestPortalDashboard_Widget() );
-        }
-    }
-    
-    // TEST v2 - same widget, different name to force fresh registration
-    if ( class_exists( 'TestPortalDashboard_Widget' ) ) {
-        $test_widget = new TestPortalDashboard_Widget();
-        if ( method_exists( $widgets_manager, 'register' ) ) {
-            $widgets_manager->register( $test_widget );
-        }
-    }
-
     // Membership Checkout Button Widget
     if ( class_exists( '\KHM\Elementor\Widgets\MembershipCheckoutButton_Widget' ) ) {
         if ( method_exists( $widgets_manager, 'register' ) ) {
@@ -524,7 +505,7 @@ if ( khm_elementor_feature_enabled( 'force_widgets_enabled' ) ) {
         }
 
         $name = $widget_instance->get_name();
-        if ( strpos( $name, 'khm_' ) === 0 || $name === 'test_portal_dashboard_v2' ) {
+        if ( strpos( $name, 'khm_' ) === 0 ) {
             return true;
         }
 
@@ -577,7 +558,7 @@ add_filter('elementor/editor/localize_settings', function($settings) {
         $injected = count( $widget_types );
     } else {
         foreach ( $widget_types as $key => $widget ) {
-            if ( strpos( $key, 'khm_' ) === 0 || $key === 'test_portal_dashboard_v2' ) {
+            if ( strpos( $key, 'khm_' ) === 0 ) {
                 $settings['widgets'][ $key ] = $widget->get_config();
                 $settings['widgets'][ $key ]['show_in_panel'] = true;
                 $injected++;
@@ -760,7 +741,7 @@ add_filter( 'elementor/document/config', function( $config, $post_id ) {
         }
     } else {
         foreach ( $widget_types as $key => $widget ) {
-            if ( strpos( $key, 'khm_' ) === 0 || $key === 'test_portal_dashboard_v2' || in_array( $key, $force_widgets, true ) ) {
+            if ( strpos( $key, 'khm_' ) === 0 || in_array( $key, $force_widgets, true ) ) {
                 $config['widgets'][ $key ] = $widget->get_config();
                 $config['widgets'][ $key ]['show_in_panel'] = true;
             }
@@ -799,7 +780,7 @@ add_action( 'admin_enqueue_scripts', function( $hook ) {
     $widgets_payload = [];
     $force_widgets = [ 'nav-menu', 'search-form' ];
     foreach ( $widgets_manager->get_widget_types() as $key => $widget ) {
-        if ( strpos( $key, 'khm_' ) === 0 || $key === 'test_portal_dashboard_v2' || in_array( $key, $force_widgets, true ) ) {
+        if ( strpos( $key, 'khm_' ) === 0 || in_array( $key, $force_widgets, true ) ) {
             $widgets_payload[ $key ] = $widget->get_config();
         }
     }
