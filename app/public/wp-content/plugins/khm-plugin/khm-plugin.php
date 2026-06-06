@@ -181,7 +181,6 @@ require_once __DIR__ . '/src/Membership/DashboardShortcode.php';
 require_once __DIR__ . '/src/Membership/Admin/ReportsPage.php';
 require_once __DIR__ . '/src/Services/LevelPriceResolver.php';
 // require_once __DIR__ . '/src/Migrations/CreateSponsorApplicationsTable.php';
-require_once __DIR__ . '/src/Migrations/CreateTechConnectTables.php';
 
 // Register Sponsor endpoints
 add_action( 'rest_api_init', function() {
@@ -225,157 +224,6 @@ add_action( 'init', function() {
         $worker->register();
     }
 }, 5 );
-
-add_action( 'khm_editorial_columns_missing', function( array $context = [] ) {
-    $table = sanitize_text_field((string) ($context['table'] ?? 'unknown_table'));
-    $column = sanitize_text_field((string) ($context['missing_column'] ?? 'unknown_column'));
-
-    // Operational signal for migration drift impacting editorial credit deductions.
-    error_log(sprintf('[KHM Quote Club] editorial_columns_missing table=%s missing_column=%s', $table, $column));
-}, 10, 1 );
-
-add_action( 'khm_quoteclub_invite_accepted', function( array $context = [] ) {
-    $user_id = (int) ($context['user_id'] ?? 0);
-    $sponsor_id = (int) ($context['sponsor_id'] ?? 0);
-    $email = sanitize_email((string) ($context['email'] ?? ''));
-
-    error_log(sprintf('[KHM Quote Club] invite_accepted sponsor_id=%d user_id=%d email=%s', $sponsor_id, $user_id, $email));
-}, 10, 1 );
-
-/**
- * Notify editorial team when a sponsor submits commentary for review.
- * Parameters: $commentary_id, $session_id, $user_id, $sponsor_id
- */
-add_action( 'khm_quoteclub_commentary_submitted', function( int $commentary_id, string $session_id, int $user_id, int $sponsor_id ) {
-    $to      = get_option('admin_email');
-    $subject = sprintf('[Quote Club] New Commentary #%d Needs Review', $commentary_id);
-    $review_url = admin_url('admin.php?page=khm-qc-commentary');
-    $message = sprintf(
-        "A sponsor has submitted commentary for editorial review.\n\n" .
-        "Commentary ID : %d\n" .
-        "Session       : %s\n" .
-        "User ID       : %d\n" .
-        "Sponsor ID    : %d\n\n" .
-        "Review it here: %s",
-        $commentary_id, $session_id, $user_id, $sponsor_id, $review_url
-    );
-    wp_mail( $to, $subject, $message );
-    error_log( sprintf('[KHM Quote Club] commentary_submitted id=%d session=%s', $commentary_id, $session_id) );
-}, 10, 4 );
-
-/**
- * Notify the sponsor user when their commentary is approved.
- * Parameters: $commentary_id, $post_id, $user_id
- */
-add_action( 'khm_quoteclub_commentary_approved', function( int $commentary_id, int $post_id, int $user_id ) {
-    $user = get_user_by('id', $user_id);
-    if ( ! $user ) {
-        return;
-    }
-    $portal_url = home_url('/quote-club/?qc_section=commentary');
-    $subject    = '[Quote Club] Your commentary has been approved';
-    $message    = sprintf(
-        "Hi %s,\n\n" .
-        "Great news — your Quote Club commentary (#%d) has been approved by the editorial team.\n\n" .
-        "View your submissions: %s\n\n" .
-        "Thank you for your contribution!",
-        esc_html($user->display_name), $commentary_id, $portal_url
-    );
-    wp_mail( $user->user_email, $subject, $message );
-    error_log( sprintf('[KHM Quote Club] commentary_approved id=%d user_id=%d', $commentary_id, $user_id) );
-}, 10, 3 );
-
-/**
- * Notify the sponsor user when their commentary is rejected.
- * Parameters: $commentary_id, $user_id, $sponsor_id, $rejection_reason
- */
-add_action( 'khm_quoteclub_commentary_rejected', function( int $commentary_id, int $user_id, int $sponsor_id, string $rejection_reason ) {
-    $user = get_user_by('id', $user_id);
-    if ( ! $user ) {
-        return;
-    }
-    $portal_url = home_url('/quote-club/?qc_section=commentary');
-    $subject    = '[Quote Club] Your commentary was not approved';
-    $reason_line = $rejection_reason !== ''
-        ? "\nReason: " . $rejection_reason . "\n"
-        : '';
-    $message = sprintf(
-        "Hi %s,\n\n" .
-        "Unfortunately your Quote Club commentary (#%d) was not approved at this time.%s\n" .
-        "You can view and revise your submissions here: %s\n\n" .
-        "Please reach out if you have any questions.",
-        esc_html($user->display_name), $commentary_id, $reason_line, $portal_url
-    );
-    wp_mail( $user->user_email, $subject, $message );
-    error_log( sprintf('[KHM Quote Club] commentary_rejected id=%d user_id=%d', $commentary_id, $user_id) );
-}, 10, 4 );
-
-/**
- * Notify editorial team when a sponsor submits a press release for review.
- * Parameters: $press_release_id, $sponsor_id, $user_id
- */
-add_action( 'khm_press_release_submitted', function( int $press_release_id, int $sponsor_id, int $user_id ) {
-    $to      = get_option('admin_email');
-    $subject = sprintf('[Quote Club] New Press Release #%d Needs Review', $press_release_id);
-    $review_url = admin_url('admin.php?page=khm-qc-press-releases');
-    $message = sprintf(
-        "A sponsor has submitted a press release for editorial review.\n\n" .
-        "Press Release ID : %d\n" .
-        "Sponsor ID       : %d\n" .
-        "User ID          : %d\n\n" .
-        "Review it here: %s",
-        $press_release_id, $sponsor_id, $user_id, $review_url
-    );
-    wp_mail( $to, $subject, $message );
-    error_log( sprintf('[KHM Quote Club] press_release_submitted id=%d sponsor_id=%d', $press_release_id, $sponsor_id) );
-}, 10, 3 );
-
-/**
- * Notify the sponsor user when their press release is published.
- * Parameters: $press_release_id, $sponsor_id, $user_id
- */
-add_action( 'khm_press_release_published', function( int $press_release_id, int $sponsor_id, int $user_id ) {
-    $user = get_user_by('id', $user_id);
-    if ( ! $user ) {
-        return;
-    }
-    $portal_url = home_url('/quote-club/?qc_section=press-releases');
-    $subject    = '[Quote Club] Your press release has been published';
-    $message    = sprintf(
-        "Hi %s,\n\n" .
-        "Great news — your Quote Club press release (#%d) has been approved and published by the editorial team.\n\n" .
-        "View your submissions: %s\n\n" .
-        "Thank you for your contribution!",
-        esc_html($user->display_name), $press_release_id, $portal_url
-    );
-    wp_mail( $user->user_email, $subject, $message );
-    error_log( sprintf('[KHM Quote Club] press_release_published id=%d user_id=%d', $press_release_id, $user_id) );
-}, 10, 3 );
-
-/**
- * Notify the sponsor user when their press release is rejected.
- * Parameters: $press_release_id, $sponsor_id, $user_id, $rejection_reason
- */
-add_action( 'khm_press_release_rejected', function( int $press_release_id, int $sponsor_id, int $user_id, string $rejection_reason ) {
-    $user = get_user_by('id', $user_id);
-    if ( ! $user ) {
-        return;
-    }
-    $portal_url = home_url('/quote-club/?qc_section=press-releases');
-    $subject    = '[Quote Club] Your press release was not approved';
-    $reason_line = $rejection_reason !== ''
-        ? "\nReason: " . $rejection_reason . "\n"
-        : '';
-    $message = sprintf(
-        "Hi %s,\n\n" .
-        "Unfortunately your Quote Club press release (#%d) was not approved at this time.%s\n" .
-        "You can view and revise your submissions here: %s\n\n" .
-        "Please reach out if you have any questions.",
-        esc_html($user->display_name), $press_release_id, $reason_line, $portal_url
-    );
-    wp_mail( $user->user_email, $subject, $message );
-    error_log( sprintf('[KHM Quote Club] press_release_rejected id=%d user_id=%d', $press_release_id, $user_id) );
-}, 10, 4 );
 
 // Register planner_session post type
 // (Removed: Migrated to KH\Planner\PostTypes\PlannerSession)
@@ -1422,19 +1270,6 @@ add_action( 'khm_stripe_marketing_dead_letter_cleanup', function () {
         error_log( 'Stripe marketing dead-letter cleanup failed: ' . $e->getMessage() );
     }
 } );
-
-// Schedule hourly 4A scoring cron.
-add_action('init', function () {
-    if ( ! wp_next_scheduled('khm_4a_hourly_recompute') ) {
-        wp_schedule_event(time(), 'hourly', 'khm_4a_hourly_recompute');
-    }
-});
-
-add_action('khm_4a_hourly_recompute', function () {
-    if ( class_exists('KHM\\Services\\FourAScoringService') ) {
-        ( new KHM\Services\FourAScoringService() )->run();
-    }
-});
 
 // CLI command.
 if ( defined('WP_CLI') && WP_CLI && class_exists('KHM\\Cli\\FourAScoreCommand') ) {
