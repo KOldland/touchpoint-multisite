@@ -176,8 +176,8 @@ require_once __DIR__ . '/src/Membership/RetentionWorker.php';
 require_once __DIR__ . '/src/Membership/StatusEndpoint.php';
 require_once __DIR__ . '/src/Membership/CustomerPortalEndpoint.php';
 require_once __DIR__ . '/src/Membership/StripeWebhookHandler.php';
-require_once __DIR__ . '/src/Membership/LandingPageShortcode.php';
-require_once __DIR__ . '/src/Membership/DashboardShortcode.php';
+require_once __DIR__ . '/src/PublicFrontend/LandingPageShortcode.php';
+require_once __DIR__ . '/src/PublicFrontend/DashboardShortcode.php';
 require_once __DIR__ . '/src/Membership/Admin/ReportsPage.php';
 require_once __DIR__ . '/src/Services/LevelPriceResolver.php';
 // require_once __DIR__ . '/src/Migrations/CreateSponsorApplicationsTable.php';
@@ -1333,11 +1333,11 @@ add_action('init', function () {
     if ( class_exists('KHM\\Public\\CommerceCheckoutButtonShortcode') ) {
         ( new KHM\Public\CommerceCheckoutButtonShortcode() )->register();
     }
-    if ( class_exists('KHM\\Membership\\LandingPageShortcode') ) {
-        new KHM\Membership\LandingPageShortcode();
+    if ( class_exists('KHM\\PublicFrontend\\LandingPageShortcode') ) {
+        new KHM\PublicFrontend\LandingPageShortcode();
     }
-    if ( class_exists('KHM\\Membership\\DashboardShortcode') ) {
-        new KHM\Membership\DashboardShortcode();
+    if ( class_exists('KHM\\PublicFrontend\\DashboardShortcode') ) {
+        new KHM\PublicFrontend\DashboardShortcode();
     }
     if ( class_exists('KHM\\Blocks\\CommerceCheckoutButtonBlock') ) {
         ( new KHM\Blocks\CommerceCheckoutButtonBlock() )->register();
