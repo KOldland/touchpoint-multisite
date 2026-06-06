@@ -1,6 +1,6 @@
 <?php
 
-namespace KHM\Membership;
+namespace KHM\PublicFrontend;
 
 class LandingPageShortcode {
     public function __construct() {
