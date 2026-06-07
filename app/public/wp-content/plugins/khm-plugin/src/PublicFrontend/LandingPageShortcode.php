@@ -134,34 +134,21 @@ class LandingPageShortcode {
     }
 
     private function resolve_sponsor_data( string $sponsorId ): array {
+        $sponsor = [
+            'id' => $sponsorId,
+            'name' => '',
+            'logo_url' => '',
+            'accent_color' => '',
+            'blurb' => '',
+        ];
+
         if ( '' === $sponsorId ) {
-            return [
-                'id' => null,
-                'name' => '',
-                'logo_url' => '',
-                'accent_color' => '',
-                'blurb' => '',
-            ];
+            return $sponsor;
         }
 
-        $numericId = $this->extract_numeric_id( $sponsorId );
-        $name = '';
-        if ( $numericId > 0 ) {
-            global $wpdb;
-            $table = $wpdb->prefix . 'khm_sponsors';
-            $row = $wpdb->get_row(
-                $wpdb->prepare( "SELECT id, name FROM {$table} WHERE id = %d LIMIT 1", $numericId ),
-                ARRAY_A
-            );
-            if ( is_array( $row ) ) {
-                $name = sanitize_text_field( (string) ( $row['name'] ?? '' ) );
-            }
-        }
-
-        $logoUrl = (string) get_option( 'khm_sponsor_logo_' . $sponsorId, '' );
-        $accent = sanitize_text_field( (string) get_option( 'khm_sponsor_accent_' . $sponsorId, '' ) );
-        $blurb = (string) get_option( 'khm_sponsor_blurb_' . $sponsorId, '' );
-
+        // Delegate all sponsor data resolution to the ecosystem (kh-sponsorship-hub will intercept this)
+        $sponsor = apply_filters( 'khm_membership_landing_sponsor_data', $sponsor, $sponsorId );
+        
         $allowedBlurb = [
             'a' => [ 'href' => [], 'target' => [], 'rel' => [] ],
             'strong' => [],
@@ -171,15 +158,6 @@ class LandingPageShortcode {
             'span' => [ 'class' => [] ],
         ];
 
-        $sponsor = [
-            'id' => $sponsorId,
-            'name' => $name,
-            'logo_url' => function_exists( 'esc_url_raw' ) ? esc_url_raw( $logoUrl ) : filter_var( $logoUrl, FILTER_SANITIZE_URL ),
-            'accent_color' => preg_match( '/^#[A-Fa-f0-9]{6}$/', $accent ) ? $accent : '',
-            'blurb' => function_exists( 'wp_kses' ) ? wp_kses( $blurb, $allowedBlurb ) : strip_tags( $blurb, '<a><strong><em><p><br><span>' ),
-        ];
-
-        $sponsor = apply_filters( 'khm_membership_landing_sponsor_data', $sponsor, $sponsorId );
         if ( is_array( $sponsor ) ) {
             $sponsor['blurb'] = function_exists( 'wp_kses' )
                 ? wp_kses( (string) ( $sponsor['blurb'] ?? '' ), $allowedBlurb )
@@ -188,6 +166,7 @@ class LandingPageShortcode {
                 ? (string) $sponsor['accent_color']
                 : '';
             $sponsor['name'] = sanitize_text_field( (string) ( $sponsor['name'] ?? '' ) );
+            $sponsor['logo_url'] = function_exists( 'esc_url_raw' ) ? esc_url_raw( (string) ( $sponsor['logo_url'] ?? '' ) ) : filter_var( (string) ( $sponsor['logo_url'] ?? '' ), FILTER_SANITIZE_URL );
         }
 
         return is_array( $sponsor ) ? $sponsor : [

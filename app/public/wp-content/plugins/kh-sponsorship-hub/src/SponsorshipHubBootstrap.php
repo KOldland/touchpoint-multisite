@@ -19,6 +19,9 @@ class SponsorshipHubBootstrap {
         $sponsor_controller = new SponsorController();
         add_action('rest_api_init', [$sponsor_controller, 'register_routes']);
 
+        $sponsor_integration = new SponsorIntegration();
+        $sponsor_integration->register();
+
         $advert_scheduler = new AdvertScheduler();
         $advert_scheduler->register();
         
