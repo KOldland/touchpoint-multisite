@@ -347,6 +347,23 @@ class CreditService {
     }
 
     /**
+     * Get credit history count for a user
+     *
+     * @param int $user_id
+     * @return int
+     */
+    public function getCreditHistoryCount(int $user_id): int {
+        global $wpdb;
+        
+        $usage_table = $wpdb->prefix . 'khm_credit_usage';
+        
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$usage_table} WHERE user_id = %d",
+            $user_id
+        ));
+    }
+
+    /**
      * Process monthly credit resets for all users
      * Should be called via cron job
      *

@@ -621,6 +621,22 @@ class GiftService {
     }
 
     /**
+     * Get count of gifts sent by a user
+     *
+     * @param int $user_id Sender user ID
+     * @return int Number of sent gifts
+     */
+    public function get_sent_gifts_count(int $user_id): int {
+        global $wpdb;
+
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->gifts_table} 
+             WHERE sender_id = %d AND status IN ('sent', 'redeemed')",
+            $user_id
+        ));
+    }
+
+    /**
      * Get gifts received by an email address
      *
      * @param string $email Recipient email

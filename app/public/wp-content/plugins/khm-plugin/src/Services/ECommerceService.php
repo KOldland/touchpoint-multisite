@@ -4,630 +4,695 @@ namespace KHM\Services;
 
 use KHM\Services\MembershipRepository;
 use KHM\Services\OrderRepository;
+use KHM\Services\EmailService;
 
 /**
- * ECommerce Service
+ * Gift Service
  * 
- * Provides shopping cart and purchase functionality for the KHM membership system.
- * Handles article pricing, cart management, and purchase processing.
+ * Provides gift functionality for the KHM membership system.
+ * Handles gift purchase, email delivery, and token-based redemption.
  */
-class ECommerceService {
+class GiftService {
 
     private MembershipRepository $memberships;
     private OrderRepository $orders;
-    private string $products_table;
-    private string $cart_table;
-    private string $purchases_table;
+    private EmailService $email;
+    private string $gifts_table;
+    private string $redemptions_table;
 
-    public function __construct(MembershipRepository $memberships, OrderRepository $orders) {
+    public function __construct(MembershipRepository $memberships, OrderRepository $orders, EmailService $email) {
         global $wpdb;
         $this->memberships = $memberships;
         $this->orders = $orders;
-        $this->products_table = $wpdb->prefix . 'khm_article_products';
-        $this->cart_table = $wpdb->prefix . 'khm_shopping_cart';
-        $this->purchases_table = $wpdb->prefix . 'khm_purchases';
+        $this->email = $email;
+        $this->gifts_table = $wpdb->prefix . 'khm_gifts';
+        $this->redemptions_table = $wpdb->prefix . 'khm_gift_redemptions';
     }
 
     /**
-     * Create database tables for eCommerce functionality
+     * Create database tables for gift functionality
      */
     public function create_tables(): void {
         global $wpdb;
 
         $charset_collate = $wpdb->get_charset_collate();
 
-        // Article products table
-        $products_sql = "CREATE TABLE {$this->products_table} (
+        // Gifts table
+        $gifts_sql = "CREATE TABLE {$this->gifts_table} (
             id int(11) NOT NULL AUTO_INCREMENT,
             post_id int(11) NOT NULL,
-            regular_price decimal(10,2) NOT NULL DEFAULT 0.00,
-            member_price decimal(10,2) DEFAULT NULL,
-            member_discount_percent int(11) DEFAULT 20,
-            is_purchasable tinyint(1) DEFAULT 1,
-            purchase_gives_pdf tinyint(1) DEFAULT 1,
-            purchase_saves_to_library tinyint(1) DEFAULT 1,
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            UNIQUE KEY unique_post (post_id),
-            KEY idx_price (regular_price),
-            KEY idx_purchasable (is_purchasable)
-        ) $charset_collate;";
-
-        // Shopping cart table
-        $cart_sql = "CREATE TABLE {$this->cart_table} (
-            id int(11) NOT NULL AUTO_INCREMENT,
-            user_id int(11) NOT NULL,
-            post_id int(11) NOT NULL,
-            quantity int(11) DEFAULT 1,
-            price decimal(10,2) NOT NULL,
-            member_price decimal(10,2) DEFAULT NULL,
-            session_id varchar(255) DEFAULT NULL,
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            UNIQUE KEY unique_user_post (user_id, post_id),
-            KEY idx_user_id (user_id),
-            KEY idx_session_id (session_id),
-            KEY idx_created_at (created_at)
-        ) $charset_collate;";
-
-        // Purchases table
-        $purchases_sql = "CREATE TABLE {$this->purchases_table} (
-            id int(11) NOT NULL AUTO_INCREMENT,
-            user_id int(11) NOT NULL,
-            post_id int(11) NOT NULL,
-            order_id int(11) DEFAULT NULL,
-            purchase_price decimal(10,2) NOT NULL,
+            sender_id int(11) NOT NULL,
+            recipient_email varchar(255) NOT NULL,
+            recipient_name varchar(255) NOT NULL,
+            sender_name varchar(255) NOT NULL,
+            sender_email varchar(255) NOT NULL,
+            gift_message text,
+            gift_price decimal(10,2) NOT NULL,
             member_discount decimal(10,2) DEFAULT 0.00,
+            order_id int(11) DEFAULT NULL,
+            redemption_token varchar(255) NOT NULL,
             payment_method varchar(50) DEFAULT 'stripe',
             transaction_id varchar(255) DEFAULT NULL,
-            status enum('pending','completed','failed','refunded') DEFAULT 'pending',
-            pdf_downloaded tinyint(1) DEFAULT 0,
-            saved_to_library tinyint(1) DEFAULT 0,
-            purchase_data text,
+            status enum('pending','sent','redeemed','expired','cancelled') DEFAULT 'pending',
+            email_sent_at datetime DEFAULT NULL,
+            expires_at datetime DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            KEY idx_user_id (user_id),
+            UNIQUE KEY unique_token (redemption_token),
+            KEY idx_sender_id (sender_id),
+            KEY idx_recipient_email (recipient_email),
             KEY idx_post_id (post_id),
             KEY idx_order_id (order_id),
             KEY idx_status (status),
-            KEY idx_transaction_id (transaction_id)
+            KEY idx_expires_at (expires_at)
+        ) $charset_collate;";
+
+        // Gift redemptions table
+        $redemptions_sql = "CREATE TABLE {$this->redemptions_table} (
+            id int(11) NOT NULL AUTO_INCREMENT,
+            gift_id int(11) NOT NULL,
+            recipient_user_id int(11) DEFAULT NULL,
+            redemption_type enum('download','library_save','both') NOT NULL,
+            redeemed_at datetime DEFAULT CURRENT_TIMESTAMP,
+            ip_address varchar(45) DEFAULT NULL,
+            user_agent text,
+            PRIMARY KEY (id),
+            KEY idx_gift_id (gift_id),
+            KEY idx_recipient_user_id (recipient_user_id),
+            KEY idx_redeemed_at (redeemed_at),
+            FOREIGN KEY (gift_id) REFERENCES {$this->gifts_table}(id) ON DELETE CASCADE
         ) $charset_collate;";
 
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-        dbDelta($products_sql);
-        dbDelta($cart_sql);
-        dbDelta($purchases_sql);
-
-        // Set default pricing for existing posts
-        $this->set_default_pricing_for_existing_posts();
+        dbDelta($gifts_sql);
+        dbDelta($redemptions_sql);
     }
 
     /**
-     * Get article pricing information
+     * Create a gift purchase
+     *
+     * @param array $gift_data Gift information
+     * @return array Success/error response
      */
-    public function get_article_pricing(int $post_id, int $user_id = null): array {
+    public function create_gift(array $gift_data): array {
         global $wpdb;
 
-        // Check if post has custom pricing
-        $product = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$this->products_table} WHERE post_id = %d",
-            $post_id
-        ));
+        try {
+            // Validate required fields
+            $required_fields = ['post_id', 'sender_id', 'recipient_email', 'recipient_name', 'sender_name', 'gift_price'];
+            foreach ($required_fields as $field) {
+                if (!isset($gift_data[$field]) || empty($gift_data[$field])) {
+                    return [
+                        'success' => false,
+                        'error' => "Missing required field: {$field}"
+                    ];
+                }
+            }
 
-        if (!$product) {
-            // Create default product entry
-            $product = $this->create_default_product($post_id);
+            // Validate post exists
+            $post = get_post($gift_data['post_id']);
+            if (!$post || $post->post_status !== 'publish') {
+                return [
+                    'success' => false,
+                    'error' => 'Invalid article'
+                ];
+            }
+
+            // Validate emails
+            if (!is_email($gift_data['recipient_email']) || !is_email($gift_data['sender_email'] ?? '')) {
+                return [
+                    'success' => false,
+                    'error' => 'Invalid email address'
+                ];
+            }
+
+            // Generate unique redemption token
+            $redemption_token = $this->generate_redemption_token();
+
+            // Set expiration (30 days from now)
+            $expires_at = date('Y-m-d H:i:s', strtotime('+30 days'));
+
+            // Insert gift record
+            $gift_record = [
+                'post_id' => intval($gift_data['post_id']),
+                'sender_id' => intval($gift_data['sender_id']),
+                'recipient_email' => sanitize_email($gift_data['recipient_email']),
+                'recipient_name' => sanitize_text_field($gift_data['recipient_name']),
+                'sender_name' => sanitize_text_field($gift_data['sender_name']),
+                'sender_email' => sanitize_email($gift_data['sender_email'] ?? ''),
+                'gift_message' => sanitize_textarea_field($gift_data['gift_message'] ?? ''),
+                'gift_price' => floatval($gift_data['gift_price']),
+                'member_discount' => floatval($gift_data['member_discount'] ?? 0),
+                'redemption_token' => $redemption_token,
+                'payment_method' => sanitize_text_field($gift_data['payment_method'] ?? 'stripe'),
+                'expires_at' => $expires_at,
+                'status' => 'pending'
+            ];
+
+            $result = $wpdb->insert($this->gifts_table, $gift_record);
+
+            if ($result === false) {
+                return [
+                    'success' => false,
+                    'error' => 'Failed to create gift record'
+                ];
+            }
+
+            $gift_id = $wpdb->insert_id;
+
+            return [
+                'success' => true,
+                'gift_id' => $gift_id,
+                'redemption_token' => $redemption_token,
+                'expires_at' => $expires_at
+            ];
+
+        } catch (Exception $e) {
+            error_log('Gift creation error: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => 'Failed to create gift'
+            ];
+        }
+    }
+
+    /**
+     * Send gift email notification
+     *
+     * @param int $gift_id Gift ID
+     * @return array Success/error response
+     */
+    public function send_gift_email(int $gift_id): array {
+        global $wpdb;
+
+        try {
+            // Get gift details
+            $gift = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$this->gifts_table} WHERE id = %d",
+                $gift_id
+            ));
+
+            if (!$gift) {
+                return [
+                    'success' => false,
+                    'error' => 'Gift not found'
+                ];
+            }
+
+            // Get post details
+            $post = get_post($gift->post_id);
+            if (!$post) {
+                return [
+                    'success' => false,
+                    'error' => 'Article not found'
+                ];
+            }
+
+            // Build redemption URL
+            $redemption_url = home_url('/gift-redemption/?token=' . $gift->redemption_token);
+
+            // Prepare email data
+            $email_data = [
+                'recipient_name' => $gift->recipient_name,
+                'sender_name' => $gift->sender_name,
+                'post_title' => $post->post_title,
+                'article_title' => $post->post_title,
+                'post_excerpt' => get_the_excerpt($post),
+                'gift_message_section' => !empty($gift->gift_message) 
+                    ? '<div style="background: #e8f4f8; padding: 15px; border-radius: 6px; margin: 20px 0;"><p style="margin: 0; font-style: italic; color: #495057;">"' . esc_html($gift->gift_message) . '"</p><p style="margin: 10px 0 0 0; font-size: 14px; color: #6c757d;">— ' . esc_html($gift->sender_name) . '</p></div>'
+                    : '',
+                'redemption_url' => $redemption_url,
+                'redemption_code' => $gift->redemption_token,
+                'expires_at' => date('F j, Y', strtotime($gift->expires_at)),
+                'expiry_date' => date('F j, Y', strtotime($gift->expires_at)),
+                'dashboard_url' => home_url('/members-portal/'),
+                'site_name' => get_bloginfo('name'),
+                'site_url' => home_url()
+            ];
+
+            // Send email using EmailService
+            $email_result = $this->email
+                ->setSubject('Gift Article: ' . $post->post_title . ' - from ' . $gift->sender_name)
+                ->setFrom($gift->sender_email, $gift->sender_name)
+                ->send('gift_notification', $gift->recipient_email, $email_data);
+
+            if ($email_result) {
+                // Update gift status and email sent timestamp
+                $wpdb->update(
+                    $this->gifts_table,
+                    [
+                        'status' => 'sent',
+                        'email_sent_at' => current_time('mysql')
+                    ],
+                    ['id' => $gift_id]
+                );
+
+                return [
+                    'success' => true,
+                    'message' => 'Gift email sent successfully'
+                ];
+            } else {
+                return [
+                    'success' => false,
+                    'error' => 'Failed to send gift email'
+                ];
+            }
+
+        } catch (Exception $e) {
+            error_log('Gift email error: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => 'Failed to send gift email'
+            ];
+        }
+    }
+
+    /**
+     * Redeem a gift using token
+     *
+     * @param string $token Redemption token
+     * @param string $redemption_type Type of redemption (download|library_save|both)
+     * @param int $user_id Optional user ID for logged-in users
+     * @return array Success/error response
+     */
+    public function redeem_gift(string $token, string $redemption_type = 'download', int $user_id = 0): array {
+        global $wpdb;
+
+        try {
+            // Get gift by token
+            $gift = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$this->gifts_table} WHERE redemption_token = %s",
+                $token
+            ));
+
+            if (!$gift) {
+                return [
+                    'success' => false,
+                    'error' => 'Invalid gift token'
+                ];
+            }
+
+            // Check if already redeemed
+            if ($gift->status === 'redeemed') {
+                return [
+                    'success' => false,
+                    'error' => 'Gift has already been redeemed'
+                ];
+            }
+
+            // Check if expired
+            if (strtotime($gift->expires_at) < time()) {
+                // Update status to expired
+                $wpdb->update(
+                    $this->gifts_table,
+                    ['status' => 'expired'],
+                    ['id' => $gift->id]
+                );
+
+                return [
+                    'success' => false,
+                    'error' => 'Gift has expired'
+                ];
+            }
+
+            // Validate redemption type
+            if (!in_array($redemption_type, ['download', 'library_save', 'both'])) {
+                $redemption_type = 'download';
+            }
+
+            $response = [
+                'success' => true,
+                'gift_id' => $gift->id,
+                'post_id' => $gift->post_id,
+                'redemption_type' => $redemption_type
+            ];
+
+            // Handle PDF download
+            if (in_array($redemption_type, ['download', 'both'])) {
+                $pdf_result = $this->generate_gift_pdf($gift->post_id, $user_id);
+                if ($pdf_result['success']) {
+                    $response['download_url'] = $pdf_result['download_url'];
+                    $response['filename'] = $pdf_result['filename'];
+                } else {
+                    return [
+                        'success' => false,
+                        'error' => 'Failed to generate PDF: ' . $pdf_result['error']
+                    ];
+                }
+            }
+
+            // Handle library save (only if user is logged in)
+            if (in_array($redemption_type, ['library_save', 'both']) && $user_id > 0) {
+                $library_result = $this->save_gift_to_library($gift->post_id, $user_id);
+                if ($library_result['success']) {
+                    $response['saved_to_library'] = true;
+                    $this->record_gift_purchase($gift, $user_id, $redemption_type);
+                } else {
+                    $response['library_error'] = $library_result['error'];
+                }
+            }
+
+            // Record redemption
+            $redemption_record = [
+                'gift_id' => $gift->id,
+                'recipient_user_id' => $user_id > 0 ? $user_id : null,
+                'redemption_type' => $redemption_type,
+                'ip_address' => $_SERVER['REMOTE_ADDR'] ?? null,
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? null
+            ];
+
+            $wpdb->insert($this->redemptions_table, $redemption_record);
+
+            // Update gift status to redeemed
+            $wpdb->update(
+                $this->gifts_table,
+                ['status' => 'redeemed'],
+                ['id' => $gift->id]
+            );
+
+            return $response;
+
+        } catch (Exception $e) {
+            error_log('Gift redemption error: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => 'Failed to redeem gift'
+            ];
+        }
+    }
+
+    /**
+     * Get gift details by token (for redemption page)
+     *
+     * @param string $token Redemption token
+     * @return array|null Gift details or null if not found
+     */
+    public function get_gift_by_token(string $token): ?array {
+        global $wpdb;
+
+        $gift = $wpdb->get_row($wpdb->prepare(
+            "SELECT g.*, p.post_title, p.post_excerpt 
+             FROM {$this->gifts_table} g 
+             LEFT JOIN {$wpdb->posts} p ON g.post_id = p.ID 
+             WHERE g.redemption_token = %s",
+            $token
+        ), ARRAY_A);
+
+        if (!$gift) {
+            return null;
         }
 
-        $regular_price = (float) $product->regular_price;
+        // Add computed fields
+        $gift['is_expired'] = strtotime($gift['expires_at']) < time();
+        $gift['is_redeemed'] = $gift['status'] === 'redeemed';
+        $gift['days_until_expiry'] = max(0, ceil((strtotime($gift['expires_at']) - time()) / DAY_IN_SECONDS));
 
-        // Flat fee: ignore member discounts unless an explicit member price is set.
-        $member_price = $product->member_price;
-        if ($member_price === null) {
-            $member_price = $regular_price;
-        }
+        return $gift;
+    }
 
-        // Determine which price applies to this user
-        $current_price = $regular_price;
-        $discount_amount = 0;
-        $is_member = false;
+    /**
+     * Generate unique redemption token
+     *
+     * @return string Unique token
+     */
+    private function generate_redemption_token(): string {
+        global $wpdb;
 
-        if ($user_id) {
-            $membership = $this->memberships->findActive($user_id);
-            if (!empty($membership)) {
-                $is_member = true;
-                $current_price = $member_price;
-                $discount_amount = $regular_price - $member_price;
+        do {
+            $token = wp_generate_password(32, false);
+            $exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$this->gifts_table} WHERE redemption_token = %s",
+                $token
+            ));
+        } while ($exists > 0);
+
+        return $token;
+    }
+
+    /**
+     * Generate PDF for gift redemption
+     *
+     * @param int $post_id Post ID
+     * @param int $user_id User ID (0 for anonymous)
+     * @return array Success/error response with download URL
+     */
+    private function generate_gift_pdf(int $post_id, int $user_id): array {
+        // Use existing PDF service
+        if (function_exists('khm_generate_article_pdf')) {
+            $pdf_result = khm_generate_article_pdf($post_id, $user_id);
+            
+            if ($pdf_result['success']) {
+                // Create secure download URL that doesn't require credits
+                $download_url = khm_create_download_url($post_id, $user_id, 2); // 2-hour expiry
+                
+                return [
+                    'success' => true,
+                    'download_url' => $download_url,
+                    'filename' => $pdf_result['filename'] ?? get_the_title($post_id) . '.pdf'
+                ];
             }
         }
 
         return [
-            'post_id' => $post_id,
-            'regular_price' => $regular_price,
-            'member_price' => (float) $member_price,
-            'current_price' => $current_price,
-            'discount_amount' => $discount_amount,
-            'discount_percent' => 0,
-            'is_member' => $is_member,
-            'is_purchasable' => (bool) $product->is_purchasable,
-            'purchase_gives_pdf' => (bool) $product->purchase_gives_pdf,
-            'purchase_saves_to_library' => (bool) $product->purchase_saves_to_library
+            'success' => false,
+            'error' => 'PDF generation service not available'
         ];
     }
 
     /**
-     * Add item to shopping cart
+     * Save gift article to user's library
+     *
+     * @param int $post_id Post ID
+     * @param int $user_id User ID
+     * @return array Success/error response
      */
-    public function add_to_cart(int $user_id, int $post_id, int $quantity = 1): bool {
-        global $wpdb;
-
-        // Get pricing for this user
-        $pricing = $this->get_article_pricing($post_id, $user_id);
-        
-        if (!$pricing['is_purchasable']) {
-            return false;
-        }
-
-        // Check if user has already purchased this article
-        if ($this->has_purchased($user_id, $post_id)) {
-            return false; // Already purchased
-        }
-
-        // Get session ID for logged-out users
-        $session_id = $user_id ? null : $this->get_session_id();
-
-        $result = $wpdb->replace(
-            $this->cart_table,
-            [
-                'user_id' => $user_id,
-                'post_id' => $post_id,
-                'quantity' => $quantity,
-                'price' => $pricing['regular_price'],
-                'member_price' => $pricing['member_price'],
-                'session_id' => $session_id,
-                'updated_at' => current_time('mysql')
-            ],
-            ['%d', '%d', '%d', '%f', '%f', '%s', '%s']
-        );
-
-        if ($result) {
-            do_action('khm_item_added_to_cart', $user_id, $post_id, $quantity);
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Remove item from shopping cart
-     */
-    public function remove_from_cart(int $user_id, int $post_id): bool {
-        global $wpdb;
-
-        $result = $wpdb->delete(
-            $this->cart_table,
-            [
-                'user_id' => $user_id,
-                'post_id' => $post_id
-            ],
-            ['%d', '%d']
-        );
-
-        if ($result) {
-            do_action('khm_item_removed_from_cart', $user_id, $post_id);
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Get user's shopping cart
-     */
-    public function get_cart(int $user_id): array {
-        global $wpdb;
-
-        $cart_items = $wpdb->get_results($wpdb->prepare(
-            "SELECT c.*, p.post_title, p.post_excerpt
-             FROM {$this->cart_table} c
-             LEFT JOIN {$wpdb->posts} p ON c.post_id = p.ID
-             WHERE c.user_id = %d
-             ORDER BY c.created_at DESC",
-            $user_id
-        ));
-
-        $total = 0;
-        $member_total = 0;
-        $items = [];
-
-        foreach ($cart_items as $item) {
-            $pricing = $this->get_article_pricing($item->post_id, $user_id);
-            
-            $items[] = [
-                'id' => $item->id,
-                'post_id' => $item->post_id,
-                'title' => $item->post_title,
-                'excerpt' => $item->post_excerpt,
-                'quantity' => $item->quantity,
-                'regular_price' => $pricing['regular_price'],
-                'member_price' => $pricing['member_price'],
-                'current_price' => $pricing['current_price'],
-                'line_total' => $pricing['current_price'] * $item->quantity,
-                'discount_amount' => $pricing['discount_amount'],
-                'is_member_price' => $pricing['is_member']
-            ];
-
-            $total += $pricing['regular_price'] * $item->quantity;
-            $member_total += $pricing['current_price'] * $item->quantity;
+    private function save_gift_to_library(int $post_id, int $user_id): array {
+        // Use existing library service
+        if (function_exists('khm_call_service')) {
+            try {
+                $result = khm_call_service('save_to_library', $user_id, $post_id);
+                
+                if ($result) {
+                    return [
+                        'success' => true,
+                        'message' => 'Article saved to library'
+                    ];
+                }
+            } catch (Exception $e) {
+                // Service call failed
+            }
         }
 
         return [
-            'items' => $items,
-            'item_count' => count($items),
-            'subtotal' => $total,
-            'member_subtotal' => $member_total,
-            'total_discount' => $total - $member_total,
-            'currency' => 'GBP'
+            'success' => false,
+            'error' => 'Library service not available'
         ];
     }
 
     /**
-     * Get cart count for user
+     * Record a completed purchase entry for gift redemptions.
      */
-    public function get_cart_count(int $user_id): int {
+    private function record_gift_purchase(object $gift, int $user_id, string $redemption_type): void {
+        global $wpdb;
+
+        $purchases_table = $wpdb->prefix . 'khm_purchases';
+        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $purchases_table)) !== $purchases_table) {
+            return;
+        }
+
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$purchases_table} WHERE user_id = %d AND post_id = %d AND status = 'completed'",
+            $user_id,
+            $gift->post_id
+        ));
+        if ($existing) {
+            return;
+        }
+
+        $purchase_data = [
+            'source' => 'gift',
+            'gift_id' => (int) $gift->id,
+            'redemption_type' => $redemption_type,
+            'redemption_token' => $gift->redemption_token ?? null,
+        ];
+
+        $wpdb->insert(
+            $purchases_table,
+            [
+                'user_id' => $user_id,
+                'post_id' => (int) $gift->post_id,
+                'order_id' => null,
+                'purchase_price' => 0,
+                'member_discount' => 0,
+                'payment_method' => 'gift',
+                'transaction_id' => null,
+                'status' => 'completed',
+                'pdf_downloaded' => in_array($redemption_type, ['download', 'both'], true) ? 1 : 0,
+                'saved_to_library' => 1,
+                'purchase_data' => wp_json_encode($purchase_data),
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql'),
+            ],
+            ['%d', '%d', '%d', '%f', '%f', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s']
+        );
+    }
+
+    /**
+     * Get gift statistics for admin
+     *
+     * @param array $filters Optional filters
+     * @return array Statistics
+     */
+    public function get_gift_statistics(array $filters = []): array {
+        global $wpdb;
+
+        $where_clauses = [];
+        $where_values = [];
+
+        // Apply date filters
+        if (!empty($filters['start_date'])) {
+            $where_clauses[] = "created_at >= %s";
+            $where_values[] = $filters['start_date'];
+        }
+
+        if (!empty($filters['end_date'])) {
+            $where_clauses[] = "created_at <= %s";
+            $where_values[] = $filters['end_date'];
+        }
+
+        $where_sql = !empty($where_clauses) ? 'WHERE ' . implode(' AND ', $where_clauses) : '';
+
+        $query = "SELECT 
+                    COUNT(*) as total_gifts,
+                    SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent_gifts,
+                    SUM(CASE WHEN status = 'redeemed' THEN 1 ELSE 0 END) as redeemed_gifts,
+                    SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END) as expired_gifts,
+                    SUM(gift_price) as total_revenue,
+                    AVG(gift_price) as average_gift_value
+                  FROM {$this->gifts_table} {$where_sql}";
+
+        if (!empty($where_values)) {
+            $stats = $wpdb->get_row($wpdb->prepare($query, ...$where_values), ARRAY_A);
+        } else {
+            $stats = $wpdb->get_row($query, ARRAY_A);
+        }
+
+        // Calculate redemption rate
+        $stats['redemption_rate'] = $stats['sent_gifts'] > 0 
+            ? round(($stats['redeemed_gifts'] / $stats['sent_gifts']) * 100, 2)
+            : 0;
+
+        return $stats;
+    }
+
+    /**
+     * Get gifts sent by a user
+     *
+     * @param int $user_id Sender user ID
+     * @param int $limit Number of gifts to return
+     * @param int $offset Pagination offset
+     * @return array List of sent gifts
+     */
+    public function get_sent_gifts(int $user_id, int $limit = 20, int $offset = 0): array {
+        global $wpdb;
+
+        $query = "SELECT g.*, p.post_title, p.post_excerpt
+                  FROM {$this->gifts_table} g
+                  LEFT JOIN {$wpdb->posts} p ON g.post_id = p.ID
+                  WHERE g.sender_id = %d
+                  ORDER BY g.created_at DESC
+                  LIMIT %d OFFSET %d";
+
+        $gifts = $wpdb->get_results(
+            $wpdb->prepare($query, $user_id, $limit, $offset),
+            ARRAY_A
+        );
+
+        // Add formatted data for each gift
+        foreach ($gifts as &$gift) {
+            $gift['is_expired'] = $this->is_gift_expired($gift);
+            $gift['days_until_expiry'] = $this->get_days_until_expiry($gift);
+            $gift['formatted_created_date'] = date('F j, Y', strtotime($gift['created_at']));
+            $gift['formatted_expires_date'] = date('F j, Y', strtotime($gift['expires_at']));
+        }
+
+        return $gifts;
+    }
+
+    /**
+     * Get count of gifts sent by a user
+     *
+     * @param int $user_id Sender user ID
+     * @return int Number of sent gifts
+     */
+    public function get_sent_gifts_count(int $user_id): int {
         global $wpdb;
 
         return (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$this->cart_table} WHERE user_id = %d",
+            "SELECT COUNT(*) FROM {$this->gifts_table} 
+             WHERE sender_id = %d AND status IN ('sent', 'redeemed')",
             $user_id
         ));
     }
 
     /**
-     * Clear user's shopping cart
+     * Get gifts received by an email address
+     *
+     * @param string $email Recipient email
+     * @param int $limit Number of gifts to return
+     * @param int $offset Pagination offset
+     * @return array List of received gifts
      */
-    public function clear_cart(int $user_id): bool {
+    public function get_received_gifts(string $email, int $limit = 20, int $offset = 0): array {
         global $wpdb;
 
-        $result = $wpdb->delete(
-            $this->cart_table,
-            ['user_id' => $user_id],
-            ['%d']
+        $query = "SELECT g.*, p.post_title, p.post_excerpt, u.display_name as sender_name
+                  FROM {$this->gifts_table} g
+                  LEFT JOIN {$wpdb->posts} p ON g.post_id = p.ID
+                  LEFT JOIN {$wpdb->users} u ON g.sender_id = u.ID
+                  WHERE g.recipient_email = %s
+                  ORDER BY g.created_at DESC
+                  LIMIT %d OFFSET %d";
+
+        $gifts = $wpdb->get_results(
+            $wpdb->prepare($query, $email, $limit, $offset),
+            ARRAY_A
         );
 
-        return $result !== false;
+        // Add formatted data for each gift
+        foreach ($gifts as &$gift) {
+            $gift['is_expired'] = $this->is_gift_expired($gift);
+            $gift['is_redeemed'] = ($gift['status'] === 'redeemed');
+            $gift['days_until_expiry'] = $this->get_days_until_expiry($gift);
+            $gift['formatted_created_date'] = date('F j, Y', strtotime($gift['created_at']));
+            $gift['formatted_expires_date'] = date('F j, Y', strtotime($gift['expires_at']));
+        }
+
+        return $gifts;
     }
 
     /**
-     * Process purchase
+     * Check if a gift is expired
+     *
+     * @param array $gift Gift data
+     * @return bool True if expired
      */
-    public function process_purchase(int $user_id, array $purchase_data): array {
-        global $wpdb;
+    private function is_gift_expired(array $gift): bool {
+        return strtotime($gift['expires_at']) < time();
+    }
 
-        $cart = $this->get_cart($user_id);
+    /**
+     * Get days until gift expiry
+     *
+     * @param array $gift Gift data
+     * @return int Days until expiry (negative if expired)
+     */
+    private function get_days_until_expiry(array $gift): int {
+        $expires_timestamp = strtotime($gift['expires_at']);
+        $current_timestamp = time();
+        $diff = $expires_timestamp - $current_timestamp;
         
-        if (empty($cart['items'])) {
-            return ['success' => false, 'error' => 'Cart is empty'];
-        }
-
-        $subtotal = (float) ($purchase_data['subtotal'] ?? $cart['member_subtotal']);
-        $discount_amount = (float) ($purchase_data['discount_amount'] ?? 0.0);
-        $total = isset($purchase_data['total'])
-            ? (float) $purchase_data['total']
-            : max(0.0, $subtotal - $discount_amount);
-
-        // Create order
-        $order_data = [
-            'user_id' => $user_id,
-            'subtotal' => $subtotal,
-            'discount_amount' => $discount_amount,
-            'discount_code' => sanitize_text_field((string) ($purchase_data['discount_code'] ?? '')),
-            'total' => $total,
-            'currency' => 'GBP',
-            'status' => 'pending',
-            'item_type' => 'article_purchase',
-            'items' => $cart['items'],
-            'gateway' => $purchase_data['payment_method'] ?? 'stripe',
-            'gateway_environment' => get_option('khm_stripe_environment', 'sandbox'),
-        ];
-
-        $order = $this->orders->create($order_data);
-        
-        if (!$order) {
-            return ['success' => false, 'error' => 'Failed to create order'];
-        }
-
-        // Process each item
-        $purchased_items = [];
-        $failed_items = [];
-
-        foreach ($cart['items'] as $item) {
-            $purchase_result = $this->create_purchase_record(
-                $user_id,
-                $item['post_id'],
-                $order->id,
-                $item['current_price'],
-                $item['discount_amount'],
-                $purchase_data
-            );
-
-            if ($purchase_result) {
-                $purchased_items[] = $item;
-                
-                $this->record_purchase_download($user_id, $item['post_id']);
-
-                // Auto-process based on product settings
-                $this->auto_process_purchase($user_id, $item['post_id'], $purchase_data);
-            } else {
-                $failed_items[] = $item;
-            }
-        }
-
-        if (!empty($purchased_items)) {
-            // Clear cart
-            $this->clear_cart($user_id);
-            
-            // Update order status
-            $update_data = ['status' => 'completed'];
-            if (!empty($purchase_data['transaction_id'])) {
-                $update_data['payment_transaction_id'] = $purchase_data['transaction_id'];
-            }
-            if (!empty($purchase_data['payment_method'])) {
-                $update_data['gateway'] = $purchase_data['payment_method'];
-            }
-            $this->orders->update($order->id, $update_data);
-            
-            do_action('khm_purchase_completed', $user_id, $purchased_items, $order);
-        }
-
-        return [
-            'success' => !empty($purchased_items),
-            'order_id' => $order->id,
-            'purchased_items' => $purchased_items,
-            'failed_items' => $failed_items,
-            'total' => $cart['member_subtotal']
-        ];
-    }
-
-    private function record_purchase_download(int $user_id, int $post_id): void {
-        $memberships = $this->memberships;
-        $levels = new LevelRepository();
-        $credits = new CreditService($memberships, $levels);
-        $library = new LibraryService($memberships);
-        $downloads = new CreditDownloadService($memberships, $credits, $library);
-
-        $downloads->recordPurchaseDownload($user_id, $post_id);
-    }
-
-    /**
-     * Check if user has purchased an article
-     */
-    public function has_purchased(int $user_id, int $post_id): bool {
-        global $wpdb;
-
-        $count = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$this->purchases_table} 
-             WHERE user_id = %d AND post_id = %d AND status = 'completed'",
-            $user_id,
-            $post_id
-        ));
-
-        return $count > 0;
-    }
-
-    /**
-     * Get user's purchase history
-     */
-    public function get_purchase_history(int $user_id, array $args = []): array {
-        global $wpdb;
-
-        $defaults = [
-            'limit' => 20,
-            'offset' => 0,
-            'orderby' => 'created_at',
-            'order' => 'DESC'
-        ];
-
-        $args = array_merge($defaults, $args);
-
-        $order_clause = sprintf(
-            "ORDER BY %s %s",
-            sanitize_sql_orderby($args['orderby']),
-            $args['order'] === 'ASC' ? 'ASC' : 'DESC'
-        );
-
-        $purchases = $wpdb->get_results($wpdb->prepare(
-            "SELECT pr.*, p.post_title, p.post_excerpt
-             FROM {$this->purchases_table} pr
-             LEFT JOIN {$wpdb->posts} p ON pr.post_id = p.ID
-             WHERE pr.user_id = %d
-             {$order_clause}
-             LIMIT %d OFFSET %d",
-            $user_id,
-            $args['limit'],
-            $args['offset']
-        ));
-
-        return $purchases ?: [];
-    }
-
-    /**
-     * Set product pricing
-     */
-    public function set_article_pricing(int $post_id, array $pricing): bool {
-        global $wpdb;
-
-        $data = [
-            'post_id' => $post_id,
-            'regular_price' => $pricing['regular_price'] ?? 0,
-            'member_price' => $pricing['member_price'] ?? null,
-            'member_discount_percent' => $pricing['member_discount_percent'] ?? 20,
-            'is_purchasable' => $pricing['is_purchasable'] ?? 1,
-            'purchase_gives_pdf' => $pricing['purchase_gives_pdf'] ?? 1,
-            'purchase_saves_to_library' => $pricing['purchase_saves_to_library'] ?? 1,
-            'updated_at' => current_time('mysql')
-        ];
-
-        $result = $wpdb->replace(
-            $this->products_table,
-            $data,
-            ['%d', '%f', '%f', '%d', '%d', '%d', '%d', '%s']
-        );
-
-        return $result !== false;
-    }
-
-    /**
-     * Create default product entry for a post
-     */
-    private function create_default_product(int $post_id): object {
-        global $wpdb;
-
-        $default_price = get_post_meta( $post_id, 'kss_article_price', true );
-        $default_price = $default_price !== '' ? (float) $default_price : 0;
-
-        $data = [
-            'post_id' => $post_id,
-            'regular_price' => $default_price,
-            'member_discount_percent' => 20,
-            'is_purchasable' => 1,
-            'purchase_gives_pdf' => 1,
-            'purchase_saves_to_library' => 1
-        ];
-
-        $wpdb->insert($this->products_table, $data, ['%d', '%f', '%d', '%d', '%d', '%d']);
-
-        return $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$this->products_table} WHERE post_id = %d",
-            $post_id
-        ));
-    }
-
-    /**
-     * Create purchase record
-     */
-    private function create_purchase_record(int $user_id, int $post_id, int $order_id, float $price, float $discount, array $purchase_data): bool {
-        global $wpdb;
-
-        $result = $wpdb->insert(
-            $this->purchases_table,
-            [
-                'user_id' => $user_id,
-                'post_id' => $post_id,
-                'order_id' => $order_id,
-                'purchase_price' => $price,
-                'member_discount' => $discount,
-                'payment_method' => $purchase_data['payment_method'] ?? 'stripe',
-                'transaction_id' => $purchase_data['transaction_id'] ?? null,
-                'status' => 'completed',
-                'purchase_data' => json_encode($purchase_data)
-            ],
-            ['%d', '%d', '%d', '%f', '%f', '%s', '%s', '%s', '%s']
-        );
-
-        return $result !== false;
-    }
-
-    /**
-     * Auto-process purchase (PDF download, save to library)
-     */
-    private function auto_process_purchase(int $user_id, int $post_id, array $purchase_data): void {
-        $product = $this->get_article_pricing($post_id, $user_id);
-
-        // Auto-save to library if enabled
-        if ($product['purchase_saves_to_library'] && $purchase_data['auto_save_to_library'] ?? true) {
-            if (function_exists('khm_call_service')) {
-                khm_call_service('save_to_library', $user_id, $post_id);
-                
-                // Update purchase record
-                global $wpdb;
-                $wpdb->update(
-                    $this->purchases_table,
-                    ['saved_to_library' => 1],
-                    ['user_id' => $user_id, 'post_id' => $post_id],
-                    ['%d'],
-                    ['%d', '%d']
-                );
-            }
-        }
-
-        // Auto-download PDF if requested
-        if ($product['purchase_gives_pdf'] && $purchase_data['auto_download_pdf'] ?? false) {
-            // This would trigger PDF generation and download
-            do_action('khm_auto_download_purchased_pdf', $user_id, $post_id);
-        }
-    }
-
-    /**
-     * Set default pricing for existing posts
-     */
-    private function set_default_pricing_for_existing_posts(): void {
-        global $wpdb;
-
-        // Get all published posts that don't have pricing set
-        $posts = $wpdb->get_results(
-            "SELECT p.ID FROM {$wpdb->posts} p
-             LEFT JOIN {$this->products_table} pr ON p.ID = pr.post_id
-             WHERE p.post_status = 'publish' 
-             AND p.post_type = 'post'
-             AND pr.post_id IS NULL
-             LIMIT 100"
-        );
-
-        foreach ($posts as $post) {
-            $this->create_default_product($post->ID);
-        }
-    }
-
-    /**
-     * Get session ID for cart persistence
-     */
-    private function get_session_id(): string {
-        try {
-            if (!session_id()) {
-                session_start();
-            }
-            return session_id();
-        } catch ( \Exception $e ) {
-            error_log( 'KHM ECommerce Session Error: ' . $e->getMessage() );
-            return '';
-        }
-    }
-
-    /**
-     * Get shopping cart statistics
-     */
-    public function get_cart_stats(): array {
-        global $wpdb;
-
-        $total_carts = $wpdb->get_var("SELECT COUNT(DISTINCT user_id) FROM {$this->cart_table}");
-        $total_items = $wpdb->get_var("SELECT COUNT(*) FROM {$this->cart_table}");
-        $total_value = $wpdb->get_var("SELECT SUM(price * quantity) FROM {$this->cart_table}");
-
-        return [
-            'total_carts' => (int) $total_carts,
-            'total_items' => (int) $total_items,
-            'total_value' => (float) $total_value,
-            'average_cart_value' => $total_carts > 0 ? ($total_value / $total_carts) : 0
-        ];
-    }
-
-    /**
-     * Clean up abandoned carts
-     */
-    public function cleanup_abandoned_carts(int $days_old = 30): int {
-        global $wpdb;
-
-        $cutoff_date = date('Y-m-d H:i:s', strtotime("-{$days_old} days"));
-
-        $deleted = $wpdb->query($wpdb->prepare(
-            "DELETE FROM {$this->cart_table} WHERE created_at < %s",
-            $cutoff_date
-        ));
-
-        return (int) $deleted;
+        return (int) floor($diff / (24 * 60 * 60));
     }
 }

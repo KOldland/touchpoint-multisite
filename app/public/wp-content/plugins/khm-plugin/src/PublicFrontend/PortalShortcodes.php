@@ -15,7 +15,23 @@ use KHM\Services\CreditDownloadService;
  */
 class PortalShortcodes {
 
+    private MembershipRepository $memberships_repo;
+    private LevelRepository $levels_repo;
+    private CreditService $credits_service;
+    private LibraryService $library_service;
+    private CreditDownloadService $downloads_service;
+    private ECommerceService $ecommerce_service;
+    private GiftService $gift_service;
+
     public function __construct() {
+        $this->memberships_repo = new MembershipRepository();
+        $this->levels_repo = new LevelRepository();
+        $this->credits_service = new CreditService($this->memberships_repo, $this->levels_repo);
+        $this->library_service = new LibraryService($this->memberships_repo);
+        $this->downloads_service = new CreditDownloadService($this->memberships_repo, $this->credits_service, $this->library_service);
+        $this->ecommerce_service = new ECommerceService($this->memberships_repo, new \KHM\Services\OrderRepository());
+        $this->gift_service = new GiftService($this->memberships_repo, new \KHM\Services\OrderRepository(), new \KHM\Services\EmailService());
+
         add_shortcode('khm_portal_dashboard', [$this, 'dashboard_shortcode']);
         add_shortcode('khm_portal_credits', [$this, 'credits_shortcode']);
         add_shortcode('khm_portal_downloads', [$this, 'downloads_shortcode']);
@@ -40,20 +56,13 @@ class PortalShortcodes {
         $user_id = get_current_user_id();
         $user = get_userdata($user_id);
 
-        // Get services
-        $memberships_repo = new MembershipRepository();
-        $levels_repo = new LevelRepository();
-        $credits_service = new CreditService($memberships_repo, $levels_repo);
-        $library_service = new LibraryService($memberships_repo);
-        $downloads_service = new CreditDownloadService($memberships_repo, $credits_service, $library_service);
-
         // Get data
-        $memberships = $memberships_repo->findActive($user_id);
+        $memberships = $this->memberships_repo->findActive($user_id);
         $membership = !empty($memberships) ? $memberships[0] : null;
-        $level = ($membership && $membership->membership_id) ? $levels_repo->get($membership->membership_id, true) : null;
-        $credits = $credits_service->getUserCredits($user_id);
-        $library_stats = $library_service->get_library_stats($user_id);
-        $recent_downloads = $downloads_service->getUserDownloads($user_id, ['limit' => 5]);
+        $level = ($membership && $membership->membership_id) ? $this->levels_repo->get($membership->membership_id, true) : null;
+        $credits = $this->credits_service->getUserCredits($user_id);
+        $library_stats = $this->library_service->get_library_stats($user_id);
+        $recent_downloads = $this->downloads_service->getUserDownloads($user_id, ['limit' => 5]);
 
         ob_start();
         ?>
@@ -142,12 +151,9 @@ class PortalShortcodes {
         }
 
         $user_id = get_current_user_id();
-        $memberships_repo = new MembershipRepository();
-        $levels_repo = new LevelRepository();
-        $credits_service = new CreditService($memberships_repo, $levels_repo);
 
         // Get data
-        $credits = $credits_service->getUserCredits($user_id);
+        $credits = $this->credits_service->getUserCredits($user_id);
         $limit = min((int) $atts['history_limit'], 5);
         $page = isset($_GET['khm_tx_page']) ? max(1, (int) $_GET['khm_tx_page']) : 1;
         $total_transactions = $atts['show_history'] === 'yes'
@@ -255,14 +261,9 @@ class PortalShortcodes {
         }
 
         $user_id = get_current_user_id();
-        $memberships_repo = new MembershipRepository();
-        $levels_repo = new LevelRepository();
-        $credits_service = new CreditService($memberships_repo, $levels_repo);
-        $library_service = new LibraryService($memberships_repo);
-        $downloads_service = new CreditDownloadService($memberships_repo, $credits_service, $library_service);
 
         // Get saved library items (which includes both saved and downloaded articles)
-        $library_items = $library_service->get_member_library($user_id, [
+        $library_items = $this->library_service->get_member_library($user_id, [
             'limit' => (int)$atts['per_page'],
         ]);
 
@@ -298,9 +299,9 @@ class PortalShortcodes {
                     if (!$post) continue;
                     
                     // Check if this article has been downloaded
-                    $has_downloaded = $downloads_service->hasDownloaded($user_id, $item->post_id);
+                    $has_downloaded = $this->downloads_service->hasDownloaded($user_id, $item->post_id);
                     $is_purchased = !empty($purchased_lookup[(int) $item->post_id]);
-                    $credit_cost = $downloads_service->getArticleCreditCost($item->post_id);
+                    $credit_cost = $this->downloads_service->getArticleCreditCost($item->post_id);
                 ?>
                 <div class="khm-download-item">
                     <div class="khm-download-info">
@@ -316,7 +317,7 @@ class PortalShortcodes {
                             </span>
                             <?php endif; ?>
                             <?php if ($atts['show_credits'] === 'yes' && $has_downloaded): 
-                                $download_record = $downloads_service->getDownloadRecord($user_id, $item->post_id);
+                                $download_record = $this->downloads_service->getDownloadRecord($user_id, $item->post_id);
                                 if ($download_record && isset($download_record->credits_used)): ?>
                             <span class="khm-download-credits">
                                 <?php printf(esc_html__('%d credit(s)', 'khm-membership'), $download_record->credits_used); ?>
@@ -384,13 +385,11 @@ class PortalShortcodes {
         }
 
         $user_id = get_current_user_id();
-        $memberships_repo = new MembershipRepository();
-        $levels_repo = new LevelRepository();
 
         // Get membership data
-        $memberships = $memberships_repo->findActive($user_id);
+        $memberships = $this->memberships_repo->findActive($user_id);
         $membership = !empty($memberships) ? $memberships[0] : null;
-        $level = ($membership && $membership->membership_id) ? $levels_repo->get($membership->membership_id, true) : null;
+        $level = ($membership && $membership->membership_id) ? $this->levels_repo->get($membership->membership_id, true) : null;
 
         // Check for paused membership if no active
         if (!$membership) {
@@ -402,7 +401,7 @@ class PortalShortcodes {
             ));
             if ($paused) {
                 $membership = $paused;
-                $level = $levels_repo->get($paused->membership_id, true);
+                $level = $this->levels_repo->get($paused->membership_id, true);
             }
         }
 
@@ -669,134 +668,68 @@ class PortalShortcodes {
     }
 
     private function get_transactions(int $user_id, int $limit, int $offset = 0): array {
-        global $wpdb;
         $transactions = [];
 
-        $usage_table = $wpdb->prefix . 'khm_credit_usage';
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$usage_table}'") === $usage_table) {
-            $usage = $wpdb->get_results($wpdb->prepare(
-                "SELECT credits_used, purpose, object_id, created_at
-                 FROM {$usage_table}
-                 WHERE user_id = %d
-                 ORDER BY created_at DESC
-                 LIMIT %d OFFSET %d",
-                $user_id,
-                $limit,
-                $offset
-            ));
-
-            foreach ($usage as $row) {
-                $credits = (int) $row->credits_used;
-                if ($credits === 0) {
-                    continue;
-                }
-
-                $label = $this->format_credit_reason($row->purpose ?? '', $row->object_id ?? 0);
-                $transactions[] = [
-                    'date' => $row->created_at,
-                    'description' => $label,
-                    'amount_display' => '-' . abs($credits) . ' credits',
-                    'amount_class' => 'khm-credit-negative',
-                ];
-            }
+        // 1. Credit Usage
+        $usage = $this->credits_service->getCreditHistory($user_id, max($limit + $offset, 20));
+        foreach ($usage as $row) {
+            $credits = (int) $row->credits_used;
+            if ($credits === 0) continue;
+            
+            $label = $this->format_credit_reason($row->purpose ?? '', $row->object_id ?? 0);
+            $transactions[] = [
+                'date' => $row->created_at,
+                'description' => $label,
+                'amount_display' => '-' . abs($credits) . ' credits',
+                'amount_class' => 'khm-credit-negative',
+            ];
         }
 
-        $purchases_table = $wpdb->prefix . 'khm_purchases';
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$purchases_table}'") === $purchases_table) {
-            $purchases = $wpdb->get_results($wpdb->prepare(
-                "SELECT pr.post_id, pr.purchase_price, pr.created_at, p.post_title
-                 FROM {$purchases_table} pr
-                 LEFT JOIN {$wpdb->posts} p ON pr.post_id = p.ID
-                 WHERE pr.user_id = %d AND pr.status = 'completed'
-                 ORDER BY pr.created_at DESC
-                 LIMIT %d OFFSET %d",
-                $user_id,
-                $limit,
-                $offset
-            ));
-
-            foreach ($purchases as $purchase) {
-                $price = (float) ($purchase->purchase_price ?? 0);
-                $transactions[] = [
-                    'date' => $purchase->created_at,
-                    'description' => sprintf(
-                        /* translators: %s is the article title */
-                        __('Purchased: %s', 'khm-membership'),
-                        $purchase->post_title ?: __('Article', 'khm-membership')
-                    ),
-                    'amount_display' => '-' . $this->format_price($price),
-                    'amount_class' => 'khm-credit-negative',
-                ];
-            }
+        // 2. Purchases
+        $purchases = $this->ecommerce_service->get_purchase_history($user_id, ['limit' => max($limit + $offset, 20)]);
+        foreach ($purchases as $purchase) {
+            $price = (float) ($purchase->purchase_price ?? 0);
+            $title = $purchase->post_title ?? __('Article', 'khm-membership');
+            $transactions[] = [
+                'date' => $purchase->created_at,
+                'description' => sprintf(__('Purchased: %s', 'khm-membership'), $title),
+                'amount_display' => '-' . $this->format_price($price),
+                'amount_class' => 'khm-credit-negative',
+            ];
         }
 
-        $gifts_table = $wpdb->prefix . 'khm_gifts';
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$gifts_table}'") === $gifts_table) {
-            $gifts = $wpdb->get_results($wpdb->prepare(
-                "SELECT g.post_id, g.gift_price, g.recipient_email, g.created_at, p.post_title
-                 FROM {$gifts_table} g
-                 LEFT JOIN {$wpdb->posts} p ON g.post_id = p.ID
-                 WHERE g.sender_id = %d AND g.status IN ('sent', 'redeemed')
-                 ORDER BY g.created_at DESC
-                 LIMIT %d OFFSET %d",
-                $user_id,
-                $limit,
-                $offset
-            ));
-
-            foreach ($gifts as $gift) {
-                $price = (float) ($gift->gift_price ?? 0);
-                $recipient = $gift->recipient_email ? sprintf(' (%s)', $gift->recipient_email) : '';
-                $transactions[] = [
-                    'date' => $gift->created_at,
-                    'description' => sprintf(
-                        /* translators: %s is the article title */
-                        __('Gift sent: %s', 'khm-membership'),
-                        ($gift->post_title ?: __('Article', 'khm-membership')) . $recipient
-                    ),
-                    'amount_display' => '-' . $this->format_price($price),
-                    'amount_class' => 'khm-credit-negative',
-                ];
-            }
+        // 3. Gifts Sent
+        $gifts = $this->gift_service->get_sent_gifts($user_id, max($limit + $offset, 20));
+        foreach ($gifts as $gift) {
+            if (!in_array($gift['status'] ?? '', ['sent', 'redeemed'])) continue;
+            
+            $price = (float) ($gift['gift_price'] ?? 0);
+            $title = $gift['post_title'] ?? __('Article', 'khm-membership');
+            $recipient = !empty($gift['recipient_email']) ? sprintf(' (%s)', $gift['recipient_email']) : '';
+            
+            $transactions[] = [
+                'date' => $gift['created_at'],
+                'description' => sprintf(__('Gift sent: %s', 'khm-membership'), $title . $recipient),
+                'amount_display' => '-' . $this->format_price($price),
+                'amount_class' => 'khm-credit-negative',
+            ];
         }
 
+        // Sort all merged transactions by date descending
         usort($transactions, function($a, $b) {
             return strtotime($b['date']) <=> strtotime($a['date']);
         });
 
-        return array_slice($transactions, 0, $limit);
+        // Apply slicing for pagination
+        return array_slice($transactions, $offset, $limit);
     }
 
     private function get_transaction_total(int $user_id): int {
-        global $wpdb;
         $total = 0;
-
-        $usage_table = $wpdb->prefix . 'khm_credit_usage';
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$usage_table}'") === $usage_table) {
-            $count = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$usage_table} WHERE user_id = %d",
-                $user_id
-            ));
-            $total += $count;
-        }
-
-        $purchases_table = $wpdb->prefix . 'khm_purchases';
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$purchases_table}'") === $purchases_table) {
-            $count = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$purchases_table} WHERE user_id = %d AND status = 'completed'",
-                $user_id
-            ));
-            $total += $count;
-        }
-
-        $gifts_table = $wpdb->prefix . 'khm_gifts';
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$gifts_table}'") === $gifts_table) {
-            $count = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$gifts_table} WHERE sender_id = %d AND status IN ('sent', 'redeemed')",
-                $user_id
-            ));
-            $total += $count;
-        }
+        
+        $total += $this->credits_service->getCreditHistoryCount($user_id);
+        $total += $this->ecommerce_service->get_purchase_history_count($user_id);
+        $total += $this->gift_service->get_sent_gifts_count($user_id);
 
         return $total;
     }
