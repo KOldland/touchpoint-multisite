@@ -1,16 +1,15 @@
 <?php
-
-namespace TouchpointCore\Elementor;
+namespace TouchpointCore\Elementor\Widgets;
 
 use Elementor\Widget_Base;
 
-class StyledExcerpt_Widget extends Widget_Base {
+class StyledExcerptWidget extends Widget_Base {
     public function get_name() {
         return 'styled_excerpt_widget';
     }
 
     public function get_title() {
-        return __( 'Styled Excerpt', 'touchpoint-core' );
+        return __('Styled Excerpt', 'touchpoint-core');
     }
 
     public function get_icon() {
@@ -18,7 +17,7 @@ class StyledExcerpt_Widget extends Widget_Base {
     }
 
     public function get_categories() {
-        return [ 'touchpoint' ];
+        return ['touchpoint'];
     }
 
     protected function register_controls() {
