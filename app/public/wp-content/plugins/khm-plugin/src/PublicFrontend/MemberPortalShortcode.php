@@ -272,10 +272,6 @@ class MemberPortalShortcode {
      * Render Quote Club tab
      */
     private function render_quoteclub_tab(int $user_id): void {
-        global $wpdb;
-
-        $commentary_table = $wpdb->prefix . 'khm_sponsor_commentary';
-        $press_release_table = $wpdb->prefix . 'khm_press_releases';
         $editorial_credits = $this->credits->getEditorialCredits($user_id);
         $press_release_credits = $this->credits->getPressReleaseCredits($user_id);
         $quoteclub_portal_url = apply_filters('khm_quoteclub_portal_url', home_url('/quote-club/'));
@@ -287,96 +283,29 @@ class MemberPortalShortcode {
         }
 
         $activity_page = isset($_GET['qc_activity_page']) ? max(1, (int) $_GET['qc_activity_page']) : 1;
-        $has_press_release_table = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $press_release_table)) === $press_release_table;
+        $activity_offset = ($activity_page - 1) * $activity_per_page;
 
-        if ($has_press_release_table) {
-            $activity_total = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT
-                    (SELECT COUNT(*) FROM {$commentary_table} WHERE user_id = %d)
-                    +
-                    (SELECT COUNT(*) FROM {$press_release_table} WHERE user_id = %d)",
-                $user_id,
-                $user_id
-            ));
-        } else {
-            $activity_total = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$commentary_table} WHERE user_id = %d",
-                $user_id
-            ));
+        // Check if PressReleaseService exists to fetch from new decoupled structure
+        $recent = [];
+        $activity_total = 0;
+        $my_drafts = 0;
+        $pending_review = 0;
+        $published_count = 0;
+
+        if (class_exists('\\KHM\\Services\\PressReleaseService')) {
+             $pr_service = new \KHM\Services\PressReleaseService();
+             
+             $my_drafts = $pr_service->count_user_commentary_by_status($user_id, 'draft');
+             $pending_review = $pr_service->count_user_commentary_by_status($user_id, 'pending_editorial');
+             $published_count = $pr_service->count_user_commentary_by_status($user_id, 'published');
+             
+             $activity_total = $pr_service->count_user_activity($user_id);
+             $recent = $pr_service->get_user_activity($user_id, $activity_per_page, $activity_offset);
         }
 
         $activity_total_pages = max(1, (int) ceil($activity_total / $activity_per_page));
         if ($activity_page > $activity_total_pages) {
             $activity_page = $activity_total_pages;
-        }
-
-        $activity_offset = ($activity_page - 1) * $activity_per_page;
-
-        $my_drafts = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$commentary_table} WHERE user_id = %d AND status = %s",
-            $user_id,
-            'draft'
-        ));
-
-        $pending_review = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$commentary_table} WHERE user_id = %d AND status = %s",
-            $user_id,
-            'pending_editorial'
-        ));
-
-        $published_count = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$commentary_table} WHERE user_id = %d AND status = %s",
-            $user_id,
-            'published'
-        ));
-
-        if ($has_press_release_table) {
-            $recent = $wpdb->get_results($wpdb->prepare(
-                "SELECT *
-                 FROM (
-                    SELECT
-                        'commentary' AS activity_type,
-                        id AS activity_id,
-                        session_id AS activity_label,
-                        status,
-                        COALESCE(submitted_at, created_at) AS activity_at
-                    FROM {$commentary_table}
-                    WHERE user_id = %d
-
-                    UNION ALL
-
-                    SELECT
-                        'press_release' AS activity_type,
-                        id AS activity_id,
-                        title AS activity_label,
-                        status,
-                        COALESCE(submission_date, published_date, updated_at, created_at) AS activity_at
-                    FROM {$press_release_table}
-                    WHERE user_id = %d
-                 ) activity
-                 ORDER BY activity_at DESC
-                 LIMIT %d OFFSET %d",
-                $user_id,
-                $user_id,
-                $activity_per_page,
-                $activity_offset
-            ), ARRAY_A);
-        } else {
-            $recent = $wpdb->get_results($wpdb->prepare(
-                "SELECT
-                    'commentary' AS activity_type,
-                    id AS activity_id,
-                    session_id AS activity_label,
-                    status,
-                    COALESCE(submitted_at, created_at) AS activity_at
-                 FROM {$commentary_table}
-                 WHERE user_id = %d
-                 ORDER BY activity_at DESC
-                 LIMIT %d OFFSET %d",
-                $user_id,
-                $activity_per_page,
-                $activity_offset
-            ), ARRAY_A);
         }
 
         $pagination_base_url = remove_query_arg(['qc_activity_page', 'qc_activity_per_page']);
