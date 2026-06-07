@@ -1360,7 +1360,10 @@ add_action('init', function () {
         // Register library frontend
         if ( class_exists('KHM\\PublicFrontend\\LibraryFrontend') ) {
             $library_service = new KHM\Services\LibraryService($membership_repo);
-            $library_frontend = new KHM\PublicFrontend\LibraryFrontend($library_service, $membership_repo);
+            $email_service = isset($GLOBALS['khm_enhanced_email']) && $GLOBALS['khm_enhanced_email'] instanceof \KHM\Services\EnhancedEmailService
+                ? $GLOBALS['khm_enhanced_email']
+                : new \KHM\Services\EmailService(__DIR__);
+            $library_frontend = new KHM\PublicFrontend\LibraryFrontend($library_service, $membership_repo, $email_service);
         }
 
         // Register commerce frontend (unified modal for cart/checkout)

@@ -4,6 +4,7 @@ namespace KHM\PublicFrontend;
 
 use KHM\Services\LibraryService;
 use KHM\Services\MembershipRepository;
+use KHM\Services\EmailService;
 
 /**
  * Library Frontend
@@ -14,10 +15,12 @@ class LibraryFrontend {
 
     private LibraryService $library;
     private MembershipRepository $memberships;
+    private EmailService $email;
 
-    public function __construct(LibraryService $library, MembershipRepository $memberships) {
+    public function __construct(LibraryService $library, MembershipRepository $memberships, EmailService $email) {
         $this->library = $library;
         $this->memberships = $memberships;
+        $this->email = $email;
         
         $this->init_hooks();
     }
@@ -546,8 +549,8 @@ class LibraryFrontend {
         $post_id = intval($_POST['post_id'] ?? 0);
         $recipient_email = sanitize_email($_POST['recipient_email'] ?? '');
         $personal_message = sanitize_textarea_field($_POST['personal_message'] ?? '');
-        $include_notes = $_POST['include_notes'] === 'true';
-        $include_membership_info = $_POST['include_membership_info'] === 'true';
+        $include_notes = isset($_POST['include_notes']) && $_POST['include_notes'] === 'true';
+        $include_membership_info = isset($_POST['include_membership_info']) && $_POST['include_membership_info'] === 'true';
 
         if (!$user_id || !$post_id || !$recipient_email) {
             wp_send_json_error('Invalid parameters');
@@ -558,16 +561,45 @@ class LibraryFrontend {
             wp_send_json_error('Invalid email address');
         }
 
-        // Call the marketing suite service to send the email
-        $success = khm_call_service(
-            'share_library_article',
-            $user_id,
-            $post_id,
-            $recipient_email,
-            $personal_message,
-            $include_notes,
-            $include_membership_info
-        );
+        // Check if user has it saved
+        $library_item = $this->library->get_library_item($user_id, $post_id);
+        if (!$library_item) {
+            wp_send_json_error('Article is not in your library.');
+        }
+
+        // Get article details
+        $post = get_post($post_id);
+        if (!$post) {
+            wp_send_json_error('Invalid article.');
+        }
+
+        // Get member details
+        $member = get_userdata($user_id);
+        if (!$member) {
+            wp_send_json_error('Invalid user.');
+        }
+
+        // Prepare email data
+        $email_data = [
+            'member_name' => $member->display_name,
+            'member_email' => $member->user_email,
+            'article_title' => $post->post_title,
+            'article_excerpt' => wp_trim_words($post->post_excerpt ?: $post->post_content, 30),
+            'article_url' => get_permalink($post_id),
+            'personal_message' => $personal_message,
+            'personal_notes' => $include_notes ? ($library_item->notes ?? '') : '',
+            'include_membership_info' => $include_membership_info,
+            'site_name' => get_bloginfo('name'),
+            'site_url' => home_url(),
+            'membership_url' => home_url('/membership/')
+        ];
+
+        // Set email configuration
+        $this->email->setSubject("📚 {$member->display_name} shared an article with you");
+        $this->email->setFrom(get_option('admin_email'), get_bloginfo('name'));
+
+        // Send the email
+        $success = $this->email->send('library_share_article', $recipient_email, $email_data);
 
         if ($success) {
             wp_send_json_success('Article shared successfully!');

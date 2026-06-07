@@ -2,34 +2,39 @@
 
 namespace KHM\PublicFrontend;
 
+use KHM\Services\MembershipRepository;
+
 class DashboardShortcode {
-    public function __construct() {
-        add_shortcode('khm_membership_dashboard', [ $this, 'render_shortcode' ]);
+    private MembershipRepository $memberships;
+
+    public function __construct( ?MembershipRepository $memberships = null ) {
+        $this->memberships = $memberships ?: new MembershipRepository();
+        if ( function_exists( 'add_shortcode' ) ) {
+            add_shortcode('khm_membership_dashboard', [ $this, 'render_shortcode' ]);
+        }
     }
 
     public function render_shortcode($atts) {
-        if ( !is_user_logged_in() ) {
+        if ( ! is_user_logged_in() ) {
             return '<p>Please log in to view your membership dashboard.</p>';
         }
 
         $user_id = get_current_user_id();
 
-        global $wpdb;
-        $user_membership_table = $wpdb->prefix . 'user_membership';
-        $membership_tier_table = $wpdb->prefix . 'membership_tier';
-
-        $query = $wpdb->prepare(
-            "SELECT um.status, um.trial_ends_at, mt.name as tier_name
-             FROM $user_membership_table um
-             LEFT JOIN $membership_tier_table mt ON um.tier_id = mt.id
-             WHERE um.user_id = %d",
-            $user_id
-        );
-
-        $result = $wpdb->get_row($query, ARRAY_A);
+        $active_memberships = $this->memberships->findActive( $user_id );
+        
+        $membership_data = null;
+        if ( ! empty( $active_memberships ) ) {
+            $current = $active_memberships[0];
+            $membership_data = [
+                'status'        => $current->status ?? 'active',
+                'trial_ends_at' => null, // Legacy field not strictly defined in base model, left null unless mapped
+                'tier_name'     => $current->level_name ?? '',
+            ];
+        }
 
         $data = [
-            'membership' => $result
+            'membership' => $membership_data
         ];
 
         ob_start();
