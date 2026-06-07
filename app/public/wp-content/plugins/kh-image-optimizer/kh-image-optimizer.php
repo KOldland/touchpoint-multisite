@@ -1,14 +1,14 @@
 <?php
 /**
  * Plugin Name: KH-Image Optimizer
- * Plugin URI:  https://example.com/kh-image
+ * Plugin URI:  https://example.com/kh-image-optimizer
  * Description: Modern image optimization engine for the KH marketing stack.
  * Version:     0.1.0
  * Author:      KH Engineering
  * Author URI:  https://example.com
  * License:     GPL2
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: kh-image
+ * Text Domain: kh-image-optimizer
  *
  * @package KHImage
  */
@@ -38,7 +38,7 @@ if ( file_exists( $kh_image_autoloader ) ) {
 	add_action(
 		'admin_notices',
 		static function () {
-			echo '<div class="notice notice-error"><p><strong>kh-image</strong> plugin: missing files (src/Autoloader.php). Plugin disabled until resolved.</p></div>';
+			echo '<div class="notice notice-error"><p><strong>kh-image-optimizer</strong> plugin: missing files (src/Autoloader.php). Plugin disabled until resolved.</p></div>';
 		}
 	);
 	return;
@@ -49,7 +49,7 @@ if ( file_exists( $kh_image_autoloader ) ) {
  */
 function kh_image_bootstrap() {
 	load_plugin_textdomain(
-		'kh-image',
+		'kh-image-optimizer',
 		false,
 		dirname( plugin_basename( __FILE__ ) ) . '/languages'
 	);
