@@ -132,19 +132,12 @@ class PortalDownloads_Widget extends Widget_Base {
         ]);
 
         $purchased_lookup = [];
-        if (!empty($library_items)) {
-            global $wpdb;
-            $post_ids = array_map(static function($item) {
-                return (int) $item->post_id;
-            }, $library_items);
-            $placeholders = implode(',', array_fill(0, count($post_ids), '%d'));
-            $sql = "SELECT post_id FROM {$wpdb->prefix}khm_purchases
-                WHERE user_id = %d AND status = 'completed' AND post_id IN ({$placeholders})";
-            $args = array_merge([$sql, $user_id], $post_ids);
-            $query = call_user_func_array([$wpdb, 'prepare'], $args);
-            $purchased_ids = $wpdb->get_col($query);
-            foreach ($purchased_ids as $post_id) {
-                $purchased_lookup[(int) $post_id] = true;
+        if (!empty($library_items) && class_exists('\KHM\Services\ECommerceService')) {
+            $ecommerce = new \KHM\Services\ECommerceService(new \KHM\Services\OrderRepository(), new \KHM\Services\EmailService(''));
+            foreach ($library_items as $item) {
+                if ($ecommerce->hasUserPurchasedArticle($user_id, (int) $item->post_id)) {
+                    $purchased_lookup[(int) $item->post_id] = true;
+                }
             }
         }
 

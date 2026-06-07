@@ -929,4 +929,175 @@ class CreditService {
 
         return max(0, (int) $days_remaining);
     }
+
+    /**
+     * Get transaction ledger for a user
+     *
+     * @param int $user_id
+     * @param int $limit
+     * @param int $offset
+     * @return array
+     */
+    public function getTransactionLedger(int $user_id, int $limit = 20, int $offset = 0): array {
+        global $wpdb;
+        $transactions = [];
+
+        // 1. Credit Usage
+        $usage_table = $wpdb->prefix . 'khm_credit_usage';
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$usage_table}'") === $usage_table) {
+            $usage = $wpdb->get_results($wpdb->prepare(
+                "SELECT credits_used, purpose, object_id, created_at
+                 FROM {$usage_table}
+                 WHERE user_id = %d
+                 ORDER BY created_at DESC
+                 LIMIT %d OFFSET %d",
+                $user_id,
+                $limit,
+                $offset
+            ));
+
+            foreach ($usage as $row) {
+                $credits = (int) $row->credits_used;
+                if ($credits === 0) {
+                    continue;
+                }
+
+                $label = $this->format_credit_reason($row->purpose ?? '', $row->object_id ?? 0);
+                $amount_display = '-' . abs($credits) . ' credits';
+                $transactions[] = [
+                    'date' => $row->created_at,
+                    'description' => $label,
+                    'amount_display' => $amount_display,
+                    'amount_class' => 'khm-credit-negative',
+                ];
+            }
+        }
+
+        // 2. Purchases (ECommerce)
+        $purchases_table = $wpdb->prefix . 'khm_purchases';
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$purchases_table}'") === $purchases_table) {
+            $purchases = $wpdb->get_results($wpdb->prepare(
+                "SELECT pr.post_id, pr.purchase_price, pr.created_at, p.post_title
+                 FROM {$purchases_table} pr
+                 LEFT JOIN {$wpdb->posts} p ON pr.post_id = p.ID
+                 WHERE pr.user_id = %d AND pr.status = 'completed'
+                 ORDER BY pr.created_at DESC
+                 LIMIT %d OFFSET %d",
+                $user_id,
+                $limit,
+                $offset
+            ));
+
+            foreach ($purchases as $purchase) {
+                $price = (float) ($purchase->purchase_price ?? 0);
+                $transactions[] = [
+                    'date' => $purchase->created_at,
+                    'description' => sprintf(
+                        __('Purchased: %s', 'khm-membership'),
+                        $purchase->post_title ?: __('Article', 'khm-membership')
+                    ),
+                    'amount_display' => '-' . $this->format_price($price),
+                    'amount_class' => 'khm-credit-negative',
+                ];
+            }
+        }
+
+        // 3. Gifts Sent
+        $gifts_table = $wpdb->prefix . 'khm_gifts';
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$gifts_table}'") === $gifts_table) {
+            $gifts = $wpdb->get_results($wpdb->prepare(
+                "SELECT g.post_id, g.gift_price, g.recipient_email, g.created_at, p.post_title
+                 FROM {$gifts_table} g
+                 LEFT JOIN {$wpdb->posts} p ON g.post_id = p.ID
+                 WHERE g.sender_id = %d AND g.status IN ('sent', 'redeemed')
+                 ORDER BY g.created_at DESC
+                 LIMIT %d OFFSET %d",
+                $user_id,
+                $limit,
+                $offset
+            ));
+
+            foreach ($gifts as $gift) {
+                $price = (float) ($gift->gift_price ?? 0);
+                $recipient = $gift->recipient_email ? sprintf(' (%s)', $gift->recipient_email) : '';
+                $transactions[] = [
+                    'date' => $gift->created_at,
+                    'description' => sprintf(
+                        __('Gift sent: %s', 'khm-membership'),
+                        ($gift->post_title ?: __('Article', 'khm-membership')) . $recipient
+                    ),
+                    'amount_display' => '-' . $this->format_price($price),
+                    'amount_class' => 'khm-credit-negative',
+                ];
+            }
+        }
+
+        usort($transactions, function($a, $b) {
+            return strtotime($b['date']) <=> strtotime($a['date']);
+        });
+
+        return array_slice($transactions, 0, $limit);
+    }
+
+    /**
+     * Get transaction ledger total count for a user
+     *
+     * @param int $user_id
+     * @return int
+     */
+    public function getTransactionLedgerTotal(int $user_id): int {
+        global $wpdb;
+        $total = 0;
+
+        $usage_table = $wpdb->prefix . 'khm_credit_usage';
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$usage_table}'") === $usage_table) {
+            $total += (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$usage_table} WHERE user_id = %d",
+                $user_id
+            ));
+        }
+
+        $purchases_table = $wpdb->prefix . 'khm_purchases';
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$purchases_table}'") === $purchases_table) {
+            $total += (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$purchases_table} WHERE user_id = %d AND status = 'completed'",
+                $user_id
+            ));
+        }
+
+        $gifts_table = $wpdb->prefix . 'khm_gifts';
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$gifts_table}'") === $gifts_table) {
+            $total += (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$gifts_table} WHERE sender_id = %d AND status IN ('sent', 'redeemed')",
+                $user_id
+            ));
+        }
+
+        return $total;
+    }
+
+    private function format_credit_reason(string $purpose, int $object_id = 0): string {
+        $purpose = trim($purpose);
+        if ($purpose === 'article_download' && $object_id) {
+            $title = get_the_title($object_id);
+            if ($title) {
+                return sprintf(__('Downloaded: %s', 'khm-membership'), $title);
+            }
+        }
+
+        if ($purpose !== '') {
+            return ucwords(str_replace('_', ' ', $purpose));
+        }
+
+        return __('Credit Usage', 'khm-membership');
+    }
+
+    private function format_price(float $amount): string {
+        $currency = get_option('khm_currency', 'GBP');
+        if (function_exists('khm_format_price')) {
+            return khm_format_price($amount, $currency);
+        }
+
+        return number_format_i18n($amount, 2);
+    }
 }

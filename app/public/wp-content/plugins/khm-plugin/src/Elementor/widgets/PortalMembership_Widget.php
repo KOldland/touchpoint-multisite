@@ -143,15 +143,10 @@ class PortalMembership_Widget extends Widget_Base {
 
         // Check for paused membership if no active
         if (!$membership) {
-            global $wpdb;
-            $table = $wpdb->prefix . 'khm_memberships';
-            $paused = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM {$table} WHERE user_id = %d AND status = 'paused' ORDER BY id DESC LIMIT 1",
-                $user_id
-            ));
-            if ($paused) {
-                $membership = $paused;
-                $level = $levels_repo->get($paused->level_id);
+            $paused_memberships = $memberships_repo->findByLevel(0, $user_id, 'paused');
+            if (!empty($paused_memberships)) {
+                $membership = $paused_memberships[0];
+                $level = $levels_repo->get($membership->level_id);
             }
         }
 
