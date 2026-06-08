@@ -378,17 +378,19 @@ class Rest_Api {
             return new \WP_Error( 'invalid_preview', 'post_id and actions are required.', array( 'status' => 400 ) );
         }
 
-        if ( ! class_exists( 'Dual_GPT_SEO_Tools' ) ) {
-            return new \WP_Error( 'seo_tools_missing', 'Dual-GPT SEO tools not available.', array( 'status' => 500 ) );
+        // Prefer Dual-GPT if available
+        if ( class_exists( 'Dual_GPT_SEO_Tools' ) ) {
+            $tools = new \Dual_GPT_SEO_Tools();
+            $result = $tools->tool_preview_apply( array(
+                'post_id' => $post_id,
+                'actions' => $actions,
+            ) );
+            return rest_ensure_response( $result );
         }
 
-        $tools = new \Dual_GPT_SEO_Tools();
-        $result = $tools->tool_preview_apply( array(
-            'post_id' => $post_id,
-            'actions' => $actions,
-        ) );
-
-        return rest_ensure_response( $result );
+        // Fallback: build a preview from current state
+        $preview = $this->build_preview_from_actions( $post_id, $actions );
+        return rest_ensure_response( $preview );
     }
 
     public function handle_apply( $request ) {
@@ -411,21 +413,45 @@ class Rest_Api {
             );
         }
 
-        if ( ! class_exists( 'Dual_GPT_SEO_Tools' ) ) {
-            return new \WP_Error( 'seo_tools_missing', 'Dual-GPT SEO tools not available.', array( 'status' => 500 ) );
+        // Prefer Dual-GPT if available
+        if ( class_exists( 'Dual_GPT_SEO_Tools' ) ) {
+            $tools = new \Dual_GPT_SEO_Tools();
+            $result = $tools->tool_apply_actions( array(
+                'post_id' => $post_id,
+                'actions' => $actions,
+                'acting_user_id' => $acting_user_id,
+                'idempotency_key' => $idempotency_key,
+                'job_id' => $job_id,
+                'allow_schema_write' => $confirm_schema_changes,
+            ) );
+
+            if ( is_array( $result ) && ! empty( $result['success'] ) ) {
+                $existing_score = (int) get_post_meta( $post_id, '_khm_seo_score', true );
+                $analysis = $this->analyze_post( $post_id );
+
+                if ( ! is_wp_error( $analysis ) ) {
+                    $next_score = $this->persist_seo_score( $post_id, $analysis );
+                    $result['analysis'] = $analysis;
+
+                    if ( ! isset( $result['changes'] ) || ! is_array( $result['changes'] ) ) {
+                        $result['changes'] = array();
+                    }
+
+                    $result['changes'][] = array(
+                        'meta_key' => '_khm_seo_score',
+                        'old' => $existing_score,
+                        'new' => $next_score,
+                    );
+                }
+            }
+
+            return rest_ensure_response( $result );
         }
 
-        $tools = new \Dual_GPT_SEO_Tools();
-        $result = $tools->tool_apply_actions( array(
-            'post_id' => $post_id,
-            'actions' => $actions,
-            'acting_user_id' => $acting_user_id,
-            'idempotency_key' => $idempotency_key,
-            'job_id' => $job_id,
-            'allow_schema_write' => $confirm_schema_changes,
-        ) );
+        // Fallback: apply actions directly via post meta
+        $result = $this->apply_actions_direct( $post_id, $actions, $acting_user_id, $idempotency_key, $job_id, $confirm_schema_changes );
 
-        if ( is_array( $result ) && ! empty( $result['success'] ) ) {
+        if ( ! empty( $result['success'] ) ) {
             $existing_score = (int) get_post_meta( $post_id, '_khm_seo_score', true );
             $analysis = $this->analyze_post( $post_id );
 
@@ -448,6 +474,188 @@ class Rest_Api {
         return rest_ensure_response( $result );
     }
 
+    /**
+     * Build a preview of what the actions would change, without writing.
+     *
+     * @param int $post_id Post ID.
+     * @param array $actions Action list.
+     * @return array Preview result.
+     */
+    private function build_preview_from_actions( $post_id, $actions ) {
+        $changes = array();
+        $post = get_post( $post_id );
+
+        foreach ( $actions as $action ) {
+            if ( ! is_array( $action ) || empty( $action['action_type'] ) || ! isset( $action['payload']['value'] ) ) {
+                continue;
+            }
+
+            $action_type = sanitize_key( $action['action_type'] );
+            $new_value = $action['payload']['value'];
+
+            switch ( $action_type ) {
+                case 'set_meta_title':
+                    $old_value = get_post_meta( $post_id, '_khm_seo_title', true );
+                    $changes[] = array(
+                        'action_type' => $action_type,
+                        'meta_key' => '_khm_seo_title',
+                        'old_value' => $old_value,
+                        'new_value' => sanitize_text_field( $new_value ),
+                    );
+                    break;
+
+                case 'set_meta_description':
+                    $old_value = get_post_meta( $post_id, '_khm_seo_description', true );
+                    $changes[] = array(
+                        'action_type' => $action_type,
+                        'meta_key' => '_khm_seo_description',
+                        'old_value' => $old_value,
+                        'new_value' => sanitize_textarea_field( $new_value ),
+                    );
+                    break;
+
+                case 'set_focus_keyword':
+                    $old_value = get_post_meta( $post_id, '_khm_seo_focus_keyword', true );
+                    $changes[] = array(
+                        'action_type' => $action_type,
+                        'meta_key' => '_khm_seo_focus_keyword',
+                        'old_value' => $old_value,
+                        'new_value' => sanitize_text_field( $new_value ),
+                    );
+                    break;
+
+                case 'set_keywords':
+                    $old_value = get_post_meta( $post_id, '_khm_seo_keywords', true );
+                    $changes[] = array(
+                        'action_type' => $action_type,
+                        'meta_key' => '_khm_seo_keywords',
+                        'old_value' => $old_value,
+                        'new_value' => sanitize_text_field( $new_value ),
+                    );
+                    break;
+
+                case 'set_schema_config':
+                    $old_value = get_post_meta( $post_id, '_khm_seo_schema_config', true );
+                    $changes[] = array(
+                        'action_type' => $action_type,
+                        'meta_key' => '_khm_seo_schema_config',
+                        'old_value' => $old_value,
+                        'new_value' => $new_value,
+                    );
+                    break;
+            }
+        }
+
+        return array(
+            'success' => true,
+            'preview' => $changes,
+            'message' => 'Preview generated successfully.',
+        );
+    }
+
+    /**
+     * Apply actions directly via post meta, without Dual-GPT.
+     *
+     * @param int $post_id Post ID.
+     * @param array $actions Action list.
+     * @param int $acting_user_id User ID.
+     * @param string $idempotency_key Idempotency key.
+     * @param string $job_id Job ID.
+     * @param bool $confirm_schema_changes Whether to confirm schema changes.
+     * @return array Apply result.
+     */
+    private function apply_actions_direct( $post_id, $actions, $acting_user_id, $idempotency_key, $job_id, $confirm_schema_changes ) {
+        $applied = array();
+        $post = get_post( $post_id );
+
+        foreach ( $actions as $action ) {
+            if ( ! is_array( $action ) || empty( $action['action_type'] ) || ! isset( $action['payload']['value'] ) ) {
+                continue;
+            }
+
+            $action_type = sanitize_key( $action['action_type'] );
+            $new_value = $action['payload']['value'];
+
+            switch ( $action_type ) {
+                case 'set_meta_title':
+                    $old_value = get_post_meta( $post_id, '_khm_seo_title', true );
+                    update_post_meta( $post_id, '_khm_seo_title', sanitize_text_field( $new_value ) );
+                    $applied[] = array(
+                        'action_type' => $action_type,
+                        'meta_key' => '_khm_seo_title',
+                        'old_value' => $old_value,
+                        'new_value' => sanitize_text_field( $new_value ),
+                    );
+                    break;
+
+                case 'set_meta_description':
+                    $old_value = get_post_meta( $post_id, '_khm_seo_description', true );
+                    update_post_meta( $post_id, '_khm_seo_description', sanitize_textarea_field( $new_value ) );
+                    $applied[] = array(
+                        'action_type' => $action_type,
+                        'meta_key' => '_khm_seo_description',
+                        'old_value' => $old_value,
+                        'new_value' => sanitize_textarea_field( $new_value ),
+                    );
+                    break;
+
+                case 'set_focus_keyword':
+                    $old_value = get_post_meta( $post_id, '_khm_seo_focus_keyword', true );
+                    update_post_meta( $post_id, '_khm_seo_focus_keyword', sanitize_text_field( $new_value ) );
+                    $applied[] = array(
+                        'action_type' => $action_type,
+                        'meta_key' => '_khm_seo_focus_keyword',
+                        'old_value' => $old_value,
+                        'new_value' => sanitize_text_field( $new_value ),
+                    );
+                    break;
+
+                case 'set_keywords':
+                    $old_value = get_post_meta( $post_id, '_khm_seo_keywords', true );
+                    update_post_meta( $post_id, '_khm_seo_keywords', sanitize_text_field( $new_value ) );
+                    $applied[] = array(
+                        'action_type' => $action_type,
+                        'meta_key' => '_khm_seo_keywords',
+                        'old_value' => $old_value,
+                        'new_value' => sanitize_text_field( $new_value ),
+                    );
+                    break;
+
+                case 'set_schema_config':
+                    if ( ! $confirm_schema_changes ) {
+                        $applied[] = array(
+                            'action_type' => $action_type,
+                            'meta_key' => '_khm_seo_schema_config',
+                            'error' => 'Schema configuration changes require confirm_schema_changes=true.',
+                        );
+                        break;
+                    }
+                    $old_value = get_post_meta( $post_id, '_khm_seo_schema_config', true );
+                    update_post_meta( $post_id, '_khm_seo_schema_config', $new_value );
+                    $applied[] = array(
+                        'action_type' => $action_type,
+                        'meta_key' => '_khm_seo_schema_config',
+                        'old_value' => $old_value,
+                        'new_value' => $new_value,
+                    );
+                    break;
+            }
+        }
+
+        return array(
+            'success' => ! empty( $applied ),
+            'changes' => $applied,
+            'message' => ! empty( $applied ) ? 'Actions applied successfully via fallback.' : 'No actions were applied.',
+        );
+    }
+
+    /**
+     * Check if actions array contains a specific action type.
+     *
+     * @param array $actions Actions list.
+     * @param string $target_type Action type to find.
+     * @return bool
+     */
     private function has_action_type( $actions, $target_type ) {
         if ( ! is_array( $actions ) ) {
             return false;

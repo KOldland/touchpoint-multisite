@@ -125,7 +125,7 @@ class AutoLinker {
                 $pattern = preg_quote( $term, '/' );
                 $patterns[] = array(
                     'pattern' => '/\b' . $pattern . '\b/ui', // Word boundaries, case insensitive
-                    'replacement' => '<a href="' . esc_url( get_permalink( $entity->id ) ) . '" class="khm-entity-link" data-entity-id="' . $entity->id . '">' . $term . '</a>',
+                    'replacement' => '<a href="' . esc_url( get_permalink( $entity->id ) ) . '" class="khm-entity-link" data-entity-id="' . $entity->id . '">' . esc_html( $term ) . '</a>',
                     'entity_id' => $entity->id,
                     'term' => $term,
                     'linked' => false,
