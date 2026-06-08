@@ -146,11 +146,12 @@ class PlannerOrchestrator {
         }
 
         $storage = new \KH\Editorial\Services\AI\AIStorage();
-        $job_id = $storage->create_job( [
+        $job_id = $storage->insert_job( [
             'session_id'      => $post_id,
             'prompt'          => $prompt,
             'model'           => \KH\Editorial\Core\LLMService::get_model(),
             'idempotency_key' => $idempotency_key,
+            'type'            => 'planner',
             'created_by'      => get_current_user_id()
         ] );
 

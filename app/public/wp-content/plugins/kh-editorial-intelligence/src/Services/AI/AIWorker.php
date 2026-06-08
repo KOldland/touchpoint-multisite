@@ -33,6 +33,7 @@ class AIWorker {
     public function init() {
         add_action( 'kh_editorial_job_created', [ $this, 'process_job' ], 10, 2 );
         add_filter( 'kh_editorial_execute_job_seo_audit', [ $this, 'handle_seo_audit_job' ], 10, 2 );
+        add_filter( 'kh_editorial_execute_job_planner', [ $this, 'handle_planner_job' ], 10, 2 );
     }
 
     /**
@@ -115,6 +116,68 @@ class AIWorker {
         }
     }
 
+    /**
+     * Specialized handler for Planner jobs (Phases 1-4 and Final Synopsis).
+     */
+    public function handle_planner_job( $dummy, $job ) {
+        $payload = json_decode( $job['payload'], true );
+        $prompt = $payload['prompt'] ?? $job['prompt'] ?? '';
+        $session_id = (int) ($payload['session_id'] ?? $job['session_id'] ?? 0);
+
+        if ( empty( $prompt ) ) {
+            return new \WP_Error( 'invalid_prompt', 'Missing prompt in planner job payload.' );
+        }
+
+        try {
+            $messages = [
+                [ 'role' => 'system', 'content' => 'You are a B2B editorial research assistant. Respond only with valid JSON.' ],
+                [ 'role' => 'user', 'content' => $prompt ]
+            ];
+
+            $llm_result = LLMService::post_completion( $messages );
+
+            if ( is_wp_error( $llm_result ) ) {
+                return $llm_result;
+            }
+
+            $content = json_decode( $llm_result['content'], true );
+
+            if ( json_last_error() !== JSON_ERROR_NONE ) {
+                preg_match( '/```(?:json)?\s*([\s\S]*?)```/', $llm_result['content'], $matches );
+                if ( ! empty( $matches[1] ) ) {
+                    $content = json_decode( $matches[1], true );
+                }
+                if ( json_last_error() !== JSON_ERROR_NONE ) {
+                    return new \WP_Error( 'invalid_json', 'LLM response was not valid JSON: ' . $llm_result['content'] );
+                }
+            }
+
+            $idempotency_key = $job['idempotency_key'] ?? '';
+            if ( $session_id && ! empty( $idempotency_key ) ) {
+                if ( strpos( $idempotency_key, 'planner-p1-' ) === 0 ) {
+                    update_post_meta( $session_id, 'kh_planner_phase1_result', $content );
+                } elseif ( strpos( $idempotency_key, 'planner-p2-' ) === 0 ) {
+                    update_post_meta( $session_id, 'kh_planner_phase2_result', $content );
+                } elseif ( strpos( $idempotency_key, 'planner-p3-' ) === 0 ) {
+                    update_post_meta( $session_id, 'kh_planner_phase3_result', $content );
+                } elseif ( strpos( $idempotency_key, 'planner-p4-' ) === 0 ) {
+                    update_post_meta( $session_id, 'kh_planner_phase4_result', $content );
+                } elseif ( strpos( $idempotency_key, 'planner-final-' ) === 0 ) {
+                    update_post_meta( $session_id, 'kh_planner_final_synopses', $content );
+                }
+                update_post_meta( $session_id, 'kh_planner_status', 'phase_complete' );
+            }
+
+            return [
+                'content' => $content,
+                'usage'   => $llm_result['usage'],
+                'session_id' => $session_id
+            ];
+
+        } catch ( \Exception $e ) {
+            return new \WP_Error( 'planner_error', $e->getMessage() );
+        }
+    }
     /**
      * Handle successful job completion.
      */
