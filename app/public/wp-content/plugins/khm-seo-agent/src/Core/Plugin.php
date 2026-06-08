@@ -25,7 +25,6 @@ final class Plugin {
 
     private function init() {
         add_action( 'init', array( $this, 'load_textdomain' ) );
-        add_action( 'admin_notices', array( $this, 'maybe_show_dependency_notice' ) );
         add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
         add_action( 'enqueue_block_editor_assets', array( $this, 'enqueue_editor_assets' ) );
     }
@@ -61,23 +60,6 @@ final class Plugin {
         ) );
     }
 
-    public function maybe_show_dependency_notice() {
-        if ( ! current_user_can( 'manage_options' ) ) {
-            return;
-        }
-
-        if ( ! $this->has_dependencies() ) {
-            printf(
-                '<div class="notice notice-error"><p>%s</p></div>',
-                esc_html__( 'KHM SEO Agent requires Dual-GPT and KHM SEO to be active.', 'khm-seo-agent' )
-            );
-        }
-    }
-
-    public function has_dependencies() {
-        include_once ABSPATH . 'wp-admin/includes/plugin.php';
-
-        return is_plugin_active( 'dual-gpt-wordpress-plugin/dual-gpt-wordpress-plugin.php' )
-            && is_plugin_active( 'khm-seo/khm-seo.php' );
-    }
+    // Removed: maybe_show_dependency_notice() and has_dependencies()
+    // Legacy dual-gpt-wordpress-plugin dependency was removed as part of Phase 1 decoupling.
 }

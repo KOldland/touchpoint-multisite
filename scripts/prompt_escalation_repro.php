@@ -1,4 +1,21 @@
 <?php
+/**
+ * @deprecated Legacy repro script from dual-gpt-wordpress-plugin era.
+ * The legacy plugin has been fully decoupled. This script references
+ * Dual_GPT_DB_Handler, Dual_GPT_Plugin, and dual-gpt/v1/ endpoints
+ * which no longer exist. Retained for reference only.
+ *
+ * To reproduce prompt escalation behavior, use:
+ *   POST /editorial/v1/sessions/{id}/run
+ *   POST /editorial/v1/author/run
+ *
+ * See: kh-editorial-planner and kh-editorial-author plugins.
+ */
+
+// Legacy code below is non-functional since dual-gpt-wordpress-plugin was removed.
+// Uncomment and adapt if needed for the new editorial/v1/ endpoints.
+
+/*
 wp_set_current_user(1);
 $db = new Dual_GPT_DB_Handler();
 $session_id = wp_generate_uuid4();
@@ -108,3 +125,4 @@ if (!empty($author)) {
         echo 'META_AUTHOR_STATUS=' . $author['status'] . "\n";
     }
 }
+*/
