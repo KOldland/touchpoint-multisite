@@ -6,6 +6,10 @@ Version: 1.0
 Author: Kirsty Hennah
 */
 
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
 add_action('init', 'kh_register_multiple_authors_cpt');
 
 function kh_register_multiple_authors_cpt() {
