@@ -150,6 +150,21 @@ class PlannerOrchestrator {
         }
 
         $storage = new \KH\Editorial\Services\AI\AIStorage();
+
+        // Check user budget before enqueuing to prevent wasted API calls
+        $author_id = (int) get_post_field( 'post_author', $post_id );
+        $budget = $storage->check_budget( $author_id );
+        if ( ! $budget['has_budget'] ) {
+            return new \WP_Error(
+                'budget_exhausted',
+                sprintf(
+                    'User budget exhausted. Limit: %d tokens, Used: %d tokens.',
+                    $budget['token_limit'],
+                    $budget['token_used']
+                )
+            );
+        }
+
         $job_id = $storage->insert_job( [
             'session_id'      => $post_id,
             'prompt'          => $prompt,
