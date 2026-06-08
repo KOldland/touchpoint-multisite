@@ -99,18 +99,39 @@ class PlannerWorkspace {
     }
 
     public function render_planner_page() {
-        echo '<div id="editorial-planner-app"></div>';
+        echo '<div id="editorial-planner-app" aria-live="polite">
+            <div class="kh-planner-loading">
+                <span class="spinner is-active" style="float:none;margin:0 8px 0 0;"></span>
+                <span>Loading Editorial Planner...</span>
+            </div>
+        </div>';
     }
 
     public function render_new_session_page() {
-        echo '<div id="editorial-new-session-app"></div>';
+        echo '<div id="editorial-new-session-app" aria-live="polite">
+            <div class="kh-planner-loading">
+                <span class="spinner is-active" style="float:none;margin:0 8px 0 0;"></span>
+                <span>Loading New Session form...</span>
+            </div>
+        </div>';
     }
 
     public function render_sessions_page() {
-        echo '<div id="editorial-sessions-app"></div>';
+        echo '<div id="editorial-sessions-app" aria-live="polite">
+            <div class="kh-planner-loading">
+                <span class="spinner is-active" style="float:none;margin:0 8px 0 0;"></span>
+                <span>Loading sessions list...</span>
+            </div>
+        </div>';
     }
 
     public function render_categories_page() {
-        echo '<div id="editorial-top-line-categories-app"></div>';
+        echo '<div id="editorial-top-line-categories-app" aria-live="polite">
+            <div class="kh-planner-loading">
+                <span class="spinner is-active" style="float:none;margin:0 8px 0 0;"></span>
+                <span>Loading Top-Line Categories...</span>
+            </div>
+        </div>';
     }
 }
+

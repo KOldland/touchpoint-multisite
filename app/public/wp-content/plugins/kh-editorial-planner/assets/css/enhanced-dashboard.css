@@ -677,3 +677,14 @@
         background: #2a2a2a;
     }
 }
+
+/* Loading States for React containers — shown until JS mounts */
+.kh-planner-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    font-size: 16px;
+    color: #666;
+    gap: 8px;
+}

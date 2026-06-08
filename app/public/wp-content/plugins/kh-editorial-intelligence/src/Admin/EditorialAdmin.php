@@ -25,25 +25,9 @@ class EditorialAdmin {
             25
         );
 
-        // Sub: Planner (from kh-editorial-planner)
-        add_submenu_page(
-            'kh-editorial-studio',
-            __( 'Editorial Planner', 'kh-editorial-intelligence' ),
-            __( 'Planner', 'kh-editorial-intelligence' ),
-            'edit_posts',
-            'kh-editorial-planner',
-            [ $this, 'render_planner_redirect' ]
-        );
+        // Sub: Planner (registered by kh-editorial-planner, do not duplicate)
 
-        // Sub: Writing Studio (from kh-editorial-author)
-        add_submenu_page(
-            'kh-editorial-studio',
-            __( 'Writing Studio', 'kh-editorial-author' ),
-            __( 'Author', 'kh-editorial-author' ),
-            'edit_posts',
-            'kh-editorial-author',
-            [ $this, 'render_author_redirect' ]
-        );
+        // Sub: Writing Studio (registered by kh-editorial-author, do not duplicate)
 
         // Sub: Intelligence Admin
         add_submenu_page(
@@ -83,14 +67,6 @@ class EditorialAdmin {
         );
     }
 
-    public function render_planner_redirect() {
-        echo '<script>window.location.href="' . admin_url('admin.php?page=kh-editorial-planner') . '";</script>';
-    }
-
-    public function render_author_redirect() {
-        echo '<script>window.location.href="' . admin_url('admin.php?page=kh-editorial-author') . '";</script>';
-    }
-
     public function render_dashboard_page() {
         global $wpdb;
         $llm_configured = \KH\Editorial\Core\LLMService::is_configured();
@@ -113,15 +89,15 @@ class EditorialAdmin {
                         <h3>Core Infrastructure</h3>
                         <ul>
                             <li>
-                                <?php echo $llm_configured ? '✅' : '❌'; ?> 
+                                <?php echo $llm_configured ? '[OK]' : '[X]'; ?> 
                                 <strong>LLM API:</strong> <?php echo $llm_configured ? 'Configured' : 'Not Configured'; ?>
                             </li>
                             <li>
-                                <?php echo $seo_active ? '✅' : '❌'; ?> 
+                                <?php echo $seo_active ? '[OK]' : '[X]'; ?> 
                                 <strong>SEO Engine:</strong> <?php echo $seo_active ? 'Active' : 'Inactive'; ?>
                             </li>
                             <li>
-                                <?php echo $geo_active ? '✅' : '❌'; ?> 
+                                <?php echo $geo_active ? '[OK]' : '[X]'; ?> 
                                 <strong>GEO Researcher:</strong> <?php echo $geo_active ? 'Active' : 'Inactive'; ?>
                             </li>
                         </ul>
@@ -157,13 +133,7 @@ class EditorialAdmin {
                     </div>
                 </div>
             </div>
-            <style>
-                .status-tag { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
-                .status-queued { background: #eee; color: #666; }
-                .status-processing { background: #d9edf7; color: #31708f; }
-                .status-completed { background: #dff0d8; color: #3c763d; }
-                .status-failed { background: #f2dede; color: #a94442; }
-            </style>
+
         </div>
         <?php
     }
@@ -350,37 +320,30 @@ class EditorialAdmin {
     }
 
     private function get_asset_url( $path ) {
-        return plugins_url( 'app/public/wp-content/plugins/khm-plugin/' . $path, ABSPATH );
+        return plugins_url( $path, KH_EDITORIAL_PLUGIN_DIR );
     }
 
-    public function render_planner_page() {
-        echo '<div id="editorial-planner-app"></div>';
-        $this->enqueue_script( 'editorial-planner', 'assets/js/editorial-planner.js' );
-    }
 
-    private function enqueue_script( $handle, $rel_path, $deps = [ 'wp-element', 'wp-api-fetch', 'wp-components', 'wp-data' ] ) {
-        $url = $this->get_asset_url( $rel_path );
-        wp_enqueue_script( $handle, $url, $deps, KH_EDITORIAL_VERSION, true );
-        wp_localize_script( $handle, 'editorialData', [
-            'nonce' => wp_create_nonce( 'wp_rest' ),
-            'restUrl' => rest_url( 'editorial/v1/' ),
-        ] );
-    }
 
     public function enqueue_dashboard_assets( $hook ) {
-        if ( $hook !== 'index.php' ) return;
+        // Only enqueue on our own admin pages
+        $our_pages = [
+            'toplevel_page_kh-editorial-studio',
+            'editorial-studio_page_kh-editorial-admin',
+            'editorial-studio_page_kh-editorial-settings',
+            'editorial-studio_page_kh-editorial-rate-limits',
+            'editorial-studio_page_kh-editorial-db',
+        ];
         
-        wp_enqueue_script(
-            'editorial-dashboard',
-            $this->get_asset_url( 'assets/js/editorial-dashboard.js' ),
-            [ 'wp-api-fetch' ],
-            KH_EDITORIAL_VERSION,
-            true
-        );
+        if ( ! in_array( $hook, $our_pages, true ) ) {
+            return;
+        }
 
-        wp_localize_script( 'editorial-dashboard', 'editorialData', [
-            'restBase' => rest_url( 'editorial/v1/' ),
-            'nonce'    => wp_create_nonce( 'wp_rest' )
-        ] );
+        wp_enqueue_style(
+            'kh-editorial-admin',
+            $this->get_asset_url( 'assets/css/admin.css' ),
+            [],
+            KH_EDITORIAL_VERSION
+        );
     }
 }
