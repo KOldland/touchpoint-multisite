@@ -93,7 +93,7 @@ class AIWorker {
                 [ 'role' => 'system', 'content' => $audit_context['prompt'] ]
             ];
 
-            $llm_result = LLMService::post_completion( $messages );
+            $llm_result = LLMService::post_completion_with_retry( $messages );
 
             if ( is_wp_error( $llm_result ) ) {
                 $this->storage->log_event( $job['id'], 'llm_fallback_triggered', [ 'error' => $llm_result->get_error_message() ] );
@@ -134,7 +134,7 @@ class AIWorker {
                 [ 'role' => 'user', 'content' => $prompt ]
             ];
 
-            $llm_result = LLMService::post_completion( $messages );
+            $llm_result = LLMService::post_completion_with_retry( $messages );
 
             if ( is_wp_error( $llm_result ) ) {
                 return $llm_result;

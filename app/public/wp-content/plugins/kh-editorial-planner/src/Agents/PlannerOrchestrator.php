@@ -141,6 +141,10 @@ class PlannerOrchestrator {
      * Internal helper to enqueue jobs via the Orchestrator Service.
      */
     private function enqueue_job( $post_id, $prompt, $idempotency_key, $next_status ) {
+        if ( ! \KH\Editorial\Core\LLMService::is_configured() ) {
+            return new \WP_Error( 'llm_unconfigured', 'OpenAI API key is not configured. Cannot enqueue job.' );
+        }
+
         if ( ! class_exists( '\KH\Editorial\Services\AI\AIStorage' ) ) {
             return new \WP_Error( 'infrastructure_missing', 'AI Storage service not found.' );
         }
