@@ -94,7 +94,17 @@ class Rest_Api {
     }
 
     public function can_edit_posts() {
-        return current_user_can( 'edit_posts' );
+        if ( ! current_user_can( 'edit_posts' ) ) {
+            return false;
+        }
+
+        // Verify REST API nonce to prevent CSRF
+        $nonce = isset( $_SERVER['HTTP_X_WP_NONCE'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_WP_NONCE'] ) ) : '';
+        if ( ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
+            return false;
+        }
+
+        return true;
     }
 
     public function handle_audit( $request ) {
