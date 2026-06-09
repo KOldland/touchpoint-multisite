@@ -22,19 +22,23 @@ class Collect_Submissions_Action extends Action_Base {
 		$field_metadata = $context['field_metadata'] ?? [];
 		$fields = $this->prepare_fields( $form_data, $field_metadata );
 
+		$pending_actions_count = isset( $context['pending_actions_count'] )
+			? $context['pending_actions_count']
+			: 0;
+
 		$submission_id = Query::get_instance()->add_submission(
 			[
 				'main_meta_id' => 0,
 				'post_id' => $context['post_id'],
-				'referer' => $this->get_referer(),
-				'referer_title' => $this->get_referer_title(),
+				'referer' => $this->get_referer( $context ),
+				'referer_title' => $this->get_referer_title( $context ),
 				'element_id' => $context['form_id'],
 				'form_name' => $context['form_name'],
 				'campaign_id' => 0,
 				'user_id' => get_current_user_id(),
 				'user_ip' => in_array( 'remote_ip', $metadata_keys, true ) ? Utils::get_client_ip() : '',
 				'user_agent' => in_array( 'user_agent', $metadata_keys, true ) ? $this->get_user_agent() : '',
-				'actions_count' => 0,
+				'actions_count' => $pending_actions_count,
 				'actions_succeeded_count' => 0,
 				'meta' => wp_json_encode( [] ),
 			],
@@ -72,6 +76,7 @@ class Collect_Submissions_Action extends Action_Base {
 				'type' => $type,
 				'label' => $label,
 				'value' => is_array( $value ) ? implode( ', ', $value ) : $value,
+				'options' => $meta['options'] ?? null,
 			];
 		}
 
@@ -111,6 +116,7 @@ class Collect_Submissions_Action extends Action_Base {
 					'id' => $field['id'],
 					'type' => $field['type'],
 					'label' => $field['label'],
+					'options' => $field['options'] ?? null,
 				];
 			},
 			$fields
@@ -126,18 +132,29 @@ class Collect_Submissions_Action extends Action_Base {
 		);
 	}
 
-	private function get_referer(): string {
-		$referer = ElementorUtils::get_super_global_value( $_SERVER, 'HTTP_REFERER' );
-		if ( $referer ) {
-			return esc_url_raw( wp_unslash( $referer ) );
+	private function get_referer( array $context ): string {
+		$from_post = $context['referrer'] ?? '';
+		if ( $from_post ) {
+			$url = esc_url_raw( $from_post );
+		} else {
+			$referer = ElementorUtils::get_super_global_value( $_SERVER, 'HTTP_REFERER' );
+			$url = $referer ? esc_url_raw( wp_unslash( $referer ) ) : '';
 		}
 
-		return '';
+		if ( ! $url ) {
+			return '';
+		}
+
+		return remove_query_arg(
+			[ 'preview_id', 'preview_nonce', 'preview' ],
+			$url
+		);
 	}
 
-	private function get_referer_title(): string {
-		// For now, return empty as we don't have access to the frontend page title
-		return '';
+	private function get_referer_title( array $context ): string {
+		$title = $context['referer_title'] ?? '';
+
+		return $title ? sanitize_text_field( $title ) : '';
 	}
 
 	private function get_user_agent(): string {

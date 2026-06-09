@@ -29,7 +29,7 @@ class PortalShortcodes {
         $this->credits_service = new CreditService($this->memberships_repo, $this->levels_repo);
         $this->library_service = new LibraryService($this->memberships_repo);
         $this->downloads_service = new CreditDownloadService($this->memberships_repo, $this->credits_service, $this->library_service);
-        $this->gift_service = new GiftService($this->memberships_repo, new \KHM\Services\OrderRepository(), new \KHM\Services\EmailService());
+        $this->gift_service = new GiftService($this->memberships_repo, new \KHM\Services\OrderRepository(), new \KHM\Services\EmailService(__DIR__ . '/../../'));
 
         add_shortcode('khm_portal_dashboard', [$this, 'dashboard_shortcode']);
         add_shortcode('khm_portal_credits', [$this, 'credits_shortcode']);

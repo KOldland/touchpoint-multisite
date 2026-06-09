@@ -1434,6 +1434,9 @@ body.elementor-panel-loading #elementor-panel-state-loading {
   inset-inline-end: 5px;
   color: var(--e-a-color-txt);
 }
+.elementor-panel .elementor-element[data-library-element-type=e-birthday-easter-egg] .icon {
+  color: #C00BB9;
+}
 .elementor-panel .elementor-element:hover, .elementor-panel .elementor-element:focus {
   background-color: var(--e-a-bg-hover);
   border-color: var(--e-a-border-color-bold);
@@ -1600,7 +1603,7 @@ body.elementor-panel-loading #elementor-panel-state-loading {
   padding: 0;
   border: none;
   background: none;
-  color: var(--e-a-color-accent-promotion, #D6107C);
+  color: #C00BB9;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -1614,6 +1617,34 @@ body.elementor-panel-loading #elementor-panel-state-loading {
 }
 .elementor-panel-elements-widget-creation--search-footer {
   border-block-start: var(--e-a-border);
+}
+
+.elementor-panel-category-custom-widgets-empty {
+  grid-column: 1/-1;
+  width: 100%;
+  padding: 0 16px 16px;
+}
+.elementor-panel-category-custom-widgets-empty__message {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--e-a-color-txt-muted);
+}
+
+.elementor-panel-heading.elementor-panel-category-title .elementor-panel-custom-widgets__cta--heading {
+  margin-inline-start: auto;
+  padding: 4px 10px;
+  border: none;
+  background: none;
+  color: #C00BB9;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--e-a-font-family);
+  flex-shrink: 0;
+}
+.elementor-panel-heading.elementor-panel-category-title .elementor-panel-custom-widgets__cta--heading:hover {
+  opacity: 0.8;
 }
 
 #elementor-panel-inner {
@@ -8348,5 +8379,15 @@ label.e-scrubbing-over {
 }
 .e-ui-state--document-direction-mode__row-reverse [class^=eicon-flex]:not(.eicon-wrap):not(.eicon-nowrap):not(.eicon-grow):is(.eicon-justify-start-h, .eicon-justify-end-h, .eicon-order-start, .eicon-order-end), .e-ui-state--document-direction-mode__row-reverse [class*=" eicon-flex"]:not(.eicon-wrap):not(.eicon-nowrap):not(.eicon-grow):is(.eicon-justify-start-h, .eicon-justify-end-h, .eicon-order-start, .eicon-order-end) {
   transform: rotate(calc(var(--is-ltr) * 180deg));
+}
+
+.elementor-editor-active .embed-media-settings .setting.caption {
+  display: none;
+}
+.elementor-editor-active .embed-media-settings .setting.align {
+  display: none;
+}
+.elementor-editor-active .embed-media-settings fieldset.setting-group {
+  display: none;
 }
 /*# sourceMappingURL=editor-rtl.css.map */

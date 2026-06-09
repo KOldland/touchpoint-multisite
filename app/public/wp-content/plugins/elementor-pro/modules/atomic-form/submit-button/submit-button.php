@@ -3,6 +3,7 @@ namespace ElementorPro\Modules\AtomicForm\Submit_Button;
 
 use Elementor\Modules\AtomicWidgets\Controls\Section;
 use Elementor\Modules\AtomicWidgets\Controls\Types\Text_Control;
+use Elementor\Modules\AtomicWidgets\Controls\Types\Inline_Editing_Control;
 use Elementor\Modules\AtomicWidgets\Elements\Base\Atomic_Widget_Base;
 use Elementor\Modules\AtomicWidgets\Elements\Base\Has_Template;
 use Elementor\Modules\AtomicWidgets\PropTypes\Attributes_Prop_Type;
@@ -11,6 +12,7 @@ use Elementor\Modules\AtomicWidgets\PropTypes\Classes_Prop_Type;
 use Elementor\Modules\AtomicWidgets\PropTypes\Color_Prop_Type;
 use Elementor\Modules\AtomicWidgets\PropTypes\Dimensions_Prop_Type;
 use Elementor\Modules\AtomicWidgets\PropTypes\Primitives\String_Prop_Type;
+use Elementor\Modules\AtomicWidgets\PropTypes\Html_V3_Prop_Type;
 use Elementor\Modules\AtomicWidgets\PropTypes\Size_Prop_Type;
 use Elementor\Modules\AtomicWidgets\Styles\Style_Definition;
 use Elementor\Modules\AtomicWidgets\Styles\Style_Variant;
@@ -24,8 +26,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Submit_Button extends Atomic_Widget_Base {
 	use Has_Template;
 
-	public static $widget_description = 'Display a submit button with customizable label text.';
+	private static $button_background_color = '#000';
+	private static $button_text_color = '#fff';
 	private static $button_background_color_hover = '#323232';
+
+	public static $widget_description = 'Display a submit button with customizable label text.';
 
 	public static function get_element_type(): string {
 		return 'e-form-submit-button';
@@ -51,8 +56,11 @@ class Submit_Button extends Atomic_Widget_Base {
 		return [
 			'classes' => Classes_Prop_Type::make()
 				->default( [] ),
-			'label' => String_Prop_Type::make()
+			'text' => Html_V3_Prop_Type::make()
 				->default( 'Submit' ),
+			'tag' => String_Prop_Type::make()
+				->default( 'button' )
+				->description( 'The HTML tag for the button element.' ),
 			'attributes' => Attributes_Prop_Type::make()->meta( Overridable_Prop_Type::ignore() ),
 		];
 	}
@@ -62,7 +70,7 @@ class Submit_Button extends Atomic_Widget_Base {
 			Section::make()
 				->set_label( __( 'Content', 'elementor-pro' ) )
 				->set_items( [
-					Text_Control::bind_to( 'label' )
+					Inline_Editing_Control::bind_to( 'text' )
 						->set_label( __( 'Button Text', 'elementor-pro' ) )
 						->set_placeholder( 'Submit' ),
 				] ),
@@ -89,9 +97,9 @@ class Submit_Button extends Atomic_Widget_Base {
 
 	protected function define_base_styles(): array {
 		$background_color_value = Background_Prop_Type::generate( [
-			'color' => Color_Prop_Type::generate( '#000' ),
+			'color' => Color_Prop_Type::generate( self::$button_background_color ),
 		] );
-		$text_color_value = Color_Prop_Type::generate( '#fff' );
+		$text_color_value = Color_Prop_Type::generate( self::$button_text_color );
 		$display_value = String_Prop_Type::generate( 'flex' );
 		$padding_value = Dimensions_Prop_Type::generate( [
 			'block-start' => Size_Prop_Type::generate( [

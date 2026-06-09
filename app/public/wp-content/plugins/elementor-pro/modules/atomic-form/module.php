@@ -13,7 +13,12 @@ use ElementorPro\Modules\AtomicForm\Label\Label;
 use ElementorPro\Modules\AtomicForm\Textarea\Textarea;
 use ElementorPro\Modules\AtomicForm\Submit_Button\Submit_Button;
 use ElementorPro\Modules\AtomicForm\Checkbox\Checkbox;
+use ElementorPro\Modules\AtomicForm\Radio_Button\Radio_Button;
 use ElementorPro\Plugin;
+use ElementorPro\Modules\AtomicForm\Select\Select;
+use ElementorPro\Modules\AtomicForm\Date_Picker\Date_Picker;
+use ElementorPro\Modules\AtomicForm\Time_Picker\Time_Picker;
+use ElementorPro\Modules\AtomicForm\File_Upload\File_Upload;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly
@@ -77,6 +82,14 @@ class Module extends Module_Base {
 		$widgets_manager->register( new Textarea() );
 		$widgets_manager->register( new Submit_Button() );
 		$widgets_manager->register( new Checkbox() );
+		$widgets_manager->register( new Radio_Button() );
+
+		if ( version_compare( ELEMENTOR_VERSION, '4.1', '>=' ) ) {
+			$widgets_manager->register( new Date_Picker() );
+			$widgets_manager->register( new Time_Picker() );
+			$widgets_manager->register( new Select() );
+			$widgets_manager->register( new File_Upload() );
+		}
 	}
 
 	private function add_inline_styles() {

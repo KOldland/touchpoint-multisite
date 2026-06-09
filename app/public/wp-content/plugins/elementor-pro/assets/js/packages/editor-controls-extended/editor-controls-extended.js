@@ -1281,6 +1281,34 @@ const DisplayConditionsControl = (0,_elementor_editor_controls__WEBPACK_IMPORTED
 
 /***/ }),
 
+/***/ "./packages/packages/pro/editor-controls-extended/src/controls/options-control.tsx":
+/*!*****************************************************************************************!*\
+  !*** ./packages/packages/pro/editor-controls-extended/src/controls/options-control.tsx ***!
+  \*****************************************************************************************/
+/***/ (function(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   OptionsControl: function() { return /* binding */ OptionsControl; }
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _elementor_editor_controls__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @elementor/editor-controls */ "@elementor/editor-controls");
+/* harmony import */ var _elementor_editor_controls__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_elementor_editor_controls__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__);
+
+
+
+const OptionsControl = (0,_elementor_editor_controls__WEBPACK_IMPORTED_MODULE_1__.createControl)(() => {
+  return /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0__.createElement(_elementor_editor_controls__WEBPACK_IMPORTED_MODULE_1__.KeyValueControl, {
+    keyName: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)('Name', 'elementor-pro'),
+    valueName: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)('Value', 'elementor-pro')
+  });
+});
+
+/***/ }),
+
 /***/ "./packages/packages/pro/editor-controls-extended/src/extend-transition-properties.ts":
 /*!********************************************************************************************!*\
   !*** ./packages/packages/pro/editor-controls-extended/src/extend-transition-properties.ts ***!
@@ -1821,17 +1849,20 @@ var __webpack_exports__ = {};
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   AttributesControl: function() { return /* reexport safe */ _controls_attributes_control__WEBPACK_IMPORTED_MODULE_1__.AttributesControl; },
-/* harmony export */   CssEditor: function() { return /* reexport safe */ _components_css_code_editor_css_editor__WEBPACK_IMPORTED_MODULE_5__.CssEditor; },
-/* harmony export */   DisplayConditionsControl: function() { return /* reexport safe */ _controls_display_conditions_control__WEBPACK_IMPORTED_MODULE_2__.DisplayConditionsControl; },
-/* harmony export */   conditionGroupPropTypeUtil: function() { return /* reexport safe */ _prop_types_condition_group__WEBPACK_IMPORTED_MODULE_4__.conditionGroupPropTypeUtil; },
-/* harmony export */   displayConditionsPropTypeUtil: function() { return /* reexport safe */ _prop_types_display_conditions__WEBPACK_IMPORTED_MODULE_3__.displayConditionsPropTypeUtil; }
+/* harmony export */   CssEditor: function() { return /* reexport safe */ _components_css_code_editor_css_editor__WEBPACK_IMPORTED_MODULE_6__.CssEditor; },
+/* harmony export */   DisplayConditionsControl: function() { return /* reexport safe */ _controls_display_conditions_control__WEBPACK_IMPORTED_MODULE_3__.DisplayConditionsControl; },
+/* harmony export */   OptionsControl: function() { return /* reexport safe */ _controls_options_control__WEBPACK_IMPORTED_MODULE_2__.OptionsControl; },
+/* harmony export */   conditionGroupPropTypeUtil: function() { return /* reexport safe */ _prop_types_condition_group__WEBPACK_IMPORTED_MODULE_5__.conditionGroupPropTypeUtil; },
+/* harmony export */   displayConditionsPropTypeUtil: function() { return /* reexport safe */ _prop_types_display_conditions__WEBPACK_IMPORTED_MODULE_4__.displayConditionsPropTypeUtil; }
 /* harmony export */ });
 /* harmony import */ var _init__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./init */ "./packages/packages/pro/editor-controls-extended/src/init.ts");
 /* harmony import */ var _controls_attributes_control__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./controls/attributes-control */ "./packages/packages/pro/editor-controls-extended/src/controls/attributes-control.tsx");
-/* harmony import */ var _controls_display_conditions_control__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./controls/display-conditions-control */ "./packages/packages/pro/editor-controls-extended/src/controls/display-conditions-control.tsx");
-/* harmony import */ var _prop_types_display_conditions__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./prop-types/display-conditions */ "./packages/packages/pro/editor-controls-extended/src/prop-types/display-conditions.ts");
-/* harmony import */ var _prop_types_condition_group__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./prop-types/condition-group */ "./packages/packages/pro/editor-controls-extended/src/prop-types/condition-group.ts");
-/* harmony import */ var _components_css_code_editor_css_editor__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./components/css-code-editor/css-editor */ "./packages/packages/pro/editor-controls-extended/src/components/css-code-editor/css-editor.tsx");
+/* harmony import */ var _controls_options_control__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./controls/options-control */ "./packages/packages/pro/editor-controls-extended/src/controls/options-control.tsx");
+/* harmony import */ var _controls_display_conditions_control__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./controls/display-conditions-control */ "./packages/packages/pro/editor-controls-extended/src/controls/display-conditions-control.tsx");
+/* harmony import */ var _prop_types_display_conditions__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./prop-types/display-conditions */ "./packages/packages/pro/editor-controls-extended/src/prop-types/display-conditions.ts");
+/* harmony import */ var _prop_types_condition_group__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./prop-types/condition-group */ "./packages/packages/pro/editor-controls-extended/src/prop-types/condition-group.ts");
+/* harmony import */ var _components_css_code_editor_css_editor__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./components/css-code-editor/css-editor */ "./packages/packages/pro/editor-controls-extended/src/components/css-code-editor/css-editor.tsx");
+
 
 
 

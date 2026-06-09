@@ -2,6 +2,8 @@
 namespace ElementorPro\Modules\AtomicForm\Actions;
 
 use ElementorPro\Modules\AtomicForm\Actions\Email_Settings;
+use ElementorPro\Modules\AtomicForm\Classes\Composite_Shortcode_Resolver as Shortcode_Resolver;
+use ElementorPro\Modules\AtomicForm\File_Upload\File_Upload_Handler;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly
@@ -33,7 +35,12 @@ class Email_Action extends Action_Base {
 		$content_type = $email_settings->content_type();
 
 		$field_metadata = $context['field_metadata'] ?? [];
-		$message = $this->replace_shortcodes( $message, $form_data, 'html' === $content_type, $field_metadata );
+		$cssid_map = $context['cssid_map'] ?? [];
+		$is_html = 'html' === $content_type;
+
+		$shortcode_resolver = new Shortcode_Resolver( $form_data, $is_html, $field_metadata, $cssid_map );
+		$message = $shortcode_resolver->resolve( $message );
+		$reply_to = $shortcode_resolver->resolve( $reply_to );
 
 		$headers = [];
 		$headers[] = sprintf( 'From: %s <%s>', $from_name, $from );
@@ -69,13 +76,36 @@ class Email_Action extends Action_Base {
 		 */
 		$message = apply_filters( 'elementor_pro/atomic_forms/email_message', $message, $form_data, $widget_settings );
 
-		$email_sent = wp_mail( $to, $subject, $message, $headers );
+		$attachments = $this->collect_attachments( $context );
+
+		$email_sent = wp_mail( $to, $subject, $message, $headers, $attachments );
 
 		if ( ! $email_sent ) {
 			return $this->failure( __( 'Failed to send email', 'elementor-pro' ) );
 		}
 
 		return $this->success( __( 'Email sent successfully', 'elementor-pro' ) );
+	}
+
+	private function collect_attachments( array $context ): array {
+		$files = $context['files'] ?? [];
+
+		if ( empty( $files ) ) {
+			return [];
+		}
+
+		$settings_map = $context['file_field_settings'];
+		$attachments = [];
+
+		foreach ( $files as $element_id => $paths ) {
+			if ( File_Upload_Handler::MODE_LINK === $settings_map[ $element_id ]['attachment-type'] ) {
+				continue;
+			}
+
+			$attachments = array_merge( $attachments, $paths );
+		}
+
+		return $attachments;
 	}
 
 	protected function validate_settings( array $widget_settings ) {
@@ -101,52 +131,4 @@ class Email_Action extends Action_Base {
 		return true;
 	}
 
-	private function replace_shortcodes( string $message, array $form_data, bool $is_html, array $field_metadata = [] ): string {
-		$line_break = $is_html ? '<br>' : "\n";
-
-		if ( strpos( $message, '[all-fields]' ) !== false ) {
-			$all_fields_text = '';
-
-			foreach ( $form_data as $key => $value ) {
-				$meta = $field_metadata[ $key ] ?? [];
-				$formatted_key = ! empty( $meta['label'] ) ? $meta['label'] : ucwords( str_replace( [ '_', '-' ], ' ', $key ) );
-				$formatted_value = is_array( $value ) ? implode( ', ', $value ) : $value;
-
-				if ( $is_html ) {
-					$formatted_key = esc_html( $formatted_key );
-
-					if ( is_string( $formatted_value ) ) {
-						$formatted_value = nl2br( esc_html( $formatted_value ) );
-					}
-				}
-
-				$all_fields_text .= sprintf(
-					'%s: %s%s',
-					$formatted_key,
-					$formatted_value,
-					$line_break
-				);
-			}
-
-			$message = str_replace( '[all-fields]', $all_fields_text, $message );
-		}
-
-		$message = preg_replace_callback(
-			'/\[field[^\]]*id=["\']([^"\']+)["\'][^\]]*\]/',
-			function ( $matches ) use ( $form_data ) {
-				$field_id = $matches[1];
-
-				if ( isset( $form_data[ $field_id ] ) ) {
-					$value = $form_data[ $field_id ];
-
-					return is_array( $value ) ? implode( ', ', $value ) : $value;
-				}
-
-				return '';
-			},
-			$message
-		);
-
-		return $message;
-	}
 }

@@ -873,11 +873,11 @@ function khm_render_main_admin_page() {
                 <h2>Creative Materials System</h2>
                 <p>Professional affiliate creative management and distribution.</p>
                 <ul>
-                    <li>✅ Banner/text/video management</li>
-                    <li>✅ Performance analytics</li>
-                    <li>✅ A/B testing framework</li>
-                    <li>✅ Version control</li>
-                    <li>✅ Auto-optimization</li>
+                    <li> Banner/text/video management</li>
+                    <li> Performance analytics</li>
+                    <li> A/B testing framework</li>
+                    <li> Version control</li>
+                    <li> Auto-optimization</li>
                 </ul>
                 <a href="#" class="button">Coming Soon</a>
             </div>
@@ -886,11 +886,11 @@ function khm_render_main_admin_page() {
                 <h2>Enhanced Admin Dashboard</h2>
                 <p>Comprehensive analytics and business intelligence.</p>
                 <ul>
-                    <li>✅ Real-time performance metrics</li>
-                    <li>✅ P&L calculations</li>
-                    <li>✅ Funnel analysis</li>
-                    <li>✅ Forecasting algorithms</li>
-                    <li>✅ Custom reporting</li>
+                    <li> Real-time performance metrics</li>
+                    <li> P&L calculations</li>
+                    <li> Funnel analysis</li>
+                    <li> Forecasting algorithms</li>
+                    <li> Custom reporting</li>
                 </ul>
                 <a href="#" class="button">Coming Soon</a>
             </div>
@@ -899,11 +899,11 @@ function khm_render_main_admin_page() {
                 <h2>Professional Affiliate Interface</h2>
                 <p>Modern affiliate portal with self-service capabilities.</p>
                 <ul>
-                    <li>✅ Self-serve registration</li>
-                    <li>✅ Real-time earnings</li>
-                    <li>✅ Creative marketplace</li>
-                    <li>✅ Performance insights</li>
-                    <li>✅ Mobile-responsive</li>
+                    <li> Self-serve registration</li>
+                    <li> Real-time earnings</li>
+                    <li> Creative marketplace</li>
+                    <li> Performance insights</li>
+                    <li> Mobile-responsive</li>
                 </ul>
                 <a href="#" class="button">Coming Soon</a>
             </div>
@@ -917,7 +917,7 @@ function khm_render_main_admin_page() {
                     <div class="progress-bar">
                         <div class="progress-fill" style="width: 100%"></div>
                     </div>
-                    <p><strong>Status:</strong> ✅ Complete</p>
+                    <p><strong>Status:</strong>  Complete</p>
                     <p>Hybrid tracking, server-side events, ITP resistance, multi-touch attribution</p>
                 </div>
                 
@@ -926,7 +926,7 @@ function khm_render_main_admin_page() {
                     <div class="progress-bar">
                         <div class="progress-fill" style="width: 60%"></div>
                     </div>
-                    <p><strong>Status:</strong> 🔄 In Progress</p>
+                    <p><strong>Status:</strong>  In Progress</p>
                     <p>Database optimization, caching, async processing, load balancing</p>
                 </div>
                 
@@ -935,7 +935,7 @@ function khm_render_main_admin_page() {
                     <div class="progress-bar">
                         <div class="progress-fill" style="width: 0%"></div>
                     </div>
-                    <p><strong>Status:</strong> 📋 Planned</p>
+                    <p><strong>Status:</strong>  Planned</p>
                     <p>Business intelligence, P&L tracking, forecasting, custom reports</p>
                 </div>
             </div>
@@ -1061,26 +1061,6 @@ register_activation_hook(__FILE__, function () {
         }
     }
 
-    // Schedule cron tasks
-    if ( class_exists('KHM\\Scheduled\\Scheduler') ) {
-        KHM\Scheduled\Scheduler::activate();
-    }
-                error_log('Failed to create Tech.Connect Tables: ' . $e->getMessage());
-                $activation_errors[] = 'Tech.Connect Tables failed: ' . $e->getMessage();
-            }
-        }
-
-        // Phase 6: Sponsor to Solution Mapping (NEW BRIDGE)
-//        if ( class_exists('KHM\\Migrations\\CreateSponsorSolutionMappingTable') ) {
-//            try {
-//                KHM\Migrations\CreateSponsorSolutionMappingTable::create_table();
-//                error_log('KHM Sponsor Solution Mapping Table created successfully');
-//            } catch ( \Exception $e ) {
-//                error_log('Failed to create Sponsor Solution Mapping Table: ' . $e->getMessage());
-//                $activation_errors[] = 'Sponsor Solution Mapping Table failed: ' . $e->getMessage();
-//            }
-        }
-
         // Add start_date / end_date scheduling columns (S20 – advert expiry).
         if ( class_exists('KHM\\Migrations\\AddAdvertScheduleColumns') ) {
             try {
@@ -1090,7 +1070,7 @@ register_activation_hook(__FILE__, function () {
             }
         }
 
-    }
+    
 
     // Initialize credit system
     do_action('khm_plugin_activated');

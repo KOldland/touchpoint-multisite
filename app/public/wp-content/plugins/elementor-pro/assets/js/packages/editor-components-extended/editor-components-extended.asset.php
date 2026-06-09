@@ -8,6 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 return [
 	'handle' => 'elementor-v2-editor-components-extended',
 	'deps' => [
+		'elementor-v2-core-adapter-utils',
 		'elementor-v2-editor',
 		'elementor-v2-editor-canvas',
 		'elementor-v2-editor-components',
@@ -20,6 +21,7 @@ return [
 		'elementor-v2-editor-mcp',
 		'elementor-v2-editor-notifications',
 		'elementor-v2-editor-panels',
+		'elementor-v2-editor-templates-extended',
 		'elementor-v2-editor-ui',
 		'elementor-v2-editor-v1-adapters',
 		'elementor-v2-events',

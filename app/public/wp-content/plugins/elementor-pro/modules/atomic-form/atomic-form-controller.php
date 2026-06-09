@@ -4,6 +4,7 @@ namespace ElementorPro\Modules\AtomicForm;
 use Elementor\Modules\AtomicWidgets\DynamicTags\Dynamic_Prop_Type;
 use Elementor\Utils as ElementorUtils;
 use ElementorPro\Modules\AtomicForm\Actions\Action_Runner;
+use ElementorPro\Modules\AtomicForm\File_Upload\File_Upload_Handler;
 use ElementorPro\Modules\AtomicWidgets\Settings_Resolver;
 use ElementorPro\Modules\Forms\Classes\Ajax_Handler;
 use ElementorPro\Plugin;
@@ -14,6 +15,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Atomic_Form_Controller {
 	const NONCE_ACTION = 'elementor_pro_atomic_forms_send_form';
+
+	private const FORM_FIELD_WIDGET_TYPES = [
+		'e-form-input',
+		'e-form-textarea',
+		'e-form-checkbox',
+		'e-form-radio-button',
+		'e-form-select',
+		'e-form-date-picker',
+		'e-form-time-picker',
+		'e-form-file-upload',
+	];
 
 	public static function is_form_submitted(): bool {
 		// phpcs:disable WordPress.Security.NonceVerification.Missing -- Nonce is validated in ajax_send_form.
@@ -31,6 +43,8 @@ class Atomic_Form_Controller {
 			'form_id' => ElementorUtils::get_super_global_value( $_POST, 'form_id' ),
 			'form_name' => ElementorUtils::get_super_global_value( $_POST, 'form_name' ),
 			'form_fields' => ElementorUtils::get_super_global_value( $_POST, 'form_fields' ) ?? [],
+			'referer_title' => ElementorUtils::get_super_global_value( $_POST, 'referer_title' ),
+			'referrer' => ElementorUtils::get_super_global_value( $_POST, 'referrer' ),
 		];
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
@@ -54,11 +68,24 @@ class Atomic_Form_Controller {
 
 		$field_metadata = $this->extract_field_metadata( $form_fields );
 
-		$widget_settings = $this->get_widget_settings( $post_id, $form_id );
+		$form_element = $this->find_form_element( $post_id, $form_id );
 
-		if ( is_wp_error( $widget_settings ) ) {
-			$this->send_error_response( $widget_settings->get_error_message() );
+		if ( is_wp_error( $form_element ) ) {
+			$this->send_error_response( $form_element->get_error_message() );
 		}
+
+		$widget_settings = $this->resolve_widget_settings( $form_element, $post_id );
+		$cssid_map = $this->build_cssid_map( $form_element, $post_id );
+
+		$file_upload_result = ( new File_Upload_Handler() )->process( $form_element, $form_fields );
+
+		if ( ! $file_upload_result->is_success() ) {
+			$this->send_error_response( $file_upload_result->get_error() );
+		}
+
+		$form_data = array_merge( $form_data, $file_upload_result->get_form_data_overrides() );
+		$context_files = $file_upload_result->get_files();
+		$file_field_settings = $file_upload_result->get_file_field_settings();
 
 		$posted_form_name = sanitize_text_field( $post_data['form_name'] ?? '' );
 		$form_name = $this->resolve_form_name( $posted_form_name, $form_id );
@@ -83,6 +110,12 @@ class Atomic_Form_Controller {
 			$this->send_error_response( __( 'No actions configured for this form', 'elementor-pro' ) );
 		}
 
+		$referer_title = $post_data['referer_title'] ?? '';
+		$referer_title = is_string( $referer_title ) ? sanitize_text_field( wp_unslash( $referer_title ) ) : '';
+
+		$referrer = $post_data['referrer'] ?? '';
+		$referrer = is_string( $referrer ) ? esc_url_raw( wp_unslash( $referrer ) ) : '';
+
 		$results = Action_Runner::execute_actions(
 			$actions,
 			$form_data,
@@ -92,6 +125,11 @@ class Atomic_Form_Controller {
 				'form_id' => $form_id,
 				'form_name' => $form_name,
 				'field_metadata' => $field_metadata,
+				'referer_title' => $referer_title,
+				'referrer' => $referrer,
+				'cssid_map' => $cssid_map,
+				'files' => $context_files,
+				'file_field_settings' => $file_field_settings,
 			]
 		);
 
@@ -161,16 +199,19 @@ class Atomic_Form_Controller {
 				continue;
 			}
 
+			$options = isset( $field['options'] ) && is_string( $field['options'] ) ? json_decode( $field['options'], true ) : null;
+
 			$metadata[ $id ] = [
 				'label' => sanitize_text_field( $field['label'] ?? '' ),
 				'type' => sanitize_text_field( $field['type'] ?? '' ),
+				'options' => is_array( $options ) ? $options : null,
 			];
 		}
 
 		return $metadata;
 	}
 
-	private function get_widget_settings( int $post_id, string $form_id ) {
+	private function find_form_element( int $post_id, string $form_id ) {
 		$document = Plugin::elementor()->documents->get( $post_id );
 
 		if ( ! $document ) {
@@ -190,17 +231,24 @@ class Atomic_Form_Controller {
 			);
 		}
 
-		$settings = $form_element['settings'] ?? [];
+		return $form_element;
+	}
 
-		$settings = $this->resolve_dynamic_tags_in_settings( $settings, $post_id );
-
-		$resolved = Settings_Resolver::resolve( $settings );
+	private function resolve_widget_settings( array $form_element, int $post_id ): array {
+		$resolved = $this->resolve_raw_settings( $form_element, $post_id );
 
 		if ( ! isset( $resolved['actions-after-submit'] ) && isset( $resolved['email'] ) ) {
 			$resolved['actions-after-submit'] = [ 'email' ];
 		}
 
 		return $resolved;
+	}
+
+	private function resolve_raw_settings( array $element, int $post_id ): array {
+		$settings = $element['settings'] ?? [];
+		$settings = $this->resolve_dynamic_tags_in_settings( $settings, $post_id );
+
+		return Settings_Resolver::resolve( $settings );
 	}
 
 	/**
@@ -244,6 +292,53 @@ class Atomic_Form_Controller {
 		}, $value );
 	}
 
+	private function build_cssid_map( array $form_element, int $post_id ): array {
+		$map = [];
+		$this->collect_cssid_mappings( $form_element['elements'] ?? [], $map, $post_id );
+
+		return $map;
+	}
+
+	private function collect_cssid_mappings( array $elements, array &$map, int $post_id ): void {
+		foreach ( $elements as $element ) {
+			if ( ! empty( $element['elements'] ) ) {
+				$this->collect_cssid_mappings( $element['elements'], $map, $post_id );
+			}
+
+			if ( ! $this->is_atomic_form_field_element( $element ) ) {
+				continue;
+			}
+
+			$element_id = $element['id'] ?? '';
+			$cssid = $this->get_field_cssid( $element, $post_id );
+
+			if ( $element_id && '' !== $cssid && ! isset( $map[ $cssid ] ) ) {
+				$map[ $cssid ] = $element_id;
+			}
+		}
+	}
+
+	private function is_atomic_form_field_element( array $element ): bool {
+		if ( 'widget' !== ( $element['elType'] ?? '' ) ) {
+			return false;
+		}
+
+		$widget_type = $element['widgetType'] ?? '';
+
+		return in_array( $widget_type, self::FORM_FIELD_WIDGET_TYPES, true );
+	}
+
+	private function get_field_cssid( array $element, int $post_id ): string {
+		$resolved = $this->resolve_raw_settings( $element, $post_id );
+		$cssid = $resolved['_cssid'] ?? '';
+
+		if ( ! is_string( $cssid ) || '' === $cssid ) {
+			return '';
+		}
+
+		return sanitize_text_field( $cssid );
+	}
+
 	private function send_invalid_form_response(): void {
 		wp_send_json_error( [
 			'message' => Ajax_Handler::get_default_message( Ajax_Handler::INVALID_FORM, [] ),
@@ -252,7 +347,7 @@ class Atomic_Form_Controller {
 
 	private function send_error_response( string $message = '' ): void {
 		wp_send_json_error( [
-			'message' => $message ?? Ajax_Handler::get_default_message( Ajax_Handler::ERROR, [] ),
+			'message' => '' !== $message ? $message : Ajax_Handler::get_default_message( Ajax_Handler::ERROR, [] ),
 		] );
 	}
 

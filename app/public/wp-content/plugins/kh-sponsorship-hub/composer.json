@@ -7,7 +7,7 @@
     },
     "autoload": {
         "psr-4": {
-            "KhSponsorshipHub\\": "src/"
+            "KhSponsorshipHub\\Sponsors\\": "src/"
         }
     }
-}
+    }

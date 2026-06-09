@@ -4,6 +4,7 @@ namespace ElementorPro\Modules\AtomicForm\Label;
 use Elementor\Modules\AtomicWidgets\Controls\Section;
 use Elementor\Modules\AtomicWidgets\Controls\Types\Text_Control;
 use Elementor\Modules\AtomicWidgets\Controls\Types\Inline_Editing_Control;
+use Elementor\Modules\AtomicWidgets\Controls\Types\Select_Control;
 use Elementor\Modules\AtomicWidgets\Elements\Base\Atomic_Widget_Base;
 use Elementor\Modules\AtomicWidgets\Elements\Base\Has_Template;
 use Elementor\Modules\AtomicWidgets\PropTypes\Attributes_Prop_Type;
@@ -57,7 +58,7 @@ class Label extends Atomic_Widget_Base {
 					'children' => [],
 				] ),
 			'input-id' => String_Prop_Type::make()
-				->default( '' ),
+				->default( '' )->description( 'ID of connected input' ),
 			'attributes' => Attributes_Prop_Type::make()->meta( Overridable_Prop_Type::ignore() ),
 		];
 	}
@@ -69,10 +70,12 @@ class Label extends Atomic_Widget_Base {
 				->set_items( [
 					Inline_Editing_Control::bind_to( 'text' )
 						->set_label( __( 'Label text', 'elementor-pro' ) ),
-					Text_Control::bind_to( 'input-id' )
+					Select_Control::bind_to( 'input-id' )
+						->set_options( [] )
+						->set_collection_id( 'form-elements' )
 						->set_label( __( 'Connected to input ID', 'elementor-pro' ) )
 						->set_meta( [
-							'layout' => 'two-columns',
+							'layout' => 'full',
 						] ),
 				] ),
 			Section::make()

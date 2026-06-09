@@ -34,7 +34,6 @@ class Plugin {
         ( new ConnectRFQCommissionWorker() )->register();
         ( new ConnectSubscriptionExpiryWorker() )->register();
         ( new ConnectLegacyShortcodes() )->register();
-        ConnectTaxonomy::register();
         ( new ConnectDirectoryShortcode() )->register();
     }
 }

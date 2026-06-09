@@ -12,55 +12,49 @@ class Webhook_Action extends Action_Base {
 	}
 
 	public function execute( array $form_data, array $widget_settings, array $context ): array {
-		$validation = $this->validate_settings( $widget_settings );
-		if ( is_wp_error( $validation ) ) {
-			return $this->failure( $validation->get_error_message() );
+		$url = isset( $widget_settings['webhook_url'] ) ? trim( $widget_settings['webhook_url'] ) : '';
+		if ( '' === $url || ! wp_http_validate_url( $url ) ) {
+			return $this->failure( __( 'Webhook URL is required and must be valid', 'elementor-pro' ) );
 		}
 
-		$url = $widget_settings['webhook_url'];
-		$method = strtoupper( $widget_settings['webhook_method'] ?? 'POST' );
-		$timeout = isset( $widget_settings['webhook_timeout'] ) ? absint( $widget_settings['webhook_timeout'] ) : 30;
+		if ( ! isset( $context['form_id'], $context['form_name'], $context['post_id'], $context['field_metadata'] ) || ! is_array( $context['field_metadata'] ) ) {
+			return $this->failure( __( 'Webhook requires form context (form id, form name, post id, field metadata).', 'elementor-pro' ) );
+		}
 
-		$payload = [
-			'formData' => $form_data,
-			'postId' => $context['post_id'],
-			'formId' => $context['form_id'],
-			'formName' => $context['form_name'],
-			'timestamp' => current_time( 'mysql' ),
-			'siteUrl' => get_site_url(),
+		$field_metadata = $context['field_metadata'];
+		$used_keys = array_fill_keys(
+			[ 'form_id', 'form_name', 'post_id', 'site_url', 'timestamp' ],
+			true
+		);
+		$body = [];
+		foreach ( $form_data as $field_id => $value ) {
+			$display_key = $this->resolve_webhook_field_key( $field_id, $field_metadata );
+			$body_key = $this->ensure_unique_webhook_body_key( $display_key, $field_id, $used_keys );
+			$body[ $body_key ] = $value;
+		}
+
+		$body['form_id'] = $context['form_id'];
+		$body['form_name'] = $context['form_name'];
+		$body['post_id'] = $context['post_id'];
+		$body['site_url'] = get_site_url();
+		$body['timestamp'] = current_time( 'mysql' );
+
+		$args = [
+			'body' => $body,
+			'headers' => [
+				'User-Agent' => 'Elementor Pro Atomic Forms/' . ELEMENTOR_PRO_VERSION,
+			],
 		];
 
-		/**
-		 * Filter webhook payload for atomic forms.
-		 *
-		 * @param array $payload Webhook payload.
-		 * @param array $form_data Form data.
-		 * @param array $widget_settings Widget settings.
-		 * @param array $context Form context.
-		 */
-		$payload = apply_filters(
-			'elementor_pro/atomic_forms/webhook_payload',
-			$payload,
+		$args = apply_filters(
+			'elementor_pro/atomic_forms/webhooks/request_args',
+			$args,
 			$form_data,
 			$widget_settings,
 			$context
 		);
 
-		$args = [
-			'method' => $method,
-			'timeout' => $timeout,
-			'headers' => [
-				'Content-Type' => 'application/json',
-				'User-Agent' => 'Elementor Pro Atomic Forms/' . ELEMENTOR_PRO_VERSION,
-			],
-			'body' => wp_json_encode( $payload ),
-		];
-
-		if ( ! empty( $widget_settings['webhook_headers'] ) && is_array( $widget_settings['webhook_headers'] ) ) {
-			$args['headers'] = array_merge( $args['headers'], $widget_settings['webhook_headers'] );
-		}
-
-		$response = wp_remote_request( $url, $args );
+		$response = wp_safe_remote_post( $url, $args );
 
 		if ( is_wp_error( $response ) ) {
 			return $this->failure(
@@ -98,31 +92,35 @@ class Webhook_Action extends Action_Base {
 		);
 	}
 
-	protected function validate_settings( array $widget_settings ) {
-		if ( empty( $widget_settings['webhook_url'] ) ) {
-			return new \WP_Error(
-				'missing_url',
-				__( 'Webhook URL is required', 'elementor-pro' )
-			);
+	private function resolve_webhook_field_key( $field_id, array $field_metadata ): string {
+		$meta = $field_metadata[ $field_id ] ?? [];
+		$label = isset( $meta['label'] ) ? trim( $meta['label'] ) : '';
+
+		if ( '' !== $label ) {
+			return $label;
 		}
 
-		if ( ! filter_var( $widget_settings['webhook_url'], FILTER_VALIDATE_URL ) ) {
-			return new \WP_Error(
-				'invalid_url',
-				__( 'Invalid webhook URL', 'elementor-pro' )
-			);
+		return (string) $field_id;
+	}
+
+	private function ensure_unique_webhook_body_key( string $display_key, $field_id, array &$used_keys ): string {
+		if ( ! isset( $used_keys[ $display_key ] ) ) {
+			$used_keys[ $display_key ] = true;
+
+			return $display_key;
 		}
 
-		if ( isset( $widget_settings['webhook_method'] ) ) {
-			$allowed_methods = [ 'GET', 'POST', 'PUT', 'PATCH', 'DELETE' ];
-			if ( ! in_array( strtoupper( $widget_settings['webhook_method'] ), $allowed_methods, true ) ) {
-				return new \WP_Error(
-					'invalid_method',
-					__( 'Invalid HTTP method', 'elementor-pro' )
-				);
-			}
+		$fallback = $display_key . '_' . $field_id;
+
+		if ( ! isset( $used_keys[ $fallback ] ) ) {
+			$used_keys[ $fallback ] = true;
+
+			return $fallback;
 		}
 
-		return true;
+		$field_id_key = (string) $field_id;
+		$used_keys[ $field_id_key ] = true;
+
+		return $field_id_key;
 	}
 }

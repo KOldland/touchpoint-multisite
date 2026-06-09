@@ -358,51 +358,6 @@ __( 'Import limit reached.', 'elementor' );
 __( 'To resolve this, review existing items or choose to override', 'elementor' );
 __( 'Classes', 'elementor' );
 __( 'Variables', 'elementor' );
-__( 'Import', 'elementor' );
-__( 'Setting up your website template...', 'elementor' );
-__( 'This usually takes a few moments.', 'elementor' );
-__( 'Don\'t close this window until the process is finished.', 'elementor' );
-__( 'Import', 'elementor' );
-__( 'Import a website template', 'elementor' );
-__( 'Upload a file with templates, site settings, content, etc., and apply them to your site ', 'elementor' );
-__( 'Learn more', 'elementor' );
-__( 'Import', 'elementor' );
-__( 'Back', 'elementor' );
-__( 'Import and apply', 'elementor' );
-__( 'Select which parts you want to apply', 'elementor' );
-__( 'These are the templates, content and site settings that come with your website templates.', 'elementor' );
-__( 'All items are already selected by default. Uncheck the ones you don\'t want.', 'elementor' );
-__( 'No templates imported', 'elementor' );
-__( 'No templates imported', 'elementor' );
-__( 'No content imported', 'elementor' );
-__( 'Taxonomies', 'elementor' );
-__( 'Taxonomy', 'elementor' );
-__( 'Menus', 'elementor' );
-__( 'Menu', 'elementor' );
-__( 'No content imported', 'elementor' );
-__( 'No plugins imported', 'elementor' );
-__( 'No settings imported', 'elementor' );
-__( 'No settings imported', 'elementor' );
-__( 'Content', 'elementor' );
-__( 'Templates', 'elementor' );
-__( 'Site settings', 'elementor' );
-__( 'Plugins', 'elementor' );
-__( 'See it Live', 'elementor' );
-__( 'Close', 'elementor' );
-__( 'Import', 'elementor' );
-__( 'Kit is live illustration', 'elementor' );
-__( 'Your website templates is now live on your site!', 'elementor' );
-__( 'You\'ve imported and applied the following to your site:', 'elementor' );
-__( 'Build sites faster with Website Templates.', 'elementor' );
-__( 'Show me how', 'elementor' );
-__( 'This file type is not allowed', 'elementor' );
-__( 'This file type is not allowed', 'elementor' );
-__( 'Activating plugins:', 'elementor' );
-__( 'Try Again', 'elementor' );
-__( 'Learn More', 'elementor' );
-__( 'Upload a .zip file', 'elementor' );
-__( 'Click to upload', 'elementor' );
-__( 'or drag and drop', 'elementor' );
 __( 'Setting up your website template...', 'elementor' );
 __( 'Processing media files...', 'elementor' );
 __( 'Export failed', 'elementor' );
@@ -448,6 +403,51 @@ __( 'Export as .zip', 'elementor' );
 __( 'Export a Website template?', 'elementor' );
 __( 'Choose which Elementor components - templates, content and site settings - to include in your website templates file. By default, all of your components will be exported.', 'elementor' );
 __( 'Learn more', 'elementor' );
+__( 'Import', 'elementor' );
+__( 'Setting up your website template...', 'elementor' );
+__( 'This usually takes a few moments.', 'elementor' );
+__( 'Don\'t close this window until the process is finished.', 'elementor' );
+__( 'Import', 'elementor' );
+__( 'Import a website template', 'elementor' );
+__( 'Upload a file with templates, site settings, content, etc., and apply them to your site ', 'elementor' );
+__( 'Learn more', 'elementor' );
+__( 'Import', 'elementor' );
+__( 'Back', 'elementor' );
+__( 'Import and apply', 'elementor' );
+__( 'Select which parts you want to apply', 'elementor' );
+__( 'These are the templates, content and site settings that come with your website templates.', 'elementor' );
+__( 'All items are already selected by default. Uncheck the ones you don\'t want.', 'elementor' );
+__( 'No templates imported', 'elementor' );
+__( 'No templates imported', 'elementor' );
+__( 'No content imported', 'elementor' );
+__( 'Taxonomies', 'elementor' );
+__( 'Taxonomy', 'elementor' );
+__( 'Menus', 'elementor' );
+__( 'Menu', 'elementor' );
+__( 'No content imported', 'elementor' );
+__( 'No plugins imported', 'elementor' );
+__( 'No settings imported', 'elementor' );
+__( 'No settings imported', 'elementor' );
+__( 'Content', 'elementor' );
+__( 'Templates', 'elementor' );
+__( 'Site settings', 'elementor' );
+__( 'Plugins', 'elementor' );
+__( 'See it Live', 'elementor' );
+__( 'Close', 'elementor' );
+__( 'Import', 'elementor' );
+__( 'Kit is live illustration', 'elementor' );
+__( 'Your website template is now live on your site!', 'elementor' );
+__( 'You\'ve imported and applied the following to your site:', 'elementor' );
+__( 'Build sites faster with Website Templates.', 'elementor' );
+__( 'Show me how', 'elementor' );
+__( 'This file type is not allowed', 'elementor' );
+__( 'This file type is not allowed', 'elementor' );
+__( 'Activating plugins:', 'elementor' );
+__( 'Try Again', 'elementor' );
+__( 'Learn More', 'elementor' );
+__( 'Upload a .zip file', 'elementor' );
+__( 'Click to upload', 'elementor' );
+__( 'or drag and drop', 'elementor' );
 __( 'Unable to download the Website Template', 'elementor' );
 __( 'We couldn’t download the Website Template due to technical difficulties on our part. Try again and if the problem persists contact ', 'elementor' );
 __( 'Support', 'elementor' );
@@ -587,19 +587,6 @@ __( 'Upgrade now', 'elementor' );
 __( 'Cancel', 'elementor' );
 __( 'Export as .zip', 'elementor' );
 __( 'Try Again', 'elementor' );
-__( 'Version' ) } ${ cellLinkProps.text }` } <Icon className="eicon-editor-external-link" />
-		</InlineLink>
-	);
-
-	const getHeaders = () => {
-		if ( ! withHeader ) {
-			return [];
-		}
-
-		const headers = [ 'Plugin Name', 'Version' ];
-
-		if ( withStatus ) {
-			headers.splice( 1, 0, 'Status' );
 __( 'Previous', 'elementor' );
 __( 'Next', 'elementor' );
 __( 'Learn More', 'elementor' );
@@ -658,6 +645,19 @@ __( 'You can find it in the My Website Templates tab.', 'elementor' );
 __( 'Once the download is complete, you can upload it to be used for other sites.', 'elementor' );
 __( 'Build sites faster with Website Templates.', 'elementor' );
 __( 'Is the automatic download not starting?', 'elementor' );
+__( 'Version' ) } ${ cellLinkProps.text }` } <Icon className="eicon-editor-external-link" />
+		</InlineLink>
+	);
+
+	const getHeaders = () => {
+		if ( ! withHeader ) {
+			return [];
+		}
+
+		const headers = [ 'Plugin Name', 'Version' ];
+
+		if ( withStatus ) {
+			headers.splice( 1, 0, 'Status' );
 __( 'Edit Template', 'elementor' );
 __( 'Imported', 'elementor' );
 __( 'Existing', 'elementor' );
@@ -683,12 +683,12 @@ __( "If you don't include them, this kit may not work properly.", 'elementor' );
 __( 'Go Back', 'elementor' );
 __( 'See It Live', 'elementor' );
 __( 'Got It', 'elementor' );
-__( 'Learn more', 'elementor' );
-__( 'Important:', 'elementor' );
-__( "There are few plugins that we couldn't install:", 'elementor' );
 __( 'Let’s do it', 'elementor' );
 __( 'Tip:', 'elementor' );
 __( 'Make sure your Elementor Pro account is connected', 'elementor' );
+__( 'Learn more', 'elementor' );
+__( 'Important:', 'elementor' );
+__( "There are few plugins that we couldn't install:", 'elementor' );
 __( 'Save to library', 'elementor' );
 __( 'Save to library', 'elementor' );
 __( 'Save to library', 'elementor' );

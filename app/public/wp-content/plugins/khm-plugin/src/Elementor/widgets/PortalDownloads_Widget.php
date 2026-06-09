@@ -207,13 +207,16 @@ class PortalDownloads_Widget extends Widget_Base {
             </div>
             <?php else: ?>
             <div class="khm-empty-state">
-                <span class="khm-empty-icon">📥</span>
+                <span class="khm-empty-icon"></span>
                 <p><?php esc_html_e('No downloads yet. Browse articles to download PDFs.', 'khm-membership'); ?></p>
                 <a href="<?php echo esc_url(home_url('/')); ?>" class="khm-browse-btn">
                     <?php esc_html_e('Browse Articles', 'khm-membership'); ?>
                 </a>
             </div>
             <?php endif; ?>
+        </div>
+        <?php
+    }
 
             
     private function enqueue_portal_styles() {

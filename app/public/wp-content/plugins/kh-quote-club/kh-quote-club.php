@@ -40,7 +40,7 @@ final class KH_Quote_Club {
 
     public function register_shortcodes() {
         if (class_exists('\\QuoteClub\\PublicFrontend\\QuoteClubPortalShortcode')) {
-            \QuoteClub\PublicFrontend\QuoteClubPortalShortcode::init();
+            new \QuoteClub\PublicFrontend\QuoteClubPortalShortcode();
         }
     }
 

@@ -31,6 +31,13 @@ class Container {
     }
 
     /**
+     * Check if a service is bound.
+     */
+    public static function has($key) {
+        return isset(self::$registry[$key]);
+    }
+    
+    /**
      * Reset the container (Clear all instances).
      * Primarily for testing or long-running processes.
      */

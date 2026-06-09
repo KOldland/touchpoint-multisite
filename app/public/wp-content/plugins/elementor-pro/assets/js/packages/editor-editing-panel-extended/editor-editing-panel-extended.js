@@ -209,6 +209,7 @@ __webpack_require__.r(__webpack_exports__);
 async function init() {
   _elementor_editor_canvas__WEBPACK_IMPORTED_MODULE_0__.settingsTransformersRegistry.register('attributes', _transformers_settings_attributes_transformer__WEBPACK_IMPORTED_MODULE_6__.proAttributesTransformer);
   _elementor_editor_editing_panel__WEBPACK_IMPORTED_MODULE_2__.controlsRegistry.register('attributes', _elementor_editor_controls_extended__WEBPACK_IMPORTED_MODULE_1__.AttributesControl, 'full', _elementor_editor_props__WEBPACK_IMPORTED_MODULE_3__.keyValuePropTypeUtil);
+  _elementor_editor_editing_panel__WEBPACK_IMPORTED_MODULE_2__.controlsRegistry.register('options', _elementor_editor_controls_extended__WEBPACK_IMPORTED_MODULE_1__.OptionsControl, 'full', _elementor_editor_props__WEBPACK_IMPORTED_MODULE_3__.keyValuePropTypeUtil);
   const features = await (0,_elementor_license_api__WEBPACK_IMPORTED_MODULE_4__.fetchTierFeatures)().catch(() => []);
   if (features.includes('atomic-custom-css')) {
     (0,_elementor_editor_editing_panel__WEBPACK_IMPORTED_MODULE_2__.injectIntoStyleTab)({

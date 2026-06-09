@@ -18,6 +18,7 @@ use Elementor\Modules\AtomicWidgets\PropTypes\Size_Prop_Type;
 use Elementor\Modules\AtomicWidgets\PropTypes\Color_Prop_Type;
 use Elementor\Modules\AtomicWidgets\Styles\Style_States;
 use Elementor\Modules\Components\PropTypes\Overridable_Prop_Type;
+use ElementorPro\Modules\AtomicForm\Default_Id_Provider;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly
@@ -65,6 +66,7 @@ class Textarea extends Atomic_Widget_Base {
 			'minlength' => Number_Prop_Type::make(),
 			'maxlength' => Number_Prop_Type::make(),
 			'attributes' => Attributes_Prop_Type::make()->meta( Overridable_Prop_Type::ignore() ),
+			'_cssid' => Default_Id_Provider::get_default_id_prop( self::get_element_type() ),
 		];
 	}
 

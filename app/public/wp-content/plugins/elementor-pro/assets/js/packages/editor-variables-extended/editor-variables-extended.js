@@ -634,22 +634,23 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _elementor_editor_props__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @elementor/editor-props */ "@elementor/editor-props");
-/* harmony import */ var _elementor_editor_props__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_elementor_editor_props__WEBPACK_IMPORTED_MODULE_1__);
-/* harmony import */ var _elementor_editor_ui__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @elementor/editor-ui */ "@elementor/editor-ui");
-/* harmony import */ var _elementor_editor_ui__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_elementor_editor_ui__WEBPACK_IMPORTED_MODULE_2__);
-/* harmony import */ var _elementor_editor_variables__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @elementor/editor-variables */ "@elementor/editor-variables");
-/* harmony import */ var _elementor_editor_variables__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(_elementor_editor_variables__WEBPACK_IMPORTED_MODULE_3__);
-/* harmony import */ var _elementor_icons__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @elementor/icons */ "@elementor/icons");
-/* harmony import */ var _elementor_icons__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(_elementor_icons__WEBPACK_IMPORTED_MODULE_4__);
-/* harmony import */ var _elementor_license_api__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @elementor/license-api */ "@elementor/license-api");
-/* harmony import */ var _elementor_license_api__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(_elementor_license_api__WEBPACK_IMPORTED_MODULE_5__);
-/* harmony import */ var _components_size_size_field__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./components/size/size-field */ "./packages/packages/pro/editor-variables-extended/src/components/size/size-field.tsx");
-/* harmony import */ var _prop_types_size_variable_prop_type__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./prop-types/size-variable-prop-type */ "./packages/packages/pro/editor-variables-extended/src/prop-types/size-variable-prop-type.ts");
-/* harmony import */ var _utils_prop_type_compatibility__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./utils/prop-type-compatibility */ "./packages/packages/pro/editor-variables-extended/src/utils/prop-type-compatibility.ts");
-/* harmony import */ var _utils_settings__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./utils/settings */ "./packages/packages/pro/editor-variables-extended/src/utils/settings.ts");
-/* harmony import */ var _utils_transform_utils__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./utils/transform-utils */ "./packages/packages/pro/editor-variables-extended/src/utils/transform-utils.ts");
-/* harmony import */ var _utils_version_compare__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./utils/version-compare */ "./packages/packages/pro/editor-variables-extended/src/utils/version-compare.ts");
+/* harmony import */ var _elementor_core_adapter_utils__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @elementor/core-adapter-utils */ "@elementor/core-adapter-utils");
+/* harmony import */ var _elementor_core_adapter_utils__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_elementor_core_adapter_utils__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _elementor_editor_props__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @elementor/editor-props */ "@elementor/editor-props");
+/* harmony import */ var _elementor_editor_props__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_elementor_editor_props__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var _elementor_editor_ui__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @elementor/editor-ui */ "@elementor/editor-ui");
+/* harmony import */ var _elementor_editor_ui__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(_elementor_editor_ui__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var _elementor_editor_variables__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @elementor/editor-variables */ "@elementor/editor-variables");
+/* harmony import */ var _elementor_editor_variables__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(_elementor_editor_variables__WEBPACK_IMPORTED_MODULE_4__);
+/* harmony import */ var _elementor_icons__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @elementor/icons */ "@elementor/icons");
+/* harmony import */ var _elementor_icons__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(_elementor_icons__WEBPACK_IMPORTED_MODULE_5__);
+/* harmony import */ var _elementor_license_api__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @elementor/license-api */ "@elementor/license-api");
+/* harmony import */ var _elementor_license_api__WEBPACK_IMPORTED_MODULE_6___default = /*#__PURE__*/__webpack_require__.n(_elementor_license_api__WEBPACK_IMPORTED_MODULE_6__);
+/* harmony import */ var _components_size_size_field__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./components/size/size-field */ "./packages/packages/pro/editor-variables-extended/src/components/size/size-field.tsx");
+/* harmony import */ var _prop_types_size_variable_prop_type__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./prop-types/size-variable-prop-type */ "./packages/packages/pro/editor-variables-extended/src/prop-types/size-variable-prop-type.ts");
+/* harmony import */ var _utils_prop_type_compatibility__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./utils/prop-type-compatibility */ "./packages/packages/pro/editor-variables-extended/src/utils/prop-type-compatibility.ts");
+/* harmony import */ var _utils_settings__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./utils/settings */ "./packages/packages/pro/editor-variables-extended/src/utils/settings.ts");
+/* harmony import */ var _utils_transform_utils__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./utils/transform-utils */ "./packages/packages/pro/editor-variables-extended/src/utils/transform-utils.ts");
 
 
 
@@ -663,43 +664,43 @@ __webpack_require__.r(__webpack_exports__);
 
 
 const parse = (value, type) => {
-  return (0,_utils_transform_utils__WEBPACK_IMPORTED_MODULE_10__.parseSizeValue)(value, undefined, undefined, type);
+  return (0,_utils_transform_utils__WEBPACK_IMPORTED_MODULE_11__.parseSizeValue)(value, undefined, undefined, type);
 };
 async function init() {
-  const isLicenseExpired = await (0,_elementor_license_api__WEBPACK_IMPORTED_MODULE_5__.fetchLicenseStatus)().catch(() => false);
+  const isLicenseExpired = await (0,_elementor_license_api__WEBPACK_IMPORTED_MODULE_6__.fetchLicenseStatus)().catch(() => false);
   const commonOptions = {
-    valueField: _components_size_size_field__WEBPACK_IMPORTED_MODULE_6__.SizeField,
-    icon: _elementor_icons__WEBPACK_IMPORTED_MODULE_4__.ExpandDiagonalIcon,
-    propTypeUtil: _prop_types_size_variable_prop_type__WEBPACK_IMPORTED_MODULE_7__.sizeVariablePropTypeUtil,
-    fallbackPropTypeUtil: _elementor_editor_props__WEBPACK_IMPORTED_MODULE_1__.sizePropTypeUtil,
+    valueField: _components_size_size_field__WEBPACK_IMPORTED_MODULE_7__.SizeField,
+    icon: _elementor_icons__WEBPACK_IMPORTED_MODULE_5__.ExpandDiagonalIcon,
+    propTypeUtil: _prop_types_size_variable_prop_type__WEBPACK_IMPORTED_MODULE_8__.sizeVariablePropTypeUtil,
+    fallbackPropTypeUtil: _elementor_editor_props__WEBPACK_IMPORTED_MODULE_2__.sizePropTypeUtil,
     variableType: 'size',
     valueTransformer: parse,
     ...(isLicenseExpired && {
-      emptyState: /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0__.createElement(_elementor_editor_ui__WEBPACK_IMPORTED_MODULE_2__.CtaButton, {
+      emptyState: /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0__.createElement(_elementor_editor_ui__WEBPACK_IMPORTED_MODULE_3__.CtaButton, {
         size: "small",
         href: 'https://go.elementor.com/renew-license-manager-size-variable'
       })
     })
   };
-  (0,_elementor_editor_variables__WEBPACK_IMPORTED_MODULE_3__.registerVariableType)({
+  (0,_elementor_editor_variables__WEBPACK_IMPORTED_MODULE_4__.registerVariableType)({
     ...commonOptions,
-    key: _prop_types_size_variable_prop_type__WEBPACK_IMPORTED_MODULE_7__.sizeVariablePropTypeUtil.key,
+    key: _prop_types_size_variable_prop_type__WEBPACK_IMPORTED_MODULE_8__.sizeVariablePropTypeUtil.key,
     defaultValue: '0px',
     selectionFilter: (variables, propType) => {
-      const availableUnits = (0,_utils_settings__WEBPACK_IMPORTED_MODULE_9__.getAvailableUnits)(propType);
+      const availableUnits = (0,_utils_settings__WEBPACK_IMPORTED_MODULE_10__.getAvailableUnits)(propType);
       return variables.filter(variable => {
         const {
           unit
-        } = (0,_utils_transform_utils__WEBPACK_IMPORTED_MODULE_10__.parseSizeValue)(variable.value);
+        } = (0,_utils_transform_utils__WEBPACK_IMPORTED_MODULE_11__.parseSizeValue)(variable.value);
         return availableUnits.includes(unit);
       });
     },
-    isCompatible: _utils_prop_type_compatibility__WEBPACK_IMPORTED_MODULE_8__.isPropTypeCompatible
+    isCompatible: _utils_prop_type_compatibility__WEBPACK_IMPORTED_MODULE_9__.isPropTypeCompatible
   });
-  if ((0,_utils_version_compare__WEBPACK_IMPORTED_MODULE_11__.isCoreAtLeast)('3.35')) {
-    (0,_elementor_editor_variables__WEBPACK_IMPORTED_MODULE_3__.registerVariableType)({
+  if ((0,_elementor_core_adapter_utils__WEBPACK_IMPORTED_MODULE_1__.isCoreAtLeast)('3.35')) {
+    (0,_elementor_editor_variables__WEBPACK_IMPORTED_MODULE_4__.registerVariableType)({
       ...commonOptions,
-      key: _prop_types_size_variable_prop_type__WEBPACK_IMPORTED_MODULE_7__.GLOBAL_CUSTOM_SIZE_VARIABLE_KEY,
+      key: _prop_types_size_variable_prop_type__WEBPACK_IMPORTED_MODULE_8__.GLOBAL_CUSTOM_SIZE_VARIABLE_KEY,
       isCompatible: () => true
     });
   }
@@ -784,15 +785,16 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   getAvailableUnits: function() { return /* binding */ getAvailableUnits; },
 /* harmony export */   getDefaultUnit: function() { return /* binding */ getDefaultUnit; }
 /* harmony export */ });
-/* harmony import */ var _elementor_editor_props__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @elementor/editor-props */ "@elementor/editor-props");
-/* harmony import */ var _elementor_editor_props__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_elementor_editor_props__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _version_compare__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./version-compare */ "./packages/packages/pro/editor-variables-extended/src/utils/version-compare.ts");
+/* harmony import */ var _elementor_core_adapter_utils__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @elementor/core-adapter-utils */ "@elementor/core-adapter-utils");
+/* harmony import */ var _elementor_core_adapter_utils__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_elementor_core_adapter_utils__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _elementor_editor_props__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @elementor/editor-props */ "@elementor/editor-props");
+/* harmony import */ var _elementor_editor_props__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_elementor_editor_props__WEBPACK_IMPORTED_MODULE_1__);
 
 
 const DEFAULT_UNIT = 'px';
 const CUSTOM_UNIT_KEY = 'custom';
 const AUTO_UNIT_KEY = 'auto';
-const DEFAULT_UNITS = ['px', '%', 'em', 'rem', 'vw', 'vh'];
+const DEFAULT_UNITS = ['px', '%', 'em', 'rem', 'ch', 'vw', 'vh', 's', 'ms'];
 const EXTENDED_UNITS = [AUTO_UNIT_KEY, CUSTOM_UNIT_KEY];
 const allUnits = [...DEFAULT_UNITS, ...EXTENDED_UNITS];
 const getAvailableUnits = propType => {
@@ -813,12 +815,12 @@ const getDefaultUnit = propType => {
 };
 const extractSettings = propType => {
   if (propType?.kind === 'union') {
-    return propType.prop_types[_elementor_editor_props__WEBPACK_IMPORTED_MODULE_0__.sizePropTypeUtil.key].settings;
+    return propType.prop_types[_elementor_editor_props__WEBPACK_IMPORTED_MODULE_1__.sizePropTypeUtil.key].settings;
   }
   return {};
 };
 const normalizeUnits = units => {
-  if ((0,_version_compare__WEBPACK_IMPORTED_MODULE_1__.isCoreAtLeast)('3.35')) {
+  if ((0,_elementor_core_adapter_utils__WEBPACK_IMPORTED_MODULE_0__.isCoreAtLeast)('3.35')) {
     return units;
   }
 
@@ -908,28 +910,6 @@ const formatSizeValue = ({
 
 /***/ }),
 
-/***/ "./packages/packages/pro/editor-variables-extended/src/utils/version-compare.ts":
-/*!**************************************************************************************!*\
-  !*** ./packages/packages/pro/editor-variables-extended/src/utils/version-compare.ts ***!
-  \**************************************************************************************/
-/***/ (function(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
-
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   isCoreAtLeast: function() { return /* binding */ isCoreAtLeast; }
-/* harmony export */ });
-function getCoreVersion() {
-  return window.elementorCommonConfig?.version ?? '0.0';
-}
-function isCoreAtLeast(minVersion) {
-  const version = getCoreVersion();
-  const [major, minor] = version.split('.').map(Number);
-  const [minMajor, minMinor] = minVersion.split('.').map(Number);
-  return major > minMajor || major === minMajor && minor >= minMinor;
-}
-
-/***/ }),
-
 /***/ "react":
 /*!**************************!*\
   !*** external ["React"] ***!
@@ -937,6 +917,16 @@ function isCoreAtLeast(minVersion) {
 /***/ (function(module) {
 
 module.exports = window["React"];
+
+/***/ }),
+
+/***/ "@elementor/core-adapter-utils":
+/*!***************************************************!*\
+  !*** external ["elementorV2","coreAdapterUtils"] ***!
+  \***************************************************/
+/***/ (function(module) {
+
+module.exports = window["elementorV2"]["coreAdapterUtils"];
 
 /***/ }),
 

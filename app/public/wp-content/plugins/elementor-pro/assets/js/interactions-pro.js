@@ -1,4 +1,4 @@
-/*! elementor-pro - v4.0.0 - 28-04-2026 */
+/*! elementor-pro - v4.1.0 - 08-06-2026 */
 /******/ (() => { // webpackBootstrap
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
@@ -94,10 +94,13 @@ exports.getHoverFunction = getHoverFunction;
 exports.getInViewFunction = void 0;
 exports.getKeyframes = getKeyframes;
 exports.getScrollFunction = getScrollFunction;
+exports.getTransformBaselineFromComputedStyle = void 0;
 exports.parseAnimationName = parseAnimationName;
-exports.waitForAnimateFunction = exports.skipInteraction = exports.parseInteractionsData = void 0;
+exports.waitForAnimateFunction = exports.skipInteraction = exports.resetElementStyles = exports.preserveTransformKeyframes = exports.parseInteractionsData = void 0;
 __webpack_require__(/*! core-js/modules/es.array.push.js */ "../node_modules/core-js/modules/es.array.push.js");
 __webpack_require__(/*! core-js/modules/esnext.iterator.constructor.js */ "../node_modules/core-js/modules/esnext.iterator.constructor.js");
+__webpack_require__(/*! core-js/modules/esnext.iterator.every.js */ "../node_modules/core-js/modules/esnext.iterator.every.js");
+__webpack_require__(/*! core-js/modules/esnext.iterator.filter.js */ "../node_modules/core-js/modules/esnext.iterator.filter.js");
 __webpack_require__(/*! core-js/modules/esnext.iterator.for-each.js */ "../node_modules/core-js/modules/esnext.iterator.for-each.js");
 __webpack_require__(/*! core-js/modules/esnext.iterator.map.js */ "../node_modules/core-js/modules/esnext.iterator.map.js");
 __webpack_require__(/*! core-js/modules/esnext.iterator.reduce.js */ "../node_modules/core-js/modules/esnext.iterator.reduce.js");
@@ -119,6 +122,167 @@ exports.getAnimateFunction = getAnimateFunction;
 exports.extractInteractionId = extractInteractionId;
 exports.skipInteraction = skipInteraction;
 exports.config = getConfig;
+let {
+  resetElementStyles,
+  getTransformBaselineFromComputedStyle,
+  preserveTransformKeyframes
+} = window.elementorModules.interactions;
+
+/**
+ * @deprecated 4.2.0 - will be removed. Backward-compatibility fallback when Core does not provide resetElementStyles.
+ */
+exports.preserveTransformKeyframes = preserveTransformKeyframes;
+exports.getTransformBaselineFromComputedStyle = getTransformBaselineFromComputedStyle;
+exports.resetElementStyles = resetElementStyles;
+if (!resetElementStyles) {
+  exports.resetElementStyles = resetElementStyles = element => {
+    if (!element) {
+      return;
+    }
+    element.style.transition = '';
+    element.style.transform = '';
+    element.style.opacity = '';
+  };
+}
+
+/**
+ * @deprecated 4.2.0 - will be removed. Backward-compatibility when Core does not expose transform helpers on elementorModules.interactions.
+ */
+if (!getTransformBaselineFromComputedStyle || !preserveTransformKeyframes) {
+  const TRANSFORM_EPSILON = 0.001;
+  const radiansToDegrees = radians => radians * (180 / Math.PI);
+  const isNear = (value, expected) => Math.abs(value - expected) <= TRANSFORM_EPSILON;
+  const isNearZero = value => isNear(value, 0);
+  const isNearOne = value => isNear(value, 1);
+  function parseMatrixValues(transformValue) {
+    const match = transformValue.match(/^matrix(3d)?\((.+)\)$/);
+    if (!match) {
+      return null;
+    }
+    return match[2].split(',').map(token => Number.parseFloat(token.trim())).filter(value => Number.isFinite(value));
+  }
+  function createMatrixFromTransform(transformValue) {
+    if (!transformValue || 'none' === transformValue) {
+      return null;
+    }
+    const matrixFactories = [window.DOMMatrixReadOnly, window.DOMMatrix].filter(Factory => 'function' === typeof Factory);
+    for (const MatrixFactory of matrixFactories) {
+      try {
+        const matrix = new MatrixFactory(transformValue);
+        const compactMatrix = {
+          matrixXfromX: matrix.a ?? matrix.m11 ?? 1,
+          matrixYfromX: matrix.b ?? matrix.m12 ?? 0,
+          matrixXfromY: matrix.c ?? matrix.m21 ?? 0,
+          matrixYfromY: matrix.d ?? matrix.m22 ?? 1,
+          matrixTranslateX: matrix.e ?? matrix.m41 ?? 0,
+          matrixTranslateY: matrix.f ?? matrix.m42 ?? 0
+        };
+        if (Object.values(compactMatrix).every(Number.isFinite)) {
+          return compactMatrix;
+        }
+      } catch {}
+    }
+    const parsedValues = parseMatrixValues(transformValue);
+    if (!parsedValues) {
+      return null;
+    }
+    if (6 === parsedValues.length) {
+      const [matrixXfromX, matrixYfromX, matrixXfromY, matrixYfromY, matrixTranslateX, matrixTranslateY] = parsedValues;
+      return {
+        matrixXfromX,
+        matrixYfromX,
+        matrixXfromY,
+        matrixYfromY,
+        matrixTranslateX,
+        matrixTranslateY
+      };
+    }
+    if (16 === parsedValues.length) {
+      const [matrixXfromX, matrixYfromX,,, matrixXfromY, matrixYfromY,,,,,,, matrixTranslateX, matrixTranslateY] = parsedValues;
+      return {
+        matrixXfromX,
+        matrixYfromX,
+        matrixXfromY,
+        matrixYfromY,
+        matrixTranslateX,
+        matrixTranslateY
+      };
+    }
+    return null;
+  }
+  if (!getTransformBaselineFromComputedStyle) {
+    exports.getTransformBaselineFromComputedStyle = getTransformBaselineFromComputedStyle = element => {
+      if (!element) {
+        return null;
+      }
+      const computedStyle = window.getComputedStyle(element);
+      const matrix = createMatrixFromTransform(computedStyle?.transform || '');
+      if (!matrix) {
+        return null;
+      }
+      const {
+        matrixXfromX,
+        matrixYfromX,
+        matrixXfromY,
+        matrixYfromY,
+        matrixTranslateX,
+        matrixTranslateY
+      } = matrix;
+      const scaleX = Math.hypot(matrixXfromX, matrixYfromX);
+      const determinant = matrixXfromX * matrixYfromY - matrixYfromX * matrixXfromY;
+      const scaleY = scaleX ? determinant / scaleX : Math.hypot(matrixXfromY, matrixYfromY);
+      const rotate = radiansToDegrees(Math.atan2(matrixYfromX, matrixXfromX));
+      const shear = scaleX ? (matrixXfromX * matrixXfromY + matrixYfromX * matrixYfromY) / (scaleX * scaleX) : 0;
+      const skewX = radiansToDegrees(Math.atan(shear));
+      return {
+        x: matrixTranslateX,
+        y: matrixTranslateY,
+        scaleX: Number.isFinite(scaleX) ? scaleX : 1,
+        scaleY: Number.isFinite(scaleY) ? scaleY : 1,
+        rotate: Number.isFinite(rotate) ? rotate : 0,
+        skewX: Number.isFinite(skewX) ? skewX : 0
+      };
+    };
+  }
+  if (!preserveTransformKeyframes) {
+    exports.preserveTransformKeyframes = preserveTransformKeyframes = (keyframes, baseline) => {
+      if (!baseline) {
+        return keyframes;
+      }
+      const mergedKeyframes = {
+        ...keyframes
+      };
+      const hasScaleShorthand = mergedKeyframes.scale !== undefined;
+      const canSetScaleX = mergedKeyframes.scaleX === undefined && !isNearOne(baseline.scaleX);
+      const canSetScaleY = mergedKeyframes.scaleY === undefined && !isNearOne(baseline.scaleY);
+      if (mergedKeyframes.x === undefined && !isNearZero(baseline.x)) {
+        mergedKeyframes.x = [baseline.x, baseline.x];
+      }
+      if (mergedKeyframes.y === undefined && !isNearZero(baseline.y)) {
+        mergedKeyframes.y = [baseline.y, baseline.y];
+      }
+      if (!hasScaleShorthand) {
+        if (canSetScaleX && canSetScaleY && isNear(baseline.scaleX, baseline.scaleY)) {
+          mergedKeyframes.scale = [baseline.scaleX, baseline.scaleX];
+        } else {
+          if (canSetScaleX) {
+            mergedKeyframes.scaleX = [baseline.scaleX, baseline.scaleX];
+          }
+          if (canSetScaleY) {
+            mergedKeyframes.scaleY = [baseline.scaleY, baseline.scaleY];
+          }
+        }
+      }
+      if (mergedKeyframes.rotate === undefined && mergedKeyframes.rotateZ === undefined && !isNearZero(baseline.rotate)) {
+        mergedKeyframes.rotate = [baseline.rotate, baseline.rotate];
+      }
+      if (mergedKeyframes.skew === undefined && mergedKeyframes.skewX === undefined && !isNearZero(baseline.skewX)) {
+        mergedKeyframes.skewX = [baseline.skewX, baseline.skewX];
+      }
+      return mergedKeyframes;
+    };
+  }
+}
 function getScrollFunction() {
   return motionFunc('scroll');
 }
@@ -195,7 +359,7 @@ function buildKeyframesFromPreset({
   if ('scale' === effect) {
     keyframes.scale = isIn ? [config.scaleStart, 1] : [1, config.scaleStart];
   }
-  if (direction) {
+  if (direction && 'string' === typeof direction) {
     const distance = config.slideDistance;
     const movement = {
       left: {
@@ -211,7 +375,11 @@ function buildKeyframesFromPreset({
         y: isIn ? [distance, 0] : [0, distance]
       }
     };
-    Object.assign(keyframes, movement[direction]);
+    direction.split('-').forEach(part => {
+      if (movement[part]) {
+        Object.assign(keyframes, movement[part]);
+      }
+    });
   }
   return keyframes;
 }
@@ -409,6 +577,37 @@ var $TypeError = TypeError;
 module.exports = function (argument) {
   if (isCallable(argument)) return argument;
   throw new $TypeError(tryToString(argument) + ' is not a function');
+};
+
+
+/***/ },
+
+/***/ "../node_modules/core-js/internals/add-to-unscopables.js"
+/*!***************************************************************!*\
+  !*** ../node_modules/core-js/internals/add-to-unscopables.js ***!
+  \***************************************************************/
+(module, __unused_webpack_exports, __webpack_require__) {
+
+
+var wellKnownSymbol = __webpack_require__(/*! ../internals/well-known-symbol */ "../node_modules/core-js/internals/well-known-symbol.js");
+var create = __webpack_require__(/*! ../internals/object-create */ "../node_modules/core-js/internals/object-create.js");
+var defineProperty = (__webpack_require__(/*! ../internals/object-define-property */ "../node_modules/core-js/internals/object-define-property.js").f);
+
+var UNSCOPABLES = wellKnownSymbol('unscopables');
+var ArrayPrototype = Array.prototype;
+
+// Array.prototype[@@unscopables]
+// https://tc39.es/ecma262/#sec-array.prototype-@@unscopables
+if (ArrayPrototype[UNSCOPABLES] === undefined) {
+  defineProperty(ArrayPrototype, UNSCOPABLES, {
+    configurable: true,
+    value: create(null)
+  });
+}
+
+// add a key to Array.prototype[@@unscopables]
+module.exports = function (key) {
+  ArrayPrototype[UNSCOPABLES][key] = true;
 };
 
 
@@ -884,7 +1083,7 @@ var $TypeError = TypeError;
 var MAX_SAFE_INTEGER = 0x1FFFFFFFFFFFFF; // 2 ** 53 - 1 == 9007199254740991
 
 module.exports = function (it) {
-  if (it > MAX_SAFE_INTEGER) throw $TypeError('Maximum allowed index exceeded');
+  if (it > MAX_SAFE_INTEGER) throw new $TypeError('Maximum allowed index exceeded');
   return it;
 };
 
@@ -1106,7 +1305,7 @@ var fails = __webpack_require__(/*! ../internals/fails */ "../node_modules/core-
 
 module.exports = !fails(function () {
   // eslint-disable-next-line es/no-function-prototype-bind -- safe
-  var test = (function () { /* empty */ }).bind();
+  var test = function () { /* empty */ }.bind();
   // eslint-disable-next-line no-prototype-builtins -- safe
   return typeof test != 'function' || test.hasOwnProperty('prototype');
 });
@@ -1148,7 +1347,7 @@ var getDescriptor = DESCRIPTORS && Object.getOwnPropertyDescriptor;
 
 var EXISTS = hasOwn(FunctionPrototype, 'name');
 // additional protection from minified / mangled / dropped function names
-var PROPER = EXISTS && (function something() { /* empty */ }).name === 'something';
+var PROPER = EXISTS && function something() { /* empty */ }.name === 'something';
 var CONFIGURABLE = EXISTS && (!DESCRIPTORS || (DESCRIPTORS && getDescriptor(FunctionPrototype, 'name').configurable));
 
 module.exports = {
@@ -1740,7 +1939,9 @@ module.exports = function (iterable, unboundFunction, options) {
   var iterator, iterFn, index, length, result, next, step;
 
   var stop = function (condition) {
-    if (iterator) iteratorClose(iterator, 'normal');
+    var $iterator = iterator;
+    iterator = undefined;
+    if ($iterator) iteratorClose($iterator, 'normal');
     return new Result(true, condition);
   };
 
@@ -1770,10 +1971,13 @@ module.exports = function (iterable, unboundFunction, options) {
 
   next = IS_RECORD ? iterable.next : iterator.next;
   while (!(step = call(next, iterator)).done) {
+    // `IteratorValue` errors should propagate without closing the iterator
+    var value = step.value;
     try {
-      result = callFn(step.value);
+      result = callFn(value);
     } catch (error) {
-      iteratorClose(iterator, 'throw', error);
+      if (iterator) iteratorClose(iterator, 'throw', error);
+      else throw error;
     }
     if (typeof result == 'object' && result && isPrototypeOf(ResultPrototype, result)) return result;
   } return new Result(false);
@@ -1890,11 +2094,13 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
     'return': function () {
       var state = getInternalState(this);
       var iterator = state.iterator;
+      var done = state.done;
       state.done = true;
       if (IS_ITERATOR) {
         var returnMethod = getMethod(iterator, 'return');
         return returnMethod ? call(returnMethod, iterator) : createIterResultObject(undefined, true);
       }
+      if (done) return createIterResultObject(undefined, true);
       if (state.inner) try {
         iteratorClose(state.inner.iterator, NORMAL);
       } catch (error) {
@@ -1903,7 +2109,8 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       if (state.openIters) try {
         iteratorCloseAll(state.openIters, NORMAL);
       } catch (error) {
-        return iteratorClose(iterator, THROW, error);
+        if (iterator) return iteratorClose(iterator, THROW, error);
+        throw error;
       }
       if (iterator) iteratorClose(iterator, NORMAL);
       return createIterResultObject(undefined, true);
@@ -2643,10 +2850,10 @@ var SHARED = '__core-js_shared__';
 var store = module.exports = globalThis[SHARED] || defineGlobalProperty(SHARED, {});
 
 (store.versions || (store.versions = [])).push({
-  version: '3.48.0',
+  version: '3.49.0',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2013–2025 Denis Pushkarev (zloirock.ru), 2025–2026 CoreJS Company (core-js.io). All rights reserved.',
-  license: 'https://github.com/zloirock/core-js/blob/v3.48.0/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.49.0/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -3001,6 +3208,44 @@ module.exports = function (name) {
 
 /***/ },
 
+/***/ "../node_modules/core-js/modules/es.array.includes.js"
+/*!************************************************************!*\
+  !*** ../node_modules/core-js/modules/es.array.includes.js ***!
+  \************************************************************/
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
+
+
+var $ = __webpack_require__(/*! ../internals/export */ "../node_modules/core-js/internals/export.js");
+var $includes = (__webpack_require__(/*! ../internals/array-includes */ "../node_modules/core-js/internals/array-includes.js").includes);
+var fails = __webpack_require__(/*! ../internals/fails */ "../node_modules/core-js/internals/fails.js");
+var addToUnscopables = __webpack_require__(/*! ../internals/add-to-unscopables */ "../node_modules/core-js/internals/add-to-unscopables.js");
+
+// FF99+ bug
+var BROKEN_ON_SPARSE = fails(function () {
+  // eslint-disable-next-line es/no-array-prototype-includes -- detection
+  return !Array(1).includes();
+});
+
+// Safari 26.4- bug
+var BROKEN_ON_SPARSE_WITH_FROM_INDEX = fails(function () {
+  // eslint-disable-next-line no-sparse-arrays, es/no-array-prototype-includes -- detection
+  return [, 1].includes(undefined, 1);
+});
+
+// `Array.prototype.includes` method
+// https://tc39.es/ecma262/#sec-array.prototype.includes
+$({ target: 'Array', proto: true, forced: BROKEN_ON_SPARSE || BROKEN_ON_SPARSE_WITH_FROM_INDEX }, {
+  includes: function includes(el /* , fromIndex = 0 */) {
+    return $includes(this, el, arguments.length > 1 ? arguments[1] : undefined);
+  }
+});
+
+// https://tc39.es/ecma262/#sec-array.prototype-@@unscopables
+addToUnscopables('includes');
+
+
+/***/ },
+
 /***/ "../node_modules/core-js/modules/es.array.push.js"
 /*!********************************************************!*\
   !*** ../node_modules/core-js/modules/es.array.push.js ***!
@@ -3123,6 +3368,109 @@ IteratorConstructor.prototype = IteratorPrototype;
 // https://tc39.es/ecma262/#sec-iterator
 $({ global: true, constructor: true, forced: FORCED }, {
   Iterator: IteratorConstructor
+});
+
+
+/***/ },
+
+/***/ "../node_modules/core-js/modules/es.iterator.every.js"
+/*!************************************************************!*\
+  !*** ../node_modules/core-js/modules/es.iterator.every.js ***!
+  \************************************************************/
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
+
+
+var $ = __webpack_require__(/*! ../internals/export */ "../node_modules/core-js/internals/export.js");
+var call = __webpack_require__(/*! ../internals/function-call */ "../node_modules/core-js/internals/function-call.js");
+var iterate = __webpack_require__(/*! ../internals/iterate */ "../node_modules/core-js/internals/iterate.js");
+var aCallable = __webpack_require__(/*! ../internals/a-callable */ "../node_modules/core-js/internals/a-callable.js");
+var anObject = __webpack_require__(/*! ../internals/an-object */ "../node_modules/core-js/internals/an-object.js");
+var getIteratorDirect = __webpack_require__(/*! ../internals/get-iterator-direct */ "../node_modules/core-js/internals/get-iterator-direct.js");
+var iteratorClose = __webpack_require__(/*! ../internals/iterator-close */ "../node_modules/core-js/internals/iterator-close.js");
+var iteratorHelperWithoutClosingOnEarlyError = __webpack_require__(/*! ../internals/iterator-helper-without-closing-on-early-error */ "../node_modules/core-js/internals/iterator-helper-without-closing-on-early-error.js");
+
+var everyWithoutClosingOnEarlyError = iteratorHelperWithoutClosingOnEarlyError('every', TypeError);
+
+// `Iterator.prototype.every` method
+// https://tc39.es/ecma262/#sec-iterator.prototype.every
+$({ target: 'Iterator', proto: true, real: true, forced: everyWithoutClosingOnEarlyError }, {
+  every: function every(predicate) {
+    anObject(this);
+    try {
+      aCallable(predicate);
+    } catch (error) {
+      iteratorClose(this, 'throw', error);
+    }
+
+    if (everyWithoutClosingOnEarlyError) return call(everyWithoutClosingOnEarlyError, this, predicate);
+
+    var record = getIteratorDirect(this);
+    var counter = 0;
+    return !iterate(record, function (value, stop) {
+      if (!predicate(value, counter++)) return stop();
+    }, { IS_RECORD: true, INTERRUPTED: true }).stopped;
+  }
+});
+
+
+/***/ },
+
+/***/ "../node_modules/core-js/modules/es.iterator.filter.js"
+/*!*************************************************************!*\
+  !*** ../node_modules/core-js/modules/es.iterator.filter.js ***!
+  \*************************************************************/
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
+
+
+var $ = __webpack_require__(/*! ../internals/export */ "../node_modules/core-js/internals/export.js");
+var call = __webpack_require__(/*! ../internals/function-call */ "../node_modules/core-js/internals/function-call.js");
+var aCallable = __webpack_require__(/*! ../internals/a-callable */ "../node_modules/core-js/internals/a-callable.js");
+var anObject = __webpack_require__(/*! ../internals/an-object */ "../node_modules/core-js/internals/an-object.js");
+var getIteratorDirect = __webpack_require__(/*! ../internals/get-iterator-direct */ "../node_modules/core-js/internals/get-iterator-direct.js");
+var createIteratorProxy = __webpack_require__(/*! ../internals/iterator-create-proxy */ "../node_modules/core-js/internals/iterator-create-proxy.js");
+var callWithSafeIterationClosing = __webpack_require__(/*! ../internals/call-with-safe-iteration-closing */ "../node_modules/core-js/internals/call-with-safe-iteration-closing.js");
+var IS_PURE = __webpack_require__(/*! ../internals/is-pure */ "../node_modules/core-js/internals/is-pure.js");
+var iteratorClose = __webpack_require__(/*! ../internals/iterator-close */ "../node_modules/core-js/internals/iterator-close.js");
+var iteratorHelperThrowsOnInvalidIterator = __webpack_require__(/*! ../internals/iterator-helper-throws-on-invalid-iterator */ "../node_modules/core-js/internals/iterator-helper-throws-on-invalid-iterator.js");
+var iteratorHelperWithoutClosingOnEarlyError = __webpack_require__(/*! ../internals/iterator-helper-without-closing-on-early-error */ "../node_modules/core-js/internals/iterator-helper-without-closing-on-early-error.js");
+
+var FILTER_WITHOUT_THROWING_ON_INVALID_ITERATOR = !IS_PURE && !iteratorHelperThrowsOnInvalidIterator('filter', function () { /* empty */ });
+var filterWithoutClosingOnEarlyError = !IS_PURE && !FILTER_WITHOUT_THROWING_ON_INVALID_ITERATOR
+  && iteratorHelperWithoutClosingOnEarlyError('filter', TypeError);
+
+var FORCED = IS_PURE || FILTER_WITHOUT_THROWING_ON_INVALID_ITERATOR || filterWithoutClosingOnEarlyError;
+
+var IteratorProxy = createIteratorProxy(function () {
+  var iterator = this.iterator;
+  var predicate = this.predicate;
+  var next = this.next;
+  var result, done, value;
+  while (true) {
+    result = anObject(call(next, iterator));
+    done = this.done = !!result.done;
+    if (done) return;
+    value = result.value;
+    if (callWithSafeIterationClosing(iterator, predicate, [value, this.counter++], true)) return value;
+  }
+});
+
+// `Iterator.prototype.filter` method
+// https://tc39.es/ecma262/#sec-iterator.prototype.filter
+$({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
+  filter: function filter(predicate) {
+    anObject(this);
+    try {
+      aCallable(predicate);
+    } catch (error) {
+      iteratorClose(this, 'throw', error);
+    }
+
+    if (filterWithoutClosingOnEarlyError) return call(filterWithoutClosingOnEarlyError, this, predicate);
+
+    return new IteratorProxy(getIteratorDirect(this), {
+      predicate: predicate
+    });
+  }
 });
 
 
@@ -3299,6 +3647,32 @@ __webpack_require__(/*! ../modules/es.iterator.constructor */ "../node_modules/c
 
 /***/ },
 
+/***/ "../node_modules/core-js/modules/esnext.iterator.every.js"
+/*!****************************************************************!*\
+  !*** ../node_modules/core-js/modules/esnext.iterator.every.js ***!
+  \****************************************************************/
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
+
+
+// TODO: Remove from `core-js@4`
+__webpack_require__(/*! ../modules/es.iterator.every */ "../node_modules/core-js/modules/es.iterator.every.js");
+
+
+/***/ },
+
+/***/ "../node_modules/core-js/modules/esnext.iterator.filter.js"
+/*!*****************************************************************!*\
+  !*** ../node_modules/core-js/modules/esnext.iterator.filter.js ***!
+  \*****************************************************************/
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
+
+
+// TODO: Remove from `core-js@4`
+__webpack_require__(/*! ../modules/es.iterator.filter */ "../node_modules/core-js/modules/es.iterator.filter.js");
+
+
+/***/ },
+
 /***/ "../node_modules/core-js/modules/esnext.iterator.for-each.js"
 /*!*******************************************************************!*\
   !*** ../node_modules/core-js/modules/esnext.iterator.for-each.js ***!
@@ -3392,6 +3766,7 @@ var __webpack_exports__ = {};
   \*************************************************************/
 
 
+__webpack_require__(/*! core-js/modules/es.array.includes.js */ "../node_modules/core-js/modules/es.array.includes.js");
 __webpack_require__(/*! core-js/modules/esnext.iterator.constructor.js */ "../node_modules/core-js/modules/esnext.iterator.constructor.js");
 __webpack_require__(/*! core-js/modules/esnext.iterator.for-each.js */ "../node_modules/core-js/modules/esnext.iterator.for-each.js");
 var _interactionsUtils = __webpack_require__(/*! ./interactions-utils.js */ "../modules/interactions/assets/js/interactions-utils.js");
@@ -3399,19 +3774,19 @@ var _interactionsBreakpoints = __webpack_require__(/*! ./interactions-breakpoint
 function shouldStopAnimation(replay) {
   return [false, 0, '0', 'false', undefined].includes(replay);
 }
-function scrollOutAnimation(element, transition, animConfig, keyframes, options, animateFunc, inViewFunc) {
+function scrollOutAnimation(element, transition, animConfig, keyframes, options, animateFunc, inViewFunc, baseline) {
   const viewOptions = {
     amount: 0.85,
     root: null
   };
-  const resetKeyframes = (0, _interactionsUtils.getKeyframes)({
+  const resetKeyframes = (0, _interactionsUtils.preserveTransformKeyframes)((0, _interactionsUtils.getKeyframes)({
     type: 'preset',
     preset: {
       effect: animConfig.animation.effect,
       type: 'in',
       direction: animConfig.animation.direction
     }
-  });
+  }), baseline);
   animateFunc(element, resetKeyframes, {
     duration: 0
   });
@@ -3489,7 +3864,8 @@ function defaultAnimation(element, transition, keyframes, options, animateFunc) 
   });
 }
 function applyAnimation(element, animConfig, animateFunc, inViewFunc, scrollFunc, hoverFunc, clickFunc) {
-  const keyframes = (0, _interactionsUtils.animationKeyframes)(animConfig);
+  const baseline = (0, _interactionsUtils.getTransformBaselineFromComputedStyle)(element);
+  const keyframes = (0, _interactionsUtils.preserveTransformKeyframes)((0, _interactionsUtils.animationKeyframes)(animConfig), baseline);
   const options = {
     duration: animConfig.animation.timing.duration * .001,
     delay: animConfig.animation.timing.delay * .001,
@@ -3505,7 +3881,7 @@ function applyAnimation(element, animConfig, animateFunc, inViewFunc, scrollFunc
   } else if ('hover' === animConfig.trigger) {
     hoverAnimation(element, transition, animConfig, keyframes, options, animateFunc, hoverFunc);
   } else if ('scrollOut' === animConfig.trigger) {
-    scrollOutAnimation(element, transition, animConfig, keyframes, options, animateFunc, inViewFunc);
+    scrollOutAnimation(element, transition, animConfig, keyframes, options, animateFunc, inViewFunc, baseline);
   } else if ('scrollIn' === animConfig.trigger) {
     scrollInAnimation(element, transition, animConfig, keyframes, options, animateFunc, inViewFunc);
   } else if ('scrollOn' === animConfig.trigger) {

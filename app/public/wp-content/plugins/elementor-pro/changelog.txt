@@ -1,5 +1,31 @@
 # Elementor Pro - by Elementor.com
 
+#### 4.1.1 - 2026-06-08
+
+* Fix: Live Results item count does not apply correctly on Tablet and Mobile in Search widget
+* Fix: Default animation appears for logged-out users when using an ACF URL dynamic tag in Lottie widget
+* Fix: "Something went wrong" error appears when using Taxonomy Filter with a Loop Grid based on Current Query
+
+#### 4.1.0 - 2026-05-26
+
+* Tweak: Added Radio Button element to Atomic Form - Atomic Editor
+* Tweak: Added Select element to Atomic Form - Atomic Editor
+* Tweak: Added Date Picker element to Atomic Form - Atomic Editor
+* Tweak: Added Time Picker element to Atomic Form - Atomic Editor
+* Tweak: Added File Upload element to Atomic Form - Atomic Editor
+* Tweak: Added Webhook URL support to Atomic Form - Atomic Editor
+* Tweak: Improved the default To and From field settings in Atomic Form - Atomic Editor
+* Tweak: Updated the Connected Input ID control to a Select control in Atomic Form - Atomic Editor
+* Tweak: Added the Atomic Elements section when editing Loop Grid templates - Atomic Editor
+* Tweak: Added support for dynamic field mentions in email content in Atomic Form - Atomic Editor
+* Tweak: Added Start and End grid lines for the While Scrolling effect in Interactions - Atomic Editor
+* Tweak: Updated the minimum required WordPress version to 6.8
+* Fix: Custom styles are lost for Atomic elements used in loops - Atomic Editor
+* Fix: Action Log and Page Title are not recorded in Atomic Form submissions - Atomic Editor
+* Fix: Inline editing does not work for Buttons inside Atomic Form - Atomic Editor
+* Fix: Atomic Form cannot be dragged into containers or child containers - Atomic Editor
+* Fix: Pasting content from another site may cause a fatal error with Loop Item Templates
+
 #### 4.0.4 - 2026-04-28
 
 * Fix: Flexbox and Div Block do not work with display conditions - Atomic Editor

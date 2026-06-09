@@ -56,50 +56,61 @@ class Admin {
 		];
 	}
 
+	private function get_subscription_ended_notice( string $license_status ): array {
+		return [
+			'title' => esc_html__( 'Your Elementor Pro subscription has expired', 'elementor-pro' ),
+			'description' => esc_html__( 'Upgrade to continue editing with Pro features.', 'elementor-pro' ),
+			'buttons' => [
+				[
+					'text' => esc_html__( 'Upgrade now', 'elementor-pro' ),
+					'url' => self::CANCELLED_LICENSE_RENEW_URL,
+					'type' => 'promotion',
+					'new_tab' => true,
+				],
+				$this->get_switch_account_button( $license_status ),
+			],
+			'type' => 'promotion',
+		];
+	}
+
+	private function get_expired_notice_details( array $license_data ): array {
+		$expires_timestamp = ! empty( $license_data['expires'] )
+			? strtotime( $license_data['expires'] )
+			: false;
+
+		$has_time_to_renew = false !== $expires_timestamp && $expires_timestamp > current_time( 'timestamp' );
+
+		if ( ! $has_time_to_renew ) {
+			return $this->get_subscription_ended_notice( API::STATUS_EXPIRED );
+		}
+
+		return [
+			'title' => sprintf(
+				/* translators: %s: Days to expire. */
+				esc_html__( 'Your Elementor Pro subscription has expired - %s to renew', 'elementor-pro' ),
+				human_time_diff( current_time( 'timestamp' ), $expires_timestamp )
+			),
+			'description' => esc_html__( 'Renew to keep using Pro features and lock in your current rate.', 'elementor-pro' ),
+			'buttons' => [
+				[
+					'text' => esc_html__( 'Renew now', 'elementor-pro' ),
+					'url' => API::get_renew_url( self::EXPIRED_LICENSE_RENEW_URL ),
+					'type' => 'promotion',
+					'new_tab' => true,
+				],
+				$this->get_switch_account_button( API::STATUS_EXPIRED ),
+			],
+			'type' => 'promotion',
+		];
+	}
+
 	public function get_errors_details() {
 		$license_data = API::get_license_data();
 		$license_page_link = self::get_url();
 
 		return [
-			API::STATUS_EXPIRED => [
-				'title' => sprintf(
-				/* translators: %s: Days to expire. */
-					esc_html__( 'Your Elementor Pro subscription has expired - %s to renew', 'elementor-pro' ),
-					human_time_diff(
-						current_time( 'timestamp' ),
-						strtotime( isset( $license_data['expires'] ) ? $license_data['expires'] : '' )
-					)
-				),
-				'description' => esc_html__( 'Renew to keep using Pro features and lock in your current rate.', 'elementor-pro' ),
-				'buttons' => [
-					[
-						'text' => esc_html__( 'Renew now', 'elementor-pro' ),
-						'url' => API::get_renew_url( self::EXPIRED_LICENSE_RENEW_URL ),
-						'type' => 'promotion',
-						'new_tab' => true,
-					],
-					$this->get_switch_account_button( API::STATUS_EXPIRED ),
-				],
-				'type' => 'promotion',
-			],
-			API::STATUS_CANCELLED => [
-				'title' => esc_html__( 'Your Elementor Pro subscription has expired', 'elementor-pro' ),
-				'description' => sprintf(
-					esc_html__( 'Upgrade to continue editing with Pro features.', 'elementor-pro' ),
-					'<strong>',
-					'</strong>'
-				),
-				'buttons' => [
-					[
-						'text' => esc_html__( 'Upgrade now', 'elementor-pro' ),
-						'url' => self::CANCELLED_LICENSE_RENEW_URL,
-						'type' => 'promotion',
-						'new_tab' => true,
-					],
-					$this->get_switch_account_button( API::STATUS_CANCELLED ),
-				],
-				'type' => 'promotion',
-			],
+			API::STATUS_EXPIRED => $this->get_expired_notice_details( $license_data ),
+			API::STATUS_CANCELLED => $this->get_subscription_ended_notice( API::STATUS_CANCELLED ),
 			API::STATUS_SITE_INACTIVE => [
 				'title' => esc_html__( 'License Mismatch', 'elementor-pro' ),
 				'description' => sprintf(
@@ -378,7 +389,7 @@ class Admin {
 				<p id="tier-upgrade-promotion" class="<?php echo esc_attr( $this->get_license_box_classes( 'e-row-stretch' ) ); ?>">
 					<span><?php echo esc_html__( 'Get more advanced features', 'elementor-pro' ); ?></span>
 					<a class="button elementor-upgrade-link" target="_blank" href="https://go.elementor.com/go-pro-advanced-license-screen/">
-						<?php echo Pro_Utils::is_sale_time() ? esc_html__( 'Discounted Upgrades', 'elementor-pro' ) : esc_html__( 'Upgrade now', 'elementor-pro' ); ?>
+						<?php echo Pro_Utils::is_sale_time() ? esc_html__( 'Sale! Upgrade Now', 'elementor-pro' ) : esc_html__( 'Upgrade now', 'elementor-pro' ); ?>
 					</a>
 				</p>
 			<?php endif; ?>

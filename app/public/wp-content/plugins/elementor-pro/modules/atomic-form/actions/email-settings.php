@@ -19,7 +19,7 @@ class Email_Settings {
 	}
 
 	public function from() {
-		return $this->email_settings['from'] ?? 'noreply@' . Utils::get_site_domain();
+		return $this->email_settings['from'] ?? 'email@' . Utils::get_site_domain();
 	}
 
 	public function from_name() {

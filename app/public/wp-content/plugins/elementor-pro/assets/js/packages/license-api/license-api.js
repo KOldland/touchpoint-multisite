@@ -18,12 +18,30 @@ __webpack_require__.r(__webpack_exports__);
 
 const TIER_FEATURES_URL = 'elementor-pro/v1/license/tier-features';
 const LICENSE_STATUS_URL = 'elementor-pro/v1/license/get-license-status';
+const CACHE_TTL_MS = 20_000;
+const cache = new Map();
+function cachedGet(url) {
+  const now = Date.now();
+  const cached = cache.get(url);
+  if (cached && now < cached.expiry) {
+    return cached.promise;
+  }
+  const promise = (0,_elementor_http_client__WEBPACK_IMPORTED_MODULE_0__.httpService)().get(url).catch(error => {
+    cache.delete(url);
+    throw error;
+  });
+  cache.set(url, {
+    promise,
+    expiry: now + CACHE_TTL_MS
+  });
+  return promise;
+}
 async function fetchTierFeatures() {
-  const response = await (0,_elementor_http_client__WEBPACK_IMPORTED_MODULE_0__.httpService)().get(TIER_FEATURES_URL);
+  const response = await cachedGet(TIER_FEATURES_URL);
   return response.data?.features || [];
 }
 async function fetchLicenseStatus() {
-  const response = await (0,_elementor_http_client__WEBPACK_IMPORTED_MODULE_0__.httpService)().get(LICENSE_STATUS_URL);
+  const response = await cachedGet(LICENSE_STATUS_URL);
   return !!response.data?.isExpired;
 }
 

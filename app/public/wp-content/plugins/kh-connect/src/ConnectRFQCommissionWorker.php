@@ -22,8 +22,8 @@
 
 namespace KH\Connect;
 
-use KHM\Connect\ConnectSellerPaymentRepository;
-use KHM\Migrations\CreateRFPSupportTables;
+use KH\Connect\ConnectSellerPaymentRepository;
+use KH\Migrations\CreateRFPSupportTables;
 
 defined( 'ABSPATH' ) || exit;
 

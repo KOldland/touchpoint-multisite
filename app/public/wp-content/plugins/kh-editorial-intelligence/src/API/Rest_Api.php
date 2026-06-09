@@ -280,45 +280,6 @@ class Rest_Api {
         ), 200 );
     }
 
-    /**
-     * Verify REST API nonce and user is logged in.
-     *
-     * @return bool
-     */
-    public function verify_nonce_and_logged_in(): bool {
-        if ( ! is_user_logged_in() ) {
-            return false;
-        }
-
-        $nonce = isset( $_SERVER['HTTP_X_WP_NONCE'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_WP_NONCE'] ) ) : '';
-
-        if ( ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Verify REST API nonce and user can edit posts.
-     *
-     * @return bool
-     */
-    public function verify_nonce_and_edit_posts(): bool {
-        if ( ! current_user_can( 'edit_posts' ) ) {
-            return false;
-        }
-
-        $nonce = isset( $_SERVER['HTTP_X_WP_NONCE'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_WP_NONCE'] ) ) : '';
-
-        if ( ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
-            return false;
-        }
-
-        return true;
-    }
-
-
     // --- Legacy Membership Handlers (Kept for compatibility) ---
 
     public function get_member_post_data($request) {

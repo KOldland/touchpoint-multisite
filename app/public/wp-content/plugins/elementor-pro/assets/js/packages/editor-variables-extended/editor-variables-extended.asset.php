@@ -8,6 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 return [
 	'handle' => 'elementor-v2-editor-variables-extended',
 	'deps' => [
+		'elementor-v2-core-adapter-utils',
 		'elementor-v2-editor-controls',
 		'elementor-v2-editor-props',
 		'elementor-v2-editor-ui',
