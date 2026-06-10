@@ -59,6 +59,15 @@ class AuthorEndpoints {
             "methods" => "POST",
             "callback" => [$this, "generate_image"],
             "permission_callback" => [$this, "check_permissions"],
+            "args" => [
+                "prompt"               => ["type" => "string"],
+                "provider"             => ["type" => "string", "default" => "openai"],
+                "title"                => ["type" => "string"],
+                "summary"              => ["type" => "string"],
+                "preset_key"           => ["type" => "string"],
+                "store_in_media_library" => ["type" => "boolean", "default" => true],
+                "post_id"              => ["type" => "integer"],
+            ],
         ]);
         // Step 7: Image recommend endpoint (replaces dual-gpt/v1/images/recommend)
         register_rest_route("editorial/v1", "/images/recommend", [
@@ -201,11 +210,45 @@ class AuthorEndpoints {
     // Step 7: Image generation callback (matches legacy dual-gpt/v1/images/generate response)
     public function generate_image(WP_REST_Request $request) {
         $params = $request->get_params();
+
+        // Try the real ImageService if available
+        if (class_exists('\\KH\\Editorial\\Services\\ImageService')) {
+            try {
+                $service = new \KH\Editorial\Services\ImageService();
+                $result = $service->generate($params);
+
+                if (!is_wp_error($result)) {
+                    return new WP_REST_Response([
+                        'success'     => true,
+                        'image_url'   => $result['url'] ?? '',
+                        'alt_text'    => $result['alt_text'] ?? '',
+                        'caption'     => $result['caption'] ?? '',
+                        'attachments' => $result['attachments'] ?? [],
+                        'provider'    => $result['provider'] ?? $params['provider'] ?? 'openai',
+                    ], 200);
+                }
+
+                // Return the error message for the UI
+                $error_msg = $result->get_error_message();
+                return new WP_REST_Response([
+                    'success' => false,
+                    'message' => $error_msg,
+                ], 200);
+            } catch (\Throwable $e) {
+                return new WP_REST_Response([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 500);
+            }
+        }
+
+        // Fallback: placeholder when ImageService not available
         $prompt = sanitize_text_field($params["prompt"] ?? "");
         return new WP_REST_Response([
             "success" => true,
             "image_url" => "https://via.placeholder.com/1024x1024?text=" . urlencode($prompt),
             "prompt" => $prompt,
+            "attachments" => [],
         ], 200);
     }
 

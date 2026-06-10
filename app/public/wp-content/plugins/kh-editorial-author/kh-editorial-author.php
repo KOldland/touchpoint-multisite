@@ -33,3 +33,30 @@ spl_autoload_register(function ($class) {
 add_action('plugins_loaded', function () {
     \KH\EditorialAuthor\Core\AuthorPlugin::get_instance();
 });
+
+/**
+ * Enqueue the standalone image generator panel in the Gutenberg editor sidebar
+ */
+add_action('enqueue_block_editor_assets', function () {
+    $script_path = __DIR__ . '/assets/js/image-generator.js';
+    if (!file_exists($script_path)) {
+        return;
+    }
+
+    wp_enqueue_script(
+        'kh-editorial-image-generator',
+        plugin_dir_url(__FILE__) . 'assets/js/image-generator.js',
+        [
+            'wp-plugins',
+            'wp-edit-post',
+            'wp-element',
+            'wp-components',
+            'wp-data',
+            'wp-api-fetch',
+            'wp-i18n',
+            'wp-editor',
+        ],
+        filemtime($script_path),
+        true
+    );
+});
