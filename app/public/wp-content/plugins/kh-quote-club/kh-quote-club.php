@@ -34,7 +34,7 @@ final class KH_Quote_Club {
     public function register_rest_routes() {
         if (class_exists('\\QuoteClub\\Rest\\QuoteClubController')) {
             $controller = new \QuoteClub\Rest\QuoteClubController();
-            $controller->register_routes();
+            $controller->register();
         }
     }
 

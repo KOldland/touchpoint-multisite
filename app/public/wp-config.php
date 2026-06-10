@@ -124,34 +124,42 @@ $table_prefix = 'wp_';
  *
  * @link https://wordpress.org/support/article/debugging-in-wordpress/
  */
-if ( ! defined( 'WP_DEBUG' ) ) {
-	define( 'WP_DEBUG', true );
+
+
+// Define environment type early so debug logic below can use it
+if ( ! defined( 'WP_ENVIRONMENT_TYPE' ) ) {
+    define( 'WP_ENVIRONMENT_TYPE', getenv( 'WP_ENVIRONMENT_TYPE' ) ?: 'local' );
 }
 
 // Only enable debug logging in development/local environments
-$is_dev_environment = defined( 'WP_ENVIRONMENT_TYPE' ) && 
-                      in_array( WP_ENVIRONMENT_TYPE, array( 'local', 'development' ), true );
+$is_dev_environment = in_array( WP_ENVIRONMENT_TYPE, array( 'local', 'development' ), true );
 
 if ( ! defined( 'WP_DEBUG_LOG' ) ) {
-	define( 'WP_DEBUG_LOG', $is_dev_environment );
+    define( 'WP_DEBUG_LOG', $is_dev_environment );
 }
 
 if ( ! defined( 'WP_DEBUG_DISPLAY' ) ) {
-	define( 'WP_DEBUG_DISPLAY', false );
+    define( 'WP_DEBUG_DISPLAY', $is_dev_environment );
+}
+
+// Suppress noisy PHP notices (duplicate block registration, etc.) from the error log
+if ( $is_dev_environment && WP_DEBUG_LOG ) {
+    // Keep fatal errors, warnings, and parse errors - suppress notices
+    error_reporting( E_ALL & ~E_NOTICE & ~E_DEPRECATED & ~E_USER_DEPRECATED );
 }
 
 // Simple debug log rotation to prevent huge files in local dev.
 if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-	register_shutdown_function( function() {
-		$log_path = WP_DEBUG_LOG;
-		if ( is_string( $log_path ) && file_exists( $log_path ) ) {
-			$max_bytes = 10 * 1024 * 1024; // 10MB
-			$size = filesize( $log_path );
-			if ( $size !== false && $size > $max_bytes ) {
-				@file_put_contents( $log_path, '' );
-			}
-		}
-	} );
+    register_shutdown_function( function() {
+        $log_path = WP_DEBUG_LOG;
+        if ( is_string( $log_path ) && file_exists( $log_path ) ) {
+            $max_bytes = 10 * 1024 * 1024; // 10MB
+            $size = filesize( $log_path );
+            if ( $size !== false && $size > $max_bytes ) {
+                @file_put_contents( $log_path, '' );
+            }
+        }
+    } );
 }
 
 // Toggle to fully disable KHM SEO social previews if needed.
@@ -169,8 +177,6 @@ define( 'KHM_EDITOR_DISABLED_PLUGINS', array(
 define( 'KHM_DISABLE_ADS', true );
 // Temporarily disable KHM data calls in Social Strip.
 // define( 'KSS_DISABLE_KHM', true );
-
-define( 'WP_ENVIRONMENT_TYPE', 'local' );
 
 define( 'WP_ALLOW_MULTISITE', true );
 define( 'MULTISITE', true );

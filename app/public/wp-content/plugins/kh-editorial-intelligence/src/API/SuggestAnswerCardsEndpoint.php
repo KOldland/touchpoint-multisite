@@ -11,6 +11,11 @@
 
 namespace KH\Editorial\API;
 
+use KH\Editorial\Services\GEO\AnswerCardSchemaValidator;
+use KH\Editorial\Services\GEO\SuggestionCacheManager;
+use KH\Editorial\Services\GEO\RateLimiter;
+use KH\Editorial\Services\GEO\SuggestionAuditLogger;
+
 defined( 'ABSPATH' ) || exit;
 
 /**

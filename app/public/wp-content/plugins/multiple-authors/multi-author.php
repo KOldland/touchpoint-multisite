@@ -269,6 +269,110 @@ add_action( 'acf/save_post', function( $post_id ) {
 	}
 }, 20 );
 
+/**
+ * REST endpoint: Quick-add an author from the Gutenberg sidebar
+ */
+add_action( 'rest_api_init', function() {
+	register_rest_route( 'khm/v1', '/quick-add-author', array(
+		'methods'             => 'POST',
+		'callback'            => 'kh_quick_add_author_rest',
+		'permission_callback' => function() {
+			return current_user_can( 'edit_posts' );
+		},
+		'args' => array(
+			'name'    => array( 'required' => true, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ),
+			'title'   => array( 'required' => false, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ),
+			'company' => array( 'required' => false, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ),
+			'bio'     => array( 'required' => false, 'type' => 'string', 'sanitize_callback' => 'sanitize_textarea_field' ),
+			'post_id' => array( 'required' => false, 'type' => 'integer' ),
+		),
+	) );
+} );
+
+function kh_quick_add_author_rest( $request ) {
+	$name    = sanitize_text_field( $request->get_param( 'name' ) );
+	$title   = sanitize_text_field( $request->get_param( 'title' ) );
+	$company = sanitize_text_field( $request->get_param( 'company' ) );
+	$bio     = sanitize_textarea_field( $request->get_param( 'bio' ) );
+	$post_id = (int) $request->get_param( 'post_id' );
+
+	// Check for duplicate author name
+	$existing = get_posts( array(
+		'post_type'      => 'multi_author',
+		'post_status'    => 'any',
+		'posts_per_page' => 1,
+		'fields'         => 'ids',
+		's'              => $name,
+	) );
+	if ( ! empty( $existing ) ) {
+		return new WP_REST_Response( array(
+			'success' => false,
+			'data'    => array( 'message' => 'An author with that name already exists.' ),
+		), 200 );
+	}
+
+	// Create the author post
+	$author_id = wp_insert_post( array(
+		'post_type'   => 'multi_author',
+		'post_title'  => $name,
+		'post_status' => 'publish',
+	) );
+
+	if ( is_wp_error( $author_id ) || ! $author_id ) {
+		return new WP_REST_Response( array(
+			'success' => false,
+			'data'    => array( 'message' => 'Failed to create author.' ),
+		), 500 );
+	}
+
+	// Save ACF fields
+	if ( function_exists( 'update_field' ) ) {
+		update_field( 'author_name', $name, $author_id );
+		if ( $title )   { update_field( 'author_title', $title, $author_id ); }
+		if ( $company ) { update_field( 'author_company', $company, $author_id ); }
+		if ( $bio )     { update_field( 'author_bio', $bio, $author_id ); }
+	}
+
+	// Link to the current post
+	if ( $post_id ) {
+		$existing_authors = get_field( 'authors', $post_id );
+		if ( empty( $existing_authors ) ) {
+			$existing_authors = array();
+		}
+		if ( is_string( $existing_authors ) ) {
+			$existing_authors = array( $existing_authors );
+		}
+		$existing_authors[] = $author_id;
+		update_field( 'authors', $existing_authors, $post_id );
+	}
+
+	return new WP_REST_Response( array(
+		'success' => true,
+		'data'    => array(
+			'message' => 'Author "' . esc_html( $name ) . '" created and linked to this post.',
+			'author_id' => $author_id,
+		),
+	), 200 );
+}
+
+/**
+ * Enqueue Gutenberg sidebar plugin for quick-add author
+ */
+add_action( 'enqueue_block_editor_assets', function() {
+	$asset_file = plugin_dir_path( __FILE__ ) . 'assets/quick-add-author.js';
+	if ( ! file_exists( $asset_file ) ) {
+		return;
+	}
+
+	wp_enqueue_script(
+		'quick-add-author',
+		plugin_dir_url( __FILE__ ) . 'assets/quick-add-author.js',
+		array( 'wp-plugins', 'wp-edit-post', 'wp-element', 'wp-components', 'wp-data', 'wp-api-fetch', 'wp-i18n', 'wp-editor' ),
+		filemtime( $asset_file ),
+		true
+	);
+} );
+
 function kh_get_post_authors( $post_id ) {
 	if ( ! $post_id ) {
 		return array();
