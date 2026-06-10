@@ -1,0 +1,67 @@
+{
+	"name": "Slovenian",
+	"opt-in": {
+		"title": "To spletno mesto uporablja piškotke",
+		"cookie-message": "Piškotke uporabljamo za personalizacijo vsebine, zagotavljanje funkcij družbenih medijev in analizo našega prometa. Informacije o vaši uporabi našega spletnega mesta delimo tudi z našimi analitičnimi partnerji. Svoje nastavitve lahko kadar koli spremenite. Za več informacij si oglejte našo Politiko zasebnosti in Politiko piškotkov.",
+		"buttons": {
+			"accept-all": "Sprejmi vse",
+			"deny": "Zavrni",
+			"customize": "Prilagodi"
+		},
+		"preferences": {
+			"header": "Prilagodi nastavitve soglasja",
+			"privacy-overview": "Uporabljamo piškotke za izboljšanje vaše izkušnje na tem spletnem mestu. Izberete lahko, katere vrste piškotkov dovolite, in kadar koli spremenite svoje nastavitve. Onemogočanje piškotkov lahko vpliva na vašo izkušnjo na tem spletnem mestu. Več se lahko naučite z ogledom naše Politike piškotkov.",
+			"accept-button": "Sprejmi vse",
+			"deny-button": "Zavrni",
+			"save-preferences": "Shrani nastavitve"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Potrebni",
+				"description": "Ti piškotki so nujni za navigacijo po spletnem mestu in uporabo njegovih funkcij, kot sta dostop do varnih območij spletnega mesta ali zagotavljanje osnovnih storitev."
+			},
+			"functional": {
+				"title": "Funkcionalni",
+				"description": "Ti piškotki spletnem mestu omogočajo, da si zapomni izbire, ki ste jih naredili v preteklosti, kot so priljubljen jezik, regija za vremenske napovedi ali vaše uporabniško ime in geslo za samodejno prijavo."
+			},
+			"analytics": {
+				"title": "Analitični",
+				"description": "Ti piškotki zbirajo informacije o tem, kako uporabljate spletno mesto, na primer katere strani ste obiskali in katere povezave ste kliknili. Nobena od teh informacij se ne more uporabiti za vašo identifikacijo. Vse so združene in s tem anonimizirane. Njihov edini namen je izboljšati funkcije spletnega mesta."
+			},
+			"advertising": {
+				"title": "Oglaševanje",
+				"description": "Ti piškotki sledijo vaši spletni dejavnosti, da oglaševalcem pomagajo zagotavljati ustreznejše oglase ali omejiti, kolikokrat vidite oglas. Ti piškotki lahko te informacije delijo z drugimi organizacijami ali oglaševalci."
+			},
+			"unclassified": {
+				"title": "Nekategorizirano",
+				"description": "Ti piškotki so trenutno v postopku razvrščanja skupaj z drugimi piškotki."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Pravilnik o piškotkih",
+			"do-not-sell": "Ne prodajajte in ne delite mojih osebnih podatkov",
+			"privacy-policy": "Pravilnik o zasebnosti"
+		}
+	},
+	"opt-out": {
+		"title": "To spletno mesto uporablja piškotke",
+		"cookie-message": "Piškotke uporabljamo za personalizacijo vsebine, zagotavljanje funkcij družbenih medijev in analizo našega prometa. Informacije o vaši uporabi našega spletnega mesta delimo tudi z našimi analitičnimi partnerji. Svoje nastavitve lahko kadar koli spremenite. Za več informacij si oglejte našo Politiko zasebnosti in Politiko piškotkov.",
+		"buttons": {
+			"accept-all": "Sprejmi vse",
+			"deny": "Zavrni",
+			"customize": "Prilagodi"
+		},
+		"opt-out-dialog": {
+			"header": "Pogovorno okno za odjavo",
+			"privacy-overview": "Uporabljamo piškotke za izboljšanje vaše izkušnje na tem spletnem mestu. Izberete lahko, katere vrste piškotkov dovolite, in kadar koli spremenite svoje nastavitve. Onemogočanje piškotkov lahko vpliva na vašo izkušnjo na tem spletnem mestu. Več se lahko naučite z ogledom naše Politike piškotkov.",
+			"consent-label": "Ne prodajajte in ne delite mojih osebnih podatkov",
+			"deny-button": "Prekliči",
+			"save-preferences": "Shrani nastavitve"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Pravilnik o piškotkih",
+			"do-not-sell": "Ne prodajajte in ne delite mojih osebnih podatkov",
+			"privacy-policy": "Pravilnik o zasebnosti"
+		}
+	}
+}

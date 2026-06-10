@@ -1,0 +1,38 @@
+.angie-interactive.wp-element-button,
+.angie-interactive .wp-element-button,
+.angie-interactive.wp-block-button__link,
+.angie-interactive .wp-block-button__link {
+  transition: filter 150ms ease-out;
+}
+
+.angie-interactive.wp-element-button:hover,
+.angie-interactive .wp-element-button:hover,
+.angie-interactive.wp-block-button__link:hover,
+.angie-interactive .wp-block-button__link:hover {
+  filter: brightness(0.92);
+  cursor: pointer;
+}
+
+.angie-interactive.wp-element-button:active,
+.angie-interactive .wp-element-button:active,
+.angie-interactive.wp-block-button__link:active,
+.angie-interactive .wp-block-button__link:active {
+  filter: brightness(0.85);
+}
+
+.angie-interactive.wp-element-button:focus-visible,
+.angie-interactive .wp-element-button:focus-visible,
+.angie-interactive.wp-block-button__link:focus-visible,
+.angie-interactive .wp-block-button__link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .angie-interactive.wp-element-button,
+  .angie-interactive .wp-element-button,
+  .angie-interactive.wp-block-button__link,
+  .angie-interactive .wp-block-button__link {
+    transition: none;
+  }
+}

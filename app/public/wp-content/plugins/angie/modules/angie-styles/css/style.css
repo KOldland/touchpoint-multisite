@@ -1,0 +1,29 @@
+.wp-block-image.has-unsplash-caption {
+	position: relative;
+}
+
+.wp-block-image.has-unsplash-caption figcaption {
+	opacity: 0;
+	position: absolute;
+	bottom: -0.9rem;
+	left: 0;
+	line-height: 1;
+	font-size: 0.8rem;
+	color: #666;
+	font-style: italic;
+	margin: unset !important;
+	transition: opacity 0.2s ease;
+}
+
+.wp-block-image.has-unsplash-caption:hover figcaption {
+	opacity: 1;
+}
+
+.wp-block-image.has-unsplash-caption img[style*="border-radius"] + figcaption{
+	width: 100%;
+	text-align: center;
+}
+
+.wp-block-image.has-unsplash-caption a {
+	color: inherit;
+}

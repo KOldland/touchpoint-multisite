@@ -1,0 +1,67 @@
+{
+	"name": "Polish",
+	"opt-in": {
+		"title": "Ta strona internetowa używa plików cookie",
+		"cookie-message": "Używamy plików cookie do personalizacji treści, zapewniania funkcji mediów społecznościowych i analizowania naszego ruchu. Udostępniamy również informacje o korzystaniu z naszej witryny naszym partnerom analitycznym. Możesz zmienić swoje preferencje w dowolnym momencie. Więcej informacji znajdziesz w naszej Polityce prywatności i Polityce plików cookie.",
+		"buttons": {
+			"accept-all": "Akceptuj wszystkie",
+			"deny": "Odmów",
+			"customize": "Dostosuj"
+		},
+		"preferences": {
+			"header": "Dostosuj preferencje dotyczące zgody",
+			"privacy-overview": "Używamy plików cookie, aby poprawić Twoje doświadczenia na tej stronie internetowej. Możesz wybrać, jakie rodzaje plików cookie chcesz zezwolić i zmienić swoje preferencje w dowolnym momencie. Wyłączenie plików cookie może wpłynąć na Twoje doświadczenia na tej stronie internetowej. Możesz dowiedzieć się więcej, przeglądając naszą Politykę plików cookie.",
+			"accept-button": "Akceptuj wszystkie",
+			"deny-button": "Odmów",
+			"save-preferences": "Zapisz preferencje"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Niezbędne",
+				"description": "Te pliki cookie są niezbędne do nawigacji po stronie internetowej i korzystania z jej funkcji, takich jak dostęp do bezpiecznych obszarów witryny lub świadczenie podstawowych usług."
+			},
+			"functional": {
+				"title": "Funkcjonalne",
+				"description": "Te pliki cookie pozwalają stronie internetowej zapamiętywać wybory dokonane w przeszłości, takie jak preferowany język, region do prognoz pogody lub nazwa użytkownika i hasło do automatycznego logowania."
+			},
+			"analytics": {
+				"title": "Analityczne",
+				"description": "Te pliki cookie zbierają informacje o tym, jak korzystasz ze strony internetowej, takie jak odwiedzone strony i kliknięte linki. Żadna z tych informacji nie może być użyta do Twojej identyfikacji. Są one zagregowane i zanonimizowane. Ich jedynym celem jest poprawa funkcji witryny."
+			},
+			"advertising": {
+				"title": "Reklamowe",
+				"description": "Te pliki cookie śledzą Twoją aktywność online, aby pomóc reklamodawcom dostarczać bardziej trafne reklamy lub ograniczyć liczbę wyświetleń reklamy. Mogą one udostępniać te informacje innym organizacjom lub reklamodawcom."
+			},
+			"unclassified": {
+				"title": "Nieskategoryzowane",
+				"description": "Są to pliki cookie, które są obecnie w trakcie klasyfikacji wraz z innymi plikami cookie."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Polityka plików cookie",
+			"do-not-sell": "Nie sprzedawaj ani nie udostępniaj moich danych osobowych",
+			"privacy-policy": "Polityka prywatności"
+		}
+	},
+	"opt-out": {
+		"title": "Ta strona internetowa używa plików cookie",
+		"cookie-message": "Używamy plików cookie do personalizacji treści, zapewniania funkcji mediów społecznościowych i analizowania naszego ruchu. Udostępniamy również informacje o korzystaniu z naszej witryny naszym partnerom analitycznym. Możesz zmienić swoje preferencje w dowolnym momencie. Więcej informacji znajdziesz w naszej Polityce prywatności i Polityce plików cookie.",
+		"buttons": {
+			"accept-all": "Akceptuj wszystkie",
+			"deny": "Odmów",
+			"customize": "Dostosuj"
+		},
+		"opt-out-dialog": {
+			"header": "Okno dialogowe rezygnacji",
+			"privacy-overview": "Używamy plików cookie, aby poprawić Twoje doświadczenia na tej stronie internetowej. Możesz wybrać, jakie rodzaje plików cookie chcesz zezwolić i zmienić swoje preferencje w dowolnym momencie. Wyłączenie plików cookie może wpłynąć na Twoje doświadczenia na tej stronie internetowej. Możesz dowiedzieć się więcej, przeglądając naszą Politykę plików cookie.",
+			"consent-label": "Nie sprzedawaj ani nie udostępniaj moich danych osobowych",
+			"deny-button": "Anuluj",
+			"save-preferences": "Zapisz preferencje"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Polityka plików cookie",
+			"do-not-sell": "Nie sprzedawaj ani nie udostępniaj moich danych osobowych",
+			"privacy-policy": "Polityka prywatności"
+		}
+	}
+}

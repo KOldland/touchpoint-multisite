@@ -1,0 +1,67 @@
+{
+	"name": "Uzbek",
+	"opt-in": {
+		"title": "Ushbu veb-sayt cookie-fayllardan foydalanadi",
+		"cookie-message": "Tarkibni moslashtirish, ijtimoiy tarmoq xususiyatlarini taqdim etish va trafikimizni tahlil qilish uchun cookie-fayllardan foydalanamiz. Shuningdek, saytimizdan foydalanishingiz haqidagi ma'lumotlarni tahlil hamkorlarimiz bilan ulashamiz. Istalgan vaqtda sozlamalaringizni o'zgartirishingiz mumkin. Qo'shimcha ma'lumot olish uchun Maxfiylik siyosatimiz va Cookie siyosatimizni ko'rib chiqing.",
+		"buttons": {
+			"accept-all": "Hammasini qabul qilish",
+			"deny": "Rad etish",
+			"customize": "Sozlash"
+		},
+		"preferences": {
+			"header": "Rozilik sozlamalarini moslash",
+			"privacy-overview": "Ushbu veb-saytda tajribangizni yaxshilash uchun cookie-fayllardan foydalanamiz. Qaysi turdagi cookie-fayllarni ruxsat berishni tanlashingiz va istalgan vaqtda sozlamalaringizni o'zgartirishingiz mumkin. Cookie-fayllarni o'chirish ushbu veb-saytdagi tajribangizga ta'sir qilishi mumkin. Cookie siyosatimizni ko'rib, ko'proq ma'lumot olishingiz mumkin.",
+			"accept-button": "Hammasini qabul qilish",
+			"deny-button": "Rad etish",
+			"save-preferences": "Sozlamalarni saqlash"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Zaruriy",
+				"description": "Bu cookie-fayllar veb-saytda navigatsiya qilish va uning funksiyalaridan foydalanish, masalan, saytning himoyalangan joylariga kirish yoki asosiy xizmatlarni taqdim etish uchun zarurdir."
+			},
+			"functional": {
+				"title": "Funksional",
+				"description": "Bu cookie-fayllar veb-saytga siz ilgari qilgan tanlovlarni, masalan, qaysi tilni afzal ko'rishingizni, qaysi mintaqa uchun ob-havo ma'lumotlarini olishni yoki avtomatik kirish uchun foydalanuvchi nomingiz va parolingizni eslab qolish imkonini beradi."
+			},
+			"analytics": {
+				"title": "Analitik",
+				"description": "Bu cookie-fayllar veb-saytdan qanday foydalanayotganingiz haqida ma'lumot to'playdi, masalan, qaysi sahifalarni tashrif buyurganingiz va qaysi havolalarga bosganingiz. Bu ma'lumotlarning hech biri sizni aniqlash uchun ishlatilmaydi. Hammasi yig'ilgan va shuning uchun anonim. Ularning yagona maqsadi veb-sayt funksiyalarini yaxshilashdir."
+			},
+			"advertising": {
+				"title": "Reklama",
+				"description": "Bu cookie-fayllar reklamachilar tegishli reklamalarni ko'rsatishga yordam berish yoki reklamani necha marta ko'rishingizni cheklash uchun onlayn faoliyatingizni kuzatadi. Bu cookie-fayllar ushbu ma'lumotlarni boshqa tashkilotlar yoki reklamachilar bilan baham ko'rishi mumkin."
+			},
+			"unclassified": {
+				"title": "Turkumlanmagan",
+				"description": "Bu cookie-fayllar hozirda boshqa cookie-fayllar bilan birga tasniflanish jarayonida."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Cookie siyosati",
+			"do-not-sell": "Shaxsiy ma'lumotlarimni sotmang yoki ulashmang",
+			"privacy-policy": "Maxfiylik siyosati"
+		}
+	},
+	"opt-out": {
+		"title": "Ushbu veb-sayt cookie-fayllardan foydalanadi",
+		"cookie-message": "Tarkibni moslashtirish, ijtimoiy tarmoq xususiyatlarini taqdim etish va trafikimizni tahlil qilish uchun cookie-fayllardan foydalanamiz. Shuningdek, saytimizdan foydalanishingiz haqidagi ma'lumotlarni tahlil hamkorlarimiz bilan ulashamiz. Istalgan vaqtda sozlamalaringizni o'zgartirishingiz mumkin. Qo'shimcha ma'lumot olish uchun Maxfiylik siyosatimiz va Cookie siyosatimizni ko'rib chiqing.",
+		"buttons": {
+			"accept-all": "Hammasini qabul qilish",
+			"deny": "Rad etish",
+			"customize": "Sozlash"
+		},
+		"opt-out-dialog": {
+			"header": "Rad etish muloqot oynasi",
+			"privacy-overview": "Ushbu veb-saytda tajribangizni yaxshilash uchun cookie-fayllardan foydalanamiz. Qaysi turdagi cookie-fayllarni ruxsat berishni tanlashingiz va istalgan vaqtda sozlamalaringizni o'zgartirishingiz mumkin. Cookie-fayllarni o'chirish ushbu veb-saytdagi tajribangizga ta'sir qilishi mumkin. Cookie siyosatimizni ko'rib, ko'proq ma'lumot olishingiz mumkin.",
+			"consent-label": "Shaxsiy ma'lumotlarimni sotmang yoki ulashmang",
+			"deny-button": "Bekor qilish",
+			"save-preferences": "Sozlamalarni saqlash"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Cookie siyosati",
+			"do-not-sell": "Shaxsiy ma'lumotlarimni sotmang yoki ulashmang",
+			"privacy-policy": "Maxfiylik siyosati"
+		}
+	}
+}

@@ -1,0 +1,67 @@
+{
+	"name": "Spanish",
+	"opt-in": {
+		"title": "Este sitio web utiliza cookies",
+		"cookie-message": "Usamos cookies para personalizar el contenido, proporcionar funciones de redes sociales y analizar nuestro tráfico. También compartimos información sobre su uso de nuestro sitio con nuestros socios de análisis. Puede cambiar sus preferencias en cualquier momento. Para más información, consulte nuestra Política de Privacidad y Política de Cookies.",
+		"buttons": {
+			"accept-all": "Aceptar todo",
+			"deny": "Rechazar",
+			"customize": "Personalizar"
+		},
+		"preferences": {
+			"header": "Personalizar preferencias de consentimiento",
+			"privacy-overview": "Usamos cookies para mejorar su experiencia en este sitio web. Puede elegir qué tipos de cookies permitir y cambiar sus preferencias en cualquier momento. Deshabilitar las cookies puede afectar su experiencia en este sitio web. Puede obtener más información consultando nuestra Política de cookies.",
+			"accept-button": "Aceptar todo",
+			"deny-button": "Rechazar",
+			"save-preferences": "Guardar preferencias"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Necesarias",
+				"description": "Estas cookies son esenciales para que pueda navegar por el sitio web y utilizar sus funciones, como acceder a áreas seguras del sitio o proporcionar los servicios básicos."
+			},
+			"functional": {
+				"title": "Funcionales",
+				"description": "Estas cookies permiten que un sitio web recuerde las elecciones que ha realizado en el pasado, como el idioma que prefiere, la región para la que desea informes meteorológicos o su nombre de usuario y contraseña para que pueda iniciar sesión automáticamente."
+			},
+			"analytics": {
+				"title": "Analíticas",
+				"description": "Estas cookies recopilan información sobre cómo usa un sitio web, como qué páginas visitó y en qué enlaces hizo clic. Ninguna de esta información puede usarse para identificarlo. Todo está agregado y, por lo tanto, anonimizado. Su único propósito es mejorar las funciones del sitio web."
+			},
+			"advertising": {
+				"title": "Publicidad",
+				"description": "Estas cookies rastrean su actividad en línea para ayudar a los anunciantes a ofrecer publicidad más relevante o para limitar la cantidad de veces que ve un anuncio. Estas cookies pueden compartir esa información con otras organizaciones o anunciantes."
+			},
+			"unclassified": {
+				"title": "Sin categorizar",
+				"description": "Estas son cookies que actualmente están en proceso de ser clasificadas junto con otras cookies."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Política de cookies",
+			"do-not-sell": "No vender ni compartir mi información personal",
+			"privacy-policy": "Política de privacidad"
+		}
+	},
+	"opt-out": {
+		"title": "Este sitio web utiliza cookies",
+		"cookie-message": "Usamos cookies para personalizar el contenido, proporcionar funciones de redes sociales y analizar nuestro tráfico. También compartimos información sobre su uso de nuestro sitio con nuestros socios de análisis. Puede cambiar sus preferencias en cualquier momento. Para más información, consulte nuestra Política de Privacidad y Política de Cookies.",
+		"buttons": {
+			"accept-all": "Aceptar todo",
+			"deny": "Rechazar",
+			"customize": "Personalizar"
+		},
+		"opt-out-dialog": {
+			"header": "Diálogo de exclusión",
+			"privacy-overview": "Usamos cookies para mejorar su experiencia en este sitio web. Puede elegir qué tipos de cookies permitir y cambiar sus preferencias en cualquier momento. Deshabilitar las cookies puede afectar su experiencia en este sitio web. Puede obtener más información consultando nuestra Política de cookies.",
+			"consent-label": "No vender ni compartir mi información personal",
+			"deny-button": "Cancelar",
+			"save-preferences": "Guardar preferencias"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Política de cookies",
+			"do-not-sell": "No vender ni compartir mi información personal",
+			"privacy-policy": "Política de privacidad"
+		}
+	}
+}

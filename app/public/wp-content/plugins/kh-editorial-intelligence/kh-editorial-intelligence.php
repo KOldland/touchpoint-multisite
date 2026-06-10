@@ -68,4 +68,20 @@ add_action( 'plugins_loaded', function() {
         $rest_api = new KH\Editorial\API\Rest_Api();
         $rest_api->init();
     }
+
+     // 7. Gutenberg Editor Assets
+    add_action( 'enqueue_block_editor_assets', function() {
+        $script_path = KH_EDITORIAL_PLUGIN_DIR . 'assets/js/editor-image-sidebar.js';
+        if ( ! file_exists( $script_path ) ) {
+            return;
+        }
+        wp_enqueue_script(
+            'kh-editorial-image-sidebar',
+            KH_EDITORIAL_PLUGIN_URL . 'assets/js/editor-image-sidebar.js',
+            [ 'wp-plugins', 'wp-edit-post', 'wp-editor', 'wp-element', 'wp-components', 'wp-data', 'wp-api-fetch', 'wp-i18n' ],
+            filemtime( $script_path ),
+            true
+        );
+
+} );
 } );

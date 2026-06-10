@@ -1,0 +1,67 @@
+{
+	"name": "Romanian",
+	"opt-in": {
+		"title": "Acest site web folosește cookie-uri",
+		"cookie-message": "Folosim cookie-uri pentru a personaliza conținutul, a oferi funcții de rețele sociale și a analiza traficul nostru. De asemenea, partajăm informații despre utilizarea site-ului nostru cu partenerii noștri de analiză. Vă puteți modifica preferințele oricând. Pentru mai multe informații, consultați Politica noastră de confidențialitate și Politica privind cookie-urile.",
+		"buttons": {
+			"accept-all": "Acceptați toate",
+			"deny": "Refuzați",
+			"customize": "Personalizați"
+		},
+		"preferences": {
+			"header": "Personalizați preferințele de consimțământ",
+			"privacy-overview": "Folosim cookie-uri pentru a îmbunătăți experiența dvs. pe acest site web. Puteți alege ce tipuri de cookie-uri să permiteți și să vă modificați preferințele oricând. Dezactivarea cookie-urilor poate afecta experiența dvs. pe acest site web. Puteți afla mai multe consultând Politica noastră privind cookie-urile.",
+			"accept-button": "Acceptați toate",
+			"deny-button": "Refuzați",
+			"save-preferences": "Salvați preferințele"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Necesare",
+				"description": "Aceste cookie-uri sunt esențiale pentru a putea naviga pe site și a utiliza funcțiile acestuia, cum ar fi accesarea zonelor securizate ale site-ului sau furnizarea serviciilor de bază."
+			},
+			"functional": {
+				"title": "Funcționale",
+				"description": "Aceste cookie-uri permit unui site web să rețină alegerile pe care le-ați făcut în trecut, cum ar fi limba pe care o preferați, regiunea pentru care doriți prognoze meteo sau numele de utilizator și parola pentru autentificare automată."
+			},
+			"analytics": {
+				"title": "Analitice",
+				"description": "Aceste cookie-uri colectează informații despre modul în care utilizați un site web, cum ar fi paginile pe care le-ați vizitat și linkurile pe care le-ați accesat. Niciuna dintre aceste informații nu poate fi utilizată pentru a vă identifica. Toate sunt agregate și, prin urmare, anonimizate. Singurul lor scop este îmbunătățirea funcțiilor site-ului."
+			},
+			"advertising": {
+				"title": "Publicitate",
+				"description": "Aceste cookie-uri urmăresc activitatea dvs. online pentru a ajuta agenții de publicitate să furnizeze reclame mai relevante sau pentru a limita de câte ori vedeți o reclamă. Aceste cookie-uri pot partaja aceste informații cu alte organizații sau agenți de publicitate."
+			},
+			"unclassified": {
+				"title": "Necategorizat",
+				"description": "Acestea sunt cookie-uri care sunt în prezent în curs de clasificare împreună cu alte cookie-uri."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Politica privind cookie-urile",
+			"do-not-sell": "Nu vindeți și nu partajați informațiile mele personale",
+			"privacy-policy": "Politica de confidențialitate"
+		}
+	},
+	"opt-out": {
+		"title": "Acest site web folosește cookie-uri",
+		"cookie-message": "Folosim cookie-uri pentru a personaliza conținutul, a oferi funcții de rețele sociale și a analiza traficul nostru. De asemenea, partajăm informații despre utilizarea site-ului nostru cu partenerii noștri de analiză. Vă puteți modifica preferințele oricând. Pentru mai multe informații, consultați Politica noastră de confidențialitate și Politica privind cookie-urile.",
+		"buttons": {
+			"accept-all": "Acceptați toate",
+			"deny": "Refuzați",
+			"customize": "Personalizați"
+		},
+		"opt-out-dialog": {
+			"header": "Dialog de renunțare",
+			"privacy-overview": "Folosim cookie-uri pentru a îmbunătăți experiența dvs. pe acest site web. Puteți alege ce tipuri de cookie-uri să permiteți și să vă modificați preferințele oricând. Dezactivarea cookie-urilor poate afecta experiența dvs. pe acest site web. Puteți afla mai multe consultând Politica noastră privind cookie-urile.",
+			"consent-label": "Nu vindeți și nu partajați informațiile mele personale",
+			"deny-button": "Anulați",
+			"save-preferences": "Salvați preferințele"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Politica privind cookie-urile",
+			"do-not-sell": "Nu vindeți și nu partajați informațiile mele personale",
+			"privacy-policy": "Politica de confidențialitate"
+		}
+	}
+}

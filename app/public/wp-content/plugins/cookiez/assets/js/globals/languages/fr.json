@@ -1,0 +1,67 @@
+{
+	"name": "French",
+	"opt-in": {
+		"title": "Ce site Web utilise des cookies",
+		"cookie-message": "Nous utilisons des cookies pour personnaliser le contenu, fournir des fonctionnalités de réseaux sociaux et analyser notre trafic. Nous partageons également des informations sur votre utilisation de notre site avec nos partenaires analytiques. Vous pouvez modifier vos préférences à tout moment. Pour plus d'informations, veuillez consulter notre Politique de confidentialité et notre Politique en matière de cookies.",
+		"buttons": {
+			"accept-all": "Tout accepter",
+			"deny": "Refuser",
+			"customize": "Personnaliser"
+		},
+		"preferences": {
+			"header": "Personnaliser les préférences de consentement",
+			"privacy-overview": "Nous utilisons des cookies pour améliorer votre expérience sur ce site web. Vous pouvez choisir les types de cookies que vous souhaitez autoriser et modifier vos préférences à tout moment. La désactivation des cookies peut avoir un impact sur votre expérience sur ce site web. Vous pouvez en savoir plus en consultant notre politique en matière de cookies.",
+			"accept-button": "Tout accepter",
+			"deny-button": "Refuser",
+			"save-preferences": "Enregistrer les préférences"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Nécessaire",
+				"description": "Ces cookies sont essentiels pour vous permettre de naviguer sur le site web et d'utiliser ses fonctionnalités, comme l'accès à des zones sécurisées du site ou la fourniture de services de base."
+			},
+			"functional": {
+				"title": "Fonctionnel",
+				"description": "Ces cookies permettent à un site web de se souvenir de choix que vous avez effectués dans le passé, comme la langue que vous préférez, la région pour laquelle vous souhaitez des prévisions météorologiques ou votre nom d'utilisateur et mot de passe pour une connexion automatique."
+			},
+			"analytics": {
+				"title": "Analytique",
+				"description": "Ces cookies collectent des informations sur la façon dont vous utilisez un site web, comme les pages que vous avez visitées et les liens sur lesquels vous avez cliqué. Aucune de ces informations ne peut être utilisée pour vous identifier. Elles sont toutes agrégées et donc anonymisées. Leur seul but est d'améliorer les fonctions du site web."
+			},
+			"advertising": {
+				"title": "Publicité",
+				"description": "Ces cookies suivent votre activité en ligne pour aider les annonceurs à diffuser des publicités plus pertinentes ou à limiter le nombre de fois où vous voyez une publicité. Ces cookies peuvent partager ces informations avec d'autres organisations ou annonceurs."
+			},
+			"unclassified": {
+				"title": "Non catégorisé",
+				"description": "Ces cookies sont actuellement en cours de classification avec d'autres cookies."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Politique relative aux cookies",
+			"do-not-sell": "Ne pas vendre ni partager mes informations personnelles",
+			"privacy-policy": "Politique de confidentialité"
+		}
+	},
+	"opt-out": {
+		"title": "Ce site Web utilise des cookies",
+		"cookie-message": "Nous utilisons des cookies pour personnaliser le contenu, fournir des fonctionnalités de réseaux sociaux et analyser notre trafic. Nous partageons également des informations sur votre utilisation de notre site avec nos partenaires analytiques. Vous pouvez modifier vos préférences à tout moment. Pour plus d'informations, veuillez consulter notre Politique de confidentialité et notre Politique en matière de cookies.",
+		"buttons": {
+			"accept-all": "Tout accepter",
+			"deny": "Refuser",
+			"customize": "Personnaliser"
+		},
+		"opt-out-dialog": {
+			"header": "Boîte de dialogue de désinscription",
+			"privacy-overview": "Nous utilisons des cookies pour améliorer votre expérience sur ce site web. Vous pouvez choisir les types de cookies que vous souhaitez autoriser et modifier vos préférences à tout moment. La désactivation des cookies peut avoir un impact sur votre expérience sur ce site web. Vous pouvez en savoir plus en consultant notre politique en matière de cookies.",
+			"consent-label": "Ne pas vendre ni partager mes informations personnelles",
+			"deny-button": "Annuler",
+			"save-preferences": "Enregistrer les préférences"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Politique relative aux cookies",
+			"do-not-sell": "Ne pas vendre ni partager mes informations personnelles",
+			"privacy-policy": "Politique de confidentialité"
+		}
+	}
+}

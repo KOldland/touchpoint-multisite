@@ -1,0 +1,67 @@
+{
+	"name": "Italian",
+	"opt-in": {
+		"title": "Questo sito web utilizza i cookie",
+		"cookie-message": "Utilizziamo i cookie per personalizzare i contenuti, fornire funzionalità dei social media e analizzare il nostro traffico. Condividiamo anche informazioni sul tuo utilizzo del nostro sito con i nostri partner analitici. Puoi modificare le tue preferenze in qualsiasi momento. Per ulteriori informazioni, consulta la nostra Informativa sulla privacy e l'Informativa sui cookie.",
+		"buttons": {
+			"accept-all": "Accetta tutto",
+			"deny": "Rifiuta",
+			"customize": "Personalizza"
+		},
+		"preferences": {
+			"header": "Personalizza le preferenze di consenso",
+			"privacy-overview": "Utilizziamo i cookie per migliorare la tua esperienza su questo sito web. Puoi scegliere quali tipi di cookie consentire e modificare le tue preferenze in qualsiasi momento. La disabilitazione dei cookie potrebbe influenzare la tua esperienza su questo sito web. Puoi saperne di più consultando la nostra Cookie Policy.",
+			"accept-button": "Accetta tutto",
+			"deny-button": "Rifiuta",
+			"save-preferences": "Salva preferenze"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Necessari",
+				"description": "Questi cookie sono essenziali per consentirti di navigare nel sito web e utilizzarne le funzionalità, come l'accesso ad aree protette del sito o la fornitura di servizi di base."
+			},
+			"functional": {
+				"title": "Funzionali",
+				"description": "Questi cookie consentono a un sito web di ricordare scelte effettuate in passato, come la lingua preferita, la regione per cui desideri previsioni del tempo o il tuo nome utente e password per l'accesso automatico."
+			},
+			"analytics": {
+				"title": "Analitici",
+				"description": "Questi cookie raccolgono informazioni su come utilizzi un sito web, come le pagine che hai visitato e i link su cui hai cliccato. Nessuna di queste informazioni può essere utilizzata per identificarti. Sono tutte aggregate e quindi anonimizzate. Il loro unico scopo è migliorare le funzioni del sito web."
+			},
+			"advertising": {
+				"title": "Pubblicitari",
+				"description": "Questi cookie tracciano la tua attività online per aiutare gli inserzionisti a fornire pubblicità più pertinente o per limitare quante volte vedi un annuncio. Questi cookie possono condividere queste informazioni con altre organizzazioni o inserzionisti."
+			},
+			"unclassified": {
+				"title": "Non categorizzato",
+				"description": "Questi cookie sono attualmente in fase di classificazione insieme ad altri cookie."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Politica sui cookie",
+			"do-not-sell": "Non vendere né condividere le mie informazioni personali",
+			"privacy-policy": "Informativa sulla privacy"
+		}
+	},
+	"opt-out": {
+		"title": "Questo sito web utilizza i cookie",
+		"cookie-message": "Utilizziamo i cookie per personalizzare i contenuti, fornire funzionalità dei social media e analizzare il nostro traffico. Condividiamo anche informazioni sul tuo utilizzo del nostro sito con i nostri partner analitici. Puoi modificare le tue preferenze in qualsiasi momento. Per ulteriori informazioni, consulta la nostra Informativa sulla privacy e l'Informativa sui cookie.",
+		"buttons": {
+			"accept-all": "Accetta tutto",
+			"deny": "Rifiuta",
+			"customize": "Personalizza"
+		},
+		"opt-out-dialog": {
+			"header": "Dialogo di opt-out",
+			"privacy-overview": "Utilizziamo i cookie per migliorare la tua esperienza su questo sito web. Puoi scegliere quali tipi di cookie consentire e modificare le tue preferenze in qualsiasi momento. La disabilitazione dei cookie potrebbe influenzare la tua esperienza su questo sito web. Puoi saperne di più consultando la nostra Cookie Policy.",
+			"consent-label": "Non vendere né condividere le mie informazioni personali",
+			"deny-button": "Annulla",
+			"save-preferences": "Salva preferenze"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Politica sui cookie",
+			"do-not-sell": "Non vendere né condividere le mie informazioni personali",
+			"privacy-policy": "Informativa sulla privacy"
+		}
+	}
+}

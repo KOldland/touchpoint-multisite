@@ -1,0 +1,67 @@
+{
+	"name": "German",
+	"opt-in": {
+		"title": "Diese Website verwendet Cookies",
+		"cookie-message": "Wir verwenden Cookies, um Inhalte zu personalisieren, Social-Media-Funktionen bereitzustellen und unseren Datenverkehr zu analysieren. Wir teilen auch Informationen über Ihre Nutzung unserer Website mit unseren Analysepartnern. Sie können Ihre Einstellungen jederzeit ändern. Weitere Informationen finden Sie in unserer Datenschutzrichtlinie und Cookie-Richtlinie.",
+		"buttons": {
+			"accept-all": "Alle akzeptieren",
+			"deny": "Ablehnen",
+			"customize": "Anpassen"
+		},
+		"preferences": {
+			"header": "Einwilligungseinstellungen anpassen",
+			"privacy-overview": "Wir verwenden Cookies, um Ihre Erfahrung auf dieser Website zu verbessern. Sie können wählen, welche Arten von Cookies Sie zulassen möchten, und Ihre Einstellungen jederzeit ändern. Das Deaktivieren von Cookies kann Ihre Erfahrung auf dieser Website beeinträchtigen. Sie können mehr erfahren, indem Sie unsere Cookie-Richtlinie lesen.",
+			"accept-button": "Alle akzeptieren",
+			"deny-button": "Ablehnen",
+			"save-preferences": "Einstellungen speichern"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Notwendig",
+				"description": "Diese Cookies sind notwendig, damit Sie auf der Website navigieren und ihre Funktionen nutzen können, wie z. B. der Zugang zu sicheren Bereichen der Website oder die Bereitstellung grundlegender Dienste."
+			},
+			"functional": {
+				"title": "Funktional",
+				"description": "Diese Cookies ermöglichen es einer Website, sich an Entscheidungen zu erinnern, die Sie in der Vergangenheit getroffen haben, wie z. B. welche Sprache Sie bevorzugen, für welche Region Sie Wetterberichte möchten oder Ihren Benutzernamen und Ihr Passwort für die automatische Anmeldung."
+			},
+			"analytics": {
+				"title": "Analytisch",
+				"description": "Diese Cookies sammeln Informationen darüber, wie Sie eine Website nutzen, z. B. welche Seiten Sie besucht haben und auf welche Links Sie geklickt haben. Keine dieser Informationen kann zur Identifizierung Ihrer Person verwendet werden. Sie sind alle aggregiert und daher anonymisiert. Ihr einziger Zweck ist es, die Funktionen der Website zu verbessern."
+			},
+			"advertising": {
+				"title": "Werbung",
+				"description": "Diese Cookies verfolgen Ihre Online-Aktivitäten, um Werbetreibenden dabei zu helfen, relevantere Werbung zu schalten oder die Häufigkeit zu begrenzen, mit der Sie eine Werbung sehen. Diese Cookies können diese Informationen mit anderen Organisationen oder Werbetreibenden teilen."
+			},
+			"unclassified": {
+				"title": "Nicht kategorisiert",
+				"description": "Diese Cookies werden derzeit zusammen mit anderen Cookies klassifiziert."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Cookie-Richtlinie",
+			"do-not-sell": "Meine personenbezogenen Daten nicht verkaufen oder weitergeben",
+			"privacy-policy": "Datenschutzerklärung"
+		}
+	},
+	"opt-out": {
+		"title": "Diese Website verwendet Cookies",
+		"cookie-message": "Wir verwenden Cookies, um Inhalte zu personalisieren, Social-Media-Funktionen bereitzustellen und unseren Datenverkehr zu analysieren. Wir teilen auch Informationen über Ihre Nutzung unserer Website mit unseren Analysepartnern. Sie können Ihre Einstellungen jederzeit ändern. Weitere Informationen finden Sie in unserer Datenschutzrichtlinie und Cookie-Richtlinie.",
+		"buttons": {
+			"accept-all": "Alle akzeptieren",
+			"deny": "Ablehnen",
+			"customize": "Anpassen"
+		},
+		"opt-out-dialog": {
+			"header": "Opt-out-Dialog",
+			"privacy-overview": "Wir verwenden Cookies, um Ihre Erfahrung auf dieser Website zu verbessern. Sie können wählen, welche Arten von Cookies Sie zulassen möchten, und Ihre Einstellungen jederzeit ändern. Das Deaktivieren von Cookies kann Ihre Erfahrung auf dieser Website beeinträchtigen. Sie können mehr erfahren, indem Sie unsere Cookie-Richtlinie lesen.",
+			"consent-label": "Meine personenbezogenen Daten nicht verkaufen oder weitergeben",
+			"deny-button": "Abbrechen",
+			"save-preferences": "Einstellungen speichern"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Cookie-Richtlinie",
+			"do-not-sell": "Meine personenbezogenen Daten nicht verkaufen oder weitergeben",
+			"privacy-policy": "Datenschutzerklärung"
+		}
+	}
+}

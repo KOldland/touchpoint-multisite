@@ -1,0 +1,67 @@
+{
+	"name": "Slovak",
+	"opt-in": {
+		"title": "Táto webová stránka používa súbory cookie",
+		"cookie-message": "Používame súbory cookie na personalizáciu obsahu, poskytovanie funkcií sociálnych médií a analýzu našej návštevnosti. Informácie o vašom používaní našej webovej stránky zdieľame aj s našimi analytickými partnermi. Svoje predvoľby môžete kedykoľvek zmeniť. Pre viac informácií si prečítajte naše Zásady ochrany osobných údajov a Zásady používania súborov cookie.",
+		"buttons": {
+			"accept-all": "Prijať všetky",
+			"deny": "Odmietnuť",
+			"customize": "Prispôsobiť"
+		},
+		"preferences": {
+			"header": "Prispôsobiť predvoľby súhlasu",
+			"privacy-overview": "Používame súbory cookie na zlepšenie vášho zážitku na tejto webovej stránke. Môžete si vybrať, aké typy súborov cookie chcete povoliť, a kedykoľvek zmeniť svoje predvoľby. Zakázanie súborov cookie môže ovplyvniť váš zážitek na tejto webovej stránke. Viac informácií nájdete v našich Zásadách používania súborov cookie.",
+			"accept-button": "Prijať všetky",
+			"deny-button": "Odmietnuť",
+			"save-preferences": "Uložiť predvoľby"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Nevyhnutné",
+				"description": "Tieto súbory cookie sú nevyhnutné na navigáciu na webovej stránke a používanie jej funkcií, ako je prístup k zabezpečeným oblastiam webovej stránky alebo poskytovanie základných služieb."
+			},
+			"functional": {
+				"title": "Funkčné",
+				"description": "Tieto súbory cookie umožňujú webovej stránke zapamätať si voľby, ktoré ste urobili v minulosti, ako je jazyk, ktorý preferujete, región pre predpovede počasia alebo vaše používateľské meno a heslo pre automatické prihlásenie."
+			},
+			"analytics": {
+				"title": "Analytické",
+				"description": "Tieto súbory cookie zhromažďujú informácie o tom, ako používate webovú stránku, napríklad ktoré stránky ste navštívili a na ktoré odkazy ste klikli. Žiadne z týchto informácií nemožno použiť na vašu identifikáciu. Všetky sú agregované, a teda anonymizované. Ich jediným účelom je zlepšiť funkcie webovej stránky."
+			},
+			"advertising": {
+				"title": "Reklamné",
+				"description": "Tieto súbory cookie sledujú vašu online aktivitu, aby pomohli inzerentom poskytovať relevantnejšiu reklamu alebo obmedzovať, koľkokrát vidíte reklamu. Tieto súbory cookie môžu zdieľať tieto informácie s inými organizáciami alebo inzerentmi."
+			},
+			"unclassified": {
+				"title": "Nekategorizované",
+				"description": "Tieto súbory cookie sú v súčasnosti v procese klasifikácie spolu s ostatnými súbormi cookie."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Zásady používania súborov cookie",
+			"do-not-sell": "Nepredávajte ani nezdieľajte moje osobné údaje",
+			"privacy-policy": "Zásady ochrany osobných údajov"
+		}
+	},
+	"opt-out": {
+		"title": "Táto webová stránka používa súbory cookie",
+		"cookie-message": "Používame súbory cookie na personalizáciu obsahu, poskytovanie funkcií sociálnych médií a analýzu našej návštevnosti. Informácie o vašom používaní našej webovej stránky zdieľame aj s našimi analytickými partnermi. Svoje predvoľby môžete kedykoľvek zmeniť. Pre viac informácií si prečítajte naše Zásady ochrany osobných údajov a Zásady používania súborov cookie.",
+		"buttons": {
+			"accept-all": "Prijať všetky",
+			"deny": "Odmietnuť",
+			"customize": "Prispôsobiť"
+		},
+		"opt-out-dialog": {
+			"header": "Dialógové okno odhlásenia",
+			"privacy-overview": "Používame súbory cookie na zlepšenie vášho zážitku na tejto webovej stránke. Môžete si vybrať, aké typy súborov cookie chcete povoliť, a kedykoľvek zmeniť svoje predvoľby. Zakázanie súborov cookie môže ovplyvniť váš zážitek na tejto webovej stránke. Viac informácií nájdete v našich Zásadách používania súborov cookie.",
+			"consent-label": "Nepredávajte ani nezdieľajte moje osobné údaje",
+			"deny-button": "Zrušiť",
+			"save-preferences": "Uložiť predvoľby"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Zásady používania súborov cookie",
+			"do-not-sell": "Nepredávajte ani nezdieľajte moje osobné údaje",
+			"privacy-policy": "Zásady ochrany osobných údajov"
+		}
+	}
+}

@@ -1,0 +1,67 @@
+{
+	"name": "Vietnamese",
+	"opt-in": {
+		"title": "Trang web này sử dụng cookie",
+		"cookie-message": "Chúng tôi sử dụng cookie để cá nhân hóa nội dung, cung cấp các tính năng mạng xã hội và phân tích lưu lượng truy cập. Chúng tôi cũng chia sẻ thông tin về việc bạn sử dụng trang web của chúng tôi với các đối tác phân tích. Bạn có thể thay đổi tùy chọn của mình bất kỳ lúc nào. Để biết thêm thông tin, vui lòng xem Chính sách quyền riêng tư và Chính sách cookie của chúng tôi.",
+		"buttons": {
+			"accept-all": "Chấp nhận tất cả",
+			"deny": "Từ chối",
+			"customize": "Tùy chỉnh"
+		},
+		"preferences": {
+			"header": "Tùy chỉnh tùy chọn đồng ý",
+			"privacy-overview": "Chúng tôi sử dụng cookie để cải thiện trải nghiệm của bạn trên trang web này. Bạn có thể chọn loại cookie nào để cho phép và thay đổi tùy chọn của mình bất cứ lúc nào. Vô hiệu hóa cookie có thể ảnh hưởng đến trải nghiệm của bạn trên trang web này. Bạn có thể tìm hiểu thêm bằng cách xem Chính sách Cookie của chúng tôi.",
+			"accept-button": "Chấp nhận tất cả",
+			"deny-button": "Từ chối",
+			"save-preferences": "Lưu tùy chọn"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Cần thiết",
+				"description": "Các cookie này rất cần thiết để bạn điều hướng trang web và sử dụng các tính năng của nó, chẳng hạn như truy cập các khu vực an toàn của trang web hoặc cung cấp các dịch vụ cơ bản."
+			},
+			"functional": {
+				"title": "Chức năng",
+				"description": "Các cookie này cho phép trang web ghi nhớ các lựa chọn bạn đã thực hiện trong quá khứ, chẳng hạn như ngôn ngữ bạn thích, khu vực bạn muốn xem dự báo thời tiết hoặc tên người dùng và mật khẩu để đăng nhập tự động."
+			},
+			"analytics": {
+				"title": "Phân tích",
+				"description": "Các cookie này thu thập thông tin về cách bạn sử dụng trang web, chẳng hạn như những trang bạn đã truy cập và những liên kết bạn đã nhấp. Không có thông tin nào trong số này có thể được sử dụng để nhận dạng bạn. Tất cả đều được tổng hợp và do đó ẩn danh. Mục đích duy nhất của chúng là cải thiện các chức năng của trang web."
+			},
+			"advertising": {
+				"title": "Quảng cáo",
+				"description": "Các cookie này theo dõi hoạt động trực tuyến của bạn để giúp các nhà quảng cáo cung cấp quảng cáo liên quan hơn hoặc hạn chế số lần bạn thấy quảng cáo. Các cookie này có thể chia sẻ thông tin này với các tổ chức hoặc nhà quảng cáo khác."
+			},
+			"unclassified": {
+				"title": "Chưa phân loại",
+				"description": "Đây là các cookie hiện đang trong quá trình được phân loại cùng với các cookie khác."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Chính sách cookie",
+			"do-not-sell": "Không bán hoặc chia sẻ thông tin cá nhân của tôi",
+			"privacy-policy": "Chính sách quyền riêng tư"
+		}
+	},
+	"opt-out": {
+		"title": "Trang web này sử dụng cookie",
+		"cookie-message": "Chúng tôi sử dụng cookie để cá nhân hóa nội dung, cung cấp các tính năng mạng xã hội và phân tích lưu lượng truy cập. Chúng tôi cũng chia sẻ thông tin về việc bạn sử dụng trang web của chúng tôi với các đối tác phân tích. Bạn có thể thay đổi tùy chọn của mình bất kỳ lúc nào. Để biết thêm thông tin, vui lòng xem Chính sách quyền riêng tư và Chính sách cookie của chúng tôi.",
+		"buttons": {
+			"accept-all": "Chấp nhận tất cả",
+			"deny": "Từ chối",
+			"customize": "Tùy chỉnh"
+		},
+		"opt-out-dialog": {
+			"header": "Hộp thoại từ chối",
+			"privacy-overview": "Chúng tôi sử dụng cookie để cải thiện trải nghiệm của bạn trên trang web này. Bạn có thể chọn loại cookie nào để cho phép và thay đổi tùy chọn của mình bất cứ lúc nào. Vô hiệu hóa cookie có thể ảnh hưởng đến trải nghiệm của bạn trên trang web này. Bạn có thể tìm hiểu thêm bằng cách xem Chính sách Cookie của chúng tôi.",
+			"consent-label": "Không bán hoặc chia sẻ thông tin cá nhân của tôi",
+			"deny-button": "Hủy",
+			"save-preferences": "Lưu tùy chọn"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Chính sách cookie",
+			"do-not-sell": "Không bán hoặc chia sẻ thông tin cá nhân của tôi",
+			"privacy-policy": "Chính sách quyền riêng tư"
+		}
+	}
+}

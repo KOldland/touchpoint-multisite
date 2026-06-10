@@ -1,0 +1,67 @@
+{
+	"name": "Hungarian",
+	"opt-in": {
+		"title": "Ez a weboldal sütiket használ",
+		"cookie-message": "Sütiket használunk a tartalom személyre szabásához, a közösségi média funkcióinak biztosításához és a forgalmunk elemzéséhez. Weboldalunk használatával kapcsolatos információkat is megosztunk elemzési partnereinkkel. Beállításait bármikor módosíthatja. További információkért tekintse meg adatvédelmi irányelveinket és süti-irányelveinket.",
+		"buttons": {
+			"accept-all": "Összes elfogadása",
+			"deny": "Elutasítás",
+			"customize": "Testreszabás"
+		},
+		"preferences": {
+			"header": "Hozzájárulási beállítások testreszabása",
+			"privacy-overview": "Sütiket használunk a jobb felhasználói élmény érdekében ezen a weboldalon. Kiválaszthatja, milyen típusú sütiket engedélyez, és bármikor módosíthatja beállításait. A sütik letiltása hatással lehet a weboldalon tapasztalt élményére. A sütikre vonatkozó irányelvünk megtekintésével többet megtudhat.",
+			"accept-button": "Összes elfogadása",
+			"deny-button": "Elutasítás",
+			"save-preferences": "Beállítások mentése"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Szükséges",
+				"description": "Ezek a sütik nélkülözhetetlenek a webhelyen való navigáláshoz és funkcióinak használatához, például a webhely biztonságos területeinek eléréséhez vagy az alapszolgáltatások nyújtásához."
+			},
+			"functional": {
+				"title": "Funkcionális",
+				"description": "Ezek a sütik lehetővé teszik, hogy a webhely emlékezzen a korábban hozott döntéseire, például az Ön által preferált nyelvre, a régióra az időjárás-előrejelzésekhez vagy a felhasználónevére és jelszavára az automatikus bejelentkezéshez."
+			},
+			"analytics": {
+				"title": "Analitikai",
+				"description": "Ezek a sütik adatokat gyűjtenek arról, hogyan használja a webhelyet, például hogy mely oldalakat látogatta meg és mely hivatkozásokra kattintott. Ezen információk egyike sem használható az Ön azonosítására. Mindegyik összesített, és ezért anonimizált. Egyetlen céljuk a webhelyfunkciók javítása."
+			},
+			"advertising": {
+				"title": "Reklám",
+				"description": "Ezek a sütik követik online tevékenységét, hogy segítsenek a hirdetőknek relevánsabb hirdetéseket megjeleníteni, vagy korlátozzák, hányszor lát egy hirdetést. Ezek a sütik megoszthatják ezeket az információkat más szervezetekkel vagy hirdetőkkel."
+			},
+			"unclassified": {
+				"title": "Nem kategorizált",
+				"description": "Ezek a sütik jelenleg más sütikkel együtt osztályozás alatt állnak."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Süti szabályzat",
+			"do-not-sell": "Ne értékesítsék vagy ne osszák meg személyes adataimat",
+			"privacy-policy": "Adatvédelmi irányelvek"
+		}
+	},
+	"opt-out": {
+		"title": "Ez a weboldal sütiket használ",
+		"cookie-message": "Sütiket használunk a tartalom személyre szabásához, a közösségi média funkcióinak biztosításához és a forgalmunk elemzéséhez. Weboldalunk használatával kapcsolatos információkat is megosztunk elemzési partnereinkkel. Beállításait bármikor módosíthatja. További információkért tekintse meg adatvédelmi irányelveinket és süti-irányelveinket.",
+		"buttons": {
+			"accept-all": "Összes elfogadása",
+			"deny": "Elutasítás",
+			"customize": "Testreszabás"
+		},
+		"opt-out-dialog": {
+			"header": "Leiratkozás párbeszédpanel",
+			"privacy-overview": "Sütiket használunk a jobb felhasználói élmény érdekében ezen a weboldalon. Kiválaszthatja, milyen típusú sütiket engedélyez, és bármikor módosíthatja beállításait. A sütik letiltása hatással lehet a weboldalon tapasztalt élményére. A sütikre vonatkozó irányelvünk megtekintésével többet megtudhat.",
+			"consent-label": "Ne értékesítsék vagy ne osszák meg személyes adataimat",
+			"deny-button": "Mégse",
+			"save-preferences": "Beállítások mentése"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Süti szabályzat",
+			"do-not-sell": "Ne értékesítsék vagy ne osszák meg személyes adataimat",
+			"privacy-policy": "Adatvédelmi irányelvek"
+		}
+	}
+}

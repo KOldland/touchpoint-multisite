@@ -1,0 +1,94 @@
+.cc-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 64px;
+	min-height: var(--cc-button-height);
+	padding: var(--cc-button-padding);
+	font-size: var(--cc-button-font-size);
+	line-height: 20px;
+	font-weight: 500;
+	border-radius: var(--cc-button-radius);
+	cursor: pointer;
+	font-family: inherit;
+	transition: opacity 0.2s;
+	border: 1px solid transparent;
+
+	&:hover {
+		opacity: 0.9;
+		outline: none;
+	}
+
+	&:focus-visible {
+		outline: -webkit-focus-ring-color auto 1px;
+		outline-offset: 4px;
+	}
+}
+
+.cc-btn--contained {
+	background-color: var(--cc-button-color);
+	color: #fff;
+	border-color: var(--cc-button-color);
+}
+
+.cc-btn--outlined {
+	background: transparent;
+	color: var(--cc-button-color);
+	border-color: var(--cc-button-color);
+
+	&:hover {
+		background: color-mix(in srgb, var(--cc-button-color) 8%, transparent);
+	}
+
+	.cc-dialog-container--preferences & {
+		color: var(--cc-banner-text);
+		border-color: var(--cc-banner-text);
+
+		&:hover {
+			background: color-mix(in srgb, var(--cc-banner-text) 8%, transparent);
+		}
+	}
+}
+
+.cc-btn--text {
+	min-width: 0;
+	min-height: 0;
+	padding: 0;
+	border: none;
+	border-radius: 0;
+	background: none;
+	color: var(--cc-banner-link);
+	font: inherit;
+	font-size: var(--cc-button-font-size);
+	font-feature-settings: "liga" off, "clig" off;
+	line-height: inherit;
+	text-decoration: underline;
+	transition: none;
+
+	&:hover {
+		opacity: 0.85;
+	}
+}
+
+.cc-btn--close {
+	position: absolute;
+	inset-block-start: 8px;
+	inset-inline-end: 12px;
+	min-width: 0;
+	min-height: 0;
+	background: none;
+	border: none;
+	border-radius: 0;
+	padding: 8px;
+	line-height: 1;
+	color: var(--cc-banner-text);
+	font-weight: 400;
+	transition: none;
+
+	.cc-dialog-container--preferences & {
+		position: static;
+		padding: 5px;
+		border-radius: 100px;
+		margin-inline-start: auto;
+	}
+}

@@ -1,0 +1,10 @@
+.cc-root {
+	box-sizing: border-box;
+	font-family: "Noto Sans", sans-serif;
+}
+
+.cc-root *,
+.cc-root *::before,
+.cc-root *::after {
+	box-sizing: border-box;
+}

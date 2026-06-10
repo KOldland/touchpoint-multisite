@@ -1,0 +1,67 @@
+{
+	"name": "Swedish",
+	"opt-in": {
+		"title": "Denna webbplats använder cookies",
+		"cookie-message": "Vi använder cookies för att anpassa innehåll, tillhandahålla funktioner för sociala medier och analysera vår trafik. Vi delar också information om din användning av vår webbplats med våra analyspartners. Du kan ändra dina inställningar när som helst. För mer information, se vår Integritetspolicy och Cookiepolicy.",
+		"buttons": {
+			"accept-all": "Acceptera alla",
+			"deny": "Avböj",
+			"customize": "Anpassa"
+		},
+		"preferences": {
+			"header": "Anpassa samtycksinställningar",
+			"privacy-overview": "Vi använder cookies för att förbättra din upplevelse på den här webbplatsen. Du kan välja vilka typer av cookies du vill tillåta och ändra dina inställningar när som helst. Att inaktivera cookies kan påverka din upplevelse på den här webbplatsen. Du kan lära dig mer genom att läsa vår cookiepolicy.",
+			"accept-button": "Acceptera alla",
+			"deny-button": "Avböj",
+			"save-preferences": "Spara inställningar"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Nödvändiga",
+				"description": "Dessa cookies är nödvändiga för att du ska kunna navigera på webbplatsen och använda dess funktioner, till exempel åtkomst till säkra delar av webbplatsen eller tillhandahållande av grundläggande tjänster."
+			},
+			"functional": {
+				"title": "Funktionella",
+				"description": "Dessa cookies gör det möjligt för en webbplats att komma ihåg val du har gjort tidigare, till exempel vilket språk du föredrar, vilken region du vill ha väderprognoser för eller ditt användarnamn och lösenord för automatisk inloggning."
+			},
+			"analytics": {
+				"title": "Analytiska",
+				"description": "Dessa cookies samlar in information om hur du använder en webbplats, till exempel vilka sidor du besökte och vilka länkar du klickade på. Ingen av denna information kan användas för att identifiera dig. Allt är aggregerat och därmed anonymiserat. Deras enda syfte är att förbättra webbplatsens funktioner."
+			},
+			"advertising": {
+				"title": "Reklam",
+				"description": "Dessa cookies spårar din onlineaktivitet för att hjälpa annonsörer att leverera mer relevant annonsering eller för att begränsa hur många gånger du ser en annons. Dessa cookies kan dela denna information med andra organisationer eller annonsörer."
+			},
+			"unclassified": {
+				"title": "Okategoriserad",
+				"description": "Dessa cookies håller för närvarande på att klassificeras tillsammans med andra cookies."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Cookiepolicy",
+			"do-not-sell": "Sälj eller dela inte min personliga information",
+			"privacy-policy": "Integritetspolicy"
+		}
+	},
+	"opt-out": {
+		"title": "Denna webbplats använder cookies",
+		"cookie-message": "Vi använder cookies för att anpassa innehåll, tillhandahålla funktioner för sociala medier och analysera vår trafik. Vi delar också information om din användning av vår webbplats med våra analyspartners. Du kan ändra dina inställningar när som helst. För mer information, se vår Integritetspolicy och Cookiepolicy.",
+		"buttons": {
+			"accept-all": "Acceptera alla",
+			"deny": "Avböj",
+			"customize": "Anpassa"
+		},
+		"opt-out-dialog": {
+			"header": "Avanmälningsdialog",
+			"privacy-overview": "Vi använder cookies för att förbättra din upplevelse på den här webbplatsen. Du kan välja vilka typer av cookies du vill tillåta och ändra dina inställningar när som helst. Att inaktivera cookies kan påverka din upplevelse på den här webbplatsen. Du kan lära dig mer genom att läsa vår cookiepolicy.",
+			"consent-label": "Sälj eller dela inte min personliga information",
+			"deny-button": "Avbryt",
+			"save-preferences": "Spara inställningar"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Cookiepolicy",
+			"do-not-sell": "Sälj eller dela inte min personliga information",
+			"privacy-policy": "Integritetspolicy"
+		}
+	}
+}

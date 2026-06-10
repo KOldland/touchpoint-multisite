@@ -1,0 +1,67 @@
+{
+	"name": "Danish",
+	"opt-in": {
+		"title": "Dette websted bruger cookies",
+		"cookie-message": "Vi bruger cookies til at personalisere indhold, levere funktioner til sociale medier og analysere vores trafik. Vi deler også oplysninger om din brug af vores websted med vores analysepartnere. Du kan ændre dine præferencer til enhver tid. For mere information, se venligst vores Privatlivspolitik og Cookiepolitik.",
+		"buttons": {
+			"accept-all": "Accepter alle",
+			"deny": "Afvis",
+			"customize": "Tilpas"
+		},
+		"preferences": {
+			"header": "Tilpas samtykkepræferencer",
+			"privacy-overview": "Vi bruger cookies til at forbedre din oplevelse på dette websted. Du kan vælge, hvilke typer cookies du vil tillade, og ændre dine præferencer til enhver tid. Deaktivering af cookies kan påvirke din oplevelse på dette websted. Du kan lære mere ved at se vores cookiepolitik.",
+			"accept-button": "Accepter alle",
+			"deny-button": "Afvis",
+			"save-preferences": "Gem præferencer"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Nødvendige",
+				"description": "Disse cookies er nødvendige for, at du kan navigere på webstedet og bruge dets funktioner, såsom adgang til sikre områder af webstedet eller levering af grundlæggende tjenester."
+			},
+			"functional": {
+				"title": "Funktionelle",
+				"description": "Disse cookies giver et websted mulighed for at huske valg, du har foretaget tidligere, såsom hvilket sprog du foretrækker, hvilken region du ønsker vejrudsigter for, eller dit brugernavn og adgangskode til automatisk login."
+			},
+			"analytics": {
+				"title": "Analytiske",
+				"description": "Disse cookies indsamler oplysninger om, hvordan du bruger et websted, f.eks. hvilke sider du besøgte, og hvilke links du klikkede på. Ingen af disse oplysninger kan bruges til at identificere dig. De er alle aggregerede og derfor anonymiserede. Deres eneste formål er at forbedre webstedets funktioner."
+			},
+			"advertising": {
+				"title": "Reklame",
+				"description": "Disse cookies sporer din onlineaktivitet for at hjælpe annoncører med at levere mere relevant annoncering eller for at begrænse, hvor mange gange du ser en annonce. Disse cookies kan dele disse oplysninger med andre organisationer eller annoncører."
+			},
+			"unclassified": {
+				"title": "Ukategoriseret",
+				"description": "Disse cookies er i øjeblikket i gang med at blive klassificeret sammen med andre cookies."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Cookiepolitik",
+			"do-not-sell": "Sælg eller del ikke mine personlige oplysninger",
+			"privacy-policy": "Privatlivspolitik"
+		}
+	},
+	"opt-out": {
+		"title": "Dette websted bruger cookies",
+		"cookie-message": "Vi bruger cookies til at personalisere indhold, levere funktioner til sociale medier og analysere vores trafik. Vi deler også oplysninger om din brug af vores websted med vores analysepartnere. Du kan ændre dine præferencer til enhver tid. For mere information, se venligst vores Privatlivspolitik og Cookiepolitik.",
+		"buttons": {
+			"accept-all": "Accepter alle",
+			"deny": "Afvis",
+			"customize": "Tilpas"
+		},
+		"opt-out-dialog": {
+			"header": "Frameldingsdialog",
+			"privacy-overview": "Vi bruger cookies til at forbedre din oplevelse på dette websted. Du kan vælge, hvilke typer cookies du vil tillade, og ændre dine præferencer til enhver tid. Deaktivering af cookies kan påvirke din oplevelse på dette websted. Du kan lære mere ved at se vores cookiepolitik.",
+			"consent-label": "Sælg eller del ikke mine personlige oplysninger",
+			"deny-button": "Annuller",
+			"save-preferences": "Gem præferencer"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Cookiepolitik",
+			"do-not-sell": "Sælg eller del ikke mine personlige oplysninger",
+			"privacy-policy": "Privatlivspolitik"
+		}
+	}
+}

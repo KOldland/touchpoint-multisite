@@ -1,0 +1,116 @@
+.cookiez-heading {
+	display: flex;
+	align-items: center;
+}
+
+.cookiez-heading__text {
+	margin: 0;
+	color: var(--cookiez-banner-text);
+	font-family: Poppins, sans-serif;
+	font-size: var(--cookiez-title-size);
+	font-weight: 600;
+	line-height: 1.5;
+	word-break: break-word;
+	flex: 1;
+}
+
+.cookiez-heading__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	line-height: 1;
+}
+
+.cookiez-content {
+	margin: 0;
+	color: var(--cookiez-banner-text);
+	font-family: Poppins, sans-serif;
+	font-size: var(--cookiez-body-size);
+	line-height: 1.5;
+}
+
+p.cookiez-content {
+	margin: 0 !important;
+}
+
+.cookiez-footer {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.cookiez-footer-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 1 1 0;
+	min-width: 0;
+	padding: var(--cookiez-button-padding);
+	font-size: var(--cookiez-button-font-size);
+	line-height: 1.75;
+	font-weight: 500;
+	border-radius: var(--cookiez-button-radius);
+	cursor: pointer;
+	font-family: Poppins, sans-serif;
+	transition-property: color, background-color, border-color, opacity;
+	transition-duration: 0.2s;
+	border: 1px solid transparent;
+}
+
+.cookiez-footer-button:hover {
+	opacity: 0.9;
+	outline: none;
+}
+
+.cookiez-footer-button:focus-visible {
+	outline: -webkit-focus-ring-color auto 1px;
+}
+
+.cookiez-footer-button--contained {
+	background-color: var(--cookiez-button-color);
+	color: #fff;
+	border-color: var(--cookiez-button-color);
+}
+
+.cookiez-footer-button--outlined {
+	background: transparent;
+	color: var(--cookiez-button-color);
+	border-color: var(--cookiez-button-color);
+}
+
+.cookiez-footer-button--outlined:hover {
+	background: color-mix(in srgb, var(--cookiez-button-color) 8%, transparent);
+}
+
+.cookiez-footer-button--customize {
+	background: transparent;
+	color: var(--cookiez-button-color);
+	border-color: var(--cookiez-button-color);
+}
+
+.cookiez-footer-button--customize:hover {
+	background: color-mix(in srgb, var(--cookiez-button-color) 8%, transparent);
+}
+
+.cookiez-footer-button--do-not-sell {
+	padding: 0;
+	margin: 0;
+	border: none;
+	outline: none;
+	box-shadow: none;
+	cursor: pointer;
+	transition-property: color, background-color, border-color, opacity;
+	transition-duration: 0.2s;
+	text-align: start;
+	background: transparent;
+	color: var(--cookiez-button-color);
+	border-color: var(--cookiez-button-color);
+}
+
+.cookiez-footer-button--deny,
+.cookiez-footer-button--accept {
+	background-color: var(--cookiez-button-color);
+	color: #fff;
+	border-color: var(--cookiez-button-color);
+}

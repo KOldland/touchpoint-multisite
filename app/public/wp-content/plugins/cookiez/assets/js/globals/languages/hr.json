@@ -1,0 +1,67 @@
+{
+	"name": "Croatian",
+	"opt-in": {
+		"title": "Ova web stranica koristi kolačiće",
+		"cookie-message": "Koristimo kolačiće za personalizaciju sadržaja, pružanje značajki društvenih medija i analizu našeg prometa. Informacije o vašem korištenju naše web stranice dijelimo i s našim analitičkim partnerima. Možete promijeniti svoje preferencije u bilo koje vrijeme. Za više informacija pogledajte našu Politiku privatnosti i Politiku kolačića.",
+		"buttons": {
+			"accept-all": "Prihvati sve",
+			"deny": "Odbij",
+			"customize": "Prilagodi"
+		},
+		"preferences": {
+			"header": "Prilagodi postavke pristanka",
+			"privacy-overview": "Koristimo kolačiće kako bismo poboljšali vaše iskustvo na ovom web-mjestu. Možete odabrati koje vrste kolačića želite dopustiti i u bilo koje vrijeme promijeniti svoje preferencije. Onemogućavanje kolačića može utjecati na vaše iskustvo na ovom web-mjestu. Možete saznati više pregledavanjem naše Politike kolačića.",
+			"accept-button": "Prihvati sve",
+			"deny-button": "Odbij",
+			"save-preferences": "Spremi postavke"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Neophodni",
+				"description": "Ovi kolačići su neophodni kako biste mogli navigirati po web-mjestu i koristiti njegove značajke, kao što je pristup sigurnim područjima web-mjesta ili pružanje osnovnih usluga."
+			},
+			"functional": {
+				"title": "Funkcionalni",
+				"description": "Ovi kolačići omogućuju web-mjestu pamćenje izbora koje ste napravili u prošlosti, kao što je jezik koji preferirate, regija za koju želite vremenske prognoze ili vaše korisničko ime i lozinka za automatsku prijavu."
+			},
+			"analytics": {
+				"title": "Analitički",
+				"description": "Ovi kolačići prikupljaju informacije o tome kako koristite web-mjesto, kao što su stranice koje ste posjetili i veze na koje ste kliknuli. Nijedna od ovih informacija ne može se koristiti za vašu identifikaciju. Sve su agregirane i stoga anonimizirane. Jedina im je svrha poboljšanje funkcija web-mjesta."
+			},
+			"advertising": {
+				"title": "Oglašavanje",
+				"description": "Ovi kolačići prate vašu mrežnu aktivnost kako bi oglašivačima pomogli u pružanju relevantnije reklame ili ograničavanju broja prikaza oglasa. Ovi kolačići mogu dijeliti te informacije s drugim organizacijama ili oglašivačima."
+			},
+			"unclassified": {
+				"title": "Nekategorizirano",
+				"description": "Ovi kolačići su trenutno u procesu klasifikacije zajedno s drugim kolačićima."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Pravila kolačića",
+			"do-not-sell": "Ne prodajte niti dijelite moje osobne podatke",
+			"privacy-policy": "Pravila privatnosti"
+		}
+	},
+	"opt-out": {
+		"title": "Ova web stranica koristi kolačiće",
+		"cookie-message": "Koristimo kolačiće za personalizaciju sadržaja, pružanje značajki društvenih medija i analizu našeg prometa. Informacije o vašem korištenju naše web stranice dijelimo i s našim analitičkim partnerima. Možete promijeniti svoje preferencije u bilo koje vrijeme. Za više informacija pogledajte našu Politiku privatnosti i Politiku kolačića.",
+		"buttons": {
+			"accept-all": "Prihvati sve",
+			"deny": "Odbij",
+			"customize": "Prilagodi"
+		},
+		"opt-out-dialog": {
+			"header": "Dijaloški okvir za odjavu",
+			"privacy-overview": "Koristimo kolačiće kako bismo poboljšali vaše iskustvo na ovom web-mjestu. Možete odabrati koje vrste kolačića želite dopustiti i u bilo koje vrijeme promijeniti svoje preferencije. Onemogućavanje kolačića može utjecati na vaše iskustvo na ovom web-mjestu. Možete saznati više pregledavanjem naše Politike kolačića.",
+			"consent-label": "Ne prodajte niti dijelite moje osobne podatke",
+			"deny-button": "Odustani",
+			"save-preferences": "Spremi postavke"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Pravila kolačića",
+			"do-not-sell": "Ne prodajte niti dijelite moje osobne podatke",
+			"privacy-policy": "Pravila privatnosti"
+		}
+	}
+}

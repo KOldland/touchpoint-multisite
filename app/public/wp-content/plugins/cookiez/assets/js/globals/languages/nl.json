@@ -1,0 +1,67 @@
+{
+	"name": "Dutch",
+	"opt-in": {
+		"title": "Deze website gebruikt cookies",
+		"cookie-message": "Wij gebruiken cookies om inhoud te personaliseren, functies voor sociale media te bieden en ons verkeer te analyseren. Wij delen ook informatie over uw gebruik van onze site met onze analysepartners. U kunt uw voorkeuren op elk moment wijzigen. Raadpleeg voor meer informatie ons Privacybeleid en Cookiebeleid.",
+		"buttons": {
+			"accept-all": "Alles accepteren",
+			"deny": "Weigeren",
+			"customize": "Aanpassen"
+		},
+		"preferences": {
+			"header": "Toestemmingsvoorkeuren aanpassen",
+			"privacy-overview": "Wij gebruiken cookies om uw ervaring op deze website te verbeteren. U kunt kiezen welke soorten cookies u wilt toestaan en uw voorkeuren op elk gewenst moment wijzigen. Het uitschakelen van cookies kan uw ervaring op deze website beïnvloeden. U kunt meer leren door ons cookiebeleid te bekijken.",
+			"accept-button": "Alles accepteren",
+			"deny-button": "Weigeren",
+			"save-preferences": "Voorkeuren opslaan"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Noodzakelijk",
+				"description": "Deze cookies zijn noodzakelijk om op de website te navigeren en de functies ervan te gebruiken, zoals toegang tot beveiligde gedeelten van de website of het leveren van basisservices."
+			},
+			"functional": {
+				"title": "Functioneel",
+				"description": "Deze cookies stellen een website in staat om keuzes te onthouden die u in het verleden heeft gemaakt, zoals welke taal u de voorkeur geeft, voor welke regio u weerberichten wilt hebben of uw gebruikersnaam en wachtwoord."
+			},
+			"analytics": {
+				"title": "Analytisch",
+				"description": "Deze cookies verzamelen informatie over hoe u een website gebruikt, zoals welke pagina's u heeft bezocht en op welke links u heeft geklikt. Geen van deze informatie kan worden gebruikt om u te identificeren. Ze zijn allemaal samengevoegd en daher geanonimiseerd. Hun enige doel is om de websitefuncties te verbeteren."
+			},
+			"advertising": {
+				"title": "Reclame",
+				"description": "Deze cookies volgen uw online activiteiten om adverteerders te helpen relevantere advertenties te leveren of om te beperken hoe vaak u een advertentie ziet. Deze cookies kunnen deze informatie delen met andere organisaties of adverteerders."
+			},
+			"unclassified": {
+				"title": "Ongecategoriseerd",
+				"description": "Dit zijn cookies die momenteel samen met andere cookies worden geclassificeerd."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Cookiebeleid",
+			"do-not-sell": "Mijn persoonsgegevens niet verkopen of delen",
+			"privacy-policy": "Privacybeleid"
+		}
+	},
+	"opt-out": {
+		"title": "Deze website gebruikt cookies",
+		"cookie-message": "Wij gebruiken cookies om inhoud te personaliseren, functies voor sociale media te bieden en ons verkeer te analyseren. Wij delen ook informatie over uw gebruik van onze site met onze analysepartners. U kunt uw voorkeuren op elk moment wijzigen. Raadpleeg voor meer informatie ons Privacybeleid en Cookiebeleid.",
+		"buttons": {
+			"accept-all": "Alles accepteren",
+			"deny": "Weigeren",
+			"customize": "Aanpassen"
+		},
+		"opt-out-dialog": {
+			"header": "Opt-out dialoogvenster",
+			"privacy-overview": "Wij gebruiken cookies om uw ervaring op deze website te verbeteren. U kunt kiezen welke soorten cookies u wilt toestaan en uw voorkeuren op elk gewenst moment wijzigen. Het uitschakelen van cookies kan uw ervaring op deze website beïnvloeden. U kunt meer leren door ons cookiebeleid te bekijken.",
+			"consent-label": "Mijn persoonsgegevens niet verkopen of delen",
+			"deny-button": "Annuleren",
+			"save-preferences": "Voorkeuren opslaan"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Cookiebeleid",
+			"do-not-sell": "Mijn persoonsgegevens niet verkopen of delen",
+			"privacy-policy": "Privacybeleid"
+		}
+	}
+}

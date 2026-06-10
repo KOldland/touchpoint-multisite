@@ -1,0 +1,67 @@
+{
+	"name": "Portuguese",
+	"opt-in": {
+		"title": "Este site usa cookies",
+		"cookie-message": "Usamos cookies para personalizar conteúdo, fornecer recursos de mídia social e analisar nosso tráfego. Também compartilhamos informações sobre o seu uso do nosso site com nossos parceiros de análise. Você pode alterar suas preferências a qualquer momento. Para mais informações, consulte nossa Política de Privacidade e Política de Cookies.",
+		"buttons": {
+			"accept-all": "Aceitar todos",
+			"deny": "Recusar",
+			"customize": "Personalizar"
+		},
+		"preferences": {
+			"header": "Personalizar preferências de consentimento",
+			"privacy-overview": "Usamos cookies para melhorar a sua experiência neste site. Você pode escolher quais tipos de cookies permitir e alterar suas preferências a qualquer momento. Desativar cookies pode afetar sua experiência neste site. Você pode saber mais consultando nossa Política de Cookies.",
+			"accept-button": "Aceitar todos",
+			"deny-button": "Recusar",
+			"save-preferences": "Salvar preferências"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Necessários",
+				"description": "Esses cookies são essenciais para você navegar no site e usar seus recursos, como acessar áreas seguras do site ou fornecer serviços básicos."
+			},
+			"functional": {
+				"title": "Funcionais",
+				"description": "Esses cookies permitem que um site se lembre de escolhas que você fez no passado, como o idioma preferido, a região para previsões do tempo ou seu nome de usuário e senha para login automático."
+			},
+			"analytics": {
+				"title": "Analíticos",
+				"description": "Esses cookies coletam informações sobre como você usa um site, como as páginas que visitou e os links nos quais clicou. Nenhuma dessas informações pode ser usada para identificá-lo. Todas são agregadas e, portanto, anonimizadas. Seu único propósito é melhorar as funções do site."
+			},
+			"advertising": {
+				"title": "Publicidade",
+				"description": "Esses cookies rastreiam sua atividade online para ajudar os anunciantes a fornecer publicidade mais relevante ou para limitar quantas vezes você vê um anúncio. Esses cookies podem compartilhar essas informações com outras organizações ou anunciantes."
+			},
+			"unclassified": {
+				"title": "Não categorizado",
+				"description": "Estes são cookies que estão atualmente em processo de classificação juntamente com outros cookies."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Política de Cookies",
+			"do-not-sell": "Não vender nem compartilhar minhas informações pessoais",
+			"privacy-policy": "Política de Privacidade"
+		}
+	},
+	"opt-out": {
+		"title": "Este site usa cookies",
+		"cookie-message": "Usamos cookies para personalizar conteúdo, fornecer recursos de mídia social e analisar nosso tráfego. Também compartilhamos informações sobre o seu uso do nosso site com nossos parceiros de análise. Você pode alterar suas preferências a qualquer momento. Para mais informações, consulte nossa Política de Privacidade e Política de Cookies.",
+		"buttons": {
+			"accept-all": "Aceitar todos",
+			"deny": "Recusar",
+			"customize": "Personalizar"
+		},
+		"opt-out-dialog": {
+			"header": "Diálogo de recusa",
+			"privacy-overview": "Usamos cookies para melhorar a sua experiência neste site. Você pode escolher quais tipos de cookies permitir e alterar suas preferências a qualquer momento. Desativar cookies pode afetar sua experiência neste site. Você pode saber mais consultando nossa Política de Cookies.",
+			"consent-label": "Não vender nem compartilhar minhas informações pessoais",
+			"deny-button": "Cancelar",
+			"save-preferences": "Salvar preferências"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Política de Cookies",
+			"do-not-sell": "Não vender nem compartilhar minhas informações pessoais",
+			"privacy-policy": "Política de Privacidade"
+		}
+	}
+}

@@ -1,0 +1,67 @@
+{
+	"name": "Norwegian Bokmål",
+	"opt-in": {
+		"title": "Dette nettstedet bruker informasjonskapsler",
+		"cookie-message": "Vi bruker informasjonskapsler for å tilpasse innhold, levere funksjoner for sosiale medier og analysere trafikken vår. Vi deler også informasjon om din bruk av nettstedet vårt med våre analysepartnere. Du kan endre preferansene dine når som helst. For mer informasjon, se vår Personvernerklæring og Informasjonskapselpolicy.",
+		"buttons": {
+			"accept-all": "Godta alle",
+			"deny": "Avvis",
+			"customize": "Tilpass"
+		},
+		"preferences": {
+			"header": "Tilpass samtykkeinnstillinger",
+			"privacy-overview": "Vi bruker informasjonskapsler for å forbedre opplevelsen din på dette nettstedet. Du kan velge hvilke typer informasjonskapsler du vil tillate, og endre dine preferanser når som helst. Deaktivering av informasjonskapsler kan påvirke opplevelsen din på dette nettstedet. Du kan lære mer ved å se vår retningslinjer for informasjonskapsler.",
+			"accept-button": "Godta alle",
+			"deny-button": "Avvis",
+			"save-preferences": "Lagre innstillinger"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Nødvendige",
+				"description": "Disse informasjonskapslene er nødvendige for å navigere på nettstedet og bruke funksjonene, for eksempel tilgang til sikre områder av nettstedet eller levering av grunnleggende tjenester."
+			},
+			"functional": {
+				"title": "Funksjonelle",
+				"description": "Disse informasjonskapslene lar et nettsted huske valg du har gjort tidligere, for eksempel hvilket språk du foretrekker, hvilken region du ønsker værvarsler for, eller ditt brukernavn og passord for automatisk innlogging."
+			},
+			"analytics": {
+				"title": "Analytiske",
+				"description": "Disse informasjonskapslene samler inn informasjon om hvordan du bruker et nettsted, for eksempel hvilke sider du besøkte og hvilke lenker du klikket på. Ingen av disse opplysningene kan brukes til å identifisere deg. De er alle aggregerte og dermed anonymiserte. Deres eneste formål er å forbedre nettstedets funksjoner."
+			},
+			"advertising": {
+				"title": "Reklame",
+				"description": "Disse informasjonskapslene sporer din nettaktivitet for å hjelpe annonsører med å levere mer relevant annonsering eller for å begrense hvor mange ganger du ser en annonse. Disse informasjonskapslene kan dele denne informasjonen med andre organisasjoner eller annonsører."
+			},
+			"unclassified": {
+				"title": "Ukategorisert",
+				"description": "Disse informasjonskapslene er for øyeblikket i ferd med å bli klassifisert sammen med andre informasjonskapsler."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Informasjonskapsel-policy",
+			"do-not-sell": "Ikke selg eller del mine personopplysninger",
+			"privacy-policy": "Personvernerklæring"
+		}
+	},
+	"opt-out": {
+		"title": "Dette nettstedet bruker informasjonskapsler",
+		"cookie-message": "Vi bruker informasjonskapsler for å tilpasse innhold, levere funksjoner for sosiale medier og analysere trafikken vår. Vi deler også informasjon om din bruk av nettstedet vårt med våre analysepartnere. Du kan endre preferansene dine når som helst. For mer informasjon, se vår Personvernerklæring og Informasjonskapselpolicy.",
+		"buttons": {
+			"accept-all": "Godta alle",
+			"deny": "Avvis",
+			"customize": "Tilpass"
+		},
+		"opt-out-dialog": {
+			"header": "Avmeldingsdialog",
+			"privacy-overview": "Vi bruker informasjonskapsler for å forbedre opplevelsen din på dette nettstedet. Du kan velge hvilke typer informasjonskapsler du vil tillate, og endre dine preferanser når som helst. Deaktivering av informasjonskapsler kan påvirke opplevelsen din på dette nettstedet. Du kan lære mer ved å se vår retningslinjer for informasjonskapsler.",
+			"consent-label": "Ikke selg eller del mine personopplysninger",
+			"deny-button": "Avbryt",
+			"save-preferences": "Lagre innstillinger"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Informasjonskapsel-policy",
+			"do-not-sell": "Ikke selg eller del mine personopplysninger",
+			"privacy-policy": "Personvernerklæring"
+		}
+	}
+}

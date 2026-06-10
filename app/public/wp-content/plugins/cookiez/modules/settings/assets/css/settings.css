@@ -1,0 +1,43 @@
+body {
+	background: #fff;
+}
+
+.wrap {
+	margin-block-start: 0;
+}
+
+#cookiez-app * {
+	box-sizing: border-box;
+}
+
+#cookiez-app {
+	position: fixed;
+	height: calc(100vh - 32px);
+	inset-block-start: 32px;
+	inset-inline-end: 0;
+	inset-inline-start: 180px;
+	margin-inline-start: -20px;
+	z-index: 10;
+	background: #fff;
+}
+
+.folded #cookiez-app {
+	inset-inline-start: 36px;
+	margin-inline-start: 0;
+}
+
+@media (max-width: 960px) {
+
+	#cookiez-app {
+		inset-inline-start: 36px;
+		margin-inline-start: 0;
+	}
+}
+
+@media (max-width: 782px) {
+
+	#cookiez-app {
+		inset-inline-start: 0;
+	}
+}
+

@@ -1,0 +1,67 @@
+{
+	"name": "Czech",
+	"opt-in": {
+		"title": "Tato webová stránka používá soubory cookie",
+		"cookie-message": "Používáme soubory cookie k personalizaci obsahu, poskytování funkcí sociálních médií a analýze naší návštěvnosti. Informace o vašem používání našeho webu také sdílíme s našimi analytickými partnery. Své předvolby můžete kdykoli změnit. Pro více informací si přečtěte naše Zásady ochrany osobních údajů a Zásady používání souborů cookie.",
+		"buttons": {
+			"accept-all": "Přijmout vše",
+			"deny": "Odmítnout",
+			"customize": "Přizpůsobit"
+		},
+		"preferences": {
+			"header": "Přizpůsobit předvolby souhlasu",
+			"privacy-overview": "Používáme soubory cookie ke zlepšení vašeho zážitku na tomto webu. Můžete si vybrat, jaké typy souborů cookie chcete povolit, a kdykoli změnit své předvolby. Zakázání souborů cookie může ovlivnit váš zážitek na tomto webu. Více informací najdete v našich Zásadách používání souborů cookie.",
+			"accept-button": "Přijmout vše",
+			"deny-button": "Odmítnout",
+			"save-preferences": "Uložit předvolby"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Nezbytné",
+				"description": "Tyto soubory cookie jsou nezbytné pro navigaci na webových stránkách a používání jejich funkcí, jako je přístup k zabezpečeným oblastem webu nebo poskytování základních služeb."
+			},
+			"functional": {
+				"title": "Funkční",
+				"description": "Tyto soubory cookie umožňují webovým stránkám zapamatovat si volby, které jste provedli v minulosti, jako je jazyk, který preferujete, region pro předpovědi počasí nebo vaše uživatelské jméno a heslo pro automatické přihlášení."
+			},
+			"analytics": {
+				"title": "Analytické",
+				"description": "Tyto soubory cookie shromažďují informace o tom, jak webové stránky používáte, například které stránky jste navštívili a na které odkazy jste klikli. Žádné z těchto informací nelze použít k vaší identifikaci. Jsou všechny agregované, a proto anonymizované. Jejich jediným účelem je zlepšit funkce webových stránek."
+			},
+			"advertising": {
+				"title": "Reklamní",
+				"description": "Tyto soubory cookie sledují vaši online aktivitu, aby pomohly inzerentům poskytovat relevantnější reklamu nebo omezit, kolikrát reklamu vidíte. Tyto soubory cookie mohou sdílet tyto informace s jinými organizacemi nebo inzerenty."
+			},
+			"unclassified": {
+				"title": "Nekategorizováno",
+				"description": "Tyto soubory cookie jsou v současné době v procesu klasifikace společně s ostatními soubory cookie."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Zásady používání souborů cookie",
+			"do-not-sell": "Neprodávejte ani nesdílejte mé osobní údaje",
+			"privacy-policy": "Zásady ochrany osobních údajů"
+		}
+	},
+	"opt-out": {
+		"title": "Tato webová stránka používá soubory cookie",
+		"cookie-message": "Používáme soubory cookie k personalizaci obsahu, poskytování funkcí sociálních médií a analýze naší návštěvnosti. Informace o vašem používání našeho webu také sdílíme s našimi analytickými partnery. Své předvolby můžete kdykoli změnit. Pro více informací si přečtěte naše Zásady ochrany osobních údajů a Zásady používání souborů cookie.",
+		"buttons": {
+			"accept-all": "Přijmout vše",
+			"deny": "Odmítnout",
+			"customize": "Přizpůsobit"
+		},
+		"opt-out-dialog": {
+			"header": "Dialog pro odhlášení",
+			"privacy-overview": "Používáme soubory cookie ke zlepšení vašeho zážitku na tomto webu. Můžete si vybrat, jaké typy souborů cookie chcete povolit, a kdykoli změnit své předvolby. Zakázání souborů cookie může ovlivnit váš zážitek na tomto webu. Více informací najdete v našich Zásadách používání souborů cookie.",
+			"consent-label": "Neprodávejte ani nesdílejte mé osobní údaje",
+			"deny-button": "Zrušit",
+			"save-preferences": "Uložit předvolby"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Zásady používání souborů cookie",
+			"do-not-sell": "Neprodávejte ani nesdílejte mé osobní údaje",
+			"privacy-policy": "Zásady ochrany osobních údajů"
+		}
+	}
+}

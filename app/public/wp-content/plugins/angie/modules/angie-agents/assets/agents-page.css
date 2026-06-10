@@ -1,0 +1,110 @@
+body {
+	background-color: #ffffff;
+}
+
+.angie-agents-page {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: calc(100vh - 32px);
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.angie-agents-content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	padding: 80px 24px;
+	position: relative;
+	z-index: 1;
+	font-family: Roboto, sans-serif;
+}
+
+.angie-agents-logo {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-bottom: 32px;
+}
+
+.angie-agents-logo-icon {
+	width: 20px;
+	height: 20px;
+}
+
+.angie-agents-logo-text {
+	font-size: 23px;
+	font-weight: 400;
+	color: #0c0d0e;
+	letter-spacing: 0.1px;
+	font-family: Roboto, sans-serif;
+}
+
+.angie-agents-headline {
+	font-size: 48px;
+	font-weight: 300;
+	line-height: 1.1;
+	color: #0c0d0e;
+	margin: 0 0 24px;
+	letter-spacing: -1px;
+}
+
+.angie-agents-headline-soon {
+	background: linear-gradient(90deg, #5a5989 0%, #b14fad 50%, #71326b 100%);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+	font-weight: 300;
+	font-family: Roboto, sans-serif;
+}
+
+.angie-agents-subtitle {
+	font-size: 20px;
+	font-weight: 500;
+	line-height: 1.5;
+	color: #0c0d0e;
+	max-width: 720px;
+	margin: 0 0 40px;
+}
+
+.angie-agents-notify-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	background: #0c0d0e;
+	color: #ffffff;
+	border: none;
+	border-radius: 100px;
+	padding: 14px 28px;
+	font-size: 16px;
+	font-weight: 500;
+	font-family: Roboto, sans-serif;
+	cursor: pointer;
+	transition: opacity 0.2s ease;
+}
+
+.angie-agents-notify-btn:hover {
+	opacity: 0.85;
+}
+
+.angie-agents-notify-btn.angie-agents-notify-confirmed {
+	background: transparent;
+	color: #0a875a;
+	cursor: default;
+	padding: 0;
+	font-family: Roboto, sans-serif;
+	font-weight: 500;
+	font-size: 15px;
+	line-height: 26px;
+	letter-spacing: 0.46px;
+}
+
+.angie-agents-notify-btn.angie-agents-notify-confirmed:hover {
+	opacity: 1;
+}
+
+.angie-agents-notify-btn.angie-agents-notify-confirmed svg {
+	flex-shrink: 0;
+}

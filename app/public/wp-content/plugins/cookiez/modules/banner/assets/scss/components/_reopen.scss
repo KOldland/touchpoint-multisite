@@ -1,0 +1,71 @@
+@use "../variables";
+
+.cc-reopen-wrapper {
+	position: fixed;
+	z-index: 9999;
+	top: var(--cc-reopen-top);
+	bottom: var(--cc-reopen-bottom);
+	left: var(--cc-reopen-left);
+	right: var(--cc-reopen-right);
+	transform: var(--cc-reopen-transform);
+	margin-top: var(--cc-reopen-margin-top);
+	margin-bottom: var(--cc-reopen-margin-bottom);
+	margin-left: var(--cc-reopen-margin-left);
+	margin-right: var(--cc-reopen-margin-right);
+	background-color: variables.$color-white;
+	border-radius: var(--cc-reopen-radius);
+	--cc-reopen-color: lch(from var(--cc-reopen-bg-color) calc((49.44 - l) * infinity) 0 0);
+
+	@media (max-width: variables.$breakpoint-mobile) {
+		top: var(--cc-reopen-top-mobile);
+		bottom: var(--cc-reopen-bottom-mobile);
+		left: var(--cc-reopen-left-mobile);
+		right: var(--cc-reopen-right-mobile);
+		transform: var(--cc-reopen-transform-mobile);
+		margin-top: var(--cc-reopen-margin-top-mobile);
+		margin-bottom: var(--cc-reopen-margin-bottom-mobile);
+		margin-left: var(--cc-reopen-margin-left-mobile);
+		margin-right: var(--cc-reopen-margin-right-mobile);
+	}
+}
+
+.cc-btn--reopen-icon {
+	min-width: 0;
+	width: var(--cc-reopen-icon-size);
+	height: var(--cc-reopen-icon-size);
+	padding: 0;
+	border: none;
+	border-radius: var(--cc-reopen-radius);
+	background-color: var(--cc-reopen-bg-color);
+	color: var(--cc-reopen-color);
+	transition: background-color 0.2s, transform 0.3s ease-out;
+	font-size: calc(var(--cc-reopen-icon-size) * 0.5);
+
+	&:hover,
+	&:focus-visible {
+		transform: scale(var(--cc-reopen-hover-scale));
+	}
+}
+
+.cc-btn--reopen-text {
+	position: relative;
+	min-width: 0;
+	padding: var(--cc-reopen-text-padding);
+	font-size: var(--cc-reopen-text-font-size);
+	border-radius: var(--cc-reopen-radius);
+	background-color: var(--cc-reopen-bg-color);
+	color: var(--cc-reopen-color);
+	border: none;
+	transition: opacity 0.3s;
+	height: var(--cc-reopen-button-size);
+	z-index: 9999;
+
+	&::before {
+		content: "";
+		position: absolute;
+		inset: 4px;
+		border: 1.5px solid var(--cc-reopen-color);
+		border-radius: var(--cc-reopen-radius);
+		pointer-events: none;
+	}
+}

@@ -1,0 +1,67 @@
+{
+	"name": "Estonian",
+	"opt-in": {
+		"title": "See veebisait kasutab küpsiseid",
+		"cookie-message": "Kasutame küpsiseid sisu isikupärastamiseks, sotsiaalmeedia funktsioonide pakkumiseks ja meie liikluse analüüsimiseks. Jagame ka teavet teie saidi kasutamise kohta meie analüüsipartneritega. Saate oma eelistusi igal ajal muuta. Lisateabe saamiseks vaadake meie privaatsuspoliitikat ja küpsiste poliitikat.",
+		"buttons": {
+			"accept-all": "Nõustu kõigiga",
+			"deny": "Keeldu",
+			"customize": "Kohanda"
+		},
+		"preferences": {
+			"header": "Kohanda nõusoleku eelistusi",
+			"privacy-overview": "Kasutame küpsiseid, et parandada teie kogemust sellel veebisaidil. Võite valida, milliseid küpsiseid lubada, ja muuta oma eelistusi igal ajal. Küpsiste keelamine võib mõjutada teie kogemust sellel veebisaidil. Lisateavet saate meie küpsiste poliitikast.",
+			"accept-button": "Nõustu kõigiga",
+			"deny-button": "Keeldu",
+			"save-preferences": "Salvesta eelistused"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Vajalikud",
+				"description": "Need küpsised on hädavajalikud veebisaidil navigeerimiseks ja selle funktsioonide kasutamiseks, nagu juurdepääs saidi turvalistele aladele või põhiteenuste pakkumine."
+			},
+			"functional": {
+				"title": "Funktsionaalsed",
+				"description": "Need küpsised võimaldavad veebisaidil mäletada teie varasemaid valikuid, näiteks eelistatud keelt, piirkonda ilmateadeteks või kasutajanime ja parooli automaatseks sisselogimiseks."
+			},
+			"analytics": {
+				"title": "Analüütilised",
+				"description": "Need küpsised koguvad teavet selle kohta, kuidas te veebisaiti kasutate, näiteks milliseid lehti külastasite ja millistele linkidele klõpsasite. Seda teavet ei saa kasutada teie tuvastamiseks. Kõik on koondatud ja seega anonüümitud. Nende ainus eesmärk on veebisaidi funktsioonide parandamine."
+			},
+			"advertising": {
+				"title": "Reklaam",
+				"description": "Need küpsised jälgivad teie veebitegevust, et aidata reklaamijatel kuvada asjakohasemaid reklaame või piirata reklaami nägemise arvu. Need küpsised võivad seda teavet jagada teiste organisatsioonide või reklaamijatega."
+			},
+			"unclassified": {
+				"title": "Kategoriseerimata",
+				"description": "Need küpsised on hetkel teiste küpsistega koos klassifitseerimise protsessis."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Küpsiste poliitika",
+			"do-not-sell": "Ära müü ega jaga minu isikuandmeid",
+			"privacy-policy": "Privaatsuspoliitika"
+		}
+	},
+	"opt-out": {
+		"title": "See veebisait kasutab küpsiseid",
+		"cookie-message": "Kasutame küpsiseid sisu isikupärastamiseks, sotsiaalmeedia funktsioonide pakkumiseks ja meie liikluse analüüsimiseks. Jagame ka teavet teie saidi kasutamise kohta meie analüüsipartneritega. Saate oma eelistusi igal ajal muuta. Lisateabe saamiseks vaadake meie privaatsuspoliitikat ja küpsiste poliitikat.",
+		"buttons": {
+			"accept-all": "Nõustu kõigiga",
+			"deny": "Keeldu",
+			"customize": "Kohanda"
+		},
+		"opt-out-dialog": {
+			"header": "Loobumisdialoog",
+			"privacy-overview": "Kasutame küpsiseid, et parandada teie kogemust sellel veebisaidil. Võite valida, milliseid küpsiseid lubada, ja muuta oma eelistusi igal ajal. Küpsiste keelamine võib mõjutada teie kogemust sellel veebisaidil. Lisateavet saate meie küpsiste poliitikast.",
+			"consent-label": "Ära müü ega jaga minu isikuandmeid",
+			"deny-button": "Tühista",
+			"save-preferences": "Salvesta eelistused"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Küpsiste poliitika",
+			"do-not-sell": "Ära müü ega jaga minu isikuandmeid",
+			"privacy-policy": "Privaatsuspoliitika"
+		}
+	}
+}

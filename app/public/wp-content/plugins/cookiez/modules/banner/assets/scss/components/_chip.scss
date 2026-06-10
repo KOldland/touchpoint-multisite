@@ -1,0 +1,21 @@
+.cc-chip {
+	display: inline-flex;
+	align-items: center;
+	height: 20px;
+	padding: 4px 6px;
+	border-radius: 1000px;
+	font-size: 13px;
+	line-height: 18px;
+	letter-spacing: 0.16px;
+	flex-shrink: 0;
+}
+
+.cc-chip-label {
+	display: inline-flex;
+	padding: 3px 4px;
+}
+
+.cc-chip--success {
+	background: #e7f8f2;
+	color: #075e3e;
+}

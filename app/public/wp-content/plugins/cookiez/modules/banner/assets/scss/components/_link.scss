@@ -1,0 +1,21 @@
+.cc-link {
+	color: var(--cc-banner-link);
+	text-decoration: underline;
+	cursor: pointer;
+	background: none;
+	border: none;
+	font: inherit;
+	font-size: var(--cc-button-font-size);
+	font-feature-settings: "liga" off, "clig" off;
+	padding: 0;
+
+	&:hover {
+		opacity: 0.85;
+	}
+}
+
+.cc-links {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}

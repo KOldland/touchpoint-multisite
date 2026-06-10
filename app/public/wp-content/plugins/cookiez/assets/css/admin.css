@@ -1,0 +1,19 @@
+.notice_wrapper {
+	border: 1px solid #ccd0d4;
+}
+
+.notice_wrapper.notice-warning.cookiez-dismiss {
+	border-inline-start-color: #dba617;
+	border-inline-start-width: 4px;
+}
+
+.notice_wrapper.error-elementor {
+	border-inline-start-color: #93003f;
+	border-inline-start-width: 4px;
+}
+
+.notice_wrapper.error-elementor .cookiez-dismiss-button {
+	background-color: #93003F; 
+	border-color: #93003F;
+	color: #FFF;
+}

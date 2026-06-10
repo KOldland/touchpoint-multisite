@@ -1,0 +1,67 @@
+{
+	"name": "Turkish",
+	"opt-in": {
+		"title": "Bu web sitesi çerezler kullanmaktadır",
+		"cookie-message": "Çerezleri içeriği kişiselleştirmek, sosyal medya özellikleri sunmak ve trafiğimizi analiz etmek için kullanırız. Ayrıca sitemizi kullanımınıza ilişkin bilgileri analitik ortaklarımızla paylaşırız. Tercihlerinizi istediğiniz zaman değiştirebilirsiniz. Daha fazla bilgi için lütfen Gizlilik Politikamızı ve Çerez Politikamızı inceleyin.",
+		"buttons": {
+			"accept-all": "Tümünü kabul et",
+			"deny": "Reddet",
+			"customize": "Özelleştir"
+		},
+		"preferences": {
+			"header": "Rıza tercihlerini özelleştir",
+			"privacy-overview": "Bu web sitesindeki deneyiminizi geliştirmek için çerezler kullanıyoruz. Hangi tür çerezlere izin vereceğinizi seçebilir ve tercihlerinizi istediğiniz zaman değiştirebilirsiniz. Çerezleri devre dışı bırakmak bu web sitesindeki deneyiminizi etkileyebilir. Çerez Politikamızı inceleyerek daha fazla bilgi edinebilirsiniz.",
+			"accept-button": "Tümünü kabul et",
+			"deny-button": "Reddet",
+			"save-preferences": "Tercihleri kaydet"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Zorunlu",
+				"description": "Bu çerezler, güvenli alanlara erişim veya temel hizmetlerin sağlanması gibi web sitesinde gezinmek ve özelliklerini kullanmak için gereklidir."
+			},
+			"functional": {
+				"title": "İşlevsel",
+				"description": "Bu çerezler, bir web sitesinin geçmişte yaptığınız seçimleri hatırlamasına izin verir; örneğin tercih ettiğiniz dil, hava durumu tahminleri istediğiniz bölge veya otomatik giriş için kullanıcı adınız ve parolanız."
+			},
+			"analytics": {
+				"title": "Analitik",
+				"description": "Bu çerezler, ziyaret ettiğiniz sayfalar ve tıkladığınız bağlantılar gibi bir web sitesini nasıl kullandığınıza ilişkin bilgi toplar. Bu bilgilerin hiçbiri sizi tanımlamak için kullanılamaz. Hepsi toplanmış ve bu nedenle anonimleştirilmiştir. Tek amaçları web sitesi işlevlerini geliştirmektir."
+			},
+			"advertising": {
+				"title": "Reklam",
+				"description": "Bu çerezler, reklamverenlerin daha alakalı reklam sunmasına yardımcı olmak veya bir reklamı kaç kez gördüğünüzü sınırlandırmak için çevrimiçi etkinliğinizi izler. Bu çerezler bu bilgileri diğer kuruluşlar veya reklamverenlerle paylaşabilir."
+			},
+			"unclassified": {
+				"title": "Kategorize edilmemiş",
+				"description": "Bunlar şu anda diğer çerezlerle birlikte sınıflandırılma sürecinde olan çerezlerdir."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Çerez Politikası",
+			"do-not-sell": "Kişisel bilgilerimi satmayın veya paylaşmayın",
+			"privacy-policy": "Gizlilik Politikası"
+		}
+	},
+	"opt-out": {
+		"title": "Bu web sitesi çerezler kullanmaktadır",
+		"cookie-message": "Çerezleri içeriği kişiselleştirmek, sosyal medya özellikleri sunmak ve trafiğimizi analiz etmek için kullanırız. Ayrıca sitemizi kullanımınıza ilişkin bilgileri analitik ortaklarımızla paylaşırız. Tercihlerinizi istediğiniz zaman değiştirebilirsiniz. Daha fazla bilgi için lütfen Gizlilik Politikamızı ve Çerez Politikamızı inceleyin.",
+		"buttons": {
+			"accept-all": "Tümünü kabul et",
+			"deny": "Reddet",
+			"customize": "Özelleştir"
+		},
+		"opt-out-dialog": {
+			"header": "Vazgeçme iletişim kutusu",
+			"privacy-overview": "Bu web sitesindeki deneyiminizi geliştirmek için çerezler kullanıyoruz. Hangi tür çerezlere izin vereceğinizi seçebilir ve tercihlerinizi istediğiniz zaman değiştirebilirsiniz. Çerezleri devre dışı bırakmak bu web sitesindeki deneyiminizi etkileyebilir. Çerez Politikamızı inceleyerek daha fazla bilgi edinebilirsiniz.",
+			"consent-label": "Kişisel bilgilerimi satmayın veya paylaşmayın",
+			"deny-button": "İptal",
+			"save-preferences": "Tercihleri kaydet"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Çerez Politikası",
+			"do-not-sell": "Kişisel bilgilerimi satmayın veya paylaşmayın",
+			"privacy-policy": "Gizlilik Politikası"
+		}
+	}
+}

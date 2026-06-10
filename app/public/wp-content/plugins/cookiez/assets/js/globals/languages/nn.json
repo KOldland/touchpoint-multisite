@@ -1,0 +1,67 @@
+{
+	"name": "Norwegian Nynorsk",
+	"opt-in": {
+		"title": "Denne nettstaden brukar informasjonskapslar",
+		"cookie-message": "Vi brukar informasjonskapslar for å tilpasse innhald, levere funksjonar for sosiale medium og analysere trafikken vår. Vi deler òg informasjon om bruken din av nettstaden vår med analysepartnarane våre. Du kan endre preferansane dine når som helst. For meir informasjon, sjå personvernerklæringa og informasjonskapselpolicyen vår.",
+		"buttons": {
+			"accept-all": "Godta alle",
+			"deny": "Avvis",
+			"customize": "Tilpass"
+		},
+		"preferences": {
+			"header": "Tilpass samtykkeinnstillingar",
+			"privacy-overview": "Vi brukar informasjonskapslar for å betra opplevinga di på denne nettstaden. Du kan velja kva typar informasjonskapslar du vil tillata, og endra preferansane dine når som helst. Deaktivering av informasjonskapslar kan påverka opplevinga di på denne nettstaden. Du kan læra meir ved å sjå retningslinjene våre for informasjonskapslar.",
+			"accept-button": "Godta alle",
+			"deny-button": "Avvis",
+			"save-preferences": "Lagre innstillingar"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Naudsynlege",
+				"description": "Desse informasjonskapslane er naudsynlege for å navigera på nettstaden og bruka funksjonane, til dømes tilgang til sikre område av nettstaden eller levering av grunnleggjande tenester."
+			},
+			"functional": {
+				"title": "Funksjonelle",
+				"description": "Desse informasjonskapslane let ein nettstad hugsa val du har gjort tidlegare, til dømes kva språk du føretrekkjer, kva region du ynskjer vêrvarsel for, eller brukarnamnet og passordet ditt for automatisk innlogging."
+			},
+			"analytics": {
+				"title": "Analytiske",
+				"description": "Desse informasjonskapslane samlar inn opplysningar om korleis du brukar ein nettstad, til dømes kva sider du vitja og kva lenkjer du klikka på. Ingen av desse opplysningane kan brukast til å identifisera deg. Dei er alle aggregerte og dermed anonymiserte. Einaste føremålet deira er å betra funksjonane til nettstaden."
+			},
+			"advertising": {
+				"title": "Reklame",
+				"description": "Desse informasjonskapslane sporar nettaktiviteten din for å hjelpa annonsørar med å levera meir relevant annonsering eller avgrensa kor mange gonger du ser ei annonse. Desse informasjonskapslane kan dela denne informasjonen med andre organisasjonar eller annonsørar."
+			},
+			"unclassified": {
+				"title": "Ukategorisert",
+				"description": "Desse informasjonskapslane er for tida i ferd med å bli klassifiserte saman med andre informasjonskapslar."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Informasjonskapsel-policy",
+			"do-not-sell": "Ikkje sel eller del personopplysningane mine",
+			"privacy-policy": "Personvernserklæring"
+		}
+	},
+	"opt-out": {
+		"title": "Denne nettstaden brukar informasjonskapslar",
+		"cookie-message": "Vi brukar informasjonskapslar for å tilpasse innhald, levere funksjonar for sosiale medium og analysere trafikken vår. Vi deler òg informasjon om bruken din av nettstaden vår med analysepartnarane våre. Du kan endre preferansane dine når som helst. For meir informasjon, sjå personvernerklæringa og informasjonskapselpolicyen vår.",
+		"buttons": {
+			"accept-all": "Godta alle",
+			"deny": "Avvis",
+			"customize": "Tilpass"
+		},
+		"opt-out-dialog": {
+			"header": "Avmeldingsdialog",
+			"privacy-overview": "Vi brukar informasjonskapslar for å betra opplevinga di på denne nettstaden. Du kan velja kva typar informasjonskapslar du vil tillata, og endra preferansane dine når som helst. Deaktivering av informasjonskapslar kan påverka opplevinga di på denne nettstaden. Du kan læra meir ved å sjå retningslinjene våre for informasjonskapslar.",
+			"consent-label": "Ikkje sel eller del personopplysningane mine",
+			"deny-button": "Avbryt",
+			"save-preferences": "Lagre innstillingar"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Informasjonskapsel-policy",
+			"do-not-sell": "Ikkje sel eller del personopplysningane mine",
+			"privacy-policy": "Personvernserklæring"
+		}
+	}
+}

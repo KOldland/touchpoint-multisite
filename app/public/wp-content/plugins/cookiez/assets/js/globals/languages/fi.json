@@ -1,0 +1,67 @@
+{
+	"name": "Finnish",
+	"opt-in": {
+		"title": "Tämä verkkosivusto käyttää evästeitä",
+		"cookie-message": "Käytämme evästeitä sisällön personoimiseen, sosiaalisen median ominaisuuksien tarjoamiseen ja liikenteemme analysoimiseen. Jaamme myös tietoja sivustomme käytöstä analytiikkakumppaneillemme. Voit muuttaa asetuksiasi milloin tahansa. Lisätietoja saat tietosuojakäytännöstämme ja evästekäytännöstämme.",
+		"buttons": {
+			"accept-all": "Hyväksy kaikki",
+			"deny": "Hylkää",
+			"customize": "Mukauta"
+		},
+		"preferences": {
+			"header": "Mukauta suostumustietoja",
+			"privacy-overview": "Käytämme evästeitä parantaaksemme kokemustasi tällä verkkosivustolla. Voit valita, minkä tyyppisiä evästeitä haluat sallia, ja muuttaa asetuksiasi milloin tahansa. Evästeiden poistaminen käytöstä voi vaikuttaa kokemukseesi tällä verkkosivustolla. Voit oppia lisää tutustumalla evästekäytäntöömme.",
+			"accept-button": "Hyväksy kaikki",
+			"deny-button": "Hylkää",
+			"save-preferences": "Tallenna asetukset"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Välttämättömät",
+				"description": "Nämä evästeet ovat välttämättömiä verkkosivustolla navigoimiseen ja sen ominaisuuksien käyttämiseen, kuten pääsyyn sivuston suojatuille alueille tai peruspalvelujen tarjoamiseen."
+			},
+			"functional": {
+				"title": "Toiminnalliset",
+				"description": "Nämä evästeet mahdollistavat verkkosivuston muistaa aiemmin tekemiäsi valintoja, kuten haluamasi kielen, alueen säätiedotteita varten tai käyttäjänimesi ja salasanasi automaattista kirjautumista varten."
+			},
+			"analytics": {
+				"title": "Analyyttiset",
+				"description": "Nämä evästeet keräävät tietoa siitä, miten käytät verkkosivustoa, kuten mitä sivuja olet vieraillut ja mitä linkkejä olet napsauttanut. Mitään näistä tiedoista ei voida käyttää tunnistamaan sinua. Ne ovat kaikki koottuja ja siten anonymisoituja. Niiden ainoa tarkoitus on parantaa verkkosivuston toimintoja."
+			},
+			"advertising": {
+				"title": "Mainonta",
+				"description": "Nämä evästeet seuraavat verkkotoimintaasi auttaakseen mainostajia toimittamaan osuvampaa mainontaa tai rajoittamaan kuinka monta kertaa näet mainoksen. Nämä evästeet voivat jakaa nämä tiedot muiden organisaatioiden tai mainostajien kanssa."
+			},
+			"unclassified": {
+				"title": "Luokittelematon",
+				"description": "Nämä evästeet ovat parhaillaan luokitteluprosessissa yhdessä muiden evästeiden kanssa."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Evästekäytäntö",
+			"do-not-sell": "Älä myy tai jaa henkilötietojani",
+			"privacy-policy": "Tietosuojakäytäntö"
+		}
+	},
+	"opt-out": {
+		"title": "Tämä verkkosivusto käyttää evästeitä",
+		"cookie-message": "Käytämme evästeitä sisällön personoimiseen, sosiaalisen median ominaisuuksien tarjoamiseen ja liikenteemme analysoimiseen. Jaamme myös tietoja sivustomme käytöstä analytiikkakumppaneillemme. Voit muuttaa asetuksiasi milloin tahansa. Lisätietoja saat tietosuojakäytännöstämme ja evästekäytännöstämme.",
+		"buttons": {
+			"accept-all": "Hyväksy kaikki",
+			"deny": "Hylkää",
+			"customize": "Mukauta"
+		},
+		"opt-out-dialog": {
+			"header": "Poistumisvalintaikkuna",
+			"privacy-overview": "Käytämme evästeitä parantaaksemme kokemustasi tällä verkkosivustolla. Voit valita, minkä tyyppisiä evästeitä haluat sallia, ja muuttaa asetuksiasi milloin tahansa. Evästeiden poistaminen käytöstä voi vaikuttaa kokemukseesi tällä verkkosivustolla. Voit oppia lisää tutustumalla evästekäytäntöömme.",
+			"consent-label": "Älä myy tai jaa henkilötietojani",
+			"deny-button": "Peruuta",
+			"save-preferences": "Tallenna asetukset"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Evästekäytäntö",
+			"do-not-sell": "Älä myy tai jaa henkilötietojani",
+			"privacy-policy": "Tietosuojakäytäntö"
+		}
+	}
+}

@@ -1,0 +1,67 @@
+{
+	"name": "English",
+	"opt-in": {
+		"title": "This website uses cookies",
+		"cookie-message": "We use cookies to personalize content, provide social media features, and analyze our traffic. We also share information about your use of our site with our analytics partners. You can change your preferences at any time. For more information, please see our Privacy Policy and Cookie Policy.",
+		"buttons": {
+			"accept-all": "Accept All",
+			"deny": "Deny",
+			"customize": "Customize"
+		},
+		"preferences": {
+			"header": "Customize consent preference",
+			"privacy-overview": "We use cookies to improve your experience on this website. You may choose which types of cookies to allow and change your preferences at any time. Disabling cookies may impact your experience on this website. You can learn more by viewing our Cookie Policy.",
+			"accept-button": "Accept all",
+			"deny-button": "Deny",
+			"save-preferences": "Save preferences"
+		},
+		"cookie-categories": {
+			"necessary": {
+				"title": "Necessary",
+				"description": "These cookies are essential for you to browse the website and use its features, such as accessing secure areas of the site or provide the basic services."
+			},
+			"functional": {
+				"title": "Functional",
+				"description": "These cookies allow a website to remember choices you have made in the past, like what language you prefer, what region you would like weather reports for, or what your user name and password are so you can automatically log in."
+			},
+			"analytics": {
+				"title": "Analytical",
+				"description": "These cookies collect information about how you use a website, like which pages you visited and which links you clicked on. None of this information can be used to identify you. It is all aggregated and, therefore, anonymized. Their sole purpose is to improve website functions."
+			},
+			"advertising": {
+				"title": "Advertisement",
+				"description": "These cookies track your online activity to help advertisers deliver more relevant advertising or to limit how many times you see an ad. These cookies can share that information with other organizations or advertisers."
+			},
+			"unclassified": {
+				"title": "Uncategorized",
+				"description": "These are cookies that are currently in the process of being classified together with other cookies."
+			}
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Cookie Policy",
+			"do-not-sell": "Do not sell or share my personal information",
+			"privacy-policy": "Privacy Policy"
+		}
+	},
+	"opt-out": {
+		"title": "This website uses cookies",
+		"cookie-message": "We use cookies to personalize content, provide social media features, and analyze our traffic. We also share information about your use of our site with our analytics partners. You can change your preferences at any time. For more information, please see our Privacy Policy and Cookie Policy.",
+		"buttons": {
+			"accept-all": "Accept All",
+			"deny": "Deny",
+			"customize": "Do Not Sell"
+		},
+		"opt-out-dialog": {
+			"header": "Opt-out dialog",
+			"privacy-overview": "We use cookies to improve your experience on this website. You may choose which types of cookies to allow and change your preferences at any time. Disabling cookies may impact your experience on this website. You can learn more by viewing our Cookie Policy.",
+			"consent-label": "Do not sell or share my personal information",
+			"deny-button": "Cancel",
+			"save-preferences": "Save preferences"
+		},
+		"link-label-defaults": {
+			"cookie-policy": "Cookie Policy",
+			"do-not-sell": "Do not sell or share my personal information",
+			"privacy-policy": "Privacy Policy"
+		}
+	}
+}
