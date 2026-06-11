@@ -62,6 +62,7 @@ class AuthorEndpoints {
             "args" => [
                 "prompt"               => ["type" => "string"],
                 "provider"             => ["type" => "string", "default" => "openai"],
+                "model"                => ["type" => "string"],
                 "title"                => ["type" => "string"],
                 "summary"              => ["type" => "string"],
                 "preset_key"           => ["type" => "string"],
@@ -74,6 +75,12 @@ class AuthorEndpoints {
             "methods" => "POST",
             "callback" => [$this, "recommend_image"],
             "permission_callback" => [$this, "check_permissions"],
+            "args" => [
+                "title"          => ["type" => "string"],
+                "summary"        => ["type" => "string"],
+                "preset_key"     => ["type" => "string"],
+                "colour_palette" => ["type" => "string"],
+            ],
         ]);
         register_rest_route('editorial/v1', '/author/persist', [
             'methods' => 'POST',
@@ -210,6 +217,7 @@ class AuthorEndpoints {
     // Step 7: Image generation callback (matches legacy dual-gpt/v1/images/generate response)
     public function generate_image(WP_REST_Request $request) {
         $params = $request->get_params();
+        error_log( '[KH Image] generate_image endpoint called — provider=' . ($params['provider'] ?? 'none') . ', model=' . ($params['model'] ?? 'none') . ', prompt_len=' . strlen($params['prompt'] ?? '') );
 
         // Try the real ImageService if available
         if (class_exists('\\KH\\Editorial\\Services\\ImageService')) {
@@ -218,6 +226,7 @@ class AuthorEndpoints {
                 $result = $service->generate($params);
 
                 if (!is_wp_error($result)) {
+                    error_log( '[KH Image] generate_image SUCCESS — provider=' . ($result['provider'] ?? '?') . ', attachments=' . count($result['attachments'] ?? []) );
                     return new WP_REST_Response([
                         'success'     => true,
                         'image_url'   => $result['url'] ?? '',
@@ -230,11 +239,13 @@ class AuthorEndpoints {
 
                 // Return the error message for the UI
                 $error_msg = $result->get_error_message();
+                error_log( '[KH Image] generate_image FAILED — ' . $error_msg );
                 return new WP_REST_Response([
                     'success' => false,
                     'message' => $error_msg,
                 ], 200);
             } catch (\Throwable $e) {
+                error_log( '[KH Image] generate_image EXCEPTION — ' . $e->getMessage() );
                 return new WP_REST_Response([
                     'success' => false,
                     'message' => $e->getMessage(),
@@ -255,11 +266,46 @@ class AuthorEndpoints {
     // Step 7: Image recommendation callback (matches legacy dual-gpt/v1/images/recommend response)
     public function recommend_image(WP_REST_Request $request) {
         $params = $request->get_params();
-        $context = sanitize_text_field($params["context"] ?? "");
+
+        // Try ImageService::recommend() if available
+        if (class_exists('\\KH\\Editorial\\Services\\ImageService')) {
+            try {
+                $service = new \KH\Editorial\Services\ImageService();
+                $recommendation = $service->recommend($params);
+
+                return new WP_REST_Response([
+                    "success" => true,
+                    "prompt" => $recommendation['prompt'] ?? '',
+                    "recommended_prompt" => $recommendation['prompt'] ?? '',
+                    "alt_text" => $recommendation['alt_text'] ?? '',
+                    "caption" => $recommendation['caption'] ?? '',
+                    "negative_prompt" => $recommendation['negative_prompt'] ?? '',
+                    "aspect_ratio" => $recommendation['aspect_ratio'] ?? '16:9',
+                    "context" => $params['title'] ?? '',
+                ], 200);
+            } catch (\Throwable $e) {
+                // Fall through to simple fallback
+            }
+        }
+
+        // Fallback: build a simple prompt from title/context
+        $title = sanitize_text_field($params["title"] ?? "");
+        $summary = sanitize_text_field($params["summary"] ?? "");
+        $prompt = "Create a publication-quality editorial image";
+        if ($title) {
+            $prompt .= " for the article '" . $title . "'";
+        }
+        $prompt .= ". Art direction: Paper-cut editorial illustration with geometric forms and tactile texture. Brand palette: Warm kraft beige, muted teal, deep blue, orange, yellow.";
+        if ($summary) {
+            $prompt .= " Article summary: " . $summary;
+        }
+        $prompt .= " Do NOT use photorealism, glossy 3D render, or cluttered backgrounds.";
+
         return new WP_REST_Response([
             "success" => true,
-            "recommendations" => [],
-            "context" => $context,
+            "prompt" => $prompt,
+            "recommended_prompt" => $prompt,
+            "context" => $title,
         ], 200);
     }
 }

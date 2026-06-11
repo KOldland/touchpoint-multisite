@@ -10,7 +10,6 @@
 (function () {
     var registerPlugin = wp.plugins.registerPlugin;
     var PluginSidebar = (wp.editPost && wp.editPost.PluginSidebar) || (wp.editor && wp.editor.PluginSidebar);
-    var PluginSidebarMoreMenuItem = (wp.editPost && wp.editPost.PluginSidebarMoreMenuItem) || (wp.editor && wp.editor.PluginSidebarMoreMenuItem);
     var useState = wp.element.useState;
     var useEffect = wp.element.useEffect;
     var createElement = wp.element.createElement;
@@ -30,6 +29,9 @@
     var SIDEBAR_NAME = 'khm-image-generator';
     var SIDEBAR_TITLE = 'AI Image Generator';
 
+    var SHOW_PROMPT_EDITOR = window.khEditorialSettings && window.khEditorialSettings.show_prompt_editor;
+    if (SHOW_PROMPT_EDITOR === undefined) SHOW_PROMPT_EDITOR = true; // fallback safe
+
     var SIZE_OPTIONS = [
         { label: '1024 × 1024 (Square)', value: '1024x1024' },
         { label: '1792 × 1024 (Landscape)', value: '1792x1024' },
@@ -39,6 +41,49 @@
     var QUALITY_OPTIONS = [
         { label: 'Standard', value: 'standard' },
         { label: 'HD', value: 'hd' },
+    ];
+
+    var PROVIDER_OPTIONS = [
+        { label: 'OpenAI (DALL-E 3)', value: 'openai' },
+        { label: 'Google (Imagen)', value: 'google' },
+        { label: 'Open Router', value: 'openrouter' },
+    ];
+
+    var MODEL_OPTIONS = {
+        openrouter: [
+            { label: 'FLUX.2 Pro (best quality)', value: 'black-forest-labs/flux.2-pro' },
+            { label: 'FLUX.2 Flex (balanced)', value: 'black-forest-labs/flux.2-flex' },
+            { label: 'FLUX.2 Max (top tier)', value: 'black-forest-labs/flux.2-max' },
+            { label: 'Seedream 4.5 (ByteDance)', value: 'bytedance-seed/seedream-4.5' },
+            { label: 'Recraft V4', value: 'recraft/recraft-v4' },
+            { label: 'Recraft V4.1', value: 'recraft/recraft-v4.1' },
+        ],
+    };
+
+    var ART_STYLES = [
+        { label: 'Risograph Print', value: 'risograph_print' },
+        { label: 'Bauhaus Woodblock', value: 'bauhaus_woodblock' },
+        { label: 'Chalk Matte Vector', value: 'chalk_matte_vector' },
+        { label: 'Linocut Monochromatic', value: 'linocut_mono' },
+        { label: 'Knitted Yarn Craft', value: 'knitted_yarn_craft' },
+        { label: 'Origami', value: 'origami' },
+        { label: 'Vintage Playroom', value: 'vintage_playroom' },
+        { label: 'Pop Art', value: 'pop_art' },
+        { label: '1950s Googie', value: 'googie' },
+        { label: 'Photorealistic Steampunk', value: 'steampunk' },
+    ];
+
+    var COLOUR_PALETTES = [
+        { label: 'Terracotta & Indigo', value: 'terracotta_indigo' },
+        { label: 'Birch & Cobalt', value: 'birch_cobalt' },
+        { label: 'Obsidian & Cyan', value: 'obsidian_cyan' },
+        { label: 'Midnight & Gold', value: 'midnight_gold' },
+        { label: 'Oatmeal & Sage', value: 'oatmeal_sage' },
+        { label: 'Alabaster & Terracotta', value: 'alabaster_terracotta' },
+        { label: 'Primary & Pine', value: 'primary_pine' },
+        { label: 'Crimson & Cyan', value: 'crimson_cyan' },
+        { label: 'Avocado & Turquoise', value: 'avocado_turquoise' },
+        { label: 'Verdigris & Brass', value: 'verdigris_brass' },
     ];
 
     function KhmImageSidebar() {
@@ -60,6 +105,11 @@
         var _useState6 = useState(false), generating = _useState6[0], setGenerating = _useState6[1];
         var _useState7 = useState(null), notice = _useState7[0], setNotice = _useState7[1];
         var _useState8 = useState(null), generatedImage = _useState8[0], setGeneratedImage = _useState8[1];
+        var _useState9 = useState(null), generatedImageId = _useState9[0], setGeneratedImageId = _useState9[1];
+        var _useState10 = useState('openrouter'), provider = _useState10[0], setProvider = _useState10[1];
+        var _useState11 = useState('black-forest-labs/flux.2-pro'), model = _useState11[0], setModel = _useState11[1];
+        var _useState12 = useState('risograph_print'), artStyle = _useState12[0], setArtStyle = _useState12[1];
+        var _useState13 = useState('terracotta_indigo'), colourPalette = _useState13[0], setColourPalette = _useState13[1];
 
         function buildPayload(extras) {
             return Object.assign({
@@ -68,8 +118,12 @@
                 summary: postExcerpt,
                 size: size,
                 quality: quality,
+                provider: provider,
+                model: model,
+                preset_key: artStyle,
+                colour_palette: colourPalette,
                 store_in_media_library: true,
-                set_featured_image: postId > 0,
+                set_featured_image: false,
             }, extras || {});
         }
 
@@ -84,31 +138,69 @@
                 var prompt = res.prompt || res.recommended_prompt || '';
                 setRecommendedPrompt(prompt);
                 setEditablePrompt(prompt);
-                setNotice({ type: 'success', text: 'Prompt recommended — review and generate below.' });
+                if (!SHOW_PROMPT_EDITOR) {
+                    // Auto-generate immediately if prompt editor is hidden
+                    handleGenerateWithPrompt(prompt);
+                } else {
+                    setNotice({ type: 'success', text: 'Prompt recommended — review and generate below.' });
+                    setRecommending(false);
+                }
             }).catch(function (err) {
                 setNotice({ type: 'error', text: err.message || 'Failed to recommend image prompt.' });
-            }).finally(function () {
                 setRecommending(false);
             });
         }
 
-        function handleGenerate() {
+        function handleGenerateWithPrompt(prompt) {
             setGenerating(true);
             setNotice(null);
             setGeneratedImage(null);
+            setGeneratedImageId(null);
+            wp.apiFetch({
+                path: 'editorial/v1/images/generate',
+                method: 'POST',
+                data: buildPayload({ prompt: prompt }),
+            }).then(function (res) {
+                if (!res.success) {
+                    setNotice({ type: 'error', text: res.message || 'Failed to generate image.' });
+                    setGenerating(false);
+                    return;
+                }
+                var url = res.url || (res.attachments && res.attachments[0] && res.attachments[0].url) || null;
+                var attId = res.attachments && res.attachments[0] && res.attachments[0].id || null;
+                setGeneratedImage(url);
+                setGeneratedImageId(attId);
+                setNotice({ type: 'success', text: 'Image generated.' });
+                setRecommending(false);
+                setGenerating(false);
+            }).catch(function (err) {
+                setNotice({ type: 'error', text: err.message || 'Failed to generate image.' });
+                setRecommending(false);
+                setGenerating(false);
+            });
+        }
+
+        function handleGenerate() {
+            if (!SHOW_PROMPT_EDITOR) return;
+            setGenerating(true);
+            setNotice(null);
+            setGeneratedImage(null);
+            setGeneratedImageId(null);
             wp.apiFetch({
                 path: 'editorial/v1/images/generate',
                 method: 'POST',
                 data: buildPayload({ prompt: editablePrompt }),
             }).then(function (res) {
-                var url = res.url || (res.attachments && res.attachments[0] && res.attachments[0].url) || null;
-                setGeneratedImage(url);
-                var count = res.attachment_count || (res.attachments && res.attachments.length) || 1;
-                setNotice({ type: 'success', text: 'Image generated (' + count + ' attachment' + (count === 1 ? '' : 's') + ')' + (postId > 0 ? ' and set as featured image.' : '.') });
-                // Refresh the editor's featured image display
-                if (postId > 0) {
-                    dispatch('core').invalidateResolution('getEntityRecord', ['postType', 'post', postId]);
+                if (!res.success) {
+                    setNotice({ type: 'error', text: res.message || 'Failed to generate image.' });
+                    setGenerating(false);
+                    return;
                 }
+                var url = res.url || (res.attachments && res.attachments[0] && res.attachments[0].url) || null;
+                var attId = res.attachments && res.attachments[0] && res.attachments[0].id || null;
+                setGeneratedImage(url);
+                setGeneratedImageId(attId);
+                setNotice({ type: 'success', text: 'Image generated.' });
             }).catch(function (err) {
                 setNotice({ type: 'error', text: err.message || 'Failed to generate image.' });
             }).finally(function () {
@@ -116,20 +208,26 @@
             });
         }
 
+        function handleSetFeatured() {
+            if (!generatedImageId || !postId) return;
+            wp.data.dispatch('core').editEntityRecord('postType', 'post', postId, {
+                featured_media: generatedImageId,
+            });
+            wp.data.dispatch('core').saveEntityRecord('postType', 'post', postId);
+            setNotice({ type: 'success', text: 'Set as featured image.' });
+        }
+
         var isBusy = recommending || generating;
 
         return createElement(
             wp.element.Fragment,
             null,
-            PluginSidebarMoreMenuItem
-                ? createElement(PluginSidebarMoreMenuItem, { target: SIDEBAR_NAME }, SIDEBAR_TITLE)
-                : null,
             createElement(
                 PluginSidebar,
                 { name: SIDEBAR_NAME, title: SIDEBAR_TITLE, icon: 'format-image' },
                 createElement(
                     PanelBody,
-                    { title: 'Image Prompt', initialOpen: true },
+                    { title: 'Generate', initialOpen: true },
 
                     notice
                         ? createElement(
@@ -144,11 +242,56 @@
                           )
                         : null,
 
-                    createElement(
-                        'p',
-                        { style: { margin: '0 0 8px', fontSize: '12px', color: '#666' } },
-                        'Uses the current post title and excerpt to generate a tailored image prompt.'
-                    ),
+                    createElement(SelectControl, {
+                        label: 'Art Style',
+                        value: artStyle,
+                        options: ART_STYLES,
+                        onChange: setArtStyle,
+                    }),
+
+                    createElement(SelectControl, {
+                        label: 'Colour Palette',
+                        value: colourPalette,
+                        options: COLOUR_PALETTES,
+                        onChange: setColourPalette,
+                    }),
+
+                    createElement(SelectControl, {
+                        label: 'Provider',
+                        value: provider,
+                        options: PROVIDER_OPTIONS,
+                        onChange: function (val) {
+                            setProvider(val);
+                            if (val === 'openrouter') {
+                                setModel('black-forest-labs/flux.2-pro');
+                            } else {
+                                setModel('');
+                            }
+                        },
+                    }),
+
+                    provider === 'openrouter'
+                        ? createElement(SelectControl, {
+                            label: 'Model',
+                            value: model,
+                            options: MODEL_OPTIONS.openrouter,
+                            onChange: setModel,
+                          })
+                        : null,
+
+                    createElement(SelectControl, {
+                        label: 'Size',
+                        value: size,
+                        options: SIZE_OPTIONS,
+                        onChange: setSize,
+                    }),
+
+                    createElement(SelectControl, {
+                        label: 'Quality',
+                        value: quality,
+                        options: QUALITY_OPTIONS,
+                        onChange: setQuality,
+                    }),
 
                     createElement(
                         Button,
@@ -156,42 +299,22 @@
                             isPrimary: true,
                             onClick: handleRecommend,
                             disabled: isBusy,
-                            style: { marginBottom: '12px' },
+                            style: { marginTop: '8px', marginBottom: '8px' },
                         },
-                        recommending ? createElement(Spinner, null) : 'Recommend Image Prompt'
+                        recommending ? createElement(Spinner, null) : (SHOW_PROMPT_EDITOR ? 'Recommend Image Prompt' : 'Generate Image')
                     ),
 
-                    editablePrompt
+                    SHOW_PROMPT_EDITOR && editablePrompt
                         ? createElement(TextareaControl, {
                             label: 'Image Prompt',
                             value: editablePrompt,
                             onChange: setEditablePrompt,
-                            rows: 5,
-                            help: 'Review and edit the prompt before generating.',
+                            rows: 4,
                           })
-                        : null
-                ),
+                        : null,
 
-                editablePrompt
-                    ? createElement(
-                        PanelBody,
-                        { title: 'Generate', initialOpen: true },
-
-                        createElement(SelectControl, {
-                            label: 'Size',
-                            value: size,
-                            options: SIZE_OPTIONS,
-                            onChange: setSize,
-                        }),
-
-                        createElement(SelectControl, {
-                            label: 'Quality',
-                            value: quality,
-                            options: QUALITY_OPTIONS,
-                            onChange: setQuality,
-                        }),
-
-                        createElement(
+                    SHOW_PROMPT_EDITOR
+                        ? createElement(
                             Button,
                             {
                                 isPrimary: true,
@@ -200,20 +323,36 @@
                                 style: { marginTop: '8px' },
                             },
                             generating ? createElement(Spinner, null) : 'Generate Image'
-                        ),
+                        )
+                        : null,
 
-                        generatedImage
-                            ? createElement(
+                    generatedImage
+                        ? createElement(
+                            'div',
+                            { style: { marginTop: '12px' } },
+                            createElement(
                                 'img',
                                 {
                                     src: generatedImage,
                                     alt: 'Generated image preview',
-                                    style: { marginTop: '12px', maxWidth: '100%', borderRadius: '4px' },
+                                    style: { maxWidth: '100%', borderRadius: '4px', display: 'block' },
                                 }
-                              )
-                            : null
-                      )
-                    : null
+                            ),
+                            postId && generatedImageId
+                                ? createElement(
+                                    Button,
+                                    {
+                                        isPrimary: true,
+                                        onClick: handleSetFeatured,
+                                        style: { marginTop: '8px' },
+                                    },
+                                    'Set as Featured Image'
+                                  )
+                                : null
+                          )
+                        : null
+
+                )
             )
         );
     }

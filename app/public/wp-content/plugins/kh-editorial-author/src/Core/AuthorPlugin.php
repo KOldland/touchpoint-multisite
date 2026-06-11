@@ -42,11 +42,8 @@ class AuthorPlugin {
                 add_action('rest_api_init', [$this, 'register_endpoints']);
         add_action('admin_menu', [$this, 'init_admin']);
 
-        // Register blocks
+        // Register blocks — answer-card.php handles its own init hook
         require_once dirname(__DIR__) . '/Blocks/answer-card/answer-card.php';
-        if (function_exists('\KH\EditorialAuthor\Blocks\AnswerCard\register_answercard_block')) {
-            add_action('init', '\KH\EditorialAuthor\Blocks\AnswerCard\register_answercard_block');
-        }
     }
 
     public function init_admin() {

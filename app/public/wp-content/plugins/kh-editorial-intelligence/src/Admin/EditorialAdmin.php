@@ -39,8 +39,9 @@ class EditorialAdmin {
             [ $this, 'render_dashboard_page' ]
         );
 
+        // API Settings — registered under top-level parent for sidebar visibility
         add_submenu_page(
-            'kh-editorial-admin',
+            'kh-editorial-studio',
             __( 'API Settings', 'kh-editorial-intelligence' ),
             __( 'API Settings', 'kh-editorial-intelligence' ),
             'manage_options',
@@ -141,29 +142,34 @@ class EditorialAdmin {
     public function render_settings_page() {
         if ( isset( $_POST['kh_editorial_save_settings'] ) && check_admin_referer( 'kh_editorial_settings', 'kh_editorial_nonce' ) ) {
             $settings = [
-                'openai_api_key'     => sanitize_text_field( $_POST['openai_api_key'] ),
-                'openai_model'       => sanitize_text_field( $_POST['openai_model'] ),
-                'google_ai_key'      => sanitize_text_field( $_POST['google_ai_key'] ),
+                'openai_api_key'      => sanitize_text_field( $_POST['openai_api_key'] ),
+                'openai_model'        => sanitize_text_field( $_POST['openai_model'] ),
+                'google_ai_key'       => sanitize_text_field( $_POST['google_ai_key'] ),
+                'openrouter_api_key'  => sanitize_text_field( $_POST['openrouter_api_key'] ),
                 'dataforseo_login'    => sanitize_text_field( $_POST['dataforseo_login'] ),
                 'dataforseo_password' => sanitize_text_field( $_POST['dataforseo_password'] ),
                 'serpapi_key'        => sanitize_text_field( $_POST['serpapi_key'] ),
                 'tavily_key'         => sanitize_text_field( $_POST['tavily_key'] ),
                 'search_primary'     => sanitize_text_field( $_POST['search_primary'] ),
+                'show_prompt_editor' => isset( $_POST['show_prompt_editor'] ) ? 1 : 0,
             ];
             update_option( 'kh_editorial_settings', $settings );
             echo '<div class="notice notice-success"><p>Settings saved.</p></div>';
         }
 
-        $settings = get_option( 'kh_editorial_settings', [
-            'openai_api_key'     => '',
-            'openai_model'       => 'gpt-4o-mini',
-            'google_ai_key'      => '',
+        $defaults = [
+            'openai_api_key'      => '',
+            'openai_model'        => 'gpt-4o-mini',
+            'google_ai_key'       => '',
+            'openrouter_api_key'  => '',
             'dataforseo_login'    => '',
             'dataforseo_password' => '',
             'serpapi_key'        => '',
             'tavily_key'         => '',
             'search_primary'     => 'serpapi',
-        ] );
+            'show_prompt_editor' => 1,
+        ];
+        $settings = array_merge( $defaults, get_option( 'kh_editorial_settings', [] ) );
 
         ?>
         <div class="wrap">
@@ -195,6 +201,16 @@ class EditorialAdmin {
                         <td>
                             <input name="google_ai_key" type="password" id="google_ai_key" value="<?php echo esc_attr( $settings['google_ai_key'] ); ?>" class="regular-text">
                             <p class="description">Used for Gemini models and Imagen image generation.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="openrouter_api_key">OpenRouter API Key</label></th>
+                        <td>
+                            <input name="openrouter_api_key" type="password" id="openrouter_api_key" value="<?php echo esc_attr( $settings['openrouter_api_key'] ); ?>" class="regular-text">
+                            <p class="description">
+                                Used for Flux, Recraft, and other image models via OpenRouter.
+                                Get your key at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>.
+                            </p>
                         </td>
                     </tr>
                 </table>
@@ -230,6 +246,20 @@ class EditorialAdmin {
                     <tr>
                         <th scope="row"><label for="tavily_key">Tavily Key</label></th>
                         <td><input name="tavily_key" type="password" id="tavily_key" value="<?php echo esc_attr( $settings['tavily_key'] ); ?>" class="regular-text"></td>
+                    </tr>
+                </table>
+
+                <h2>Image Generator</h2>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">Show Prompt Editor</th>
+                        <td>
+                            <label>
+                                <input name="show_prompt_editor" type="checkbox" value="1" <?php checked( $settings['show_prompt_editor'], 1 ); ?>>
+                                Allow editors to edit the generated prompt before generating.
+                            </label>
+                            <p class="description">When unchecked, the prompt is auto-generated and hidden from the editor.</p>
+                        </td>
                     </tr>
                 </table>
 
@@ -345,5 +375,15 @@ class EditorialAdmin {
             [],
             KH_EDITORIAL_VERSION
         );
+    }
+
+    /**
+     * Localize settings for the Gutenberg image sidebar.
+     */
+    public static function get_sidebar_settings() {
+        $settings = get_option( 'kh_editorial_settings', [] );
+        return [
+            'show_prompt_editor' => ! empty( $settings['show_prompt_editor'] ),
+        ];
     }
 }

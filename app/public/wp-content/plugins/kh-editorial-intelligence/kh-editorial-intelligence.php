@@ -82,6 +82,7 @@ add_action( 'plugins_loaded', function() {
             filemtime( $script_path ),
             true
         );
+        wp_localize_script( 'kh-editorial-image-sidebar', 'khEditorialSettings', \KH\Editorial\Admin\EditorialAdmin::get_sidebar_settings() );
 
 } );
 } );

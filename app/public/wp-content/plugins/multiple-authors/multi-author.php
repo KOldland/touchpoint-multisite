@@ -443,7 +443,15 @@ function kh_get_post_authors( $post_id ) {
 				}
 
 				if ( ! $author_post ) {
-					$author_post = get_page_by_title( $display_name, OBJECT, 'multi_author' );
+					$author_query = new \WP_Query( [
+						'post_type' => 'multi_author',
+						'title'     => $display_name,
+						'posts_per_page' => 1,
+						'fields'    => 'ids',
+					] );
+					if ( ! empty( $author_query->posts ) ) {
+						$author_post = get_post( $author_query->posts[0] );
+					}
 				}
 
 				if ( $author_post ) {
@@ -475,10 +483,18 @@ function kh_get_post_authors( $post_id ) {
 
 		$user = get_user_by( 'ID', $author_id );
 		if ( $user && $user->display_name ) {
-			$author_post = get_page_by_title( $user->display_name, OBJECT, 'multi_author' );
-			if ( $author_post ) {
-				$normalized[] = $author_post;
-				continue;
+			$author_query = new \WP_Query( [
+				'post_type' => 'multi_author',
+				'title'     => $user->display_name,
+				'posts_per_page' => 1,
+				'fields'    => 'ids',
+			] );
+			if ( ! empty( $author_query->posts ) ) {
+				$author_post = get_post( $author_query->posts[0] );
+				if ( $author_post ) {
+					$normalized[] = $author_post;
+					continue;
+				}
 			}
 		}
 	}

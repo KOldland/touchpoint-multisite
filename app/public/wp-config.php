@@ -131,8 +131,12 @@ if ( ! defined( 'WP_ENVIRONMENT_TYPE' ) ) {
     define( 'WP_ENVIRONMENT_TYPE', getenv( 'WP_ENVIRONMENT_TYPE' ) ?: 'local' );
 }
 
-// Only enable debug logging in development/local environments
+// Only enable debug in local/dev
 $is_dev_environment = in_array( WP_ENVIRONMENT_TYPE, array( 'local', 'development' ), true );
+
+if ( $is_dev_environment && ! defined( 'WP_DEBUG' ) ) {
+    define( 'WP_DEBUG', true );
+}
 
 if ( ! defined( 'WP_DEBUG_LOG' ) ) {
     define( 'WP_DEBUG_LOG', $is_dev_environment );
