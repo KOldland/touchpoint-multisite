@@ -1,0 +1,115 @@
+/* ── Dashboard layout ── */
+.kh-dashboard {
+    max-width: 1200px;
+    margin: 20px auto;
+}
+.kh-dashboard h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: #1d2327;
+}
+.kh-dashboard-subtitle {
+    font-size: 14px;
+    color: #646970;
+    margin-top: 0;
+    margin-bottom: 24px;
+}
+
+/* ── KPI Cards row ── */
+.kh-cards {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 32px;
+}
+.kh-card {
+    flex: 1;
+    min-width: 180px;
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 6px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.kh-card-icon {
+    font-size: 36px;
+    width: 36px;
+    height: 36px;
+    color: #2271b1;
+}
+.kh-card-body {
+    display: flex;
+    flex-direction: column;
+}
+.kh-card-number {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #1d2327;
+}
+.kh-card-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #646970;
+}
+
+/* ── Quick Actions panel ── */
+.kh-actions-panel {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 6px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.kh-actions-panel h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 16px;
+    padding: 0;
+    color: #1d2327;
+}
+.kh-actions-grid {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.kh-action-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    color: #1d2327;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s ease;
+    cursor: pointer;
+}
+.kh-action-button:hover {
+    background: #f0f0f1;
+    border-color: #8c8f94;
+    color: #1d2327;
+}
+.kh-action-button .dashicons {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+}
+.kh-action-primary {
+    background: #2271b1;
+    border-color: #2271b1;
+    color: #fff;
+}
+.kh-action-primary:hover {
+    background: #135e96;
+    border-color: #135e96;
+    color: #fff;
+}
