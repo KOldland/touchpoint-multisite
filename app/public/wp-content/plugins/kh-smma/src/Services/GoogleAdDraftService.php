@@ -64,29 +64,37 @@ class GoogleAdDraftService {
      * @return array|WP_Error Draft or error
      */
     private function generate_with_llm( array $input ) {
-        $llm_available = class_exists( '\\Dual_GPT\\Dual_GPT_LLM_Client' );
+        $llm_available = class_exists( '\\KH\\Editorial\\Core\\LLMService' )
+            && \KH\Editorial\Core\LLMService::is_configured();
         if ( ! $llm_available ) {
             return new WP_Error( 'no_llm', 'LLM client not available' );
         }
 
-        $client = new \Dual_GPT\Dual_GPT_LLM_Client();
-        if ( ! $client->has_api_key() ) {
-            return new WP_Error( 'no_api_key', 'LLM API key not configured' );
-        }
-
+        $route = \KH\Editorial\Core\LLMService::resolve_agent_model('social_posts');
         $system = $this->build_system_prompt();
         $user   = $this->build_user_prompt( $input );
 
-        $response = $client->call( $system, $user, array(
-            'json_mode'   => true,
+        $result = \KH\Editorial\Core\LLMService::post_completion([
+            ['role' => 'system', 'content' => $system],
+            ['role' => 'user', 'content' => $user],
+        ], [
+            'provider'    => $route['provider'],
+            'model'       => $route['model'],
             'temperature' => 0.5,
             'max_tokens'  => 1500,
-        ) );
+            'response_format' => ['type' => 'json_object'],
+        ]);
 
-        if ( is_wp_error( $response ) ) {
-            return $response;
+        if ( is_wp_error( $result ) ) {
+            return $result;
         }
 
+        // Wrap in legacy format for parse_llm_response
+        $response = [
+            'choices' => [
+                ['message' => ['content' => $result['content']]]
+            ]
+        ];
         $parsed = $this->parse_llm_response( $response );
         if ( is_wp_error( $parsed ) ) {
             return $parsed;

@@ -25,6 +25,9 @@ class CitationVerifier {
             'url' => $candidate['url'] ?? '',
             'title' => $candidate['title'] ?? '',
             'doi' => $candidate['doi'] ?? null,
+            'source_type' => $candidate['source_type'] ?? 'industry',
+            'tier' => $this->determine_tier( $candidate['source_type'] ?? 'industry' ),
+            'authority_score' => 0.5,
         ];
 
         $doi = $candidate['doi'] ?? $this->extract_doi_from_url( $candidate['url'] );
@@ -53,6 +56,9 @@ class CitationVerifier {
         if ( ! empty( $verified_data['title'] ) ) {
              $verified_data['confidence'] = max( $verified_data['confidence'], 0.3 );
         }
+
+        // Calculate authority score based on source type and metadata
+        $verified_data['authority_score'] = $this->calculate_authority_score( $verified_data );
 
         return $verified_data;
     }
@@ -206,5 +212,73 @@ class CitationVerifier {
         }
 
         return implode( ' ', $apa_parts );
+    }
+
+    // -------------------------------------------------------------------------
+    //  Source Tier Classification (ported from Dual GPT)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Determine the authority tier for a given source type.
+     *
+     * @param string $source_type e.g. 'academic', 'analyst', 'industry', 'case_study', 'trade'
+     * @return string 'tier1', 'tier2', or 'tier3'
+     */
+    public function determine_tier( $source_type ) {
+        $tiers = [
+            'academic'   => 'tier1',
+            'analyst'    => 'tier1',
+            'industry'   => 'tier2',
+            'case_study' => 'tier2',
+            'trade'      => 'tier3',
+        ];
+        return $tiers[ $source_type ] ?? 'tier3';
+    }
+
+    /**
+     * Check whether a source type is academic-level.
+     */
+    public function is_academic_source( $source_type ) {
+        return in_array( $source_type, [ 'academic', 'journal', 'conference' ], true );
+    }
+
+    /**
+     * Calculate an authority score (0.0–1.0) based on source type and metadata.
+     *
+     * @param array $verified_data The citation data after verification.
+     * @return float Authority score.
+     */
+    public function calculate_authority_score( $verified_data ) {
+        $score = 0.5; // Base score
+
+        // Boost for academic-level sources
+        if ( $this->is_academic_source( $verified_data['source_type'] ?? '' ) ) {
+            $score += 0.3;
+        }
+
+        // Boost for analyst reports
+        if ( ( $verified_data['source_type'] ?? '' ) === 'analyst' ) {
+            $score += 0.2;
+        }
+
+        // Boost for recent content (within 2 years)
+        if ( ! empty( $verified_data['year'] ) ) {
+            $year = is_numeric( $verified_data['year'] ) ? (int) $verified_data['year'] : 0;
+            if ( $year >= (int) date( 'Y' ) - 2 ) {
+                $score += 0.1;
+            }
+        }
+
+        // Boost for APA string availability (CrossRef verified)
+        if ( ! empty( $verified_data['apa_string'] ) && $verified_data['apa_string'] !== 'details_unavailable' ) {
+            $score += 0.1;
+        }
+
+        // Penalise for no title (weak signal)
+        if ( empty( $verified_data['title'] ) ) {
+            $score -= 0.2;
+        }
+
+        return min( max( $score, 0.0 ), 1.0 );
     }
 }

@@ -24,11 +24,11 @@ defined( 'ABSPATH' ) || exit;
 class SuggestAnswerCardsEndpoint {
 
     /**
-     * LLM Client instance
+     * Cached model name for logging.
      *
-     * @var LLMClient
+     * @var string|null
      */
-    private $llm_client;
+    private $current_model = null;
 
     /**
      * Validator instance
@@ -150,7 +150,7 @@ class SuggestAnswerCardsEndpoint {
                 'post_id' => $post_id,
                 'topic' => $title ?: $url,
                 'job_id' => $selection_job_id,
-                'model_version' => $this->llm_client->get_model_name(),
+                'model_version' => $this->current_model,
                 'prompt_hash' => $content ? sha1( $content ) : 'n/a',
             ) );
             try {
@@ -182,7 +182,7 @@ class SuggestAnswerCardsEndpoint {
         }
 
         // Check for cached response (skip if force_refresh)
-        $cache_key = $this->cache->generate_cache_key( $content, $max_cards, $this->llm_client->get_model_name() );
+        $cache_key = $this->cache->generate_cache_key( $content, $max_cards, $this->current_model ?? 'geo_cards' );
         $cached    = $force_refresh ? false : $this->cache->get( $cache_key );
 
         if ( false !== $cached ) {
@@ -190,7 +190,7 @@ class SuggestAnswerCardsEndpoint {
                 'user_id'       => $user_id,
                 'post_id'       => $post_id,
                 'action'        => 'suggest',
-                'model'         => $this->llm_client->get_model_name(),
+                'model'         => $this->current_model,
                 'cached'        => true,
                 'response_size' => strlen( wp_json_encode( $cached ) ),
             ) );
@@ -199,16 +199,6 @@ class SuggestAnswerCardsEndpoint {
             $response->header( 'X-KHM-GEO-Cache', 'HIT' );
             return $response;
         }
-
-        // Check API key
-        if ( ! $this->llm_client->has_api_key() ) {
-            return new \WP_Error(
-                'no_api_key',
-                __( 'OpenAI API key not configured. Please set it in Dual GPT settings.', 'khm-membership' ),
-                array( 'status' => 500 )
-            );
-        }
-
 
         // Call LLM with retry on validation failure
         try {
@@ -229,7 +219,7 @@ class SuggestAnswerCardsEndpoint {
                 'user_id'       => $user_id,
                 'post_id'       => $post_id,
                 'action'        => 'suggest',
-                'model'         => $this->llm_client->get_model_name(),
+                'model'         => $this->current_model,
                 'cached'        => false,
                 'error_message' => $result->get_error_message(),
             ) );
@@ -248,7 +238,7 @@ class SuggestAnswerCardsEndpoint {
             'user_id'           => $user_id,
             'post_id'           => $post_id,
             'action'            => 'suggest',
-            'model'             => $result['model'] ?? $this->llm_client->get_model_name(),
+            'model'             => $result['model'] ?? $this->current_model,
             'cached'            => false,
             'response_size'     => strlen( wp_json_encode( $result ) ),
             'prompt_tokens'     => $result['usage']['prompt_tokens'] ?? 0,
@@ -327,42 +317,41 @@ class SuggestAnswerCardsEndpoint {
         $system_prompt = $this->build_system_prompt();
         $user_prompt   = $this->build_user_prompt( $title, $url, $content, $max_cards, $is_retry );
 
-        $response = $this->llm_client->call(
-            $system_prompt,
-            $user_prompt,
-            array(
-                'json_mode'   => true,
-                'temperature' => $is_retry ? 0.5 : 0.7, // Lower temperature on retry
-                'max_tokens'  => 3000,
-            )
+        if ( ! class_exists( '\\KH\\Editorial\\Core\\LLMService' ) ) {
+            return new \WP_Error( 'llm_unavailable', 'LLMService is not available.' );
+        }
+
+        $route = \KH\Editorial\Core\LLMService::resolve_agent_model( 'geo_cards' );
+
+        $messages = array(
+            array( 'role' => 'system', 'content' => $system_prompt ),
+            array( 'role' => 'user',   'content' => $user_prompt ),
         );
 
-        if ( is_wp_error( $response ) ) {
-            return $response;
+        $result = \KH\Editorial\Core\LLMService::post_completion( $messages, array(
+            'provider'    => $route['provider'],
+            'model'       => $route['model'],
+            'temperature' => $is_retry ? 0.5 : 0.7,
+            'max_tokens'  => 3000,
+            'response_format' => array( 'type' => 'json_object' ),
+        ) );
+
+        if ( is_wp_error( $result ) ) {
+            return $result;
         }
 
-        // Extract content
-        $content_str = $this->llm_client->extract_content( $response );
-        if ( empty( $content_str ) ) {
-            return new \WP_Error( 'empty_response', __( 'Empty response from LLM', 'khm-membership' ) );
+        // Parse the response content
+        $parsed = json_decode( $result['content'], true );
+        if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $parsed ) ) {
+            return new \WP_Error( 'llm_invalid_json', __( 'Failed to parse LLM response as JSON', 'khm-membership' ) );
         }
-
-        // Parse JSON
-        $parsed = json_decode( $content_str, true );
-        if ( json_last_error() !== JSON_ERROR_NONE ) {
-            return new \WP_Error( 'json_parse_error', __( 'Failed to parse LLM response as JSON', 'khm-membership' ) );
-        }
-
-        // Get usage and cost
-        $usage = $this->llm_client->get_usage( $response );
-        $cost  = $this->llm_client->estimate_cost( $usage );
 
         return array(
             'cards'          => $parsed['cards'] ?? $parsed,
-            'model'          => $this->llm_client->get_model_name(),
+            'model'          => $route['model'],
             'generated_at'   => current_time( 'mysql' ),
-            'usage'          => $usage,
-            'estimated_cost' => $cost,
+            'usage'          => $result['usage'] ?? array(),
+            'estimated_cost' => 0,
         );
     }
 

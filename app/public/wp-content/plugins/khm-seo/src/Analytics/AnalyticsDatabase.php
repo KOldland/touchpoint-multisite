@@ -59,7 +59,7 @@ class AnalyticsDatabase {
         add_action('init', [$this, 'check_database_version']);
         register_activation_hook(__FILE__, [$this, 'create_tables']);
         register_deactivation_hook(__FILE__, [$this, 'cleanup_scheduled_events']);
-        register_uninstall_hook(__FILE__, [$this, 'remove_tables']);
+        // Uninstall handled in main plugin file
     }
     
     /**

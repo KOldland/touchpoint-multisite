@@ -43,52 +43,47 @@ class IntelligenceBridge {
     }
 
     /**
-     * Call LLM via centralized Intelligence service
+     * Call LLM via centralized Intelligence service (supports OpenAI and OpenRouter).
      */
     public function call_llm($system_prompt, $user_prompt, $options = []) {
         if (class_exists('\KH\Editorial\Core\LLMService')) {
-            $api_key = \KH\Editorial\Core\LLMService::get_api_key();
-            $model = $options['model'] ?? \KH\Editorial\Core\LLMService::get_model();
-            
-            if (!$api_key) {
-                return new \WP_Error('missing_api_key', 'OpenAI API key not configured in Intelligence settings.');
+            $agent   = $options['agent'] ?? 'draft';
+            $persona = $options['persona'] ?? null;
+
+            // Persona-aware routing for draft agent
+            if ($agent === 'draft' && $persona && in_array($persona, \KH\Editorial\Core\LLMService::PERSONAS, true)) {
+                $route = \KH\Editorial\Core\LLMService::resolve_persona_model($persona);
+            } else {
+                $route = \KH\Editorial\Core\LLMService::resolve_agent_model($agent);
             }
 
-            $body = [
-                'model'    => $model,
-                'messages' => [
-                    ['role' => 'system', 'content' => $system_prompt],
-                    ['role' => 'user', 'content' => $user_prompt],
-                ],
-                'temperature' => $options['temperature'] ?? 0.4,
+            $model = $route['model'];
+
+            $messages = [
+                ['role' => 'system', 'content' => $system_prompt],
+                ['role' => 'user', 'content' => $user_prompt],
+            ];
+
+            $args = [
+                'provider'    => $route['provider'],
+                'model'       => $model,
+                'temperature' => $options['temperature'] ?? $route['temperature'] ?? 0.4,
                 'max_tokens'  => $options['max_tokens'] ?? 2000,
             ];
 
             if (!empty($options['json_mode'])) {
-                $body['response_format'] = ['type' => 'json_object'];
+                $args['response_format'] = ['type' => 'json_object'];
             }
 
-            $response = wp_remote_post('https://api.openai.com/v1/chat/completions', [
-                'headers' => [
-                    'Authorization' => 'Bearer ' . $api_key,
-                    'Content-Type'  => 'application/json',
-                ],
-                'body'    => wp_json_encode($body),
-                'timeout' => 60,
-            ]);
+            $result = \KH\Editorial\Core\LLMService::post_completion($messages, $args);
 
-            if (is_wp_error($response)) {
-                return $response;
-            }
-
-            $data = json_decode(wp_remote_retrieve_body($response), true);
-            if (empty($data['choices'][0]['message']['content'])) {
-                return new \WP_Error('llm_empty_response', 'LLM returned an empty response.');
+            if (is_wp_error($result)) {
+                return $result;
             }
 
             return [
-                'content' => $data['choices'][0]['message']['content'],
-                'usage'   => $data['usage'] ?? null,
+                'content' => $result['content'],
+                'usage'   => $result['usage'] ?? null,
             ];
         }
 

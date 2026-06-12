@@ -757,6 +757,7 @@ const WritingStudioApp = () => {
                     id: selectedArticle.wp_post_id || null, // Ensure we update if ID exists
                     title: selectedArticle.headline || selectedArticle.title,
                     content: convertBlocksToHtml(draftResult.blocks),
+                    blocks: draftResult.blocks, // raw blocks for Gutenberg compilation
                     planner_session_id: selectedSession.session_id,
                     article_id: selectedArticle.id,
                     author_policy: policy

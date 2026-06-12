@@ -152,6 +152,66 @@ class MenuManager {
             'kh-dashboards-link-commerce-settings',
             [ $this, 'redirect_to' ]
         );
+
+        // ── 4. SEO Suite ──
+        add_menu_page(
+            __( 'SEO Suite', 'kh-dashboards' ),
+            __( 'SEO Suite', 'kh-dashboards' ),
+            'manage_options',
+            'kh-dashboards-seo-suite',
+            [ $this, 'render_seo_dashboard' ],
+            'dashicons-chart-area',
+            5
+        );
+
+        add_submenu_page(
+            'kh-dashboards-seo-suite',
+            __( 'Dashboard', 'kh-dashboards' ),
+            __( 'Dashboard', 'kh-dashboards' ),
+            'manage_options',
+            'kh-dashboards-seo-suite',
+            [ $this, 'render_seo_dashboard' ]
+        );
+
+        // Link: Audit (khm-seo-agent)
+        add_submenu_page(
+            'kh-dashboards-seo-suite',
+            __( 'Audit', 'kh-dashboards' ),
+            __( 'Audit', 'kh-dashboards' ),
+            'edit_posts',
+            'kh-dashboards-link-seo-audit',
+            [ $this, 'redirect_to' ]
+        );
+
+        // Link: General Settings (khm-seo config)
+        add_submenu_page(
+            'kh-dashboards-seo-suite',
+            __( 'SEO Settings', 'kh-dashboards' ),
+            __( 'SEO Settings', 'kh-dashboards' ),
+            'manage_options',
+            'kh-dashboards-link-seo-settings',
+            [ $this, 'redirect_to' ]
+        );
+
+        // Link: Schema Markup (khm-seo schema)
+        add_submenu_page(
+            'kh-dashboards-seo-suite',
+            __( 'Schema', 'kh-dashboards' ),
+            __( 'Schema', 'kh-dashboards' ),
+            'manage_options',
+            'kh-dashboards-link-seo-schema',
+            [ $this, 'redirect_to' ]
+        );
+
+        // Link: SEO Tools (khm-seo tools)
+        add_submenu_page(
+            'kh-dashboards-seo-suite',
+            __( 'SEO Tools', 'kh-dashboards' ),
+            __( 'SEO Tools', 'kh-dashboards' ),
+            'manage_options',
+            'kh-dashboards-link-seo-tools',
+            [ $this, 'redirect_to' ]
+        );
     }
 
     /**
@@ -173,6 +233,14 @@ class MenuManager {
     }
 
     /**
+     * Render SEO Suite dashboard page.
+     */
+    public function render_seo_dashboard() {
+        $data = $this->get_seo_stats();
+        include KH_DASHBOARDS_PLUGIN_DIR . 'templates/seo.php';
+    }
+
+    /**
      * Redirect handler for link-type submenu pages.
      * Uses JS redirect because headers are already sent at this point.
      */
@@ -190,6 +258,10 @@ class MenuManager {
             'kh-dashboards-link-orders'             => admin_url( 'admin.php?page=orders' ),
             'kh-dashboards-link-levels'             => admin_url( 'admin.php?page=levels' ),
             'kh-dashboards-link-commerce-settings'  => admin_url( 'admin.php?page=membership-settings' ),
+            'kh-dashboards-link-seo-audit'          => admin_url( 'admin.php?page=khm-seo-agent-audit' ),
+            'kh-dashboards-link-seo-settings'       => admin_url( 'admin.php?page=khm-seo' ),
+            'kh-dashboards-link-seo-schema'         => admin_url( 'admin.php?page=khm-seo-schema' ),
+            'kh-dashboards-link-seo-tools'          => admin_url( 'admin.php?page=khm-seo-tools' ),
         ];
         $url = $urls[ $page ] ?? admin_url();
         echo '<script>window.location.href = "' . esc_url( $url ) . '";</script>';
@@ -206,7 +278,8 @@ class MenuManager {
         $remove_menus = [
             'kh-smma-dashboard',     // KH Social (consolidated into Sponsorship)
             'khm-seo-tracker',       // GEO Tracker (accessible via SEO submenu)
-            'khm-seo',               // KHM SEO (accessible via post editor sidebar)
+            'khm-seo',               // KHM SEO (moved under SEO Suite)
+            'khm-seo-agent-dashboard', // khm-seo-agent (moved under SEO Suite)
         ];
 
         foreach ( $menu as $key => $item ) {
@@ -259,6 +332,16 @@ class MenuManager {
         ];
     }
 
+    private function get_seo_stats() {
+        $overall_score = (int) get_option( 'khm_seo_overall_score', 0 );
+        return [
+            'overall_score'       => $overall_score,
+            'total_keywords'      => (int) get_option( 'khm_seo_total_keywords', 0 ),
+            'top_10_rankings'     => (int) get_option( 'khm_seo_top_10_rankings', 0 ),
+            'recent_audits'       => (int) get_option( 'khm_seo_recent_audits', 0 ),
+        ];
+    }
+
     private function count_posts_this_month() {
         global $wpdb;
         $first_day = date( 'Y-m-01 00:00:00' );
@@ -298,6 +381,11 @@ class MenuManager {
             'editorial_page_kh-dashboards-link-authors',
             'editorial_page_kh-dashboards-link-planner',
             'editorial_page_kh-dashboards-link-api-settings',
+            'toplevel_page_kh-dashboards-seo-suite',
+            'seo-suite_page_kh-dashboards-link-seo-audit',
+            'seo-suite_page_kh-dashboards-link-seo-settings',
+            'seo-suite_page_kh-dashboards-link-seo-schema',
+            'seo-suite_page_kh-dashboards-link-seo-tools',
             'commerce_page_kh-dashboards-link-members',
             'commerce_page_kh-dashboards-link-orders',
             'commerce_page_kh-dashboards-link-levels',

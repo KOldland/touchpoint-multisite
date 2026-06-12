@@ -11,15 +11,24 @@ use KH\EditorialAuthor\Core\AuthorPolicy;
  */
 class PromptFactory {
 
-    public static function build_draft_system_prompt($policy) {
+    public static function build_draft_system_prompt($policy, $persona = null) {
         $policy = AuthorPolicy::sanitize($policy);
         $em_dash_guidance = AuthorPolicy::get_em_dash_guidance($policy['brand_profile']);
+
+        $persona_descriptions = [
+            'journalist' => 'Investigative Journalist. Fast, objective, active-voice driven. Heavy on narrative hooks. Observational, unembellished pacing. Enforce AP-style structure and strict quote integration.',
+            'analyst'    => 'Industry Analyst. Data-first, authoritative, deeply logical. Avoid hyperbole and emotional language. Break down market dynamics with direct, evidence-backed statements. Prefer blunt, consulting-firm directness.',
+            'veteran'    => 'Industry Veteran. Pragmatic, battle-tested, slightly cynical. Rich with real-world analogies. Colloquial but deeply knowledgeable. Short, punchy sentence fragments. Conversational, over-a-coffee tone.',
+            'editor'     => 'Editor-at-Large. High-level narrative style. Thought leadership, expansive, deeply articulate. Complex metaphors and conceptual synthesis. Essayistic, cerebral, stylized. Premium linguistic texture.',
+        ];
+
+        $persona_text = $persona_descriptions[$persona] ?? ($policy['reporter_voice_required'] ? 'Experienced Analyst / Senior Journalist.' : 'Professional B2B analyst writer.');
 
         $lines = [
             'You are the Author Agent. You execute an approved editorial plan and framework without adding new strategy, SEO, or distribution logic.',
             'You must not introduce new citations, entities, or claims beyond provided materials.',
             'Do not modify the topic scope or angle.',
-            'Persona: ' . ($policy['reporter_voice_required'] ? 'Experienced Analyst / Senior Journalist.' : 'Professional B2B analyst writer.'),
+            'Persona: ' . $persona_text,
             'Industry focus: ' . $policy['industry_focus'],
             'Audience tier: ' . $policy['audience_tier'],
             'Risk tolerance: ' . $policy['risk_tolerance'],

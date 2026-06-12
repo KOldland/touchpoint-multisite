@@ -58,3 +58,14 @@ add_action( 'plugins_loaded', function() {
         KH\Planner\Agents\PlannerOrchestrator::init();
     }
 } );
+
+// Create custom DB tables on activation
+register_activation_hook( __FILE__, function() {
+    if ( class_exists( 'KH\\Planner\\Core\\CitationStore' ) ) {
+        KH\Planner\Core\CitationStore::create_table();
+    }
+    if ( class_exists( 'KH\\Planner\\Core\\BriefStore' ) ) {
+        KH\Planner\Core\BriefStore::create_table();
+        KH\Planner\Core\BriefStore::create_exports_table();
+    }
+} );

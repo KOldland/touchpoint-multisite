@@ -108,6 +108,9 @@ class ExportAgent {
             }
         }
 
+        // Provenance Appendix
+        $this->add_provenance_appendix_docx( $section, $post_id );
+
         $filename = 'session-' . $post_id . '-' . date('Y-m-d-H-i-s') . '.docx';
         $filepath = $this->get_export_path( $filename );
 
@@ -150,6 +153,9 @@ class ExportAgent {
         th { background-color: #f9f9f9; }
         .section { margin-bottom: 30px; }
         .synopsis-card { background: #f9f9f9; padding: 20px; margin-bottom: 20px; border-left: 4px solid #333; }
+        .provenance { background: #f4f4f4; padding: 20px; margin-top: 40px; border-left: 4px solid #2c5f2d; }
+        .citation { margin: 15px 0; padding: 15px; background: white; border: 1px solid #ddd; border-radius: 4px; }
+        .citation h3 { margin-top: 0; }
     </style>
 </head>
 <body>
@@ -225,6 +231,9 @@ class ExportAgent {
             $html .= '</div>';
         }
 
+        // Provenance Appendix (inside body, before closing tags)
+        $html .= $this->generate_provenance_appendix_html( $post_id );
+
         $html .= '
 </body>
 </html>';
@@ -242,6 +251,112 @@ class ExportAgent {
             'file_path' => $filepath,
             'filename' => $filename,
         ];
+    }
+
+    // -------------------------------------------------------------------------
+    //  Provenance Appendix (citations from DB)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Add provenance appendix to DOCX export.
+     * Shows each verified citation with tier, authority score, and APA string.
+     */
+    private function add_provenance_appendix_docx( $section, $post_id ) {
+        $citations = $this->get_citations_for_export( $post_id );
+        if ( empty( $citations ) ) {
+            return;
+        }
+
+        $section->addPageBreak();
+        $section->addTitle( 'Provenance Appendix', 1 );
+        $section->addText( 'This appendix contains the verified source citations used to inform this framework, ordered by authority score.' );
+        $section->addTextBreak(1);
+
+        foreach ( $citations as $citation ) {
+            $section->addTitle( $citation['title'] ?? 'Untitled', 3 );
+
+            if ( ! empty( $citation['apa_string'] ) && $citation['apa_string'] !== 'details_unavailable' ) {
+                $section->addText( 'APA: ' . $citation['apa_string'] );
+            }
+
+            $section->addText( 'Source: ' . ( $citation['url'] ?? '' ) );
+            $section->addText( 'Tier: ' . ( $citation['tier'] ?? 'tier3' ) );
+            $section->addText( 'Authority Score: ' . number_format( (float) ( $citation['authority_score'] ?? 0.5 ), 2 ) );
+
+            $author = $citation['lead_author'] ?? '';
+            $pub    = $citation['publication'] ?? '';
+            if ( $author || $pub ) {
+                $section->addText( 'Author: ' . $author . ( $pub ? ' | Publication: ' . $pub : '' ) );
+            }
+
+            $section->addTextBreak(1);
+        }
+    }
+
+    /**
+     * Generate provenance appendix for HTML export.
+     */
+    private function generate_provenance_appendix_html( $post_id ) {
+        $citations = $this->get_citations_for_export( $post_id );
+        if ( empty( $citations ) ) {
+            return '';
+        }
+
+        $html = '
+    <div class="provenance">
+        <h2>Provenance Appendix</h2>
+        <p>This appendix contains the verified source citations used to inform this framework, ordered by authority score.</p>';
+
+        foreach ( $citations as $citation ) {
+            $html .= '
+        <div class="citation">
+            <h3>' . esc_html( $citation['title'] ?? 'Untitled' ) . '</h3>';
+
+            if ( ! empty( $citation['apa_string'] ) && $citation['apa_string'] !== 'details_unavailable' ) {
+                $html .= '<p><strong>APA:</strong> ' . esc_html( $citation['apa_string'] ) . '</p>';
+            }
+
+            $html .= '<p><strong>Source:</strong> <a href="' . esc_url( $citation['url'] ?? '' ) . '">' . esc_html( $citation['url'] ?? '' ) . '</a></p>';
+            $html .= '<p><strong>Tier:</strong> ' . esc_html( $citation['tier'] ?? 'tier3' ) . ' | <strong>Authority Score:</strong> ' . esc_html( number_format( (float) ( $citation['authority_score'] ?? 0.5 ), 2 ) ) . '</p>';
+
+            $author = $citation['lead_author'] ?? '';
+            $pub    = $citation['publication'] ?? '';
+            if ( $author || $pub ) {
+                $html .= '<p><strong>Author:</strong> ' . esc_html( $author ) . ( $pub ? ' | <strong>Publication:</strong> ' . esc_html( $pub ) : '' ) . '</p>';
+            }
+
+            $html .= '
+        </div>';
+        }
+
+        $html .= '
+    </div>';
+
+        return $html;
+    }
+
+    /**
+     * Get citations for the export — tries the CitationStore first,
+     * falls back to the brief's stored citation IDs.
+     */
+    private function get_citations_for_export( $post_id ) {
+        // Try CitationStore first
+        if ( class_exists( '\\KH\\Planner\\Core\\CitationStore' ) ) {
+            $store = new \KH\Planner\Core\CitationStore();
+            $citations = $store->get_citations_by_session( $post_id, false );
+            if ( ! empty( $citations ) ) {
+                return $citations;
+            }
+        }
+
+        // Fallback: try brief's citation data
+        $brief_id = get_post_meta( $post_id, 'kh_planner_brief_id', true );
+        if ( $brief_id && class_exists( '\\KH\\Planner\\Core\\CitationStore' ) ) {
+            $store = new \KH\Planner\Core\CitationStore();
+            return $store->get_citations_by_brief( $brief_id );
+        }
+
+        return [];
     }
 
     private function get_export_path( $filename ) {

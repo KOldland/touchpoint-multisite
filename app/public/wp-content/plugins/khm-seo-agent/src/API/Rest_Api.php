@@ -160,61 +160,47 @@ class Rest_Api {
             ) );
         }
 
-        $session_id = $this->create_dual_gpt_session( $post_id, $keyword );
-        if ( is_wp_error( $session_id ) ) {
-            return $session_id;
-        }
-
         $prompt = $this->build_llm_prompt( $post, $analysis, $keyword );
-        $job_id = $this->create_dual_gpt_job( $session_id, $prompt );
-        if ( is_wp_error( $job_id ) ) {
+
+        error_log('[KH SEO] Calling LLMService for post ' . $post_id);
+        $route = \KH\Editorial\Core\LLMService::resolve_agent_model('seo_schema');
+
+        $result = \KH\Editorial\Core\LLMService::post_completion([
+            [
+                'role'    => 'system',
+                'content' => 'You are an SEO strategist. Analyze the article and SEO analysis data. Return valid JSON following the exact schema provided.'
+            ],
+            [
+                'role'    => 'user',
+                'content' => $prompt,
+            ],
+        ], [
+            'provider'    => $route['provider'],
+            'model'       => $route['model'],
+            'temperature' => 0.2,
+            'max_tokens'  => 3000,
+            'response_format' => ['type' => 'json_object'],
+        ]);
+
+        if ( is_wp_error( $result ) ) {
+            error_log('[KH SEO] LLMService call failed: ' . $result->get_error_message());
             return rest_ensure_response( array(
                 'post_id' => $post_id,
                 'analysis' => $analysis,
-                'session_id' => $session_id,
-                'job_id' => null,
                 'llm_output' => $this->get_fallback_payload( $post, $analysis, $keyword ),
                 'status' => 'fallback',
                 'error' => array(
-                    'code' => $job_id->get_error_code(),
-                    'message' => $job_id->get_error_message(),
+                    'code' => $result->get_error_code(),
+                    'message' => $result->get_error_message(),
                 ),
             ) );
         }
 
-        $job_result = $this->wait_for_dual_gpt_job( $job_id, 10 );
-        if ( is_wp_error( $job_result ) ) {
-            if ( $job_result->get_error_code() === 'job_not_ready' ) {
-                return rest_ensure_response( array(
-                    'post_id' => $post_id,
-                    'analysis' => $analysis,
-                    'session_id' => $session_id,
-                    'job_id' => $job_id,
-                    'status' => 'queued',
-                ) );
-            }
-
-            return rest_ensure_response( array(
-                'post_id' => $post_id,
-                'analysis' => $analysis,
-                'session_id' => $session_id,
-                'job_id' => $job_id,
-                'llm_output' => $this->get_fallback_payload( $post, $analysis, $keyword ),
-                'status' => 'fallback',
-                'error' => array(
-                    'code' => $job_result->get_error_code(),
-                    'message' => $job_result->get_error_message(),
-                ),
-            ) );
-        }
-
-        $llm_payload = $this->parse_llm_payload( $job_result );
+        $llm_payload = $this->parse_llm_output( $result['content'] );
         if ( is_wp_error( $llm_payload ) ) {
             return rest_ensure_response( array(
                 'post_id' => $post_id,
                 'analysis' => $analysis,
-                'session_id' => $session_id,
-                'job_id' => $job_id,
                 'llm_output' => $this->get_fallback_payload( $post, $analysis, $keyword ),
                 'status' => 'fallback',
                 'error' => array(
@@ -229,8 +215,6 @@ class Rest_Api {
             return rest_ensure_response( array(
                 'post_id' => $post_id,
                 'analysis' => $analysis,
-                'session_id' => $session_id,
-                'job_id' => $job_id,
                 'llm_output' => $this->get_fallback_payload( $post, $analysis, $keyword ),
                 'status' => 'fallback',
                 'error' => array(
@@ -242,12 +226,12 @@ class Rest_Api {
 
         $llm_payload = $this->enrich_llm_payload( $llm_payload, $post, $analysis, $keyword );
 
+        error_log('[KH SEO] Audit completed for post ' . $post_id . ' — ' . count($llm_payload['issues'] ?? []) . ' issues, ' . count($llm_payload['apply_actions'] ?? []) . ' actions');
+
         return rest_ensure_response( array(
             'post_id' => $post_id,
             'analysis' => $analysis,
             'llm_output' => $llm_payload,
-            'session_id' => $session_id,
-            'job_id' => $job_id,
             'status' => 'completed',
         ) );
     }
@@ -283,12 +267,8 @@ class Rest_Api {
     }
 
     private function is_openai_available() {
-        if ( ! class_exists( 'Dual_GPT_OpenAI_Connector' ) ) {
-            return false;
-        }
-
-        $connector = new \Dual_GPT_OpenAI_Connector();
-        return $connector->validate_api_key();
+        return class_exists( '\KH\Editorial\Core\LLMService' )
+            && \KH\Editorial\Core\LLMService::is_configured();
     }
 
     /**
@@ -342,27 +322,13 @@ class Rest_Api {
     }
 
     public function handle_audit_status( $request ) {
-        $job_id = sanitize_text_field( $request->get_param( 'job_id' ) );
-        if ( empty( $job_id ) ) {
-            return new \WP_Error( 'missing_job_id', 'job_id is required.', array( 'status' => 400 ) );
-        }
-
-        $job_result = $this->get_dual_gpt_job_result( $job_id );
-        if ( is_wp_error( $job_result ) ) {
-            return $job_result;
-        }
-
-        $llm_payload = $this->parse_llm_payload( $job_result );
-        if ( is_wp_error( $llm_payload ) ) {
-            return $llm_payload;
-        }
-
-        $validation = $this->validate_llm_output( $llm_payload );
-        if ( is_wp_error( $validation ) ) {
-            return $validation;
-        }
-
-        $context = $this->get_job_context( $job_result );
+        // Audit is now synchronous — status polling is no longer needed.
+        // The handle_audit() endpoint returns results immediately.
+        return rest_ensure_response( array(
+            'status' => 'sync_only',
+            'message' => 'Audit is now synchronous. Use POST /audit to run audits and get results immediately.',
+        ) );
+    }
         if ( $context ) {
             $llm_payload = $this->enrich_llm_payload(
                 $llm_payload,
@@ -388,17 +354,7 @@ class Rest_Api {
             return new \WP_Error( 'invalid_preview', 'post_id and actions are required.', array( 'status' => 400 ) );
         }
 
-        // Prefer Dual-GPT if available
-        if ( class_exists( 'Dual_GPT_SEO_Tools' ) ) {
-            $tools = new \Dual_GPT_SEO_Tools();
-            $result = $tools->tool_preview_apply( array(
-                'post_id' => $post_id,
-                'actions' => $actions,
-            ) );
-            return rest_ensure_response( $result );
-        }
-
-        // Fallback: build a preview from current state
+        // Build a preview from current state
         $preview = $this->build_preview_from_actions( $post_id, $actions );
         return rest_ensure_response( $preview );
     }
@@ -423,42 +379,7 @@ class Rest_Api {
             );
         }
 
-        // Prefer Dual-GPT if available
-        if ( class_exists( 'Dual_GPT_SEO_Tools' ) ) {
-            $tools = new \Dual_GPT_SEO_Tools();
-            $result = $tools->tool_apply_actions( array(
-                'post_id' => $post_id,
-                'actions' => $actions,
-                'acting_user_id' => $acting_user_id,
-                'idempotency_key' => $idempotency_key,
-                'job_id' => $job_id,
-                'allow_schema_write' => $confirm_schema_changes,
-            ) );
-
-            if ( is_array( $result ) && ! empty( $result['success'] ) ) {
-                $existing_score = (int) get_post_meta( $post_id, '_khm_seo_score', true );
-                $analysis = $this->analyze_post( $post_id );
-
-                if ( ! is_wp_error( $analysis ) ) {
-                    $next_score = $this->persist_seo_score( $post_id, $analysis );
-                    $result['analysis'] = $analysis;
-
-                    if ( ! isset( $result['changes'] ) || ! is_array( $result['changes'] ) ) {
-                        $result['changes'] = array();
-                    }
-
-                    $result['changes'][] = array(
-                        'meta_key' => '_khm_seo_score',
-                        'old' => $existing_score,
-                        'new' => $next_score,
-                    );
-                }
-            }
-
-            return rest_ensure_response( $result );
-        }
-
-        // Fallback: apply actions directly via post meta
+        // Apply actions directly via post meta
         $result = $this->apply_actions_direct( $post_id, $actions, $acting_user_id, $idempotency_key, $job_id, $confirm_schema_changes );
 
         if ( ! empty( $result['success'] ) ) {
@@ -701,109 +622,15 @@ class Rest_Api {
         return false;
     }
 
-    private function create_dual_gpt_session( $post_id, $keyword = '' ) {
-        $request = new \WP_REST_Request( 'POST', '/editorial/v1/sessions' );
-        $request->set_param( 'role', 'seo' );
-        $request->set_param( 'title', 'SEO Agent - ' . current_time( 'mysql' ) );
-        $request->set_param( 'post_id', $post_id );
-        $request->set_param( 'meta', array(
-            'source' => 'khm_seo_agent',
-            'focus_keyword' => sanitize_text_field( $keyword ),
-        ) );
+    // Legacy Dual_GPT methods removed — LLMService is now used directly.
 
-        $response = rest_do_request( $request );
-        if ( $response->is_error() ) {
-            return $response->as_error();
-        }
-
-        $data = $response->get_data();
-        if ( empty( $data['session_id'] ) ) {
-            return new \WP_Error( 'session_failed', 'Failed to create Dual-GPT session.', array( 'status' => 500 ) );
-        }
-
-        return $data['session_id'];
-    }
-
-    private function create_dual_gpt_job( $session_id, $prompt ) {
-        $request = new \WP_REST_Request( 'POST', '/editorial/v1/jobs' );
-        $request->set_param( 'session_id', $session_id );
-        $request->set_param( 'prompt', $prompt );
-        $request->set_param( 'model', 'gpt-4o' );
-        $request->set_param( 'idempotency_key', 'seo-agent-' . wp_generate_uuid4() );
-
-        $response = rest_do_request( $request );
-        if ( $response->is_error() ) {
-            return $response->as_error();
-        }
-
-        $data = $response->get_data();
-        if ( empty( $data['job_id'] ) ) {
-            return new \WP_Error( 'job_failed', 'Failed to create Dual-GPT job.', array( 'status' => 500 ) );
-        }
-
-        return $data['job_id'];
-    }
-
-    private function get_dual_gpt_job_result( $job_id ) {
-        if ( ! class_exists( 'Dual_GPT_DB_Handler' ) ) {
-            return new \WP_Error( 'dual_gpt_db_missing', 'Dual-GPT DB handler unavailable.', array( 'status' => 500 ) );
-        }
-
-        $db = new \Dual_GPT_DB_Handler();
-        $job = $db->get_job( $job_id );
-        if ( ! $job ) {
-            return new \WP_Error( 'job_not_found', 'Dual-GPT job not found.', array( 'status' => 404 ) );
-        }
-
-        if ( $job['status'] !== 'completed' ) {
-            return new \WP_Error( 'job_not_ready', 'Dual-GPT job not completed yet.', array( 'status' => 409 ) );
-        }
-
-        return $job;
-    }
-
-    private function wait_for_dual_gpt_job( $job_id, $timeout_seconds = 10 ) {
-        if ( ! class_exists( 'Dual_GPT_DB_Handler' ) ) {
-            return new \WP_Error( 'dual_gpt_db_missing', 'Dual-GPT DB handler unavailable.', array( 'status' => 500 ) );
-        }
-
-        $db = new \Dual_GPT_DB_Handler();
-        $start = time();
-
-        while ( time() - $start <= $timeout_seconds ) {
-            $job = $db->get_job( $job_id );
-            if ( ! $job ) {
-                return new \WP_Error( 'job_not_found', 'Dual-GPT job not found.', array( 'status' => 404 ) );
-            }
-
-            if ( $job['status'] === 'completed' ) {
-                return $job;
-            }
-
-            if ( $job['status'] === 'failed' ) {
-                return new \WP_Error( 'job_failed', $job['error_message'] ?? 'Dual-GPT job failed.', array( 'status' => 500 ) );
-            }
-
-            sleep( 1 );
-        }
-
-        return new \WP_Error( 'job_not_ready', 'Dual-GPT job not completed yet.', array( 'status' => 409, 'job_id' => $job_id ) );
-    }
-
-    private function parse_llm_payload( $job ) {
-        $response_json = $job['response_json'] ?? '';
-        if ( empty( $response_json ) ) {
-            return new \WP_Error( 'empty_llm_response', 'Dual-GPT response_json is empty.', array( 'status' => 500 ) );
-        }
-
-        $response = json_decode( $response_json, true );
-        if ( ! is_array( $response ) ) {
-            return new \WP_Error( 'invalid_llm_response', 'Dual-GPT response_json is invalid.', array( 'status' => 500 ) );
-        }
-
-        $content = $response['choices'][0]['message']['content'] ?? '';
+    /**
+     * Parse LLM response content into structured payload.
+     * Handles both JSON-mode responses and raw JSON with markdown fences.
+     */
+    private function parse_llm_output( $content ) {
         if ( empty( $content ) ) {
-            return new \WP_Error( 'empty_llm_content', 'Dual-GPT content is empty.', array( 'status' => 500 ) );
+            return new \WP_Error( 'empty_llm_content', 'LLM response is empty.', array( 'status' => 500 ) );
         }
 
         // Strip markdown code fences if present
@@ -811,10 +638,7 @@ class Rest_Api {
 
         $decoded = json_decode( $content, true );
         if ( json_last_error() !== JSON_ERROR_NONE ) {
-            return new \WP_Error( 'llm_invalid_json', 'LLM returned invalid JSON.', array(
-                'status' => 422,
-                'details' => json_last_error_msg(),
-            ) );
+            return new \WP_Error( 'llm_invalid_json', 'LLM returned invalid JSON: ' . json_last_error_msg(), array( 'status' => 422 ) );
         }
 
         return $decoded;
@@ -906,50 +730,10 @@ class Rest_Api {
     }
 
     private function get_job_context( $job ) {
-        if ( ! class_exists( 'Dual_GPT_DB_Handler' ) ) {
-            return null;
-        }
-
-        $session_id = sanitize_text_field( $job['session_id'] ?? '' );
-        if ( '' === $session_id ) {
-            return null;
-        }
-
-        $db = new \Dual_GPT_DB_Handler();
-        $session = $db->get_session( $session_id );
-        if ( ! is_array( $session ) ) {
-            return null;
-        }
-
-        $post_id = intval( $session['post_id'] ?? 0 );
-        if ( ! $post_id ) {
-            return null;
-        }
-
-        $post = get_post( $post_id );
-        if ( ! $post || ! function_exists( 'khm_seo' ) || ! khm_seo() ) {
-            return null;
-        }
-
-        $meta = json_decode( $session['meta_json'] ?? '', true );
-        if ( ! is_array( $meta ) ) {
-            $meta = array();
-        }
-
-        $keyword = sanitize_text_field( $meta['focus_keyword'] ?? '' );
-        if ( '' === $keyword ) {
-            $keyword = sanitize_text_field( get_post_meta( $post_id, '_khm_seo_focus_keyword', true ) );
-        }
-
-        $analysis = $this->analyze_post( $post_id, $keyword );
-        if ( is_wp_error( $analysis ) ) {
-            return null;
-        }
-
-        return array(
-            'post' => $post,
-            'analysis' => $analysis,
-            'keyword' => $keyword,
+        // Legacy method kept for backward compatibility.
+        // Audit is now synchronous — context is returned directly in handle_audit().
+        return null;
+    }
         );
     }
 

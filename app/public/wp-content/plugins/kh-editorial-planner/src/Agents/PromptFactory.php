@@ -64,17 +64,30 @@ class PromptFactory {
     }
 
     /**
-     * Build the prompt for Phase 4 (Validation).
+     * Build the prompt for Phase 4 (Validation) with citation verification context.
      */
-    public static function get_phase4_prompt( $topic, $phase3_topics ) {
-        return implode( "\n", [
+    public static function get_phase4_prompt( $topic, $phase3_topics, $verification_context = '' ) {
+        $parts = [
             'Act as a Fact-Checker and Editorial Validator.',
             "Topic: $topic",
             'Proposed Article Topics (JSON):',
             $phase3_topics,
-            'Objective: Validate these topics against authoritative signals. Discard weak or redundant topics.',
-            'Return ONLY valid JSON: {"validation_summary": "", "validated_topics": [{"topic": "", "confidence_score": 0.0, "reason": ""}], "discarded_topics": []}'
-        ] );
+        ];
+
+        if ( $verification_context ) {
+            $decoded = json_decode( $verification_context, true );
+            $count   = $decoded['verified_citations_count'] ?? 0;
+            $parts[] = "Verified Citation Context: {$count} citations have been checked via CrossRef/OpenAlex/URL metadata.";
+            $parts[] = 'Each verified citation includes: title, lead_author, publication, year, APA string, source_type, tier (tier1/tier2/tier3), authority_score (0.0–1.0), and confidence.';
+            $parts[] = 'Citation Data (JSON):';
+            $parts[] = $verification_context;
+            $parts[] = 'INSTRUCTIONS: Use the tier and authority_score to weigh each citation. Tier1 (academic/analyst) sources should carry more weight than Tier3 (trade). Discard topics whose supporting citations are all Tier3/low-authority.';
+        }
+
+        $parts[] = 'Objective: Validate these topics against authoritative signals. Discard weak or redundant topics.';
+        $parts[] = 'Return ONLY valid JSON: {"validation_summary": "", "validated_topics": [{"topic": "", "confidence_score": 0.0, "reason": "", "supporting_citations": []}], "discarded_topics": []}';
+
+        return implode( "\n", $parts );
     }
 
     /**

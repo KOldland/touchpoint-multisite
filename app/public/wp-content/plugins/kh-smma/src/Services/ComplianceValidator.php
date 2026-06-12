@@ -147,7 +147,8 @@ class ComplianceValidator {
      * @return array Validation result
      */
     private function validate_with_ai( string $text, array $context ): array {
-        $llm_available = class_exists( '\\Dual_GPT\\Dual_GPT_LLM_Client' );
+        $llm_available = class_exists( '\\KH\\Editorial\\Core\\LLMService' )
+            && \KH\Editorial\Core\LLMService::is_configured();
         if ( ! $llm_available ) {
             return array(
                 'passed' => true,
@@ -158,26 +159,23 @@ class ComplianceValidator {
         }
 
         try {
-            $client = new \Dual_GPT\Dual_GPT_LLM_Client();
-            if ( ! $client->has_api_key() ) {
-                return array(
-                    'passed' => true,
-                    'message' => '',
-                    'notes' => 'SKIP: No LLM API key configured',
-                    'confidence_score' => 0.7,
-                );
-            }
+            $route = \KH\Editorial\Core\LLMService::resolve_agent_model('social_posts');
 
             $system = $this->build_compliance_system_prompt();
             $user   = $this->build_compliance_user_prompt( $text, $context );
 
-            $response = $client->call( $system, $user, array(
-                'json_mode' => true,
-                'temperature' => 0.2, // Low temperature for consistent compliance checking
-                'max_tokens' => 500,
-            ) );
+            $result = \KH\Editorial\Core\LLMService::post_completion([
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ], [
+                'provider'    => $route['provider'],
+                'model'       => $route['model'],
+                'temperature' => 0.2,
+                'max_tokens'  => 500,
+                'response_format' => ['type' => 'json_object'],
+            ]);
 
-            if ( is_wp_error( $response ) ) {
+            if ( is_wp_error( $result ) ) {
                 return array(
                     'passed' => true,
                     'message' => '',

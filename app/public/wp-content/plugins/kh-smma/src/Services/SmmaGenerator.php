@@ -76,37 +76,54 @@ class SmmaGenerator {
         $variants = array();
         $parsed_payload = null;
         $strict_mode = ! empty( $input['strict_llm_json'] );
-        $llm_available = class_exists( '\\Dual_GPT\\Dual_GPT_LLM_Client' );
+        $llm_available = class_exists( '\\KH\\Editorial\\Core\\LLMService' )
+            && \KH\Editorial\Core\LLMService::is_configured();
 
         if ( $llm_available ) {
-            $client = new \Dual_GPT\Dual_GPT_LLM_Client();
-            if ( $client->has_api_key() ) {
-                $system = $this->build_system_prompt();
-                $user   = $this->build_user_prompt( $input );
-                $response = $client->call( $system, $user, array(
-                    'json_mode' => true,
-                    'temperature' => 0.4,
-                    'max_tokens' => 2000,
-                ) );
+            $route = \KH\Editorial\Core\LLMService::resolve_agent_model('social_posts');
+            $system = $this->build_system_prompt();
+            $user   = $this->build_user_prompt( $input );
 
-                if ( ! is_wp_error( $response ) ) {
-                    $model = $client->get_model_name();
-                    $parsed_payload = $this->parse_payload( $response );
-                    if ( isset( $parsed_payload['linkedin_variants'] ) && is_array( $parsed_payload['linkedin_variants'] ) ) {
-                        $variants = $parsed_payload['linkedin_variants'];
-                    } else {
-                        $variants = $this->parse_response( $response );
-                    }
+            $result = \KH\Editorial\Core\LLMService::post_completion([
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ], [
+                'provider'    => $route['provider'],
+                'model'       => $route['model'],
+                'temperature' => 0.4,
+                'max_tokens'  => 2000,
+                'response_format' => ['type' => 'json_object'],
+            ]);
 
-                    if ( $strict_mode && empty( $variants ) ) {
-                        return array(
-                            'variants' => array(),
-                            'model' => $model,
-                            'google_ad_draft' => array(),
-                            'error' => new WP_Error( 'SMMA_ERR_INVALID_LLM', 'LLM returned non-JSON or invalid JSON.' ),
-                        );
-                    }
+            if ( ! is_wp_error( $result ) ) {
+                $model = $route['model'];
+                $response = [];
+                // Parse JSON from content — handle both json_mode and raw markdown
+                $content = trim($result['content']);
+                $decoded = json_decode( $content, true );
+                if ( json_last_error() !== JSON_ERROR_NONE ) {
+                    // Try stripping markdown fences
+                    $content = preg_replace('/^```(?:json)?[\r\n]+|```[\r\n]*$/', '', trim($content));
+                    $decoded = json_decode( $content, true );
                 }
+                $response['choices'][0]['message']['content'] = $result['content'];
+                $parsed_payload = $this->parse_payload( $response );
+                if ( isset( $parsed_payload['linkedin_variants'] ) && is_array( $parsed_payload['linkedin_variants'] ) ) {
+                    $variants = $parsed_payload['linkedin_variants'];
+                } elseif ( isset( $parsed_payload['variants'] ) && is_array( $parsed_payload['variants'] ) ) {
+                    $variants = $parsed_payload['variants'];
+                }
+
+                if ( $strict_mode && empty( $variants ) ) {
+                    return array(
+                        'variants' => array(),
+                        'model' => $model,
+                        'google_ad_draft' => array(),
+                        'error' => new WP_Error( 'SMMA_ERR_INVALID_LLM', 'LLM returned non-JSON or invalid JSON.' ),
+                    );
+                }
+            } else {
+                error_log('[KH Social] LLMService call failed: ' . $result->get_error_message());
             }
         }
 

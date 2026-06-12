@@ -110,6 +110,7 @@
         var _useState11 = useState('black-forest-labs/flux.2-pro'), model = _useState11[0], setModel = _useState11[1];
         var _useState12 = useState('risograph_print'), artStyle = _useState12[0], setArtStyle = _useState12[1];
         var _useState13 = useState('terracotta_indigo'), colourPalette = _useState13[0], setColourPalette = _useState13[1];
+        var _useState14 = useState(false), generatingExcerpt = _useState14[0], setGeneratingExcerpt = _useState14[1];
 
         function buildPayload(extras) {
             return Object.assign({
@@ -217,7 +218,33 @@
             setNotice({ type: 'success', text: 'Set as featured image.' });
         }
 
-        var isBusy = recommending || generating;
+        function handleGenerateExcerpt() {
+            if (!postId) return;
+            setGeneratingExcerpt(true);
+            setNotice(null);
+            wp.apiFetch({
+                path: 'editorial/v1/excerpt/generate',
+                method: 'POST',
+                data: { post_id: postId },
+            }).then(function (res) {
+                if (!res.success) {
+                    setNotice({ type: 'error', text: res.message || 'Failed to generate excerpt.' });
+                    setGeneratingExcerpt(false);
+                    return;
+                }
+                wp.data.dispatch('core').editEntityRecord('postType', 'post', postId, {
+                    excerpt: res.excerpt,
+                });
+                wp.data.dispatch('core').saveEntityRecord('postType', 'post', postId);
+                setNotice({ type: 'success', text: 'Excerpt generated and saved.' });
+            }).catch(function (err) {
+                setNotice({ type: 'error', text: err.message || 'Failed to generate excerpt.' });
+            }).finally(function () {
+                setGeneratingExcerpt(false);
+            });
+        }
+
+        var isBusy = recommending || generating || generatingExcerpt;
 
         return createElement(
             wp.element.Fragment,
@@ -348,7 +375,16 @@
                                     },
                                     'Set as Featured Image'
                                   )
-                                : null
+                                : null,
+                            createElement(
+                                Button,
+                                {
+                                    onClick: handleGenerateExcerpt,
+                                    disabled: isBusy,
+                                    style: { marginTop: '8px', display: 'block' },
+                                },
+                                generatingExcerpt ? createElement(Spinner, null) : 'Generate Excerpt'
+                            )
                           )
                         : null
 

@@ -20,6 +20,11 @@ class AuthorEndpoints {
                     'required' => true,
                     'enum' => ['draft', 'abstract', 'enrichment'],
                 ],
+                'persona' => [
+                    'type' => 'string',
+                    'required' => false,
+                    'enum' => ['journalist', 'analyst', 'veteran', 'editor', ''],
+                ],
                 'planner_session_id' => [
                     'type' => 'integer',
                     'required' => false,
@@ -82,6 +87,17 @@ class AuthorEndpoints {
                 "colour_palette" => ["type" => "string"],
             ],
         ]);
+        register_rest_route('editorial/v1', '/excerpt/generate', [
+            'methods' => 'POST',
+            'callback' => [$this, 'generate_excerpt'],
+            'permission_callback' => [$this, 'check_permissions'],
+            'args' => [
+                'post_id' => [
+                    'type' => 'integer',
+                    'required' => true,
+                ],
+            ],
+        ]);
         register_rest_route('editorial/v1', '/author/persist', [
             'methods' => 'POST',
             'callback' => [$this, 'persist_draft'],
@@ -93,6 +109,7 @@ class AuthorEndpoints {
                 'article_id'         => ['type' => ['string', 'integer'], 'required' => true],
                 'author_policy'      => ['type' => 'object', 'required' => false],
                 'id'                 => ['type' => 'integer', 'required' => false],
+                'blocks'             => ['type' => 'array', 'required' => false],
             ],
         ]);
     }
@@ -104,6 +121,11 @@ class AuthorEndpoints {
     public function run_author_agent(WP_REST_Request $request) {
         $params = $request->get_params();
         $orchestrator = \KH\EditorialAuthor\Core\AuthorPlugin::get_instance()->get_orchestrator();
+
+        // Log persona for traceability
+        if (!empty($params['persona'])) {
+            error_log('[KH Author] Running with persona: ' . $params['persona']);
+        }
         
         $result = $orchestrator->run($params, get_current_user_id());
 
@@ -145,6 +167,7 @@ class AuthorEndpoints {
         $id            = $request['id'] ? (int) $request['id'] : null;
         $title         = $request['title'];
         $content       = $request['content'];
+        $blocks        = $request['blocks'] ?? [];
         $session_id    = (int) $request['planner_session_id'];
         $article_id    = $request['article_id'];
         $author_policy = $request['author_policy'] ?? [];
@@ -155,6 +178,20 @@ class AuthorEndpoints {
         if ($id) {
             if (!current_user_can('edit_post', $id)) {
                 return new WP_Error('forbidden', 'You do not have permission to update this post.', ['status' => 403]);
+            }
+        }
+
+        // 1b. Gutenberg block compilation (if raw blocks provided)
+        if (!empty($blocks) && is_array($blocks)) {
+            try {
+                $compiler  = new \KH\EditorialAuthor\Services\GutenbergCompiler();
+                $compiled  = $compiler->compile($blocks);
+                if (!empty($compiled)) {
+                    $content = $compiled;
+                }
+            } catch (\Throwable $e) {
+                $warnings[] = __('Block compilation failed — falling back to raw HTML.', 'kh-editorial-author');
+                error_log('[GutenbergCompiler] Compilation error: ' . $e->getMessage());
             }
         }
 
@@ -307,5 +344,93 @@ class AuthorEndpoints {
             "recommended_prompt" => $prompt,
             "context" => $title,
         ], 200);
+    }
+
+    /**
+     * Generate an excerpt from the full post content using the LLM.
+     */
+    public function generate_excerpt(WP_REST_Request $request) {
+        $post_id = $request->get_param('post_id');
+        $post = get_post($post_id);
+
+        if (!$post) {
+            return new WP_Error('post_not_found', 'Post not found.', ['status' => 404]);
+        }
+
+        // Strip blocks/shortcodes to get clean plain text
+        $content = wp_strip_all_tags($post->post_content, true);
+        // Limit to first 3000 characters for LLM context
+        $content = mb_substr($content, 0, 3000);
+
+        if (empty(trim($content))) {
+            return new WP_REST_Response([
+                'success' => false,
+                'message' => 'Post content is empty.',
+            ], 200);
+        }
+
+        try {
+            $messages = [
+                [
+                    'role' => 'system',
+                    'content' => 'You generate concise, compelling article excerpts for publishing. '
+                        . 'Rules: Max 160 characters. Capture the essence. No clickbait. '
+                        . 'No quotation marks around the excerpt. Single sentence preferred. '
+                        . 'Output valid JSON with one key "excerpt".',
+                ],
+                [
+                    'role' => 'user',
+                    'content' => "Generate an excerpt for this article:\n\nTitle: {$post->post_title}\n\nContent:\n{$content}",
+                ],
+            ];
+
+            $route = \KH\Editorial\Core\LLMService::resolve_agent_model('excerpt');
+            $result = \KH\Editorial\Core\LLMService::post_completion($messages, [
+                'provider'    => $route['provider'],
+                'model'       => $route['model'],
+                'temperature' => 0.2,
+                'max_tokens'  => 300,
+                'response_format' => ['type' => 'json_object'],
+            ]);
+
+            if (is_wp_error($result)) {
+                return new WP_REST_Response([
+                    'success' => false,
+                    'message' => $result->get_error_message(),
+                ], 200);
+            }
+
+            $data = json_decode($result['content'], true);
+            $excerpt = $data['excerpt'] ?? '';
+
+            // Fallback: try to extract just the text if JSON parsing failed
+            if (empty($excerpt) && !empty($result['content'])) {
+                $excerpt = trim($result['content']);
+                // Remove JSON wrapper if present
+                $excerpt = trim(preg_replace('/^.*?"excerpt"\s*:\s*"/', '', $excerpt), '"');
+                $excerpt = mb_substr($excerpt, 0, 160);
+            }
+
+            if (empty($excerpt)) {
+                return new WP_REST_Response([
+                    'success' => false,
+                    'message' => 'Failed to generate excerpt.',
+                ], 200);
+            }
+
+            // Truncate to 160 chars for safety
+            $excerpt = mb_substr(trim($excerpt), 0, 160);
+
+            return new WP_REST_Response([
+                'success' => true,
+                'excerpt' => $excerpt,
+            ], 200);
+
+        } catch (\Throwable $e) {
+            return new WP_REST_Response([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
 }

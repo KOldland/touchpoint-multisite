@@ -98,6 +98,12 @@ class AuthorOrchestrator {
             return new WP_Error('article_not_found', 'The requested article was not found in this planning session.');
         }
 
+        // Determine persona from params or default to editor
+        $persona = $params['persona'] ?? 'editor';
+        if (!in_array($persona, \KH\Editorial\Core\LLMService::PERSONAS, true)) {
+            $persona = 'editor';
+        }
+
         // Merge session-level policy with user overrides from UI
         $final_policy = \KH\EditorialAuthor\Core\AuthorPolicy::sanitize(
             array_merge(
@@ -111,17 +117,20 @@ class AuthorOrchestrator {
         $context['citations'] = array_values($context['citations'] ?? []);
 
         // Prepare job data for async processing
+        $persona_config = \KH\Editorial\Core\LLMService::resolve_persona_model($persona);
         $job_data = [
             'session_id' => $session_id,
             'status'     => 'queued',
-            'model'      => \KH\Editorial\Core\LLMService::get_model(),
+            'model'      => $persona_config['model'],
+            'provider'   => $persona_config['provider'],
             'prompt'     => wp_json_encode([
                 'context'       => $context,
                 'instructions'  => $params['instructions'] ?? '',
                 'author_policy' => $final_policy,
                 'article_id'    => $article_id,
                 'enrichment'    => $params['enrichment'] ?? [],
-                'mode'          => 'draft'
+                'mode'          => 'draft',
+                'persona'       => $persona,
             ]),
             'created_by' => $user_id,
         ];

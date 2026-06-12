@@ -15,15 +15,22 @@ class DraftAgent {
 
     public function execute($context, $instructions, $user_id) {
         $policy = AuthorPolicy::sanitize($context['author_policy'] ?? []);
-        
-        $system_prompt = PromptFactory::build_draft_system_prompt($policy);
+        $persona = $context['persona'] ?? null;
+
+        $system_prompt = PromptFactory::build_draft_system_prompt($policy, $persona);
         $user_prompt = PromptFactory::build_draft_user_prompt($context, $instructions, $policy);
 
-        $response = $this->intelligence->call_llm($system_prompt, $user_prompt, [
-            'temperature' => 0.4,
-            'max_tokens'  => 3000,
-            'json_mode'   => true,
-        ]);
+        $options = [
+            'max_tokens' => 3000,
+            'json_mode'  => true,
+        ];
+
+        if ($persona && in_array($persona, \KH\Editorial\Core\LLMService::PERSONAS, true)) {
+            $options['agent'] = 'draft';
+            $options['persona'] = $persona;
+        }
+
+        $response = $this->intelligence->call_llm($system_prompt, $user_prompt, $options);
 
         if (is_wp_error($response)) {
             return $response;

@@ -39,7 +39,7 @@ class PlannerOrchestrator {
 
         $prompt = PromptFactory::get_phase1_prompt( $topic, $focus, wp_json_encode( $phase1_data ) );
         
-        return $this->enqueue_job( $post_id, $prompt, 'planner-p1-' . $post_id, 'phase1_running' );
+        return $this->enqueue_job( $post_id, $prompt, 'research_phase1', 'planner-p1-' . $post_id, 'phase1_running' );
     }
 
     /**
@@ -70,7 +70,7 @@ class PlannerOrchestrator {
             wp_json_encode( $ranked_metrics ) 
         );
 
-        return $this->enqueue_job( $post_id, $prompt, 'planner-p2-' . $post_id, 'phase2_running' );
+        return $this->enqueue_job( $post_id, $prompt, 'research_phase2', 'planner-p2-' . $post_id, 'phase2_running' );
     }
 
     /**
@@ -87,22 +87,70 @@ class PlannerOrchestrator {
             wp_json_encode( $phase2_payload['ranked_keywords'] ?? [] ) 
         );
 
-        return $this->enqueue_job( $post_id, $prompt, 'planner-p3-' . $post_id, 'phase3_running' );
+        return $this->enqueue_job( $post_id, $prompt, 'research_phase3', 'planner-p3-' . $post_id, 'phase3_running' );
     }
 
     /**
-     * Run Phase 4: Validation.
+     * Run Phase 4: Validation with real citation verification.
+     *
+     * Gathers citations from Phase 1 trend data, runs them through
+     * CitationVerifier (CrossRef/OpenAlex/URL metadata), and includes
+     * tier + authority scores in the LLM prompt context.
      */
     public function run_phase4( $post_id ) {
         $post = get_post( $post_id );
+        $phase1_payload = get_post_meta( $post_id, 'kh_planner_phase1_result', true );
         $phase3_payload = get_post_meta( $post_id, 'kh_planner_phase3_result', true );
-        
-        $prompt = PromptFactory::get_phase4_prompt( 
-            $post->post_title, 
-            wp_json_encode( $phase3_payload['prioritized_topics'] ?? [] ) 
+
+        // Gather citations from Phase 1 trends and verify them
+        $verified_citations = [];
+        $trends = $phase1_payload['trends'] ?? [];
+        foreach ( $trends as $trend ) {
+            foreach ( $trend['citations'] ?? [] as $citation ) {
+                if ( ! empty( $citation['url'] ) ) {
+                    $result = $this->verify_single_citation( $citation );
+                    if ( ! is_wp_error( $result ) ) {
+                        $verified_citations[] = $result;
+                    }
+                }
+            }
+        }
+
+        // Persist verified citations to the DB
+        if ( ! empty( $verified_citations ) && class_exists( '\KH\Planner\Core\CitationStore' ) ) {
+            $store = new \KH\Planner\Core\CitationStore();
+            $store->save_citations( $post_id, null, $verified_citations );
+        }
+
+        $verification_context = [
+            'verified_citations_count' => count( $verified_citations ),
+            'verified_citations'       => $verified_citations,
+        ];
+
+        $prompt = PromptFactory::get_phase4_prompt(
+            $post->post_title,
+            wp_json_encode( $phase3_payload['prioritized_topics'] ?? [] ),
+            wp_json_encode( $verification_context )
         );
 
-        return $this->enqueue_job( $post_id, $prompt, 'planner-p4-' . $post_id, 'phase4_running' );
+        return $this->enqueue_job( $post_id, $prompt, 'research_phase4', 'planner-p4-' . $post_id, 'phase4_running' );
+    }
+
+    /**
+     * Verify a single citation candidate via the Intelligence CitationVerifier.
+     */
+    private function verify_single_citation( $citation ) {
+        if ( ! class_exists( '\KH\Editorial\Services\CitationVerifier' ) ) {
+            return new \WP_Error( 'citation_verifier_missing', 'CitationVerifier service not available.' );
+        }
+
+        $verifier = new \KH\Editorial\Services\CitationVerifier();
+        return $verifier->verify_citation( [
+            'url'         => $citation['url'] ?? '',
+            'title'       => $citation['title'] ?? '',
+            'doi'         => $citation['doi'] ?? '',
+            'source_type' => $citation['source_type'] ?? 'industry',
+        ] );
     }
 
     /**
@@ -123,7 +171,7 @@ class PlannerOrchestrator {
         $directives = $policy_agent->get_exclusion_directives( $post_id );
         $prompt = PromptFactory::get_final_synopsis_prompt( $post->post_title, wp_json_encode( $context ), $directives );
 
-        return $this->enqueue_job( $post_id, $prompt, 'planner-final-' . $post_id, 'generating_synopses' );
+        return $this->enqueue_job( $post_id, $prompt, 'framework', 'planner-final-' . $post_id, 'generating_synopses' );
     }
 
     /**
@@ -132,22 +180,78 @@ class PlannerOrchestrator {
     public function finalize_session( $post_id ) {
         $artifact_agent = new ArtifactAgent();
         $artifact_agent->generate_dossier( $post_id );
-        
+
+        // Build and persist a framework brief from session data
+        $this->save_framework_brief( $post_id );
+
         update_post_meta( $post_id, 'kh_planner_status', 'completed' );
         return [ 'session_id' => $post_id, 'status' => 'completed' ];
     }
 
     /**
+     * Build and persist a framework brief from the completed session data.
+     */
+    private function save_framework_brief( $post_id ) {
+        if ( ! class_exists( '\KH\Planner\Core\BriefStore' ) ) {
+            return;
+        }
+
+        $post = get_post( $post_id );
+        $phase1 = get_post_meta( $post_id, 'kh_planner_phase1_result', true );
+        $phase2 = get_post_meta( $post_id, 'kh_planner_phase2_result', true );
+        $phase3 = get_post_meta( $post_id, 'kh_planner_phase3_result', true );
+        $phase4 = get_post_meta( $post_id, 'kh_planner_phase4_result', true );
+        $synopses = get_post_meta( $post_id, 'kh_planner_final_synopses', true );
+
+        // Gather citation IDs from the CitationStore
+        $citation_ids = [];
+        if ( class_exists( '\KH\Planner\Core\CitationStore' ) ) {
+            $citation_store = new \KH\Planner\Core\CitationStore();
+            $citations = $citation_store->get_citations_by_session( $post_id, true );
+            $citation_ids = wp_list_pluck( $citations, 'id' );
+        }
+
+        $store = new \KH\Planner\Core\BriefStore();
+        $brief_id = $store->save_brief( $post_id, [
+            'title'          => $post->post_title,
+            'overview'       => $phase1['executive_summary'] ?? '',
+            'context'        => wp_json_encode( [
+                'phase4_validation' => $phase4['validation_summary'] ?? '',
+                'synopses'          => $synopses['synopses'] ?? [],
+            ] ),
+            'key_themes'     => $phase3['prioritized_topics'] ?? [],
+            'citations'      => $citation_ids,
+            'writer_guidance'=> $synopses['synopses'] ?? [],
+            'scoring'        => $phase4['validated_topics'] ?? [],
+            'metadata'       => [
+                'phase2_keywords' => $phase2['ranked_keywords'] ?? [],
+                'generated_at'    => current_time( 'mysql' ),
+            ],
+        ] );
+
+        if ( $brief_id ) {
+            // Link citations to this brief
+            if ( ! empty( $citation_ids ) && class_exists( '\KH\Planner\Core\CitationStore' ) ) {
+                $citation_store->link_citations_to_brief( $brief_id, $post_id );
+            }
+
+            update_post_meta( $post_id, 'kh_planner_brief_id', $brief_id );
+        }
+    }
+
+    /**
      * Internal helper to enqueue jobs via the Orchestrator Service.
      */
-    private function enqueue_job( $post_id, $prompt, $idempotency_key, $next_status ) {
+    private function enqueue_job( $post_id, $prompt, $agent_key, $idempotency_key, $next_status ) {
         if ( ! \KH\Editorial\Core\LLMService::is_configured() ) {
-            return new \WP_Error( 'llm_unconfigured', 'OpenAI API key is not configured. Cannot enqueue job.' );
+            return new \WP_Error( 'llm_unconfigured', 'LLM API key is not configured. Cannot enqueue job.' );
         }
 
         if ( ! class_exists( '\KH\Editorial\Services\AI\AIStorage' ) ) {
             return new \WP_Error( 'infrastructure_missing', 'AI Storage service not found.' );
         }
+
+        $route = \KH\Editorial\Core\LLMService::resolve_agent_model( $agent_key );
 
         $storage = new \KH\Editorial\Services\AI\AIStorage();
 
@@ -168,7 +272,8 @@ class PlannerOrchestrator {
         $job_id = $storage->insert_job( [
             'session_id'      => $post_id,
             'prompt'          => $prompt,
-            'model'           => \KH\Editorial\Core\LLMService::get_model(),
+            'model'           => $route['model'],
+            'provider'        => $route['provider'],
             'idempotency_key' => $idempotency_key,
             'type'            => 'planner',
             'created_by'      => get_current_user_id()
