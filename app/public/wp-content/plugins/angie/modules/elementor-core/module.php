@@ -10,6 +10,9 @@ use Angie\Classes\Module_Base;
 use Angie\Modules\ConsentManager\Module as ConsentManager;
 use Angie\Plugin;
 use Angie\Modules\ElementorCore\Components\Kit_Provider;
+use Angie\Modules\ElementorCore\Components\Component_Preview_Fix;
+use Angie\Modules\ElementorCore\Components\Elementor_Library_Type_Sync;
+use Angie\Modules\ElementorCore\Components\Elementor_Library_Template_Types;
 use Angie\Includes\Utils;
 /**
  * Module `Elementor Editor`
@@ -38,6 +41,7 @@ class Module extends Module_Base {
 	}
 
 	protected function __construct() {
+		new Component_Preview_Fix();
 		$this->init_rest_controllers();
 		add_action( 'elementor/editor/after_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
 		add_action( 'elementor/elements/categories_registered', [ $this, 'register_widget_categories' ] );
@@ -92,8 +96,19 @@ class Module extends Module_Base {
 		return false;
 	}
 
+	/**
+	 * Elementor library type sync controller
+	 *
+	 * @var \Angie\Modules\ElementorCore\Components\Elementor_Library_Type_Sync
+	 */
+	public $elementor_library_type_sync;
+
+	public $elementor_library_template_types;
+
 	private function init_rest_controllers() {
 		$this->kit_provider = new Kit_Provider();
+		$this->elementor_library_type_sync = new Elementor_Library_Type_Sync();
+		$this->elementor_library_template_types = new Elementor_Library_Template_Types();
 	}
 
 	public function enqueue_scripts() {

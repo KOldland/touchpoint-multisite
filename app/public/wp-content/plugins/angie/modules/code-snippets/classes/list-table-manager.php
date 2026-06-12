@@ -33,7 +33,7 @@ class List_Table_Manager {
 			'status_toggle' => esc_html__( 'Status', 'angie' ),
 			'title' => $columns['title'],
 			'environment' => esc_html__( 'Environment', 'angie' ),
-			'files' => esc_html__( 'Files', 'angie' ),
+			'revisions' => esc_html__( 'Revisions', 'angie' ),
 			'actions' => esc_html__( 'Actions', 'angie' ),
 			'last_modified' => esc_html__( 'Last Modified', 'angie' ),
 		];
@@ -56,8 +56,8 @@ class List_Table_Manager {
 	public static function render_custom_columns( $column, $post_id ) {
 		if ( 'status_toggle' === $column ) {
 			self::render_status_toggle( $post_id );
-		} elseif ( 'files' === $column ) {
-			self::render_files_column( $post_id );
+		} elseif ( 'revisions' === $column ) {
+			self::render_revision_column( $post_id );
 		} elseif ( 'environment' === $column ) {
 			self::render_environment_column( $post_id );
 		} elseif ( 'actions' === $column ) {
@@ -108,12 +108,12 @@ class List_Table_Manager {
 		echo esc_html( $t_time );
 	}
 
-	private static function render_files_column( $post_id ) {
-		$files = get_post_meta( $post_id, '_angie_snippet_files', true );
-		$file_count = is_array( $files ) ? count( $files ) : 0;
+	private static function render_revision_column( $post_id ) {
+		$version = get_post_meta( $post_id, '_angie_snippet_version', true );
+		$revision_count = $version ? (int) $version : 1;
 
-		echo '<span class="angie-files-count">';
-		echo esc_html( (string) $file_count );
+		echo '<span class="angie-revision-count">';
+		echo esc_html( (string) $revision_count );
 		echo '</span>';
 	}
 

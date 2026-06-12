@@ -4,7 +4,7 @@ Tags: ai, agent, elementor, assistant, mcp
 Requires at least: 6.2
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.1.8
+Stable tag: 1.1.9
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -194,6 +194,11 @@ Language should never be a barrier to bringing your WordPress ideas to life.
 
 
 == Changelog ==
+
+= 1.1.9 - 2026-06-10 =
+* Tweak: Removed test mode admin notice on Angie snippet pages
+* Tweak: Changed snippets list to display file count instead of version count
+* Fix: Elementor templates creation via Angie is not working properly
 
 = 1.1.8 - 2026-05-28 =
 * New: Introducing Super admin mode - run powerful one time actions via PHP execution

@@ -329,22 +329,6 @@ class Rest_Api {
             'message' => 'Audit is now synchronous. Use POST /audit to run audits and get results immediately.',
         ) );
     }
-        if ( $context ) {
-            $llm_payload = $this->enrich_llm_payload(
-                $llm_payload,
-                $context['post'],
-                $context['analysis'],
-                $context['keyword']
-            );
-        }
-
-        return rest_ensure_response( array(
-            'job_id' => $job_id,
-            'analysis' => $context['analysis'] ?? null,
-            'llm_output' => $llm_payload,
-            'status' => 'completed',
-        ) );
-    }
 
     public function handle_preview( $request ) {
         $post_id = (int) $request->get_param( 'post_id' );

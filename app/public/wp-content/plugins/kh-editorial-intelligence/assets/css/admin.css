@@ -1,0 +1,268 @@
+/* KH Editorial — Settings Page Styles */
+/* Inspired by Elementor admin cards/UI */
+
+/* ── Reset & Base ── */
+.kh-editorial-wrap {
+    max-width: 960px;
+    margin: 20px 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
+    color: #1e1e1e;
+}
+.kh-editorial-wrap h1 {
+    font-size: 23px;
+    font-weight: 400;
+    margin-bottom: 24px;
+}
+.kh-editorial-wrap label {
+    font-weight: 500;
+}
+
+/* ── Collapsible Sections ── */
+.kh-section {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+.kh-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: #f9fafb;
+    border-bottom: 1px solid #e0e0e0;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+}
+.kh-section-header:hover {
+    background: #f0f1f3;
+}
+.kh-section-header h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.kh-section-header .kh-section-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+.kh-section-icon.icon-keys { background: #e8f0fe; color: #1a73e8; }
+.kh-section-icon.icon-models { background: #fce8e6; color: #ea4335; }
+.kh-section-icon.icon-data { background: #e6f4ea; color: #34a853; }
+
+.kh-section-toggle {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid #ccc;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.25s;
+    flex-shrink: 0;
+}
+.kh-section-toggle::after {
+    content: '';
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid #555;
+    border-bottom: 2px solid #555;
+    transform: rotate(45deg) translateY(-1px);
+}
+.kh-section.open .kh-section-toggle {
+    transform: rotate(180deg);
+}
+.kh-section-body {
+    padding: 0;
+    display: none;
+}
+.kh-section.open .kh-section-body {
+    display: block;
+}
+
+/* ── Subsection ── */
+.kh-subsection {
+    padding: 16px 20px;
+    border-bottom: 1px solid #f0f0f0;
+}
+.kh-subsection:last-child {
+    border-bottom: none;
+}
+.kh-subsection h3 {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #666;
+    margin: 0 0 12px 0;
+}
+
+/* ── Form Grid ── */
+.kh-form-row {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 12px;
+    align-items: start;
+    margin-bottom: 14px;
+}
+.kh-form-row:last-child {
+    margin-bottom: 0;
+}
+.kh-form-label {
+    padding-top: 6px;
+    color: #333;
+    font-size: 13px;
+}
+.kh-form-label strong {
+    display: block;
+    margin-bottom: 2px;
+}
+.kh-form-label .kh-help {
+    display: block;
+    font-weight: 400;
+    color: #888;
+    font-size: 12px;
+    margin-top: 2px;
+}
+.kh-form-control select,
+.kh-form-control input[type="text"],
+.kh-form-control input[type="password"],
+.kh-form-control input[type="number"] {
+    width: 100%;
+    max-width: 400px;
+    padding: 6px 10px;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+.kh-form-control select.small,
+.kh-form-control input.small-text {
+    max-width: 120px;
+}
+.kh-form-control .kh-desc {
+    font-size: 12px;
+    color: #888;
+    margin-top: 4px;
+}
+.kh-form-control a {
+    color: #1a73e8;
+    text-decoration: none;
+}
+.kh-form-control a:hover {
+    text-decoration: underline;
+}
+
+/* ── Inline fallback row ── */
+.kh-fallback-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-top: 6px;
+    padding-left: 0;
+    align-items: center;
+}
+.kh-fallback-row select {
+    width: 100%;
+}
+.kh-fallback-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #999;
+    letter-spacing: 0.5px;
+}
+
+/* ── Provider Priority ── */
+.kh-provider-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+    margin-top: 8px;
+}
+.kh-provider-card {
+    background: #f9fafb;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+}
+.kh-provider-card.active {
+    border-color: #1a73e8;
+    background: #e8f0fe;
+}
+.kh-provider-card .kh-provider-drag {
+    color: #ccc;
+    cursor: grab;
+    font-size: 16px;
+}
+
+/* ── Profile Save ── */
+.kh-profile-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 6px;
+}
+
+/* ── Button ── */
+.kh-submit {
+    padding: 12px 0;
+    border-top: 1px solid #e0e0e0;
+    margin-top: 10px;
+}
+.kh-submit .button-primary {
+    padding: 8px 24px;
+    font-size: 14px;
+    border-radius: 4px;
+    background: #1a73e8;
+    border-color: #1a73e8;
+}
+.kh-submit .button-primary:hover {
+    background: #1557b0;
+    border-color: #1557b0;
+}
+
+/* ── Badge / Tag ── */
+.kh-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.kh-badge.tier1 { background: #e6f4ea; color: #137333; }
+.kh-badge.tier2 { background: #fef7e0; color: #b06000; }
+.kh-badge.tier3 { background: #fce8e6; color: #c5221f; }
+.kh-badge.primary { background: #e8f0fe; color: #1a73e8; }
+
+/* ── Persona temperature slider ── */
+.kh-temp-slider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.kh-temp-slider input[type="range"] {
+    width: 180px;
+}
+.kh-temp-slider .kh-temp-val {
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 30px;
+}

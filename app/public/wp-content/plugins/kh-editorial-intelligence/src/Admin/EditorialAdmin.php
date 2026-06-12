@@ -46,7 +46,7 @@ class EditorialAdmin {
             __( 'API Settings', 'kh-editorial-intelligence' ),
             'manage_options',
             'kh-editorial-settings',
-            [ $this, 'render_settings_page' ]
+            [ $this, 'render_settings_page_2' ]
         );
 
         add_submenu_page(
@@ -139,7 +139,7 @@ class EditorialAdmin {
         <?php
     }
 
-    public function render_settings_page() {
+    public function render_settings_page_2() {
         if ( isset( $_POST['kh_editorial_save_settings'] ) && check_admin_referer( 'kh_editorial_settings', 'kh_editorial_nonce' ) ) {
             $settings = [
                 'openai_api_key'      => sanitize_text_field( $_POST['openai_api_key'] ),
@@ -163,7 +163,6 @@ class EditorialAdmin {
                 ],
             ];
 
-            // Apply preset profile if selected — overwrites agent_models with the profile's models
             $preset = sanitize_text_field( $_POST['preset_profile'] ?? '' );
             if ( $preset && isset( \KH\Editorial\Core\LLMService::PRESET_PROFILES[ $preset ] ) ) {
                 $settings['agent_models'] = \KH\Editorial\Core\LLMService::PRESET_PROFILES[ $preset ]['models'];
@@ -193,15 +192,12 @@ class EditorialAdmin {
         ];
         $stored  = get_option( 'kh_editorial_settings', [] );
         $settings = array_merge( $defaults, $stored );
-        // Ensure agent_models sub-keys have defaults if missing
         if ( isset( $stored['agent_models'] ) && is_array( $stored['agent_models'] ) ) {
             $settings['agent_models'] = array_merge( $defaults['agent_models'], $stored['agent_models'] );
         }
-        // Ensure currency_rates sub-keys have defaults if missing
         if ( isset( $stored['currency_rates'] ) && is_array( $stored['currency_rates'] ) ) {
             $settings['currency_rates'] = array_merge( $defaults['currency_rates'], $stored['currency_rates'] );
         }
-        // Ensure persona_models sub-keys have defaults if missing
         if ( isset( $stored['persona_models'] ) && is_array( $stored['persona_models'] ) ) {
             foreach ( $defaults['persona_models'] as $key => $default_config ) {
                 if ( isset( $stored['persona_models'][ $key ] ) && is_array( $stored['persona_models'][ $key ] ) ) {
@@ -210,384 +206,302 @@ class EditorialAdmin {
             }
         }
 
+        $persona_defaults = \KH\Editorial\Core\LLMService::DEFAULT_PERSONA_MODELS;
+        $profiles = \KH\Editorial\Core\LLMService::PRESET_PROFILES;
+
+        // Helper: output a model dropdown for an agent key
+        $model_select = function( $key, $models ) use ( $settings ) {
+            $val = $settings['agent_models'][ $key ] ?? '';
+            foreach ( $models as $v => $label ) {
+                printf( '<option value="%s" %s>%s</option>', esc_attr( $v ), selected( $val, $v, false ), esc_html( $label ) );
+            }
+        };
+        $fallback_select = function( $key ) use ( $settings ) {
+            $val = $settings['agent_fallbacks'][ $key ] ?? '';
+            echo '<option value="" ' . selected( $val, '', false ) . '>—</option>';
+            foreach ( [
+                'openai/gpt-4o-mini' => 'GPT-4o Mini (OpenRouter)',
+                'openai/gpt-4o'      => 'GPT-4o (OpenRouter)',
+                'deepseek/deepseek-chat' => 'DeepSeek V3 Chat',
+                'mistralai/mistral-large' => 'Mistral Large',
+                'meta-llama/llama-3.3-70b-instruct' => 'Llama 3.3 70B',
+            ] as $v => $label ) {
+                printf( '<option value="%s" %s>%s</option>', esc_attr( $v ), selected( $val, $v, false ), esc_html( $label ) );
+            }
+        };
+
         ?>
-        <div class="wrap">
-            <h1>Suite API Settings</h1>
+        <div class="kh-editorial-wrap">
+            <h1>API Settings</h1>
+            <script>
+            (function(){document.querySelectorAll('.kh-section-header').forEach(function(h){h.onclick=function(){this.parentElement.classList.toggle('open')}});})();
+            </script>
             <form method="post">
                 <?php wp_nonce_field( 'kh_editorial_settings', 'kh_editorial_nonce' ); ?>
-                
-                <h2>LLM Configuration</h2>
-                <table class="form-table">
-                    <tr>
-                        <th scope="row"><label for="openai_api_key">OpenAI API Key</label></th>
-                        <td>
-                            <input name="openai_api_key" type="password" id="openai_api_key" value="<?php echo esc_attr( $settings['openai_api_key'] ); ?>" class="regular-text">
-                            <p class="description">Global key used by all AI agents in the editorial suite.</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="openai_model">Default Model</label></th>
-                        <td>
-                            <select name="openai_model" id="openai_model">
-                                <option value="gpt-4o" <?php selected( $settings['openai_model'], 'gpt-4o' ); ?>>GPT-4o</option>
-                                <option value="gpt-4o-mini" <?php selected( $settings['openai_model'], 'gpt-4o-mini' ); ?>>GPT-4o-mini</option>
-                                <option value="o1-preview" <?php selected( $settings['openai_model'], 'o1-preview' ); ?>>o1-preview</option>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="google_ai_key">Google AI API Key</label></th>
-                        <td>
-                            <input name="google_ai_key" type="password" id="google_ai_key" value="<?php echo esc_attr( $settings['google_ai_key'] ); ?>" class="regular-text">
-                            <p class="description">Used for Gemini models and Imagen image generation.</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="openrouter_api_key">OpenRouter API Key</label></th>
-                        <td>
-                            <input name="openrouter_api_key" type="password" id="openrouter_api_key" value="<?php echo esc_attr( $settings['openrouter_api_key'] ); ?>" class="regular-text">
-                            <p class="description">
-                                Used for Flux, Recraft, and other image models via OpenRouter.
-                                Also used for LLM agent routing when agent model IDs contain a "/".
-                                Get your key at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>.
-                            </p>
-                        </td>
-                    </tr>
-                </table>
 
-                <h2>Provider Priority</h2>
-                <table class="form-table">
-                    <tr>
-                        <th scope="row"><label for="provider_priority">Preferred Provider</label></th>
-                        <td>
-                            <select name="provider_priority" id="provider_priority">
-                                <option value="auto" <?php selected( $settings['provider_priority'], 'auto' ); ?>>Auto (detect from model ID)</option>
-                                <option value="openai" <?php selected( $settings['provider_priority'], 'openai' ); ?>>OpenAI First (fallback to OpenRouter)</option>
-                                <option value="openrouter" <?php selected( $settings['provider_priority'], 'openrouter' ); ?>>OpenRouter First (fallback to OpenAI)</option>
-                            </select>
-                            <p class="description">Controls which provider is tried first. "Auto" routes model IDs with "/" through OpenRouter, plain names through OpenAI.</p>
-                        </td>
-                    </tr>
-                </table>
+                <!-- =========================== SECTION: API KEYS ============================ -->
+                <div class="kh-section open">
+                    <div class="kh-section-header">
+                        <h2><span class="dashicons dashicons-admin-network"></span> API Keys</h2>
+                        <span class="kh-section-toggle"></span>
+                    </div>
+                    <div class="kh-section-body">
 
-                <h2>Preset Profiles</h2>
-                <p class="description">Apply a bulk model configuration. WARNING: This will overwrite all current agent model selections.</p>
-                <table class="form-table">
-                    <tr>
-                        <th scope="row">Apply Profile</th>
-                        <td>
-                            <select name="preset_profile" id="preset_profile">
-                                <?php foreach ( \KH\Editorial\Core\LLMService::PRESET_PROFILES as $key => $profile ) : ?>
-                                    <option value="<?php echo esc_attr( $key ); ?>" <?php selected( $settings['preset_profile'] ?? 'balanced', $key ); ?>>
-                                        <?php echo esc_html( $profile['label'] ); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <p class="description">
-                                <strong>Balanced:</strong> Best overall mix. <strong>Cost:</strong> Minimises spend.
-                                <strong>Speed:</strong> Fastest responses. <strong>Quality:</strong> Best output.
-                            </p>
-                        </td>
-                    </tr>
-                </table>
+                        <!-- LLMs -->
+                        <div class="kh-subsection">
+                            <h3>LLMs</h3>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label"><strong>OpenAI</strong><span class="kh-help">BYOK</span></div>
+                                <div class="kh-form-control">
+                                    <input name="openai_api_key" type="password" value="<?php echo esc_attr( $settings['openai_api_key'] ); ?>" placeholder="sk-...">
+                                    <div class="kh-desc">Global key for all AI agents.</div>
+                                </div>
+                            </div>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label"><strong>Google AI</strong><span class="kh-help">BYOK</span></div>
+                                <div class="kh-form-control">
+                                    <input name="google_ai_key" type="password" value="<?php echo esc_attr( $settings['google_ai_key'] ); ?>" placeholder="AIza...">
+                                    <div class="kh-desc">Gemini models + Imagen image generation.</div>
+                                </div>
+                            </div>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label"><strong>OpenRouter</strong><span class="kh-help">BYOK</span></div>
+                                <div class="kh-form-control">
+                                    <input name="openrouter_api_key" type="password" value="<?php echo esc_attr( $settings['openrouter_api_key'] ); ?>" placeholder="sk-or-...">
+                                    <div class="kh-desc">Flux, Recraft, and LLM routing. <a href="https://openrouter.ai/keys" target="_blank">Get a key</a></div>
+                                </div>
+                            </div>
 
-                <h2>Agent Model Routing</h2>
-                <p class="description">Select which model each agent uses. Models with a "/" (e.g. <code>openai/gpt-4o-mini</code>) route through OpenRouter. Plain names (e.g. <code>gpt-4o-mini</code>) route through OpenAI.</p>
+                            <h3 style="margin-top:20px;">Provider Priority</h3>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label"><strong>Primary / Secondary</strong></div>
+                                <div class="kh-form-control">
+                                    <select name="provider_priority">
+                                        <option value="auto" <?php selected( $settings['provider_priority'], 'auto' ); ?>>Auto-detect from model ID</option>
+                                        <option value="openai" <?php selected( $settings['provider_priority'], 'openai' ); ?>>OpenAI First → OpenRouter</option>
+                                        <option value="openrouter" <?php selected( $settings['provider_priority'], 'openrouter' ); ?>>OpenRouter First → OpenAI</option>
+                                    </select>
+                                    <div class="kh-desc">When providers are added they appear here. Set primary and fallback order.</div>
+                                </div>
+                            </div>
+                        </div>
 
-                <h3>Research Pipeline</h3>
-                <table class="form-table">
-                    <tr>
-                        <th scope="row">Phase 1 — Keyword/Search</th>
-                        <td>
-                            <select name="agent_models[research_phase1]">
-                                <?php $s = $settings['agent_models']['research_phase1'] ?? 'google/gemini-2.5-flash'; ?>
-                                <option value="google/gemini-2.5-flash" <?php selected($s, 'google/gemini-2.5-flash'); ?>>Gemini 2.5 Flash (fast extraction)</option>
-                                <option value="deepseek/deepseek-chat" <?php selected($s, 'deepseek/deepseek-chat'); ?>>DeepSeek V3 Chat (cheap, fast)</option>
-                                <option value="google/gemini-2.5-pro" <?php selected($s, 'google/gemini-2.5-pro'); ?>>Gemini 2.5 Pro (massive context)</option>
-                                <option value="gpt-4o-mini" <?php selected($s, 'gpt-4o-mini'); ?>>OpenAI: GPT-4o-mini</option>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Phase 2 — Gap Analysis</th>
-                        <td>
-                            <select name="agent_models[research_phase2]">
-                                <?php $s = $settings['agent_models']['research_phase2'] ?? 'meta-llama/llama-3.3-70b-instruct'; ?>
-                                <option value="meta-llama/llama-3.3-70b-instruct" <?php selected($s, 'meta-llama/llama-3.3-70b-instruct'); ?>>Llama 3.3 70B (reliable logic)</option>
-                                <option value="deepseek/deepseek-r1" <?php selected($s, 'deepseek/deepseek-r1'); ?>>DeepSeek R1 (deep reasoning)</option>
-                                <option value="google/gemini-2.5-flash" <?php selected($s, 'google/gemini-2.5-flash'); ?>>Gemini 2.5 Flash</option>
-                                <option value="gpt-4o-mini" <?php selected($s, 'gpt-4o-mini'); ?>>OpenAI: GPT-4o-mini</option>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Phase 3 — Synopsis</th>
-                        <td>
-                            <select name="agent_models[research_phase3]">
-                                <?php $s = $settings['agent_models']['research_phase3'] ?? 'anthropic/claude-sonnet-4.5'; ?>
-                                <option value="anthropic/claude-sonnet-4.5" <?php selected($s, 'anthropic/claude-sonnet-4.5'); ?>>Claude Sonnet 4.5 (strict formatting)</option>
-                                <option value="openai/gpt-4o" <?php selected($s, 'openai/gpt-4o'); ?>>GPT-4o</option>
-                                <option value="gpt-4o" <?php selected($s, 'gpt-4o'); ?>>OpenAI: GPT-4o</option>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Phase 4 — Academic Grounding</th>
-                        <td>
-                            <select name="agent_models[research_phase4]">
-                                <?php $s = $settings['agent_models']['research_phase4'] ?? 'google/gemini-2.5-pro'; ?>
-                                <option value="google/gemini-2.5-pro" <?php selected($s, 'google/gemini-2.5-pro'); ?>>Gemini 2.5 Pro (needle-in-haystack)</option>
-                                <option value="anthropic/claude-sonnet-4.5" <?php selected($s, 'anthropic/claude-sonnet-4.5'); ?>>Claude Sonnet 4.5</option>
-                                <option value="gpt-4o" <?php selected($s, 'gpt-4o'); ?>>OpenAI: GPT-4o</option>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Framework (Synopsis)</th>
-                        <td>
-                            <select name="agent_models[framework]">
-                                <?php $s = $settings['agent_models']['framework'] ?? 'anthropic/claude-sonnet-4.5'; ?>
-                                <option value="anthropic/claude-sonnet-4.5" <?php selected($s, 'anthropic/claude-sonnet-4.5'); ?>>Claude Sonnet 4.5</option>
-                                <option value="openai/gpt-4o" <?php selected($s, 'openai/gpt-4o'); ?>>GPT-4o</option>
-                                <option value="gpt-4o" <?php selected($s, 'gpt-4o'); ?>>OpenAI: GPT-4o</option>
-                            </select>
-                        </td>
-                    </tr>
-                </table>
+                        <!-- Data -->
+                        <div class="kh-subsection">
+                            <h3>Data</h3>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label"><strong>Keywords</strong><span class="kh-help">DataForSEO</span></div>
+                                <div class="kh-form-control">
+                                    <input name="dataforseo_login" type="text" value="<?php echo esc_attr( $settings['dataforseo_login'] ); ?>" placeholder="Login" class="small" style="width:180px;margin-bottom:6px;">
+                                    <input name="dataforseo_password" type="password" value="<?php echo esc_attr( $settings['dataforseo_password'] ); ?>" placeholder="Password" class="small" style="width:180px;">
+                                    <div class="kh-desc">BYOK — bring your own DataForSEO credentials.</div>
+                                </div>
+                            </div>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label"><strong>Search (SERP)</strong></div>
+                                <div class="kh-form-control">
+                                    <select name="search_primary">
+                                        <option value="serpapi" <?php selected( $settings['search_primary'], 'serpapi' ); ?>>SerpAPI (Google) — Default</option>
+                                        <option value="tavily" <?php selected( $settings['search_primary'], 'tavily' ); ?>>Tavily (AI Search)</option>
+                                        <option value="dataforseo" <?php selected( $settings['search_primary'], 'dataforseo' ); ?>>DataForSEO</option>
+                                    </select>
+                                    <div style="margin-top:6px;">
+                                        <input name="serpapi_key" type="password" value="<?php echo esc_attr( $settings['serpapi_key'] ); ?>" placeholder="SerpAPI Key" style="width:300px;">
+                                    </div>
+                                    <div style="margin-top:4px;">
+                                        <input name="tavily_key" type="password" value="<?php echo esc_attr( $settings['tavily_key'] ); ?>" placeholder="Tavily Key" style="width:300px;">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
-                <h3>Fallback Models</h3>
-                <p class="description">If a primary model fails, the system will try the fallback model before falling through to the ultimate fallback (gpt-4o-mini).</p>
-                <table class="form-table">
-                    <tr>
-                        <th scope="row">Synopsis Fallback</th>
-                        <td>
-                            <select name="agent_fallbacks[research_phase3]">
-                                <?php $fb = $settings['agent_fallbacks']['research_phase3'] ?? ''; ?>
-                                <option value="" <?php selected($fb, ''); ?>>None (use ultimate fallback)</option>
-                                <option value="mistralai/mistral-large" <?php selected($fb, 'mistralai/mistral-large'); ?>>Mistral Large</option>
-                                <option value="openai/gpt-4o" <?php selected($fb, 'openai/gpt-4o'); ?>>GPT-4o</option>
-                                <option value="openai/gpt-4o-mini" <?php selected($fb, 'openai/gpt-4o-mini'); ?>>GPT-4o-mini</option>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Draft Fallback</th>
-                        <td>
-                            <select name="agent_fallbacks[draft]">
-                                <?php $fb = $settings['agent_fallbacks']['draft'] ?? ''; ?>
-                                <option value="" <?php selected($fb, ''); ?>>None (use ultimate fallback)</option>
-                                <option value="mistralai/mistral-large" <?php selected($fb, 'mistralai/mistral-large'); ?>>Mistral Large</option>
-                                <option value="openai/gpt-4o" <?php selected($fb, 'openai/gpt-4o'); ?>>GPT-4o</option>
-                                <option value="meta-llama/llama-3.3-70b-instruct" <?php selected($fb, 'meta-llama/llama-3.3-70b-instruct'); ?>>Llama 3.3 70B</option>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Research Phase 2 Fallback</th>
-                        <td>
-                            <select name="agent_fallbacks[research_phase2]">
-                                <?php $fb = $settings['agent_fallbacks']['research_phase2'] ?? ''; ?>
-                                <option value="" <?php selected($fb, ''); ?>>None (use ultimate fallback)</option>
-                                <option value="deepseek/deepseek-chat" <?php selected($fb, 'deepseek/deepseek-chat'); ?>>DeepSeek V3 Chat</option>
-                                <option value="openai/gpt-4o-mini" <?php selected($fb, 'openai/gpt-4o-mini'); ?>>GPT-4o-mini</option>
-                            </select>
-                        </td>
-                    </tr>
-                </table>
+                    </div>
+                </div>
 
-                <h3>Personas</h3>
-                <p class="description">Each persona uses a different model and temperature. When the Draft Agent receives a persona, it routes to the corresponding model below.</p>
-                <table class="form-table">
-                    <?php $persona_defaults = \KH\Editorial\Core\LLMService::DEFAULT_PERSONA_MODELS; ?>
-                    <tr>
-                        <th scope="row">Journalist</th>
-                        <td>
-                            <select name="persona_models[journalist][model]">
-                                <?php $pm = $settings['persona_models']['journalist']['model'] ?? $persona_defaults['journalist']['model']; ?>
-                                <option value="deepseek/deepseek-r1" <?php selected($pm, 'deepseek/deepseek-r1'); ?>>DeepSeek R1 (reasoning, active voice)</option>
-                                <option value="anthropic/claude-sonnet-4.5" <?php selected($pm, 'anthropic/claude-sonnet-4.5'); ?>>Claude Sonnet 4.5 (tight style)</option>
-                                <option value="gpt-4o" <?php selected($pm, 'gpt-4o'); ?>>OpenAI: GPT-4o</option>
-                            </select>
-                            <label>Temperature: <input name="persona_models[journalist][temperature]" type="number" step="0.1" min="0" max="1" value="<?php echo esc_attr($settings['persona_models']['journalist']['temperature'] ?? $persona_defaults['journalist']['temperature']); ?>" class="small-text"></label>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Industry Analyst</th>
-                        <td>
-                            <select name="persona_models[analyst][model]">
-                                <?php $pm = $settings['persona_models']['analyst']['model'] ?? $persona_defaults['analyst']['model']; ?>
-                                <option value="mistralai/mistral-large" <?php selected($pm, 'mistralai/mistral-large'); ?>>Mistral Large (direct, B2B)</option>
-                                <option value="anthropic/claude-sonnet-4.5" <?php selected($pm, 'anthropic/claude-sonnet-4.5'); ?>>Claude Sonnet 4.5</option>
-                                <option value="gpt-4o" <?php selected($pm, 'gpt-4o'); ?>>OpenAI: GPT-4o</option>
-                            </select>
-                            <label>Temperature: <input name="persona_models[analyst][temperature]" type="number" step="0.1" min="0" max="1" value="<?php echo esc_attr($settings['persona_models']['analyst']['temperature'] ?? $persona_defaults['analyst']['temperature']); ?>" class="small-text"></label>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Industry Veteran</th>
-                        <td>
-                            <select name="persona_models[veteran][model]">
-                                <?php $pm = $settings['persona_models']['veteran']['model'] ?? $persona_defaults['veteran']['model']; ?>
-                                <option value="meta-llama/llama-3.3-70b-instruct" <?php selected($pm, 'meta-llama/llama-3.3-70b-instruct'); ?>>Llama 3.3 70B (conversational)</option>
-                                <option value="anthropic/claude-sonnet-4.5" <?php selected($pm, 'anthropic/claude-sonnet-4.5'); ?>>Claude Sonnet 4.5</option>
-                                <option value="gpt-4o" <?php selected($pm, 'gpt-4o'); ?>>OpenAI: GPT-4o</option>
-                            </select>
-                            <label>Temperature: <input name="persona_models[veteran][temperature]" type="number" step="0.1" min="0" max="1" value="<?php echo esc_attr($settings['persona_models']['veteran']['temperature'] ?? $persona_defaults['veteran']['temperature']); ?>" class="small-text"></label>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Editor-at-Large</th>
-                        <td>
-                            <select name="persona_models[editor][model]">
-                                <?php $pm = $settings['persona_models']['editor']['model'] ?? $persona_defaults['editor']['model']; ?>
-                                <option value="anthropic/claude-sonnet-4.5" <?php selected($pm, 'anthropic/claude-sonnet-4.5'); ?>>Claude Sonnet 4.5 (narrative)</option>
-                                <option value="openai/gpt-4o" <?php selected($pm, 'openai/gpt-4o'); ?>>GPT-4o</option>
-                                <option value="gpt-4o" <?php selected($pm, 'gpt-4o'); ?>>OpenAI: GPT-4o</option>
-                            </select>
-                            <label>Temperature: <input name="persona_models[editor][temperature]" type="number" step="0.1" min="0" max="1" value="<?php echo esc_attr($settings['persona_models']['editor']['temperature'] ?? $persona_defaults['editor']['temperature']); ?>" class="small-text"></label>
-                        </td>
-                    </tr>
-                </table>
+                <!-- =========================== SECTION: MODELS ============================ -->
+                <div class="kh-section">
+                    <div class="kh-section-header">
+                        <h2><span class="dashicons dashicons-admin-generic"></span> Models</h2>
+                        <span class="kh-section-toggle"></span>
+                    </div>
+                    <div class="kh-section-body">
 
-                <h3>Metadata & Utility</h3>
-                <table class="form-table">
-                    <tr>
-                        <th scope="row">Abstract</th>
-                        <td>
-                            <select name="agent_models[abstract]">
-                                <?php $s = $settings['agent_models']['abstract'] ?? 'google/gemini-2.5-flash'; ?>
-                                <option value="google/gemini-2.5-flash" <?php selected($s, 'google/gemini-2.5-flash'); ?>>Gemini 2.5 Flash (fast JSON)</option>
-                                <option value="deepseek/deepseek-chat" <?php selected($s, 'deepseek/deepseek-chat'); ?>>DeepSeek V3 Chat</option>
-                                <option value="gpt-4o-mini" <?php selected($s, 'gpt-4o-mini'); ?>>OpenAI: GPT-4o-mini</option>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Excerpt</th>
-                        <td>
-                            <select name="agent_models[excerpt]">
-                                <?php $s = $settings['agent_models']['excerpt'] ?? 'google/gemini-2.5-flash'; ?>
-                                <option value="google/gemini-2.5-flash" <?php selected($s, 'google/gemini-2.5-flash'); ?>>Gemini 2.5 Flash</option>
-                                <option value="deepseek/deepseek-chat" <?php selected($s, 'deepseek/deepseek-chat'); ?>>DeepSeek V3 Chat</option>
-                                <option value="gpt-4o-mini" <?php selected($s, 'gpt-4o-mini'); ?>>OpenAI: GPT-4o-mini</option>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">SEO / Schema</th>
-                        <td>
-                            <select name="agent_models[seo_schema]">
-                                <?php $s = $settings['agent_models']['seo_schema'] ?? 'google/gemini-2.5-flash'; ?>
-                                <option value="google/gemini-2.5-flash" <?php selected($s, 'google/gemini-2.5-flash'); ?>>Gemini 2.5 Flash (fast JSON-LD)</option>
-                                <option value="deepseek/deepseek-chat" <?php selected($s, 'deepseek/deepseek-chat'); ?>>DeepSeek V3 Chat</option>
-                                <option value="gpt-4o-mini" <?php selected($s, 'gpt-4o-mini'); ?>>OpenAI: GPT-4o-mini</option>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Gutenberg Push</th>
-                        <td>
-                            <select name="agent_models[gutenberg_push]">
-                                <?php $s = $settings['agent_models']['gutenberg_push'] ?? 'deepseek/deepseek-chat'; ?>
-                                <option value="deepseek/deepseek-chat" <?php selected($s, 'deepseek/deepseek-chat'); ?>>DeepSeek V3 Chat (clean HTML)</option>
-                                <option value="google/gemini-2.5-flash" <?php selected($s, 'google/gemini-2.5-flash'); ?>>Gemini 2.5 Flash</option>
-                                <option value="gpt-4o-mini" <?php selected($s, 'gpt-4o-mini'); ?>>OpenAI: GPT-4o-mini</option>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">GEO Answer Cards</th>
-                        <td>
-                            <select name="agent_models[geo_cards]">
-                                <?php $s = $settings['agent_models']['geo_cards'] ?? 'meta-llama/llama-3.3-70b-instruct'; ?>
-                                <option value="meta-llama/llama-3.3-70b-instruct" <?php selected($s, 'meta-llama/llama-3.3-70b-instruct'); ?>>Llama 3.3 70B (regional nuance)</option>
-                                <option value="google/gemini-2.5-flash" <?php selected($s, 'google/gemini-2.5-flash'); ?>>Gemini 2.5 Flash</option>
-                                <option value="gpt-4o-mini" <?php selected($s, 'gpt-4o-mini'); ?>>OpenAI: GPT-4o-mini</option>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Social Media Posts</th>
-                        <td>
-                            <select name="agent_models[social_posts]">
-                                <?php $s = $settings['agent_models']['social_posts'] ?? 'meta-llama/llama-3.3-70b-instruct'; ?>
-                                <option value="meta-llama/llama-3.3-70b-instruct" <?php selected($s, 'meta-llama/llama-3.3-70b-instruct'); ?>>Llama 3.3 70B (punchy copy)</option>
-                                <option value="google/gemini-2.5-flash" <?php selected($s, 'google/gemini-2.5-flash'); ?>>Gemini 2.5 Flash</option>
-                                <option value="gpt-4o-mini" <?php selected($s, 'gpt-4o-mini'); ?>>OpenAI: GPT-4o-mini</option>
-                            </select>
-                        </td>
-                    </tr>
-                </table>
+                        <!-- Profile -->
+                        <div class="kh-subsection">
+                            <h3>Profile</h3>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label"><strong>Apply Profile</strong></div>
+                                <div class="kh-form-control">
+                                    <select name="preset_profile">
+                                        <?php foreach ( $profiles as $key => $profile ) : ?>
+                                            <option value="<?php echo esc_attr( $key ); ?>" <?php selected( $settings['preset_profile'] ?? 'balanced', $key ); ?>>
+                                                <?php echo esc_html( $profile['label'] ); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <div class="kh-desc">Applies a bulk model config. <strong>Balanced</strong>: best mix. <strong>Cost</strong>: cheapest. <strong>Speed</strong>: fastest. <strong>Quality</strong>: best output.</div>
+                                    <div class="kh-profile-actions">
+                                        <input name="custom_profile_name" type="text" placeholder="Custom profile name…" style="width:200px;">
+                                        <button type="button" class="button">Save as Custom</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
-                <h2>DataForSEO (Keywords)</h2>
-                <table class="form-table">
-                    <tr>
-                        <th scope="row"><label for="dataforseo_login">Login</label></th>
-                        <td><input name="dataforseo_login" type="text" id="dataforseo_login" value="<?php echo esc_attr( $settings['dataforseo_login'] ); ?>" class="regular-text"></td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="dataforseo_password">Password</label></th>
-                        <td><input name="dataforseo_password" type="password" id="dataforseo_password" value="<?php echo esc_attr( $settings['dataforseo_password'] ); ?>" class="regular-text"></td>
-                    </tr>
-                </table>
+                        <!-- Profile Settings — Research -->
+                        <div class="kh-subsection">
+                            <h3>Research</h3>
+                            <?php
+                            $research_agents = [
+                                'research_phase1' => 'Keyword &amp; Search Research',
+                                'research_phase2' => 'Gap Analysis',
+                                'research_phase3' => 'Deep Dive &amp; Insights',
+                                'research_phase4' => 'Academic Grounding &amp; Validation',
+                            ];
+                            $research_models = [
+                                'research_phase1' => [
+                                    'google/gemini-2.5-flash' => 'Gemini 2.5 Flash',
+                                    'deepseek/deepseek-chat' => 'DeepSeek V3 Chat',
+                                    'google/gemini-2.5-pro' => 'Gemini 2.5 Pro',
+                                    'gpt-4o-mini' => 'GPT-4o Mini',
+                                ],
+                                'research_phase2' => [
+                                    'meta-llama/llama-3.3-70b-instruct' => 'Llama 3.3 70B',
+                                    'deepseek/deepseek-r1' => 'DeepSeek R1',
+                                    'google/gemini-2.5-flash' => 'Gemini 2.5 Flash',
+                                    'gpt-4o-mini' => 'GPT-4o Mini',
+                                ],
+                                'research_phase3' => [
+                                    'anthropic/claude-sonnet-4.5' => 'Claude Sonnet 4.5',
+                                    'openai/gpt-4o' => 'GPT-4o',
+                                    'gpt-4o' => 'GPT-4o (direct)',
+                                ],
+                                'research_phase4' => [
+                                    'google/gemini-2.5-pro' => 'Gemini 2.5 Pro',
+                                    'anthropic/claude-sonnet-4.5' => 'Claude Sonnet 4.5',
+                                    'gpt-4o' => 'GPT-4o',
+                                ],
+                            ];
+                            foreach ( $research_agents as $agent_key => $label ) : ?>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label"><strong><?php echo $label; ?></strong></div>
+                                <div class="kh-form-control">
+                                    <div class="kh-fallback-row">
+                                        <div><span class="kh-fallback-label">Primary</span>
+                                            <select name="agent_models[<?php echo $agent_key; ?>]">
+                                                <?php $model_select( $agent_key, $research_models[ $agent_key ] ); ?>
+                                            </select>
+                                        </div>
+                                        <div><span class="kh-fallback-label">Fallback</span>
+                                            <select name="agent_fallbacks[<?php echo $agent_key; ?>]">
+                                                <?php $fallback_select( $agent_key ); ?>
+                                            </select>
+                                        </div>
+                                        <div><span class="kh-fallback-label">Tertiary</span>
+                                            <select name="agent_tertiaries[<?php echo $agent_key; ?>]">
+                                                <?php $fallback_select( $agent_key . '_tertiary' ); ?>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
 
-                <h2>Search Providers (SERP)</h2>
-                <table class="form-table">
-                    <tr>
-                        <th scope="row"><label for="search_primary">Primary Search Provider</label></th>
-                        <td>
-                            <select name="search_primary" id="search_primary">
-                                <option value="serpapi" <?php selected( $settings['search_primary'], 'serpapi' ); ?>>SerpAPI (Google)</option>
-                                <option value="tavily" <?php selected( $settings['search_primary'], 'tavily' ); ?>>Tavily (AI Search)</option>
-                                <option value="dataforseo" <?php selected( $settings['search_primary'], 'dataforseo' ); ?>>DataForSEO</option>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="serpapi_key">SerpAPI Key</label></th>
-                        <td><input name="serpapi_key" type="password" id="serpapi_key" value="<?php echo esc_attr( $settings['serpapi_key'] ); ?>" class="regular-text"></td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="tavily_key">Tavily Key</label></th>
-                        <td><input name="tavily_key" type="password" id="tavily_key" value="<?php echo esc_attr( $settings['tavily_key'] ); ?>" class="regular-text"></td>
-                    </tr>
-                </table>
+                        <!-- Profile Settings — Draft & Personas -->
+                        <div class="kh-subsection">
+                            <h3>Draft &amp; Personas</h3>
+                            <?php
+                            $personas = [
+                                'journalist' => 'Journalist',
+                                'analyst'    => 'Industry Analyst',
+                                'veteran'    => 'Industry Veteran',
+                                'editor'     => 'Editor-at-Large',
+                            ];
+                            $persona_models = [
+                                'journalist' => ['deepseek/deepseek-r1' => 'DeepSeek R1', 'anthropic/claude-sonnet-4.5' => 'Claude Sonnet 4.5', 'gpt-4o' => 'GPT-4o'],
+                                'analyst'    => ['mistralai/mistral-large' => 'Mistral Large', 'anthropic/claude-sonnet-4.5' => 'Claude Sonnet 4.5', 'gpt-4o' => 'GPT-4o'],
+                                'veteran'    => ['meta-llama/llama-3.3-70b-instruct' => 'Llama 3.3 70B', 'anthropic/claude-sonnet-4.5' => 'Claude Sonnet 4.5', 'gpt-4o' => 'GPT-4o'],
+                                'editor'     => ['anthropic/claude-sonnet-4.5' => 'Claude Sonnet 4.5', 'openai/gpt-4o' => 'GPT-4o', 'gpt-4o' => 'GPT-4o (direct)'],
+                            ];
+                            foreach ( $personas as $slug => $name ) :
+                                $p_model = $settings['persona_models'][ $slug ]['model'] ?? $persona_defaults[ $slug ]['model'];
+                                $p_temp  = $settings['persona_models'][ $slug ]['temperature'] ?? $persona_defaults[ $slug ]['temperature'];
+                            ?>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label">
+                                    <strong><?php echo esc_html( $name ); ?></strong>
+                                    <span class="kh-help">Temp: <?php echo esc_html( $p_temp ); ?> — Controls creativity (0 = precise, 1 = creative)</span>
+                                </div>
+                                <div class="kh-form-control">
+                                    <div class="kh-fallback-row">
+                                        <div><span class="kh-fallback-label">Model</span>
+                                            <select name="persona_models[<?php echo $slug; ?>][model]">
+                                                <?php foreach ( $persona_models[ $slug ] as $m_val => $m_label ) : ?>
+                                                    <option value="<?php echo esc_attr( $m_val ); ?>" <?php selected( $p_model, $m_val ); ?>><?php echo esc_html( $m_label ); ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                        <div><span class="kh-fallback-label">Temperature</span>
+                                            <div class="kh-temp-slider">
+                                                <input type="range" min="0" max="1" step="0.1" value="<?php echo esc_attr( $p_temp ); ?>" oninput="this.nextElementSibling.textContent=this.value" style="width:120px;">
+                                                <span class="kh-temp-val"><?php echo esc_html( $p_temp ); ?></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
 
-                <h2>Image Generator</h2>
-                <table class="form-table">
-                    <tr>
-                        <th scope="row">Show Prompt Editor</th>
-                        <td>
-                            <label>
-                                <input name="show_prompt_editor" type="checkbox" value="1" <?php checked( $settings['show_prompt_editor'], 1 ); ?>>
-                                Allow editors to edit the generated prompt before generating.
-                            </label>
-                            <p class="description">When unchecked, the prompt is auto-generated and hidden from the editor.</p>
-                        </td>
-                    </tr>
-                </table>
+                        <!-- Profile Settings — Meta & Utility -->
+                        <div class="kh-subsection">
+                            <h3>Meta &amp; Utility</h3>
+                            <?php
+                            $utility_agents = [
+                                'abstract'       => 'Abstract',
+                                'excerpt'        => 'Excerpt',
+                                'seo_schema'     => 'SEO / Schema',
+                                'gutenberg_push' => 'Gutenberg Push',
+                                'geo_cards'      => 'GEO Answer Cards',
+                                'social_posts'   => 'Social Media Posts',
+                            ];
+                            $utility_models = [
+                                'abstract'     => ['google/gemini-2.5-flash' => 'Gemini 2.5 Flash', 'deepseek/deepseek-chat' => 'DeepSeek V3 Chat', 'gpt-4o-mini' => 'GPT-4o Mini'],
+                                'excerpt'      => ['google/gemini-2.5-flash' => 'Gemini 2.5 Flash', 'deepseek/deepseek-chat' => 'DeepSeek V3 Chat', 'gpt-4o-mini' => 'GPT-4o Mini'],
+                                'seo_schema'   => ['google/gemini-2.5-flash' => 'Gemini 2.5 Flash', 'deepseek/deepseek-chat' => 'DeepSeek V3 Chat', 'gpt-4o-mini' => 'GPT-4o Mini'],
+                                'gutenberg_push' => ['deepseek/deepseek-chat' => 'DeepSeek V3 Chat', 'google/gemini-2.5-flash' => 'Gemini 2.5 Flash', 'gpt-4o-mini' => 'GPT-4o Mini'],
+                                'geo_cards'    => ['meta-llama/llama-3.3-70b-instruct' => 'Llama 3.3 70B', 'google/gemini-2.5-flash' => 'Gemini 2.5 Flash', 'gpt-4o-mini' => 'GPT-4o Mini'],
+                                'social_posts' => ['meta-llama/llama-3.3-70b-instruct' => 'Llama 3.3 70B', 'google/gemini-2.5-flash' => 'Gemini 2.5 Flash', 'gpt-4o-mini' => 'GPT-4o Mini'],
+                            ];
+                            foreach ( $utility_agents as $agent_key => $label ) : ?>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label"><strong><?php echo $label; ?></strong></div>
+                                <div class="kh-form-control">
+                                    <div class="kh-fallback-row">
+                                        <div><span class="kh-fallback-label">Primary</span>
+                                            <select name="agent_models[<?php echo $agent_key; ?>]">
+                                                <?php $model_select( $agent_key, $utility_models[ $agent_key ] ); ?>
+                                            </select>
+                                        </div>
+                                        <div><span class="kh-fallback-label">Fallback</span>
+                                            <select name="agent_fallbacks[<?php echo $agent_key; ?>]">
+                                                <?php $fallback_select( $agent_key ); ?>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
 
-                <h2>Currency & GEO</h2>
-                <table class="form-table">
-                    <tr>
-                        <th scope="row"><label for="rate_eur">EUR Exchange Rate (1 GBP = ?)</label></th>
-                        <td>
-                            <input name="rate_eur" type="number" step="0.01" id="rate_eur" value="<?php echo esc_attr( $settings['currency_rates']['EUR'] ); ?>" class="small-text">
-                            <p class="description">Used for dynamic pricing in the EU zone.</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="rate_usd">USD Exchange Rate (1 GBP = ?)</label></th>
-                        <td>
-                            <input name="rate_usd" type="number" step="0.01" id="rate_usd" value="<?php echo esc_attr( $settings['currency_rates']['USD'] ); ?>" class="small-text">
-                            <p class="description">Used for dynamic pricing for Rest of World.</p>
-                        </td>
-                    </tr>
-                </table>
+                    </div>
+                </div>
 
-                <p class="submit">
-                    <input type="submit" name="kh_editorial_save_settings" id="submit" class="button button-primary" value="Save Credentials">
-                </p>
+                <!-- =========================== SUBMIT ============================ -->
+                <div class="kh-submit">
+                    <input type="submit" name="kh_editorial_save_settings" class="button button-primary" value="Save Settings">
+                </div>
             </form>
         </div>
         <?php
@@ -677,15 +591,17 @@ class EditorialAdmin {
 
     public function enqueue_dashboard_assets( $hook ) {
         // Only enqueue on our own admin pages
-        $our_pages = [
-            'toplevel_page_kh-editorial-studio',
-            'editorial-studio_page_kh-editorial-admin',
-            'editorial-studio_page_kh-editorial-settings',
-            'editorial-studio_page_kh-editorial-rate-limits',
-            'editorial-studio_page_kh-editorial-db',
-        ];
+        $screen = get_current_screen();
+        $is_ours = $screen && (
+            $screen->id === 'toplevel_page_kh-editorial-studio'
+            || strpos( $screen->id, 'kh-editorial-studio' ) !== false
+            || strpos( $screen->id, 'kh-editorial-admin' ) !== false
+            || strpos( $screen->id, 'kh-editorial-settings' ) !== false
+            || strpos( $screen->id, 'kh-editorial-rate-limits' ) !== false
+            || strpos( $screen->id, 'kh-editorial-db' ) !== false
+        );
         
-        if ( ! in_array( $hook, $our_pages, true ) ) {
+        if ( ! $is_ours ) {
             return;
         }
 
@@ -694,6 +610,13 @@ class EditorialAdmin {
             $this->get_asset_url( 'assets/css/admin.css' ),
             [],
             KH_EDITORIAL_VERSION
+        );
+        wp_enqueue_script(
+            'kh-editorial-admin',
+            $this->get_asset_url( 'assets/js/admin.js' ),
+            [],
+            KH_EDITORIAL_VERSION,
+            true
         );
     }
 

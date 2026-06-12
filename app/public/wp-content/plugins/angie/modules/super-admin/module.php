@@ -18,10 +18,10 @@ class Module extends Module_Base {
 
 	public function __construct() {
 		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
-		add_filter( 'angie_config', [ $this, 'inject_exec_nonce' ] );
+		add_filter( 'angie_config', [ $this, 'inject_super_admin_config' ] );
 	}
 
-	public function inject_exec_nonce( array $config ): array {
+	public function inject_super_admin_config( array $config ): array {
 		$is_enabled = self::is_enabled() && self::current_user_can_use();
 		$config['superAdmin'] = [
 			'enabled' => $is_enabled,
