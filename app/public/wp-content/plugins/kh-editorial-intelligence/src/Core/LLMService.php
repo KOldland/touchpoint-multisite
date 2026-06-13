@@ -21,13 +21,72 @@ class LLMService {
         'research_phase1', 'research_phase2', 'research_phase3', 'research_phase4',
         'framework',
         'draft', 'abstract', 'excerpt',
-        'seo_schema', 'geo_cards', 'social_posts',
+        'seo_schema', 'geo_cards', 'social_posts', 'gutenberg_push',
     ];
 
     /**
      * Persona slugs.
      */
     const PERSONAS = [ 'journalist', 'analyst', 'veteran', 'editor' ];
+
+    /**
+     * Unified model registry — every model used across all presets, personas,
+     * defaults, and fallback chains. Used to populate all UI dropdowns so no
+     * model in any preset is missing from the picker.
+     *
+     * key = OpenRouter model ID (or plain name for OpenAI-direct models)
+     * value = Human-readable label
+     */
+    const ALL_MODELS = [
+        // OpenAI (direct)
+        'gpt-4o-mini' => 'GPT-4o Mini',
+        'gpt-4o'      => 'GPT-4o',
+
+        // Anthropic
+        'anthropic/claude-sonnet-4.5'   => 'Claude Sonnet 4.5',
+        'anthropic/claude-fable-latest' => 'Claude Fable',
+
+        // DeepSeek
+        'deepseek/deepseek-v4-pro'                => 'DeepSeek V4 Pro',
+        'deepseek/deepseek-v4-flash'              => 'DeepSeek V4 Flash',
+        'deepseek/deepseek-r1'                    => 'DeepSeek R1',
+        'deepseek/deepseek-r1-distill-llama-70b'  => 'DeepSeek R1 Distill (Llama 70B)',
+        'deepseek/deepseek-r1-distill-qwen-32b'   => 'DeepSeek R1 Distill (Qwen 32B)',
+        'deepseek/deepseek-v3'                    => 'DeepSeek V3',
+        'deepseek/deepseek-chat'                  => 'DeepSeek V3 Chat',
+
+        // Google
+        'google/gemini-2.5-flash' => 'Gemini 2.5 Flash',
+        'google/gemini-2.5-pro'   => 'Gemini 2.5 Pro',
+
+        // Meta
+        'meta-llama/llama-3.3-70b-instruct' => 'Llama 3.3 70B',
+        'meta-llama/llama-3.2-3b-instruct'  => 'Llama 3.2 3B',
+        'meta-llama/llama-4-scout'          => 'Llama 4 Scout',
+        'meta-llama/llama-4-maverick'       => 'Llama 4 Maverick',
+
+        // Mistral
+        'mistralai/mistral-large'              => 'Mistral Large',
+        'mistralai/mistral-small-3.1-24b-instruct' => 'Mistral Small 3.1 24B',
+
+        // xAI
+        'x-ai/grok-4.3' => 'Grok 4.3',
+
+        // Qwen
+        'qwen/qwen3-32b'       => 'Qwen 3 32B',
+        'qwen/qwen3-235b-a22b' => 'Qwen 3 235B',
+        'qwen/qwen3-coder:free' => 'Qwen 3 Coder (Free)',
+
+        // NVIDIA
+        'nvidia/nemotron-nano-9b-v2' => 'Nemotron Nano 9B v2',
+
+        // Nous Research
+        'nousresearch/hermes-3-llama-3.1-405b' => 'Hermes 3 Llama 3.1 405B',
+
+        // OpenAI (via OpenRouter)
+        'openai/gpt-4o-mini' => 'GPT-4o Mini (OpenRouter)',
+        'openai/gpt-4o'      => 'GPT-4o (OpenRouter)',
+    ];
 
     /**
      * Default models per agent (mirrors Balanced profile).
@@ -44,6 +103,7 @@ class LLMService {
         'seo_schema'      => 'deepseek/deepseek-v4-flash',
         'geo_cards'       => 'deepseek/deepseek-v4-pro',
         'social_posts'    => 'meta-llama/llama-3.3-70b-instruct',
+        'gutenberg_push'  => 'deepseek/deepseek-v4-flash',
     ];
 
     /**
@@ -57,7 +117,7 @@ class LLMService {
     ];
 
     /**
-     * Preset profiles — 4 profiles × 11 agents × 3-tier fallback chains.
+     * Preset profiles — 4 profiles × 12 agents × 3-tier fallback chains.
      * Each profile has `models` (primary per agent) and `fallback_chains`
      * (array of [secondary, tertiary] per agent).
      */
@@ -76,6 +136,7 @@ class LLMService {
                 'seo_schema'      => 'deepseek/deepseek-v4-flash',
                 'geo_cards'       => 'deepseek/deepseek-v4-flash',
                 'social_posts'    => 'meta-llama/llama-3.3-70b-instruct',
+                'gutenberg_push'  => 'deepseek/deepseek-v4-flash',
             ],
             'fallback_chains' => [
                 'research_phase1' => ['meta-llama/llama-3.3-70b-instruct', 'qwen/qwen3-32b'],
@@ -89,6 +150,7 @@ class LLMService {
                 'seo_schema'      => ['qwen/qwen3-coder:free', 'google/gemini-2.5-flash'],
                 'geo_cards'       => ['meta-llama/llama-3.3-70b-instruct', 'qwen/qwen3-32b'],
                 'social_posts'    => ['mistralai/mistral-small-3.1-24b-instruct', 'deepseek/deepseek-v4-flash'],
+                'gutenberg_push'  => ['google/gemini-2.5-flash', 'meta-llama/llama-3.3-70b-instruct'],
             ],
         ],
         'speed' => [
@@ -105,6 +167,7 @@ class LLMService {
                 'seo_schema'      => 'google/gemini-2.5-flash',
                 'geo_cards'       => 'x-ai/grok-4.3',
                 'social_posts'    => 'meta-llama/llama-4-scout',
+                'gutenberg_push'  => 'deepseek/deepseek-v4-flash',
             ],
             'fallback_chains' => [
                 'research_phase1' => ['deepseek/deepseek-v4-flash', 'x-ai/grok-4.3'],
@@ -118,6 +181,7 @@ class LLMService {
                 'seo_schema'      => ['deepseek/deepseek-v4-flash', 'x-ai/grok-4.3'],
                 'geo_cards'       => ['deepseek/deepseek-v4-flash', 'google/gemini-2.5-flash'],
                 'social_posts'    => ['x-ai/grok-4.3', 'deepseek/deepseek-v4-flash'],
+                'gutenberg_push'  => ['google/gemini-2.5-flash', 'meta-llama/llama-4-scout'],
             ],
         ],
         'balanced' => [
@@ -134,10 +198,11 @@ class LLMService {
                 'seo_schema'      => 'deepseek/deepseek-v4-flash',
                 'geo_cards'       => 'deepseek/deepseek-v4-pro',
                 'social_posts'    => 'meta-llama/llama-3.3-70b-instruct',
+                'gutenberg_push'  => 'deepseek/deepseek-v4-flash',
             ],
             'fallback_chains' => [
                 'research_phase1' => ['meta-llama/llama-3.3-70b-instruct', 'anthropic/claude-sonnet-4.5'],
-                'research_phase2' => ['mistralai/mistral-small-3.1-24b-instruct', 'deepseek/deepseek-chat'],
+                'research_phase2' => ['mistralai/mistral-small-3.1-24b-instruct', 'deepseek/deepseek-v3'],
                 'research_phase3' => ['mistralai/mistral-large', 'anthropic/claude-sonnet-4.5'],
                 'research_phase4' => ['meta-llama/llama-3.3-70b-instruct', 'anthropic/claude-sonnet-4.5'],
                 'framework'       => ['deepseek/deepseek-v4-pro', 'mistralai/mistral-large'],
@@ -147,6 +212,7 @@ class LLMService {
                 'seo_schema'      => ['meta-llama/llama-3.3-70b-instruct', 'google/gemini-2.5-flash'],
                 'geo_cards'       => ['meta-llama/llama-3.3-70b-instruct', 'anthropic/claude-sonnet-4.5'],
                 'social_posts'    => ['deepseek/deepseek-v4-pro', 'anthropic/claude-sonnet-4.5'],
+                'gutenberg_push'  => ['google/gemini-2.5-flash', 'meta-llama/llama-3.3-70b-instruct'],
             ],
         ],
         'performance' => [
@@ -163,6 +229,7 @@ class LLMService {
                 'seo_schema'      => 'deepseek/deepseek-v4-pro',
                 'geo_cards'       => 'anthropic/claude-sonnet-4.5',
                 'social_posts'    => 'nousresearch/hermes-3-llama-3.1-405b',
+                'gutenberg_push'  => 'deepseek/deepseek-v4-pro',
             ],
             'fallback_chains' => [
                 'research_phase1' => ['deepseek/deepseek-v4-pro', 'google/gemini-2.5-pro'],
@@ -176,6 +243,7 @@ class LLMService {
                 'seo_schema'      => ['anthropic/claude-sonnet-4.5', 'google/gemini-2.5-pro'],
                 'geo_cards'       => ['deepseek/deepseek-v4-pro', 'google/gemini-2.5-pro'],
                 'social_posts'    => ['mistralai/mistral-large', 'anthropic/claude-sonnet-4.5'],
+                'gutenberg_push'  => ['deepseek/deepseek-v4-flash', 'google/gemini-2.5-flash'],
             ],
         ],
     ];
@@ -221,17 +289,44 @@ class LLMService {
      */
     public static function resolve_agent_model( string $agent, string $profile = null ): array {
         $settings = get_option( 'kh_editorial_settings', [] );
-        $profile  = $profile ?? ( $settings['preset_profile'] ?? 'balanced' );
+        $profile  = $profile ?? ( $settings['preset_profile'] ?? 'speed' );
 
-        // Resolve model from profile first, then agent_models, then defaults
+        // Start with the selected preset profile as base
         if ( isset( self::PRESET_PROFILES[ $profile ] ) ) {
             $profile_data = self::PRESET_PROFILES[ $profile ];
             $model = $profile_data['models'][ $agent ] ?? null;
             $chain = $profile_data['fallback_chains'][ $agent ] ?? [];
         } else {
-            $agent_models = $settings['agent_models'] ?? [];
-            $model = $agent_models[ $agent ] ?? ( self::DEFAULT_AGENT_MODELS[ $agent ] ?? self::get_model() );
+            $model = null;
             $chain = [];
+        }
+
+        // Allow per-agent overrides from user settings (custom models take priority)
+        $agent_models = $settings['agent_models'] ?? [];
+        if ( isset( $agent_models[ $agent ] ) && ! empty( $agent_models[ $agent ] ) ) {
+            $model = $agent_models[ $agent ];
+        }
+
+        // Fallback to defaults if no model resolved
+        if ( empty( $model ) ) {
+            $model = self::DEFAULT_AGENT_MODELS[ $agent ] ?? self::get_model();
+        }
+
+        // Allow per-agent fallback overrides from user settings
+        $agent_fallbacks = $settings['agent_fallbacks'] ?? [];
+        $agent_tertiaries = $settings['agent_tertiaries'] ?? [];
+        $override_chain = [];
+
+        if ( isset( $agent_fallbacks[ $agent ] ) && ! empty( $agent_fallbacks[ $agent ] ) ) {
+            $override_chain[] = $agent_fallbacks[ $agent ];
+        }
+        if ( isset( $agent_tertiaries[ $agent ] ) && ! empty( $agent_tertiaries[ $agent ] ) ) {
+            $override_chain[] = $agent_tertiaries[ $agent ];
+        }
+
+        // If user has set any overrides, use them; otherwise keep preset chain
+        if ( ! empty( $override_chain ) ) {
+            $chain = $override_chain;
         }
 
         $route = self::resolve_provider( $model );

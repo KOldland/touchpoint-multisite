@@ -141,32 +141,51 @@ class EditorialAdmin {
 
     public function render_settings_page() {
         if ( isset( $_POST['kh_editorial_save_settings'] ) && check_admin_referer( 'kh_editorial_settings', 'kh_editorial_nonce' ) ) {
+            $preset_key = sanitize_text_field( $_POST['preset_profile'] ?? 'speed' );
+            $agent_models    = array_map( 'sanitize_text_field', (array) ( $_POST['agent_models'] ?? [] ) );
+            $agent_fallbacks = array_map( 'sanitize_text_field', (array) ( $_POST['agent_fallbacks'] ?? [] ) );
+            $agent_tertiaries = array_map( 'sanitize_text_field', (array) ( $_POST['agent_tertiaries'] ?? [] ) );
+
+            // If user only changed the profile without touching individual agent dropdowns,
+            // seed all model data from the selected preset so it displays correctly.
+            if ( empty( $agent_models ) && isset( \KH\Editorial\Core\LLMService::PRESET_PROFILES[ $preset_key ] ) ) {
+                $preset = \KH\Editorial\Core\LLMService::PRESET_PROFILES[ $preset_key ];
+                $agent_models = $preset['models'];
+                $chains       = $preset['fallback_chains'] ?? [];
+                $agent_fallbacks = [];
+                $agent_tertiaries = [];
+                foreach ( $chains as $agent => $chain ) {
+                    if ( isset( $chain[0] ) ) {
+                        $agent_fallbacks[ $agent ] = $chain[0];
+                    }
+                    if ( isset( $chain[1] ) ) {
+                        $agent_tertiaries[ $agent ] = $chain[1];
+                    }
+                }
+            }
+
             $settings = [
                 'openai_api_key'      => sanitize_text_field( $_POST['openai_api_key'] ),
                 'openai_model'        => sanitize_text_field( $_POST['openai_model'] ?? '' ),
                 'google_ai_key'       => sanitize_text_field( $_POST['google_ai_key'] ),
                 'openrouter_api_key'  => sanitize_text_field( $_POST['openrouter_api_key'] ),
                 'provider_priority'   => sanitize_text_field( $_POST['provider_priority'] ?? 'auto' ),
-                'preset_profile'      => sanitize_text_field( $_POST['preset_profile'] ?? 'balanced' ),
+                'preset_profile'      => $preset_key,
                 'dataforseo_login'    => sanitize_text_field( $_POST['dataforseo_login'] ),
                 'dataforseo_password' => sanitize_text_field( $_POST['dataforseo_password'] ),
                 'serpapi_key'        => sanitize_text_field( $_POST['serpapi_key'] ),
                 'tavily_key'         => sanitize_text_field( $_POST['tavily_key'] ),
                 'search_primary'     => sanitize_text_field( $_POST['search_primary'] ),
                 'show_prompt_editor' => isset( $_POST['show_prompt_editor'] ) ? 1 : 0,
-                'agent_models'       => array_map( 'sanitize_text_field', (array) ( $_POST['agent_models'] ?? [] ) ),
-                'agent_fallbacks'    => array_map( 'sanitize_text_field', (array) ( $_POST['agent_fallbacks'] ?? [] ) ),
+                'agent_models'       => $agent_models,
+                'agent_fallbacks'    => $agent_fallbacks,
+                'agent_tertiaries'   => $agent_tertiaries,
                 'persona_models'     => $this->sanitize_persona_models( $_POST['persona_models'] ?? [] ),
                 'currency_rates'     => [
                     'EUR' => (float) ( $_POST['rate_eur'] ?? 1.15 ),
                     'USD' => (float) ( $_POST['rate_usd'] ?? 1.25 ),
                 ],
             ];
-
-            $preset = sanitize_text_field( $_POST['preset_profile'] ?? '' );
-            if ( $preset && isset( \KH\Editorial\Core\LLMService::PRESET_PROFILES[ $preset ] ) ) {
-                $settings['agent_models'] = \KH\Editorial\Core\LLMService::PRESET_PROFILES[ $preset ]['models'];
-            }
 
             update_option( 'kh_editorial_settings', $settings );
             echo '<div class="notice notice-success"><p>Settings saved.</p></div>';
@@ -178,23 +197,21 @@ class EditorialAdmin {
             'google_ai_key'       => '',
             'openrouter_api_key'  => '',
             'provider_priority'   => 'auto',
-            'preset_profile'      => 'balanced',
+            'preset_profile'      => 'speed',
             'dataforseo_login'    => '',
             'dataforseo_password' => '',
             'serpapi_key'        => '',
             'tavily_key'         => '',
             'search_primary'     => 'serpapi',
             'show_prompt_editor' => 1,
-            'agent_models'       => \KH\Editorial\Core\LLMService::DEFAULT_AGENT_MODELS,
+            'agent_models'       => [],
             'agent_fallbacks'    => [],
+            'agent_tertiaries'   => [],
             'persona_models'     => \KH\Editorial\Core\LLMService::DEFAULT_PERSONA_MODELS,
             'currency_rates'     => [ 'EUR' => 1.15, 'USD' => 1.25 ],
         ];
         $stored  = get_option( 'kh_editorial_settings', [] );
         $settings = array_merge( $defaults, $stored );
-        if ( isset( $stored['agent_models'] ) && is_array( $stored['agent_models'] ) ) {
-            $settings['agent_models'] = array_merge( $defaults['agent_models'], $stored['agent_models'] );
-        }
         if ( isset( $stored['currency_rates'] ) && is_array( $stored['currency_rates'] ) ) {
             $settings['currency_rates'] = array_merge( $defaults['currency_rates'], $stored['currency_rates'] );
         }
@@ -206,26 +223,46 @@ class EditorialAdmin {
             }
         }
 
-        $persona_defaults = \KH\Editorial\Core\LLMService::DEFAULT_PERSONA_MODELS;
-        $profiles = \KH\Editorial\Core\LLMService::PRESET_PROFILES;
+        // If agent_models are empty (no overrides saved yet), populate from the active preset.
+        $active_preset = $settings['preset_profile'] ?? 'speed';
+        if ( empty( array_filter( (array) ( $settings['agent_models'] ?? [] ) ) )
+            && isset( \KH\Editorial\Core\LLMService::PRESET_PROFILES[ $active_preset ] ) ) {
+            $preset = \KH\Editorial\Core\LLMService::PRESET_PROFILES[ $active_preset ];
+            $settings['agent_models'] = $preset['models'];
+            $chains = $preset['fallback_chains'] ?? [];
+            foreach ( $chains as $agent => $chain ) {
+                if ( isset( $chain[0] ) ) {
+                    $settings['agent_fallbacks'][ $agent ] = $chain[0];
+                }
+                if ( isset( $chain[1] ) ) {
+                    $settings['agent_tertiaries'][ $agent ] = $chain[1];
+                }
+            }
+        }
 
-        // Helper: output a model dropdown for an agent key
-        $model_select = function( $key, $models ) use ( $settings ) {
+        $persona_defaults = \KH\Editorial\Core\LLMService::DEFAULT_PERSONA_MODELS;
+        $profiles         = \KH\Editorial\Core\LLMService::PRESET_PROFILES;
+        $all_models       = \KH\Editorial\Core\LLMService::ALL_MODELS;
+
+        // Helper: output a model dropdown for an agent key (uses unified registry)
+        $model_select = function( $key ) use ( $settings, $all_models ) {
             $val = $settings['agent_models'][ $key ] ?? '';
-            foreach ( $models as $v => $label ) {
+            echo '<option value="" ' . selected( $val, '', false ) . '>—</option>';
+            foreach ( $all_models as $v => $label ) {
                 printf( '<option value="%s" %s>%s</option>', esc_attr( $v ), selected( $val, $v, false ), esc_html( $label ) );
             }
         };
-        $fallback_select = function( $key ) use ( $settings ) {
+        $fallback_select = function( $key ) use ( $settings, $all_models ) {
             $val = $settings['agent_fallbacks'][ $key ] ?? '';
             echo '<option value="" ' . selected( $val, '', false ) . '>—</option>';
-            foreach ( [
-                'openai/gpt-4o-mini' => 'GPT-4o Mini (OpenRouter)',
-                'openai/gpt-4o'      => 'GPT-4o (OpenRouter)',
-                'deepseek/deepseek-chat' => 'DeepSeek V3 Chat',
-                'mistralai/mistral-large' => 'Mistral Large',
-                'meta-llama/llama-3.3-70b-instruct' => 'Llama 3.3 70B',
-            ] as $v => $label ) {
+            foreach ( $all_models as $v => $label ) {
+                printf( '<option value="%s" %s>%s</option>', esc_attr( $v ), selected( $val, $v, false ), esc_html( $label ) );
+            }
+        };
+        $tertiary_select = function( $key ) use ( $settings, $all_models ) {
+            $val = $settings['agent_tertiaries'][ $key ] ?? '';
+            echo '<option value="" ' . selected( $val, '', false ) . '>—</option>';
+            foreach ( $all_models as $v => $label ) {
                 printf( '<option value="%s" %s>%s</option>', esc_attr( $v ), selected( $val, $v, false ), esc_html( $label ) );
             }
         };
@@ -332,55 +369,65 @@ class EditorialAdmin {
                             <div class="kh-form-row">
                                 <div class="kh-form-label"><strong>Apply Profile</strong></div>
                                 <div class="kh-form-control">
-                                    <select name="preset_profile">
+                                    <select name="preset_profile" id="preset_profile_select">
                                         <?php foreach ( $profiles as $key => $profile ) : ?>
-                                            <option value="<?php echo esc_attr( $key ); ?>" <?php selected( $settings['preset_profile'] ?? 'balanced', $key ); ?>>
+                                            <option value="<?php echo esc_attr( $key ); ?>" <?php selected( $settings['preset_profile'] ?? 'speed', $key ); ?>>
                                                 <?php echo esc_html( $profile['label'] ); ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
                                     <div class="kh-desc">Applies a bulk model config. <strong>Balanced</strong>: best mix. <strong>Cost</strong>: cheapest. <strong>Speed</strong>: fastest. <strong>Quality</strong>: best output.</div>
-                                    <div class="kh-profile-actions">
-                                        <input name="custom_profile_name" type="text" placeholder="Custom profile name…" style="width:200px;">
-                                        <button type="button" class="button">Save as Custom</button>
-                                    </div>
+                                    <button type="button" id="kh-customise-toggle" class="button" style="margin-top:8px;">Customise</button>
                                 </div>
                             </div>
                         </div>
+
+                        <script>
+                        (function(){
+                            var profiles = <?php echo wp_json_encode( $profiles ); ?>;
+                            var presetSelect = document.getElementById('preset_profile_select');
+                            if (!presetSelect) return;
+
+                            function applyProfile(key) {
+                                var p = profiles[key];
+                                if (!p) return;
+                                // Apply primary models
+                                for (var agent in p.models) {
+                                    var sel = document.querySelector('select[name="agent_models[' + agent + ']"]');
+                                    if (sel) sel.value = p.models[agent];
+                                }
+                                // Apply fallback chains (secondary + tertiary)
+                                for (var agent in p.fallback_chains) {
+                                    var chain = p.fallback_chains[agent];
+                                    if (chain[0]) {
+                                        var fb = document.querySelector('select[name="agent_fallbacks[' + agent + ']"]');
+                                        if (fb) fb.value = chain[0];
+                                    }
+                                    if (chain[1]) {
+                                        var tert = document.querySelector('select[name="agent_tertiaries[' + agent + ']"]');
+                                        if (tert) tert.value = chain[1];
+                                    }
+                                }
+                            }
+
+                            presetSelect.addEventListener('change', function(){
+                                applyProfile(this.value);
+                            });
+                        })();
+                        </script>
+
+                        <!-- Collapsible agent model selectors -->
+                        <div id="kh-customise-panel" style="display:none;">
 
                         <!-- Profile Settings — Research -->
                         <div class="kh-subsection">
                             <h3>Research</h3>
                             <?php
                             $research_agents = [
-                                'research_phase1' => 'Keyword &amp; Search Research',
+                                'research_phase1' => 'Keyword & Search Research',
                                 'research_phase2' => 'Gap Analysis',
-                                'research_phase3' => 'Deep Dive &amp; Insights',
-                                'research_phase4' => 'Academic Grounding &amp; Validation',
-                            ];
-                            $research_models = [
-                                'research_phase1' => [
-                                    'google/gemini-2.5-flash' => 'Gemini 2.5 Flash',
-                                    'deepseek/deepseek-chat' => 'DeepSeek V3 Chat',
-                                    'google/gemini-2.5-pro' => 'Gemini 2.5 Pro',
-                                    'gpt-4o-mini' => 'GPT-4o Mini',
-                                ],
-                                'research_phase2' => [
-                                    'meta-llama/llama-3.3-70b-instruct' => 'Llama 3.3 70B',
-                                    'deepseek/deepseek-r1' => 'DeepSeek R1',
-                                    'google/gemini-2.5-flash' => 'Gemini 2.5 Flash',
-                                    'gpt-4o-mini' => 'GPT-4o Mini',
-                                ],
-                                'research_phase3' => [
-                                    'anthropic/claude-sonnet-4.5' => 'Claude Sonnet 4.5',
-                                    'openai/gpt-4o' => 'GPT-4o',
-                                    'gpt-4o' => 'GPT-4o (direct)',
-                                ],
-                                'research_phase4' => [
-                                    'google/gemini-2.5-pro' => 'Gemini 2.5 Pro',
-                                    'anthropic/claude-sonnet-4.5' => 'Claude Sonnet 4.5',
-                                    'gpt-4o' => 'GPT-4o',
-                                ],
+                                'research_phase3' => 'Deep Dive & Insights',
+                                'research_phase4' => 'Academic Grounding & Validation',
                             ];
                             foreach ( $research_agents as $agent_key => $label ) : ?>
                             <div class="kh-form-row">
@@ -389,7 +436,7 @@ class EditorialAdmin {
                                     <div class="kh-fallback-row">
                                         <div><span class="kh-fallback-label">Primary</span>
                                             <select name="agent_models[<?php echo $agent_key; ?>]">
-                                                <?php $model_select( $agent_key, $research_models[ $agent_key ] ); ?>
+                                                <?php $model_select( $agent_key ); ?>
                                             </select>
                                         </div>
                                         <div><span class="kh-fallback-label">Fallback</span>
@@ -399,7 +446,7 @@ class EditorialAdmin {
                                         </div>
                                         <div><span class="kh-fallback-label">Tertiary</span>
                                             <select name="agent_tertiaries[<?php echo $agent_key; ?>]">
-                                                <?php $fallback_select( $agent_key . '_tertiary' ); ?>
+                                                <?php $tertiary_select( $agent_key ); ?>
                                             </select>
                                         </div>
                                     </div>
@@ -410,19 +457,13 @@ class EditorialAdmin {
 
                         <!-- Profile Settings — Draft & Personas -->
                         <div class="kh-subsection">
-                            <h3>Draft &amp; Personas</h3>
+                            <h3>Draft & Personas</h3>
                             <?php
                             $personas = [
                                 'journalist' => 'Journalist',
                                 'analyst'    => 'Industry Analyst',
                                 'veteran'    => 'Industry Veteran',
                                 'editor'     => 'Editor-at-Large',
-                            ];
-                            $persona_models = [
-                                'journalist' => ['deepseek/deepseek-r1' => 'DeepSeek R1', 'anthropic/claude-sonnet-4.5' => 'Claude Sonnet 4.5', 'gpt-4o' => 'GPT-4o'],
-                                'analyst'    => ['mistralai/mistral-large' => 'Mistral Large', 'anthropic/claude-sonnet-4.5' => 'Claude Sonnet 4.5', 'gpt-4o' => 'GPT-4o'],
-                                'veteran'    => ['meta-llama/llama-3.3-70b-instruct' => 'Llama 3.3 70B', 'anthropic/claude-sonnet-4.5' => 'Claude Sonnet 4.5', 'gpt-4o' => 'GPT-4o'],
-                                'editor'     => ['anthropic/claude-sonnet-4.5' => 'Claude Sonnet 4.5', 'openai/gpt-4o' => 'GPT-4o', 'gpt-4o' => 'GPT-4o (direct)'],
                             ];
                             foreach ( $personas as $slug => $name ) :
                                 $p_model = $settings['persona_models'][ $slug ]['model'] ?? $persona_defaults[ $slug ]['model'];
@@ -437,7 +478,8 @@ class EditorialAdmin {
                                     <div class="kh-fallback-row">
                                         <div><span class="kh-fallback-label">Model</span>
                                             <select name="persona_models[<?php echo $slug; ?>][model]">
-                                                <?php foreach ( $persona_models[ $slug ] as $m_val => $m_label ) : ?>
+                                                <option value="" <?php selected( $p_model, '' ); ?>>—</option>
+                                                <?php foreach ( $all_models as $m_val => $m_label ) : ?>
                                                     <option value="<?php echo esc_attr( $m_val ); ?>" <?php selected( $p_model, $m_val ); ?>><?php echo esc_html( $m_label ); ?></option>
                                                 <?php endforeach; ?>
                                             </select>
@@ -456,7 +498,7 @@ class EditorialAdmin {
 
                         <!-- Profile Settings — Meta & Utility -->
                         <div class="kh-subsection">
-                            <h3>Meta &amp; Utility</h3>
+                            <h3>Meta & Utility</h3>
                             <?php
                             $utility_agents = [
                                 'abstract'       => 'Abstract',
@@ -466,14 +508,6 @@ class EditorialAdmin {
                                 'geo_cards'      => 'GEO Answer Cards',
                                 'social_posts'   => 'Social Media Posts',
                             ];
-                            $utility_models = [
-                                'abstract'     => ['google/gemini-2.5-flash' => 'Gemini 2.5 Flash', 'deepseek/deepseek-chat' => 'DeepSeek V3 Chat', 'gpt-4o-mini' => 'GPT-4o Mini'],
-                                'excerpt'      => ['google/gemini-2.5-flash' => 'Gemini 2.5 Flash', 'deepseek/deepseek-chat' => 'DeepSeek V3 Chat', 'gpt-4o-mini' => 'GPT-4o Mini'],
-                                'seo_schema'   => ['google/gemini-2.5-flash' => 'Gemini 2.5 Flash', 'deepseek/deepseek-chat' => 'DeepSeek V3 Chat', 'gpt-4o-mini' => 'GPT-4o Mini'],
-                                'gutenberg_push' => ['deepseek/deepseek-chat' => 'DeepSeek V3 Chat', 'google/gemini-2.5-flash' => 'Gemini 2.5 Flash', 'gpt-4o-mini' => 'GPT-4o Mini'],
-                                'geo_cards'    => ['meta-llama/llama-3.3-70b-instruct' => 'Llama 3.3 70B', 'google/gemini-2.5-flash' => 'Gemini 2.5 Flash', 'gpt-4o-mini' => 'GPT-4o Mini'],
-                                'social_posts' => ['meta-llama/llama-3.3-70b-instruct' => 'Llama 3.3 70B', 'google/gemini-2.5-flash' => 'Gemini 2.5 Flash', 'gpt-4o-mini' => 'GPT-4o Mini'],
-                            ];
                             foreach ( $utility_agents as $agent_key => $label ) : ?>
                             <div class="kh-form-row">
                                 <div class="kh-form-label"><strong><?php echo $label; ?></strong></div>
@@ -481,7 +515,7 @@ class EditorialAdmin {
                                     <div class="kh-fallback-row">
                                         <div><span class="kh-fallback-label">Primary</span>
                                             <select name="agent_models[<?php echo $agent_key; ?>]">
-                                                <?php $model_select( $agent_key, $utility_models[ $agent_key ] ); ?>
+                                                <?php $model_select( $agent_key ); ?>
                                             </select>
                                         </div>
                                         <div><span class="kh-fallback-label">Fallback</span>
@@ -494,6 +528,37 @@ class EditorialAdmin {
                             </div>
                             <?php endforeach; ?>
                         </div>
+
+                        <!-- Save as Custom (inside collapsible, at the bottom) -->
+                        <div class="kh-subsection">
+                            <h3>Save as Custom Profile</h3>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label"><strong>Profile Name</strong></div>
+                                <div class="kh-form-control">
+                                    <div class="kh-profile-actions">
+                                        <input name="custom_profile_name" type="text" placeholder="Custom profile name…" style="width:200px;">
+                                        <button type="button" class="button">Save as Custom</button>
+                                    </div>
+                                    <div class="kh-desc">Save your current model selections as a custom preset for quick switching.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        </div><!-- #kh-customise-panel -->
+
+                        <script>
+                        (function(){
+                            var btn = document.getElementById('kh-customise-toggle');
+                            var panel = document.getElementById('kh-customise-panel');
+                            if (!btn || !panel) return;
+                            btn.addEventListener('click', function(){
+                                var isOpen = panel.style.display !== 'none';
+                                panel.style.display = isOpen ? 'none' : 'block';
+                                btn.textContent = isOpen ? 'Customise' : 'Close Customise';
+                            });
+                        })();
+                        </script>
+                        <!-- End collapsible agent model selectors -->
 
                     </div>
                 </div>
