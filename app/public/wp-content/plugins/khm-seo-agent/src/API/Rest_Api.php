@@ -718,8 +718,6 @@ class Rest_Api {
         // Audit is now synchronous — context is returned directly in handle_audit().
         return null;
     }
-        );
-    }
 
     private function map_analysis_items( $items, $fallback_title ) {
         $mapped = array();
