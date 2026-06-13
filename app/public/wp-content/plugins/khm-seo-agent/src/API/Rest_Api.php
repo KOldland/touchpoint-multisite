@@ -536,6 +536,18 @@ class Rest_Api {
                     );
                     break;
 
+                case 'set_robots_meta':
+                    $old_value = get_post_meta( $post_id, '_khm_seo_robots', true );
+                    $valid_robots = array( '', 'noindex', 'nofollow', 'noindex,nofollow' );
+                    $sanitized = in_array( (string) $new_value, $valid_robots, true ) ? $new_value : '';
+                    $changes[] = array(
+                        'action_type' => $action_type,
+                        'meta_key' => '_khm_seo_robots',
+                        'old_value' => $old_value,
+                        'new_value' => $sanitized,
+                    );
+                    break;
+
                 case 'set_schema_config':
                     $old_value = get_post_meta( $post_id, '_khm_seo_schema_config', true );
                     $changes[] = array(
@@ -580,46 +592,51 @@ class Rest_Api {
 
             switch ( $action_type ) {
                 case 'set_meta_title':
-                    $old_value = get_post_meta( $post_id, '_khm_seo_title', true );
-                    update_post_meta( $post_id, '_khm_seo_title', sanitize_text_field( $new_value ) );
-                    $applied[] = array(
-                        'action_type' => $action_type,
-                        'meta_key' => '_khm_seo_title',
-                        'old_value' => $old_value,
-                        'new_value' => sanitize_text_field( $new_value ),
-                    );
-                    break;
-
                 case 'set_meta_description':
-                    $old_value = get_post_meta( $post_id, '_khm_seo_description', true );
-                    update_post_meta( $post_id, '_khm_seo_description', sanitize_textarea_field( $new_value ) );
-                    $applied[] = array(
-                        'action_type' => $action_type,
-                        'meta_key' => '_khm_seo_description',
-                        'old_value' => $old_value,
-                        'new_value' => sanitize_textarea_field( $new_value ),
-                    );
-                    break;
-
                 case 'set_focus_keyword':
-                    $old_value = get_post_meta( $post_id, '_khm_seo_focus_keyword', true );
-                    update_post_meta( $post_id, '_khm_seo_focus_keyword', sanitize_text_field( $new_value ) );
+                case 'set_keywords':
+                    $sanitized = $this->sanitize_text_value( $new_value );
+                    if ( '' === $sanitized ) {
+                        $applied[] = array(
+                            'action_type' => $action_type,
+                            'error' => 'Skipped: LLM returned an empty value.',
+                        );
+                        break;
+                    }
+                    $meta_key_map = array(
+                        'set_meta_title' => '_khm_seo_title',
+                        'set_meta_description' => '_khm_seo_description',
+                        'set_focus_keyword' => '_khm_seo_focus_keyword',
+                        'set_keywords' => '_khm_seo_keywords',
+                    );
+                    $meta_key = $meta_key_map[ $action_type ];
+                    $old_value = get_post_meta( $post_id, $meta_key, true );
+                    update_post_meta( $post_id, $meta_key, $sanitized );
                     $applied[] = array(
                         'action_type' => $action_type,
-                        'meta_key' => '_khm_seo_focus_keyword',
+                        'meta_key' => $meta_key,
                         'old_value' => $old_value,
-                        'new_value' => sanitize_text_field( $new_value ),
+                        'new_value' => $sanitized,
                     );
                     break;
 
-                case 'set_keywords':
-                    $old_value = get_post_meta( $post_id, '_khm_seo_keywords', true );
-                    update_post_meta( $post_id, '_khm_seo_keywords', sanitize_text_field( $new_value ) );
+                case 'set_robots_meta':
+                    $valid_robots = array( '', 'noindex', 'nofollow', 'noindex,nofollow' );
+                    $sanitized = in_array( (string) $new_value, $valid_robots, true ) ? $new_value : '';
+                    if ( '' === $sanitized ) {
+                        $applied[] = array(
+                            'action_type' => $action_type,
+                            'error' => 'Skipped: LLM returned an invalid robots meta value.',
+                        );
+                        break;
+                    }
+                    $old_value = get_post_meta( $post_id, '_khm_seo_robots', true );
+                    update_post_meta( $post_id, '_khm_seo_robots', $sanitized );
                     $applied[] = array(
                         'action_type' => $action_type,
-                        'meta_key' => '_khm_seo_keywords',
+                        'meta_key' => '_khm_seo_robots',
                         'old_value' => $old_value,
-                        'new_value' => sanitize_text_field( $new_value ),
+                        'new_value' => $sanitized,
                     );
                     break;
 
@@ -629,6 +646,14 @@ class Rest_Api {
                             'action_type' => $action_type,
                             'meta_key' => '_khm_seo_schema_config',
                             'error' => 'Schema configuration changes require confirm_schema_changes=true.',
+                        );
+                        break;
+                    }
+                    if ( ! is_array( $new_value ) || empty( $new_value['type'] ) ) {
+                        $applied[] = array(
+                            'action_type' => $action_type,
+                            'meta_key' => '_khm_seo_schema_config',
+                            'error' => 'Skipped: LLM returned an invalid or empty schema config.',
                         );
                         break;
                     }
@@ -658,6 +683,21 @@ class Rest_Api {
      * @param string $target_type Action type to find.
      * @return bool
      */
+    /**
+     * Sanitize a text value for post meta storage.
+     * Returns empty string if value is empty after sanitization.
+     *
+     * @param mixed $value LLM-returned value.
+     * @return string
+     */
+    private function sanitize_text_value( $value ) {
+        if ( ! is_string( $value ) ) {
+            return '';
+        }
+        $sanitized = sanitize_text_field( trim( $value ) );
+        return ( '' !== $sanitized ) ? $sanitized : '';
+    }
+
     private function has_action_type( $actions, $target_type ) {
         if ( ! is_array( $actions ) ) {
             return false;
@@ -744,11 +784,26 @@ class Rest_Api {
     private function enrich_llm_payload( $payload, $post, $analysis, $keyword ) {
         $baseline = $this->build_deterministic_payload( $post, $analysis, $keyword );
 
-        foreach ( array( 'issues', 'suggestions', 'apply_actions', 'upstream_signals' ) as $key ) {
+        foreach ( array( 'issues', 'apply_actions', 'upstream_signals' ) as $key ) {
             if ( empty( $payload[ $key ] ) && ! empty( $baseline[ $key ] ) ) {
                 $payload[ $key ] = $baseline[ $key ];
             }
         }
+
+        // Always merge baseline suggestions with LLM suggestions (deduplicated by message text)
+        $merged = $payload['suggestions'] ?? array();
+        $existing_messages = array_map( function( $s ) {
+            return is_array( $s ) ? ( $s['message'] ?? '' ) : '';
+        }, $merged );
+        if ( ! empty( $baseline['suggestions'] ) ) {
+            foreach ( $baseline['suggestions'] as $suggestion ) {
+                if ( is_array( $suggestion ) && ! in_array( $suggestion['message'] ?? '', $existing_messages, true ) ) {
+                    $merged[] = $suggestion;
+                    $existing_messages[] = $suggestion['message'] ?? '';
+                }
+            }
+        }
+        $payload['suggestions'] = $merged;
 
         if ( empty( $payload['summary'] ) || ! is_array( $payload['summary'] ) ) {
             $payload['summary'] = array();
@@ -813,7 +868,7 @@ class Rest_Api {
             return $mapped;
         }
 
-        foreach ( array_slice( $items, 0, 6 ) as $item ) {
+        foreach ( $items as $item ) {
             if ( is_string( $item ) ) {
                 $mapped[] = array(
                     'title' => ucfirst( $fallback_title ),
@@ -879,6 +934,15 @@ class Rest_Api {
             $actions[] = array(
                 'action_type' => 'set_keywords',
                 'payload' => array( 'value' => $recommended_keywords ),
+            );
+        }
+
+        $current_robots = trim( (string) get_post_meta( $post->ID, '_khm_seo_robots', true ) );
+        $recommended_robots = $this->build_recommended_robots_meta( $post, $current_robots );
+        if ( '' !== $recommended_robots && $recommended_robots !== $current_robots ) {
+            $actions[] = array(
+                'action_type' => 'set_robots_meta',
+                'payload' => array( 'value' => $recommended_robots ),
             );
         }
 
@@ -973,6 +1037,32 @@ class Rest_Api {
         $keywords = array_values( array_unique( $keywords ) );
 
         return implode( ', ', array_slice( $keywords, 0, 6 ) );
+    }
+
+    /**
+     * Build recommended robots meta value.
+     * Returns the same as current if no change needed, or suggested value.
+     *
+     * @param \WP_Post $post The WordPress post.
+     * @param string $current_robots Current robots meta value.
+     * @return string Recommended robots value (empty string = no change needed).
+     */
+    private function build_recommended_robots_meta( $post, $current_robots ) {
+        $current_robots = trim( (string) $current_robots );
+
+        // If already explicitly set, keep it (don't override user choice)
+        if ( '' !== $current_robots ) {
+            return '';
+        }
+
+        // Check word count — thin content may warrant noindex
+        $word_count = str_word_count( wp_strip_all_tags( $post->post_content ) );
+        if ( $word_count < 150 ) {
+            return 'noindex';
+        }
+
+        // No change needed — content looks healthy
+        return '';
     }
 
     private function build_recommended_schema_config( $post, $current_schema, $headline, $description ) {
@@ -1126,6 +1216,7 @@ class Rest_Api {
             'meta_description' => get_post_meta( $post->ID, '_khm_seo_description', true ),
             'focus_keyword' => get_post_meta( $post->ID, '_khm_seo_focus_keyword', true ),
             'keywords' => get_post_meta( $post->ID, '_khm_seo_keywords', true ),
+            'robots_meta' => get_post_meta( $post->ID, '_khm_seo_robots', true ),
             'schema_config' => get_post_meta( $post->ID, '_khm_seo_schema_config', true ),
         );
 
@@ -1133,7 +1224,8 @@ class Rest_Api {
         $prompt[] = 'You are the KHM SEO Agent. Return JSON only that matches the required schema.';
         $prompt[] = 'sponsor_safe=' . ( $sponsor_safe ? 'true' : 'false' );
         $prompt[] = 'no_hallucination=true';
-        $prompt[] = 'Use only these supported action types: set_meta_title, set_meta_description, set_focus_keyword, set_keywords, set_schema_config.';
+        $prompt[] = 'Use only these supported action types: set_meta_title, set_meta_description, set_focus_keyword, set_keywords, set_robots_meta, set_schema_config.';
+        $prompt[] = 'set_robots_meta.payload.value must be one of: "", "noindex", "nofollow", "noindex,nofollow". Suggest "noindex" for thin/duplicate content, empty string to allow indexing.';
         $prompt[] = 'set_schema_config.payload.value.type supports: article, organization, person, product, breadcrumb, techarticle, qapage, videoobject, audioobject.';
         $prompt[] = 'TechArticle (atomic articles): has isPartOf (parent guide URL from category archive or parent_guide_url override), about, articleSection.';
         $prompt[] = 'QAPage (answer cards): has mainEntity array of Question with acceptedAnswer. Easily retrievable by AI.';
