@@ -143,7 +143,7 @@ class EditorialAdmin {
         if ( isset( $_POST['kh_editorial_save_settings'] ) && check_admin_referer( 'kh_editorial_settings', 'kh_editorial_nonce' ) ) {
             $settings = [
                 'openai_api_key'      => sanitize_text_field( $_POST['openai_api_key'] ),
-                'openai_model'        => sanitize_text_field( $_POST['openai_model'] ),
+                'openai_model'        => sanitize_text_field( $_POST['openai_model'] ?? '' ),
                 'google_ai_key'       => sanitize_text_field( $_POST['google_ai_key'] ),
                 'openrouter_api_key'  => sanitize_text_field( $_POST['openrouter_api_key'] ),
                 'provider_priority'   => sanitize_text_field( $_POST['provider_priority'] ?? 'auto' ),
@@ -568,7 +568,7 @@ class EditorialAdmin {
     }
 
     private function get_asset_url( $path ) {
-        return plugins_url( $path, KH_EDITORIAL_PLUGIN_DIR );
+        return plugins_url( $path, KH_EDITORIAL_PLUGIN_DIR . 'kh-editorial-intelligence.php' );
     }
 
 
