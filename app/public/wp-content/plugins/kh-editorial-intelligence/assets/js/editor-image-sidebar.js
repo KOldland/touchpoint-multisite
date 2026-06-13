@@ -27,7 +27,7 @@
     }
 
     var SIDEBAR_NAME = 'khm-image-generator';
-    var SIDEBAR_TITLE = 'AI Image Generator';
+    var SIDEBAR_TITLE = 'AI Assistant';
 
     var SHOW_PROMPT_EDITOR = window.khEditorialSettings && window.khEditorialSettings.show_prompt_editor;
     if (SHOW_PROMPT_EDITOR === undefined) SHOW_PROMPT_EDITOR = true; // fallback safe
@@ -254,7 +254,7 @@
                 { name: SIDEBAR_NAME, title: SIDEBAR_TITLE, icon: 'format-image' },
                 createElement(
                     PanelBody,
-                    { title: 'Generate', initialOpen: true },
+                    { title: 'Generate Image', initialOpen: true },
 
                     notice
                         ? createElement(
@@ -371,22 +371,30 @@
                                     {
                                         isPrimary: true,
                                         onClick: handleSetFeatured,
-                                        style: { marginTop: '8px' },
+                                        style: { marginTop: '8px', marginBottom: '8px' },
                                     },
                                     'Set as Featured Image'
                                   )
-                                : null,
-                            createElement(
-                                Button,
-                                {
-                                    onClick: handleGenerateExcerpt,
-                                    disabled: isBusy,
-                                    style: { marginTop: '8px', display: 'block' },
-                                },
-                                generatingExcerpt ? createElement(Spinner, null) : 'Generate Excerpt'
-                            )
+                                : null
                           )
-                        : null
+                        : null,
+
+                    createElement(
+                        PanelBody,
+                        { title: 'Write Excerpt', initialOpen: false },
+                        createElement('p', { style: { marginBottom: '8px', fontSize: '13px' } },
+                            'Generate an AI-powered excerpt from the post content.'
+                        ),
+                        createElement(
+                            Button,
+                            {
+                                isPrimary: true,
+                                onClick: handleGenerateExcerpt,
+                                disabled: isBusy,
+                            },
+                            generatingExcerpt ? createElement(Spinner, null) : 'Generate Excerpt'
+                        )
+                    )
 
                 )
             )

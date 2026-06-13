@@ -145,12 +145,14 @@ class Rest_Api {
         $analysis = $analysis_engine->analyze( $data );
         $this->persist_seo_score( $post_id, $analysis );
 
+        $audit_job_id = wp_generate_uuid4();
+
         if ( ! $this->is_openai_available() ) {
             return rest_ensure_response( array(
                 'post_id' => $post_id,
                 'analysis' => $analysis,
                 'session_id' => null,
-                'job_id' => null,
+                'job_id' => $audit_job_id,
                 'llm_output' => $this->get_fallback_payload( $post, $analysis, $keyword ),
                 'status' => 'fallback',
                 'error' => array(
@@ -187,6 +189,7 @@ class Rest_Api {
             return rest_ensure_response( array(
                 'post_id' => $post_id,
                 'analysis' => $analysis,
+                'job_id' => $audit_job_id,
                 'llm_output' => $this->get_fallback_payload( $post, $analysis, $keyword ),
                 'status' => 'fallback',
                 'error' => array(
@@ -201,6 +204,7 @@ class Rest_Api {
             return rest_ensure_response( array(
                 'post_id' => $post_id,
                 'analysis' => $analysis,
+                'job_id' => $audit_job_id,
                 'llm_output' => $this->get_fallback_payload( $post, $analysis, $keyword ),
                 'status' => 'fallback',
                 'error' => array(
@@ -215,6 +219,7 @@ class Rest_Api {
             return rest_ensure_response( array(
                 'post_id' => $post_id,
                 'analysis' => $analysis,
+                'job_id' => $audit_job_id,
                 'llm_output' => $this->get_fallback_payload( $post, $analysis, $keyword ),
                 'status' => 'fallback',
                 'error' => array(
@@ -231,6 +236,7 @@ class Rest_Api {
         return rest_ensure_response( array(
             'post_id' => $post_id,
             'analysis' => $analysis,
+            'job_id' => $audit_job_id,
             'llm_output' => $llm_payload,
             'status' => 'completed',
         ) );

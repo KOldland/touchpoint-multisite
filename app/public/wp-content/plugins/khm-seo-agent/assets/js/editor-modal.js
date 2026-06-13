@@ -5,6 +5,11 @@
     const { apiFetch } = wp;
     const { useState } = wp.element;
 
+    // Wire X-WP-Nonce header for all REST requests
+    if (window.khmSeoAgentData && window.khmSeoAgentData.nonce) {
+        apiFetch.use(apiFetch.createNonceMiddleware(window.khmSeoAgentData.nonce));
+    }
+
     const SEOAgentSidebar = () => {
         const [loading, setLoading] = useState(false);
         const [summary, setSummary] = useState(null);
@@ -14,35 +19,6 @@
         const [previewHtml, setPreviewHtml] = useState('');
         const [applyLoading, setApplyLoading] = useState(false);
         const postId = wp.data.select('core/editor').getCurrentPostId();
-
-        const pollAuditStatus = async (jobId) => {
-            try {
-                const response = await apiFetch({
-                    path: `khm-seo-agent/v1/audit/status?job_id=${jobId}`,
-                    method: 'GET',
-                });
-
-                const output = response.llm_output || {};
-                const issues = output.issues || [];
-                const suggestions = output.suggestions || [];
-                const summaryData = output.summary || {};
-                setSummary({
-                    issues_total: summaryData.issues_total ?? issues.length,
-                    suggestions_total: summaryData.suggestions_total ?? suggestions.length,
-                    score: summary?.score ?? 0,
-                });
-                setDetails((prev) => ({
-                    ...(prev || {}),
-                    output,
-                    jobId,
-                }));
-            } catch (e) {
-                const message = e?.message || 'Audit status failed. See console.';
-                setSummary({ error: message });
-                // eslint-disable-next-line no-console
-                console.error(e);
-            }
-        };
 
         const runAudit = async () => {
             setLoading(true);
@@ -55,21 +31,7 @@
                     method: 'POST',
                     data: { post_id: postId },
                 });
-                if (response.status === 'queued') {
-                    setSummary({
-                        issues_total: 0,
-                        suggestions_total: 0,
-                        score: response.analysis?.overall_score || 0,
-                    });
-                    setDetails({
-                        response,
-                        output: null,
-                        jobId: response.job_id,
-                    });
-                    setShowModal(true);
-                    setSelectedActions([]);
-                    setTimeout(() => pollAuditStatus(response.job_id), 2000);
-                } else if (response.status === 'fallback') {
+                if (response.status === 'fallback') {
                     const issues = response.analysis?.technical_issues || [];
                     const suggestions = response.analysis?.suggestions || [];
                     setSummary({
@@ -128,7 +90,17 @@
                     method: 'POST',
                     data: { post_id: postId, actions: selectedActions },
                 });
-                setPreviewHtml(response.preview_html || '');
+                const changes = response.preview || [];
+                if (changes.length === 0) {
+                    setPreviewHtml('<p>No changes to preview.</p>');
+                } else {
+                    const rows = changes.map(function (c) {
+                        const oldVal = c.old_value || '(empty)';
+                        const newVal = c.new_value || '(empty)';
+                        return '<tr><td><strong>' + c.action_type + '</strong></td><td style="text-decoration:line-through;color:#b32d2e;">' + oldVal + '</td><td style="color:#008a20;">' + newVal + '</td></tr>';
+                    });
+                    setPreviewHtml('<table style="width:100%;border-collapse:collapse;"><thead><tr><th>Action</th><th style="color:#b32d2e;">Before</th><th style="color:#008a20;">After</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>');
+                }
             } catch (e) {
                 setPreviewHtml('<p>Preview failed. See console.</p>');
                 // eslint-disable-next-line no-console

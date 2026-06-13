@@ -44,7 +44,7 @@ class LLMService {
 
         // Anthropic
         'anthropic/claude-sonnet-4.5'   => 'Claude Sonnet 4.5',
-        'anthropic/claude-fable-latest' => 'Claude Fable',
+        'anthropic/claude-fable-5' => 'Claude Fable 5',
 
         // DeepSeek
         'deepseek/deepseek-v4-pro'                => 'DeepSeek V4 Pro',
@@ -52,8 +52,8 @@ class LLMService {
         'deepseek/deepseek-r1'                    => 'DeepSeek R1',
         'deepseek/deepseek-r1-distill-llama-70b'  => 'DeepSeek R1 Distill (Llama 70B)',
         'deepseek/deepseek-r1-distill-qwen-32b'   => 'DeepSeek R1 Distill (Qwen 32B)',
-        'deepseek/deepseek-v3'                    => 'DeepSeek V3',
         'deepseek/deepseek-chat'                  => 'DeepSeek V3 Chat',
+        'deepseek/deepseek-v3.2'                  => 'DeepSeek V3.2',
 
         // Google
         'google/gemini-2.5-flash' => 'Gemini 2.5 Flash',
@@ -78,7 +78,7 @@ class LLMService {
         'qwen/qwen3-coder:free' => 'Qwen 3 Coder (Free)',
 
         // NVIDIA
-        'nvidia/nemotron-nano-9b-v2' => 'Nemotron Nano 9B v2',
+        'nvidia/nemotron-nano-9b-v2:free' => 'Nemotron Nano 9B v2',
 
         // Nous Research
         'nousresearch/hermes-3-llama-3.1-405b' => 'Hermes 3 Llama 3.1 405B',
@@ -140,12 +140,12 @@ class LLMService {
             ],
             'fallback_chains' => [
                 'research_phase1' => ['meta-llama/llama-3.3-70b-instruct', 'qwen/qwen3-32b'],
-                'research_phase2' => ['deepseek/deepseek-v4-flash', 'nvidia/nemotron-nano-9b-v2'],
+                'research_phase2' => ['deepseek/deepseek-v4-flash', 'nvidia/nemotron-nano-9b-v2:free'],
                 'research_phase3' => ['deepseek/deepseek-r1-distill-llama-70b', 'meta-llama/llama-3.3-70b-instruct'],
                 'research_phase4' => ['deepseek/deepseek-r1-distill-qwen-32b', 'google/gemini-2.5-flash'],
                 'framework'       => ['mistralai/mistral-small-3.1-24b-instruct', 'deepseek/deepseek-v4-flash'],
                 'draft'           => ['qwen/qwen3-32b', 'deepseek/deepseek-v4-flash'],
-                'abstract'        => ['deepseek/deepseek-v4-flash', 'nvidia/nemotron-nano-9b-v2'],
+                'abstract'        => ['deepseek/deepseek-v4-flash', 'nvidia/nemotron-nano-9b-v2:free'],
                 'excerpt'         => ['meta-llama/llama-3.2-3b-instruct', 'deepseek/deepseek-v4-flash'],
                 'seo_schema'      => ['qwen/qwen3-coder:free', 'google/gemini-2.5-flash'],
                 'geo_cards'       => ['meta-llama/llama-3.3-70b-instruct', 'qwen/qwen3-32b'],
@@ -202,7 +202,7 @@ class LLMService {
             ],
             'fallback_chains' => [
                 'research_phase1' => ['meta-llama/llama-3.3-70b-instruct', 'anthropic/claude-sonnet-4.5'],
-                'research_phase2' => ['mistralai/mistral-small-3.1-24b-instruct', 'deepseek/deepseek-v3'],
+                'research_phase2' => ['mistralai/mistral-small-3.1-24b-instruct', 'deepseek/deepseek-v3.2'],
                 'research_phase3' => ['mistralai/mistral-large', 'anthropic/claude-sonnet-4.5'],
                 'research_phase4' => ['meta-llama/llama-3.3-70b-instruct', 'anthropic/claude-sonnet-4.5'],
                 'framework'       => ['deepseek/deepseek-v4-pro', 'mistralai/mistral-large'],
@@ -236,8 +236,8 @@ class LLMService {
                 'research_phase2' => ['anthropic/claude-sonnet-4.5', 'qwen/qwen3-235b-a22b'],
                 'research_phase3' => ['anthropic/claude-sonnet-4.5', 'deepseek/deepseek-v4-pro'],
                 'research_phase4' => ['anthropic/claude-sonnet-4.5', 'google/gemini-2.5-pro'],
-                'framework'       => ['deepseek/deepseek-v4-pro', 'anthropic/claude-fable-latest'],
-                'draft'           => ['mistralai/mistral-large', 'anthropic/claude-fable-latest'],
+                'framework'       => ['deepseek/deepseek-v4-pro', 'anthropic/claude-fable-5'],
+                'draft'           => ['mistralai/mistral-large', 'anthropic/claude-fable-5'],
                 'abstract'        => ['deepseek/deepseek-v4-pro', 'anthropic/claude-sonnet-4.5'],
                 'excerpt'         => ['anthropic/claude-sonnet-4.5', 'deepseek/deepseek-v4-pro'],
                 'seo_schema'      => ['anthropic/claude-sonnet-4.5', 'google/gemini-2.5-pro'],

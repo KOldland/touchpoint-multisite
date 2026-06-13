@@ -374,8 +374,8 @@ class AuthorEndpoints {
                 [
                     'role' => 'system',
                     'content' => 'You generate concise, compelling article excerpts for publishing. '
-                        . 'Rules: Max 160 characters. Capture the essence. No clickbait. '
-                        . 'No quotation marks around the excerpt. Single sentence preferred. '
+                        . 'Rules: Minimum 100 words, maximum 200 words. Capture the essence. No clickbait. '
+                        . 'No quotation marks around the excerpt. '
                         . 'Output valid JSON with one key "excerpt".',
                 ],
                 [
@@ -385,12 +385,13 @@ class AuthorEndpoints {
             ];
 
             $route = \KH\Editorial\Core\LLMService::resolve_agent_model('excerpt');
-            $result = \KH\Editorial\Core\LLMService::post_completion($messages, [
-                'provider'    => $route['provider'],
-                'model'       => $route['model'],
-                'temperature' => 0.2,
-                'max_tokens'  => 300,
+            $result = \KH\Editorial\Core\LLMService::post_completion_with_retry($messages, [
+                'provider'        => $route['provider'],
+                'model'           => $route['model'],
+                'temperature'     => 0.2,
+                'max_tokens'      => 300,
                 'response_format' => ['type' => 'json_object'],
+                'fallback_chain'  => $route['fallback_chain'] ?? [],
             ]);
 
             if (is_wp_error($result)) {
@@ -418,8 +419,20 @@ class AuthorEndpoints {
                 ], 200);
             }
 
-            // Truncate to 160 chars for safety
-            $excerpt = mb_substr(trim($excerpt), 0, 160);
+            // Ensure the excerpt is at least 100 words
+            $word_count = str_word_count(trim($excerpt));
+            if ($word_count < 100) {
+                return new WP_REST_Response([
+                    'success' => false,
+                    'message' => 'Generated excerpt too short (' . $word_count . ' words). Minimum 100 words required.',
+                ], 200);
+            }
+
+            // Truncate to 200 words for safety
+            $words = explode(' ', trim($excerpt));
+            if (count($words) > 200) {
+                $excerpt = implode(' ', array_slice($words, 0, 200));
+            }
 
             return new WP_REST_Response([
                 'success' => true,
