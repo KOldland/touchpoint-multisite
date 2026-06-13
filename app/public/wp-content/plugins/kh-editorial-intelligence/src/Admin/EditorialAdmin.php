@@ -46,7 +46,7 @@ class EditorialAdmin {
             __( 'API Settings', 'kh-editorial-intelligence' ),
             'manage_options',
             'kh-editorial-settings',
-            [ $this, 'render_settings_page_2' ]
+            [ $this, 'render_settings_page' ]
         );
 
         add_submenu_page(
@@ -139,7 +139,7 @@ class EditorialAdmin {
         <?php
     }
 
-    public function render_settings_page_2() {
+    public function render_settings_page() {
         if ( isset( $_POST['kh_editorial_save_settings'] ) && check_admin_referer( 'kh_editorial_settings', 'kh_editorial_nonce' ) ) {
             $settings = [
                 'openai_api_key'      => sanitize_text_field( $_POST['openai_api_key'] ),
