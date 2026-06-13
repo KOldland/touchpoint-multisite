@@ -91,6 +91,34 @@ class Rest_Api {
                 ),
             ),
         ) );
+
+        register_rest_route( 'khm-seo-agent/v1', '/schema-config', array(
+            'methods' => 'GET',
+            'callback' => array( $this, 'handle_get_schema_config' ),
+            'permission_callback' => array( $this, 'can_edit_posts' ),
+            'args' => array(
+                'post_id' => array(
+                    'type' => 'integer',
+                    'required' => true,
+                ),
+            ),
+        ) );
+
+        register_rest_route( 'khm-seo-agent/v1', '/schema-config', array(
+            'methods' => 'POST',
+            'callback' => array( $this, 'handle_set_schema_config' ),
+            'permission_callback' => array( $this, 'can_edit_posts' ),
+            'args' => array(
+                'post_id' => array(
+                    'type' => 'integer',
+                    'required' => true,
+                ),
+                'schema_type' => array(
+                    'type' => 'string',
+                    'required' => true,
+                ),
+            ),
+        ) );
     }
 
     public function can_edit_posts() {
@@ -265,6 +293,59 @@ class Rest_Api {
         return rest_ensure_response( array(
             'keywords' => array_values( $list ),
             'intent_scores' => array(),
+        ) );
+    }
+
+    public function handle_get_schema_config( $request ) {
+        $post_id = (int) $request->get_param( 'post_id' );
+        if ( ! $post_id ) {
+            return new \WP_Error( 'missing_post_id', 'Post ID is required.', array( 'status' => 400 ) );
+        }
+
+        $schema_config = get_post_meta( $post_id, '_khm_seo_schema_config', true );
+
+        return rest_ensure_response( array(
+            'post_id' => $post_id,
+            'schema_config' => $schema_config ?: array(),
+        ) );
+    }
+
+    public function handle_set_schema_config( $request ) {
+        $post_id = (int) $request->get_param( 'post_id' );
+        $schema_type = sanitize_key( $request->get_param( 'schema_type' ) );
+
+        if ( ! $post_id || ! $schema_type ) {
+            return new \WP_Error( 'invalid_params', 'post_id and schema_type are required.', array( 'status' => 400 ) );
+        }
+
+        $valid_types = array( 'article', 'organization', 'person', 'product', 'breadcrumb', 'techarticle', 'qapage', 'videoobject', 'audioobject' );
+        if ( ! in_array( $schema_type, $valid_types, true ) ) {
+            return new \WP_Error( 'invalid_type', 'Invalid schema type.', array( 'status' => 400 ) );
+        }
+
+        $current = get_post_meta( $post_id, '_khm_seo_schema_config', true );
+        $schema = is_array( $current ) ? $current : array();
+        $schema['enabled'] = true;
+        $schema['type'] = $schema_type;
+
+        if ( ! isset( $schema['custom_fields'] ) || ! is_array( $schema['custom_fields'] ) ) {
+            $schema['custom_fields'] = array();
+        }
+
+        if ( ! isset( $schema['options'] ) || ! is_array( $schema['options'] ) ) {
+            $schema['options'] = array(
+                'auto_generate' => '1',
+                'validate_output' => '1',
+                'include_breadcrumbs' => '1',
+            );
+        }
+
+        update_post_meta( $post_id, '_khm_seo_schema_config', $schema );
+
+        return rest_ensure_response( array(
+            'post_id' => $post_id,
+            'schema_config' => $schema,
+            'message' => 'Schema type updated to ' . $schema_type,
         ) );
     }
 
@@ -903,12 +984,63 @@ class Rest_Api {
             $schema['custom_fields'] = array();
         }
 
-        if ( in_array( $schema['type'], array( 'article', 'person', 'organization', 'product' ), true ) ) {
+        $type = $schema['type'];
+
+        // Standard types: headline + description
+        if ( in_array( $type, array( 'article', 'person', 'organization', 'product' ), true ) ) {
             if ( '' !== $headline ) {
                 $schema['custom_fields']['headline'] = sanitize_text_field( $headline );
             }
             if ( '' !== $description ) {
                 $schema['custom_fields']['description'] = sanitize_textarea_field( $description );
+            }
+        }
+
+        // TechArticle: isPartOf parent guide URL
+        if ( 'techarticle' === $type ) {
+            if ( '' !== $headline ) {
+                $schema['custom_fields']['headline'] = sanitize_text_field( $headline );
+            }
+            if ( '' !== $description ) {
+                $schema['custom_fields']['description'] = sanitize_textarea_field( $description );
+            }
+            // Pull existing parent_guide_url from post meta if not in custom_fields
+            $parent_guide_url = get_post_meta( $post->ID, '_khm_seo_parent_guide_url', true );
+            if ( ! empty( $parent_guide_url ) && ! isset( $schema['custom_fields']['parent_guide_url'] ) ) {
+                $schema['custom_fields']['parent_guide_url'] = sanitize_text_field( $parent_guide_url );
+            }
+            // articleSection from primary category
+            $categories = \get_the_category( $post->ID );
+            if ( ! empty( $categories ) && is_array( $categories ) ) {
+                $schema['custom_fields']['articleSection'] = sanitize_text_field( $categories[0]->name );
+            }
+            $schema['custom_fields']['isPartOf'] = '1';
+        }
+
+        // QAPage: mainEntity is auto-built from content, no custom fields needed beyond defaults
+        if ( 'qapage' === $type ) {
+            // QAPage uses mainEntity from content parsing, no manual fields
+            $schema['custom_fields']['headline'] = sanitize_text_field( $headline );
+            $schema['custom_fields']['description'] = sanitize_textarea_field( $description );
+        }
+
+        // VideoObject: videoUrl, keyMoments from post meta
+        if ( 'videoobject' === $type ) {
+            $video_url = get_post_meta( $post->ID, '_khm_seo_video_url', true );
+            if ( ! empty( $video_url ) ) {
+                $schema['custom_fields']['videoUrl'] = sanitize_text_field( $video_url );
+            }
+            $key_moments = get_post_meta( $post->ID, '_khm_seo_key_moments', true );
+            if ( ! empty( $key_moments ) && is_array( $key_moments ) ) {
+                $schema['custom_fields']['keyMoments'] = $key_moments;
+            }
+        }
+
+        // AudioObject: audioUrl from post meta
+        if ( 'audioobject' === $type ) {
+            $audio_url = get_post_meta( $post->ID, '_khm_seo_audio_url', true );
+            if ( ! empty( $audio_url ) ) {
+                $schema['custom_fields']['audioUrl'] = sanitize_text_field( $audio_url );
             }
         }
 
@@ -918,7 +1050,7 @@ class Rest_Api {
 
         $schema['options']['auto_generate'] = '1';
         $schema['options']['validate_output'] = '1';
-        if ( 'breadcrumb' !== $schema['type'] ) {
+        if ( 'breadcrumb' !== $type ) {
             $schema['options']['include_breadcrumbs'] = '1';
         }
 
@@ -1002,7 +1134,11 @@ class Rest_Api {
         $prompt[] = 'sponsor_safe=' . ( $sponsor_safe ? 'true' : 'false' );
         $prompt[] = 'no_hallucination=true';
         $prompt[] = 'Use only these supported action types: set_meta_title, set_meta_description, set_focus_keyword, set_keywords, set_schema_config.';
-        $prompt[] = 'set_schema_config payload must be {"value":{"enabled":true,"type":"article|organization|person|product|breadcrumb","custom_fields":{},"options":{}}}.';
+        $prompt[] = 'set_schema_config.payload.value.type supports: article, organization, person, product, breadcrumb, techarticle, qapage, videoobject, audioobject.';
+        $prompt[] = 'TechArticle (atomic articles): has isPartOf (parent guide URL from category archive or parent_guide_url override), about, articleSection.';
+        $prompt[] = 'QAPage (answer cards): has mainEntity array of Question with acceptedAnswer. Easily retrievable by AI.';
+        $prompt[] = 'VideoObject: has thumbnailUrl, embedUrl, contentUrl, hasPart Clips for key moments. Source: YouTube embeds.';
+        $prompt[] = 'AudioObject: has contentUrl, encodingFormat. Nested in BlogPosting or Article.';
         $prompt[] = 'Return 2 to 5 apply_actions whenever title, description, focus keyword, keywords, or schema config can be improved.';
         $prompt[] = 'Use empty apply_actions only if those fields are already well optimized and schema is already enabled.';
         $prompt[] = '';

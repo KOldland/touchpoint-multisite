@@ -1,14 +1,26 @@
 (function () {
     const { registerPlugin } = wp.plugins;
     const { PluginSidebar, PluginSidebarMoreMenuItem } = wp.editPost;
-    const { PanelBody, Button, Modal, CheckboxControl, Spinner } = wp.components;
+    const { PanelBody, Button, Modal, CheckboxControl, Spinner, SelectControl } = wp.components;
     const { apiFetch } = wp;
-    const { useState } = wp.element;
+    const { useState, useEffect } = wp.element;
 
     // Wire X-WP-Nonce header for all REST requests
     if (window.khmSeoAgentData && window.khmSeoAgentData.nonce) {
         apiFetch.use(apiFetch.createNonceMiddleware(window.khmSeoAgentData.nonce));
     }
+
+    const SCHEMA_OPTIONS = [
+        { value: 'article', label: 'Article (Default)' },
+        { value: 'techarticle', label: 'Atomic Article (TechArticle)' },
+        { value: 'qapage', label: 'QAPage (Answer Cards)' },
+        { value: 'videoobject', label: 'VideoObject (YouTube)' },
+        { value: 'audioobject', label: 'AudioObject (Podcast)' },
+        { value: 'organization', label: 'Organization' },
+        { value: 'person', label: 'Person' },
+        { value: 'product', label: 'Product' },
+        { value: 'breadcrumb', label: 'BreadcrumbList' },
+    ];
 
     const SEOAgentSidebar = () => {
         const [loading, setLoading] = useState(false);
@@ -18,7 +30,37 @@
         const [selectedActions, setSelectedActions] = useState([]);
         const [previewHtml, setPreviewHtml] = useState('');
         const [applyLoading, setApplyLoading] = useState(false);
+        const [schemaType, setSchemaType] = useState('article');
+        const [schemaLoading, setSchemaLoading] = useState(false);
         const postId = wp.data.select('core/editor').getCurrentPostId();
+
+        // Load current schema config on mount
+        useEffect(() => {
+            if (!postId) return;
+            setSchemaLoading(true);
+            apiFetch({
+                path: 'khm-seo-agent/v1/schema-config?post_id=' + postId,
+            })
+                .then((response) => {
+                    const config = response.schema_config || {};
+                    setSchemaType(config.type || 'article');
+                })
+                .catch(() => {
+                    setSchemaType('article');
+                })
+                .finally(() => setSchemaLoading(false));
+        }, [postId]);
+
+        const handleSchemaTypeChange = (newType) => {
+            setSchemaType(newType);
+            setSchemaLoading(true);
+            apiFetch({
+                path: 'khm-seo-agent/v1/schema-config',
+                method: 'POST',
+                data: { post_id: postId, schema_type: newType },
+            })
+                .finally(() => setSchemaLoading(false));
+        };
 
         const runAudit = async () => {
             setLoading(true);
@@ -149,6 +191,16 @@
                     {summary && summary.error && (
                         <p style={{ marginTop: '10px', color: '#b32d2e' }}>{summary.error}</p>
                     )}
+                </PanelBody>
+                <PanelBody title="Schema Type" initialOpen={false}>
+                    <SelectControl
+                        label="Override Schema Type"
+                        value={schemaType}
+                        options={SCHEMA_OPTIONS}
+                        onChange={handleSchemaTypeChange}
+                        help="AI-recommended on audit. Manually select to override."
+                    />
+                    {schemaLoading && <Spinner />}
                 </PanelBody>
                 {showModal && details && (
                     <Modal

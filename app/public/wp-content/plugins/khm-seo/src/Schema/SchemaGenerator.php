@@ -122,6 +122,10 @@ class SchemaGenerator {
             'enable_faq' => false,
             'enable_breadcrumb' => true,
             'enable_website' => true,
+            'enable_techarticle' => true,
+            'enable_qapage' => true,
+            'enable_videoobject' => true,
+            'enable_audioobject' => true,
             'organization_name' => \get_bloginfo('name'),
             'organization_logo' => '',
             'organization_type' => 'Organization',
@@ -201,6 +205,34 @@ class SchemaGenerator {
                 'optional_fields' => ['description', 'potentialAction', 'publisher'],
                 'post_types' => [],
                 'auto_detect' => false
+            ],
+            'TechArticle' => [
+                'description' => 'Atomic articles with isPartOf parent guide link',
+                'required_fields' => ['headline', 'author', 'datePublished'],
+                'optional_fields' => ['image', 'dateModified', 'description', 'mainEntityOfPage', 'isPartOf', 'about', 'articleSection'],
+                'post_types' => ['post'],
+                'auto_detect' => true
+            ],
+            'QAPage' => [
+                'description' => 'Q&A pages with nested Question and acceptedAnswer',
+                'required_fields' => ['mainEntity'],
+                'optional_fields' => ['about', 'author', 'datePublished'],
+                'post_types' => ['post', 'page'],
+                'auto_detect' => true
+            ],
+            'VideoObject' => [
+                'description' => 'Video content with key moments and embed information',
+                'required_fields' => ['name', 'thumbnailUrl', 'embedUrl'],
+                'optional_fields' => ['description', 'contentUrl', 'uploadDate', 'duration', 'hasPart', 'transcript'],
+                'post_types' => ['post'],
+                'auto_detect' => true
+            ],
+            'AudioObject' => [
+                'description' => 'Audio content nested within BlogPosting or Article',
+                'required_fields' => ['name', 'contentUrl'],
+                'optional_fields' => ['description', 'encodingFormat', 'duration', 'transcript', 'thumbnailUrl'],
+                'post_types' => ['post'],
+                'auto_detect' => true
             ]
         ];
     }
@@ -645,6 +677,340 @@ class SchemaGenerator {
         ];
 
         return apply_filters('khm_seo_website_schema', $schema, $context);
+    }
+
+    /**
+     * Generate Atomic Article (TechArticle) schema with isPartOf parent guide link.
+     *
+     * Extends the standard Article schema by adding isPartOf pointing to the
+     * primary category archive page. If a parent_guide_url override exists in
+     * post meta, that URL is used instead.
+     *
+     * @param WP_Post $post Post object
+     * @return array|null TechArticle schema data
+     */
+    private function generate_techarticle_schema($post) {
+        if (!($post instanceof WP_Post)) {
+            return null;
+        }
+
+        $cache_key = 'techarticle_schema_' . $post->ID . '_' . $post->post_modified;
+        if (isset($this->cache['schema_cache'][$cache_key])) {
+            return $this->cache['schema_cache'][$cache_key];
+        }
+
+        $post_permalink = \get_permalink($post);
+        if (!$post_permalink) {
+            return null;
+        }
+
+        $categories = \get_the_category($post->ID);
+        $category_name = !empty($categories) && is_array($categories) ? $categories[0]->name : '';
+
+        $schema = [
+            '@type' => 'TechArticle',
+            '@id' => \esc_url($post_permalink) . '#article',
+            'headline' => \esc_html(\sanitize_text_field($post->post_title)),
+            'description' => $this->get_post_description_secure($post),
+            'datePublished' => \get_the_date('c', $post),
+            'dateModified' => \get_the_modified_date('c', $post),
+            'author' => $this->generate_author_reference($post->post_author),
+            'publisher' => $this->generate_publisher_reference(),
+            'mainEntityOfPage' => [
+                '@type' => 'WebPage',
+                '@id' => \esc_url($post_permalink),
+            ],
+        ];
+
+        // isPartOf: Use parent_guide_url override if set, otherwise primary category archive
+        $parent_guide_url = get_post_meta($post->ID, '_khm_seo_parent_guide_url', true);
+        if (!empty($parent_guide_url)) {
+            $schema['isPartOf'] = [
+                '@type' => 'WebPage',
+                'url' => \esc_url($parent_guide_url),
+            ];
+        } elseif (!empty($categories) && is_array($categories)) {
+            $category_link = \get_category_link($categories[0]->term_id);
+            if ($category_link) {
+                $schema['isPartOf'] = [
+                    '@type' => 'WebPage',
+                    'url' => \esc_url($category_link),
+                ];
+            }
+        }
+
+        // articleSection / about for on-site search
+        if ('' !== $category_name) {
+            $schema['about'] = [
+                '@type' => 'Thing',
+                'name' => \esc_html($category_name),
+            ];
+            $schema['articleSection'] = \esc_html($category_name);
+        }
+
+        $image = $this->get_post_image_secure($post);
+        if ($image) {
+            $schema['image'] = $image;
+        }
+
+        $word_count = $this->get_word_count_cached($post);
+        if ($word_count > 0) {
+            $schema['wordCount'] = absint($word_count);
+        }
+
+        $tags = \get_the_tags($post->ID);
+        if ($tags && is_array($tags)) {
+            $tag_names = \wp_list_pluck($tags, 'name');
+            $schema['keywords'] = \esc_html(implode(', ', array_map('sanitize_text_field', $tag_names)));
+        }
+
+        $schema = \apply_filters('khm_seo_techarticle_schema', $schema, $post);
+        $this->cache['schema_cache'][$cache_key] = $schema;
+
+        return $schema;
+    }
+
+    /**
+     * Generate QAPage schema with nested Question and acceptedAnswer.
+     *
+     * Detects Q&A structure in post content and builds a QAPage with
+     * Question/acceptedAnswer. Falls back to empty mainEntity if no
+     * Q&A content is detected.
+     *
+     * @param WP_Post $post Post object
+     * @return array|null QAPage schema data
+     */
+    private function generate_qapage_schema($post) {
+        if (!($post instanceof WP_Post)) {
+            return null;
+        }
+
+        $cache_key = 'qapage_schema_' . $post->ID . '_' . $post->post_modified;
+        if (isset($this->cache['schema_cache'][$cache_key])) {
+            return $this->cache['schema_cache'][$cache_key];
+        }
+
+        $post_permalink = \get_permalink($post);
+        if (!$post_permalink) {
+            return null;
+        }
+
+        // Extract Q&A pairs from content
+        $qa_pairs = $this->extract_qa_pairs_from_content($post->post_content);
+
+        $main_entity = [];
+        if (!empty($qa_pairs)) {
+            foreach ($qa_pairs as $pair) {
+                $main_entity[] = [
+                    '@type' => 'Question',
+                    'name' => \esc_html($pair['question']),
+                    'acceptedAnswer' => [
+                        '@type' => 'Answer',
+                        'text' => \esc_html($pair['answer']),
+                    ],
+                ];
+            }
+        } else {
+            // Fallback: use post title as question, excerpt/description as answer
+            $main_entity[] = [
+                '@type' => 'Question',
+                'name' => \esc_html(\sanitize_text_field($post->post_title)),
+                'acceptedAnswer' => [
+                    '@type' => 'Answer',
+                    'text' => $this->get_post_description_secure($post),
+                ],
+            ];
+        }
+
+        $schema = [
+            '@type' => 'QAPage',
+            '@id' => \esc_url($post_permalink) . '#qapage',
+            'mainEntity' => $main_entity,
+            'author' => $this->generate_author_reference($post->post_author),
+            'publisher' => $this->generate_publisher_reference(),
+            'datePublished' => \get_the_date('c', $post),
+            'dateModified' => \get_the_modified_date('c', $post),
+        ];
+
+        $categories = \get_the_category($post->ID);
+        if (!empty($categories) && is_array($categories)) {
+            $schema['about'] = [
+                '@type' => 'Thing',
+                'name' => \esc_html($categories[0]->name),
+            ];
+        }
+
+        $schema = \apply_filters('khm_seo_qapage_schema', $schema, $post);
+        $this->cache['schema_cache'][$cache_key] = $schema;
+
+        return $schema;
+    }
+
+    /**
+     * Generate VideoObject schema from YouTube embeds in post content.
+     *
+     * Parses post_content for YouTube embed URLs, extracts video ID,
+     * and builds a VideoObject with thumbnail, embed URL, and optional
+     * key moments (hasPart Clip array).
+     *
+     * @param WP_Post $post Post object
+     * @return array|null VideoObject schema data
+     */
+    private function generate_videoobject_schema($post) {
+        if (!($post instanceof WP_Post)) {
+            return null;
+        }
+
+        $cache_key = 'videoobject_schema_' . $post->ID . '_' . $post->post_modified;
+        if (isset($this->cache['schema_cache'][$cache_key])) {
+            return $this->cache['schema_cache'][$cache_key];
+        }
+
+        $youtube_data = $this->extract_youtube_embed($post->post_content);
+        if (empty($youtube_data)) {
+            return null;
+        }
+
+        $video_id = $youtube_data['video_id'];
+        $embed_url = 'https://www.youtube.com/embed/' . urlencode($video_id);
+        $content_url = 'https://www.youtube.com/watch?v=' . urlencode($video_id);
+        $thumbnail_url = 'https://img.youtube.com/vi/' . urlencode($video_id) . '/hqdefault.jpg';
+
+        $schema = [
+            '@type' => 'VideoObject',
+            '@id' => \get_permalink($post) . '#video',
+            'name' => \esc_html($post->post_title),
+            'description' => $this->get_post_description_secure($post),
+            'thumbnailUrl' => \esc_url($thumbnail_url),
+            'embedUrl' => \esc_url($embed_url),
+            'contentUrl' => \esc_url($content_url),
+            'uploadDate' => \get_the_date('c', $post),
+            'publisher' => $this->generate_publisher_reference(),
+        ];
+
+        // Key moments (hasPart Clips) from post meta
+        $key_moments = get_post_meta($post->ID, '_khm_seo_key_moments', true);
+        if (!empty($key_moments) && is_array($key_moments)) {
+            $clips = [];
+            foreach ($key_moments as $moment) {
+                if (isset($moment['startOffset'], $moment['name'])) {
+                    $clips[] = [
+                        '@type' => 'Clip',
+                        'name' => sanitize_text_field($moment['name']),
+                        'startOffset' => (int) $moment['startOffset'],
+                        'endOffset' => isset($moment['endOffset']) ? (int) $moment['endOffset'] : null,
+                        'url' => \esc_url($content_url . '#t=' . (int) $moment['startOffset']),
+                    ];
+                }
+            }
+            if (!empty($clips)) {
+                $schema['hasPart'] = $clips;
+            }
+        }
+
+        $schema = \apply_filters('khm_seo_videoobject_schema', $schema, $post);
+        $this->cache['schema_cache'][$cache_key] = $schema;
+
+        return $schema;
+    }
+
+    /**
+     * Generate AudioObject schema nested within a BlogPosting or Article.
+     *
+     * Parses post_content for YouTube embeds of podcast-style content and
+     * builds an AudioObject with contentUrl and encodingFormat.
+     *
+     * @param WP_Post $post Post object
+     * @return array|null AudioObject schema data
+     */
+    private function generate_audioobject_schema($post) {
+        if (!($post instanceof WP_Post)) {
+            return null;
+        }
+
+        $cache_key = 'audioobject_schema_' . $post->ID . '_' . $post->post_modified;
+        if (isset($this->cache['schema_cache'][$cache_key])) {
+            return $this->cache['schema_cache'][$cache_key];
+        }
+
+        $youtube_data = $this->extract_youtube_embed($post->post_content);
+        if (empty($youtube_data)) {
+            return null;
+        }
+
+        $video_id = $youtube_data['video_id'];
+        $content_url = 'https://www.youtube.com/watch?v=' . urlencode($video_id);
+
+        $schema = [
+            '@type' => 'AudioObject',
+            '@id' => \get_permalink($post) . '#audio',
+            'name' => \esc_html($post->post_title),
+            'description' => $this->get_post_description_secure($post),
+            'contentUrl' => \esc_url($content_url),
+            'encodingFormat' => 'audio/mpeg',
+            'publisher' => $this->generate_publisher_reference(),
+            'uploadDate' => \get_the_date('c', $post),
+        ];
+
+        $thumbnail_url = 'https://img.youtube.com/vi/' . urlencode($video_id) . '/hqdefault.jpg';
+        $schema['thumbnailUrl'] = \esc_url($thumbnail_url);
+
+        $schema = \apply_filters('khm_seo_audioobject_schema', $schema, $post);
+        $this->cache['schema_cache'][$cache_key] = $schema;
+
+        return $schema;
+    }
+
+    /**
+     * Extract Q&A question/answer pairs from post content.
+     *
+     * Scans post_content for patterns like "Q: ... A: ..." or
+     * heading-then-paragraph Q&A blocks.
+     *
+     * @param string $content Raw post content
+     * @return array Array of [question, answer] pairs
+     */
+    private function extract_qa_pairs_from_content($content) {
+        $content = wp_strip_all_tags($content);
+        $pairs = [];
+
+        // Pattern: Q: ... A: ... (or Question: ... Answer: ...)
+        if (preg_match_all('/\b(?:Q|Question)\s*[:\-]\s*(.+?)\s*(?:(?:A|Answer)\s*[:\-]\s*(.+?)(?:\s*(?:Q|Question)\s*[:\-]|$))/si', $content, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                $pairs[] = [
+                    'question' => trim($match[1]),
+                    'answer' => trim($match[2]),
+                ];
+            }
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * Extract YouTube video ID from post content.
+     *
+     * Searches for YouTube embed URLs or watch URLs in post_content
+     * and returns the video ID.
+     *
+     * @param string $content Post content
+     * @return array|null ['video_id' => string] or null
+     */
+    private function extract_youtube_embed($content) {
+        // Match youtube.com/embed/{id} or youtube.com/watch?v={id} or youtu.be/{id}
+        $patterns = [
+            '/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/',
+            '/youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/',
+            '/youtu\.be\/([a-zA-Z0-9_-]{11})/',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $content, $matches)) {
+                return ['video_id' => $matches[1]];
+            }
+        }
+
+        return null;
     }
 
     /**
