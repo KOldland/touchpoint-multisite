@@ -416,4 +416,193 @@ foreach ( $this->schema_types as $type_key => $type_config ) {
 }
 </style>
 
-?>
+<!-- INLINE SCHEMA TOOLS: Self-contained AJAX handlers that actually fire -->
+<script type="text/javascript">
+jQuery(document).ready(function($) {
+    console.log('KHM INLINE: Schema tools ready. khm_seo_schema=', typeof khm_seo_schema !== 'undefined' ? 'PRESENT' : 'MISSING');
+
+    if (typeof khm_seo_schema === 'undefined') {
+        console.error('KHM INLINE: khm_seo_schema not localized — cannot wire buttons');
+        return;
+    }
+
+    // === PREVIEW SCHEMA ===
+    $(document).on('click', '#khm-seo-preview-schema', function(e) {
+        e.preventDefault();
+        var $btn = $(this);
+        var postId = $('#post_ID').val() || $('input[name="post_ID"]').val() || 0;
+        console.log('KHM INLINE: Preview AJAX firing for post_id=' + postId);
+
+        $btn.prop('disabled', true);
+        $('#khm-seo-schema-preview').slideDown();
+        $('#khm-seo-preview-output').val('Loading preview...');
+
+        // Collect form data
+        var config = {
+            enabled: $('#khm_seo_schema_enabled').is(':checked'),
+            type: $('#khm_seo_schema_type').val(),
+            custom_fields: {},
+            options: {}
+        };
+        // Gather custom fields for active type
+        var activeType = config.type;
+        if (activeType && khm_seo_schema.schema_types && khm_seo_schema.schema_types[activeType]) {
+            khm_seo_schema.schema_types[activeType].fields.forEach(function(fk) {
+                var $f = $('#khm_seo_field_' + fk);
+                if ($f.length) config.custom_fields[fk] = $f.val();
+            });
+        }
+        $('input[name^="khm_seo_schema_options"]').each(function() {
+            var m = $(this).attr('name').match(/\[([^\]]+)\]/);
+            if (m) config.options[m[1]] = $(this).is(':checked') || $(this).val();
+        });
+
+        $.post(khm_seo_schema.ajax_url, {
+            action: 'khm_seo_preview_schema',
+            nonce: khm_seo_schema.nonce,
+            post_id: postId,
+            schema_config: config
+        })
+        .done(function(r) {
+            console.log('KHM INLINE: Preview AJAX success', r);
+            if (r.success && r.data.formatted) {
+                $('#khm-seo-preview-output').val(r.data.formatted);
+            } else {
+                $('#khm-seo-preview-output').val('Error: ' + (r.data || 'Unknown'));
+            }
+        })
+        .fail(function(xhr, status, err) {
+            console.error('KHM INLINE: Preview AJAX fail', status, err, xhr.responseText);
+            $('#khm-seo-preview-output').val('Network error: ' + status);
+        })
+        .always(function() {
+            $btn.prop('disabled', false);
+        });
+    });
+
+    // === VALIDATE SCHEMA ===
+    $(document).on('click', '#khm-seo-validate-schema', function(e) {
+        e.preventDefault();
+        var $btn = $(this);
+        var $results = $('#khm-seo-validation-results');
+        var rawVal = $('#khm-seo-preview-output').val() || '';
+        console.log('KHM INLINE: Validate click. rawVal[0..80]=' + rawVal.substring(0, 80));
+
+        // ALWAYS regenerate preview before validating — avoids stale/placeholder text
+        var postId = $('#post_ID').val() || $('input[name="post_ID"]').val() || 0;
+        var config = { enabled: $('#khm_seo_schema_enabled').is(':checked'), type: $('#khm_seo_schema_type').val() };
+        $btn.prop('disabled', true);
+        $results.html('<div class="khm-seo-validation-loading">Generating schema...</div>').slideDown();
+
+        $.post(khm_seo_schema.ajax_url, {
+            action: 'khm_seo_preview_schema',
+            nonce: khm_seo_schema.nonce,
+            post_id: postId,
+            schema_config: config
+        }).done(function(r) {
+            console.log('KHM INLINE: Validate→preview response', r);
+            if (r.success && r.data && r.data.formatted) {
+                $('#khm-seo-preview-output').val(r.data.formatted);
+                doValidate(r.data.formatted, $btn, $results);
+            } else {
+                $results.html('<div class="khm-seo-validation-error">Could not generate schema: ' + (r.data || JSON.stringify(r).substring(0, 200) || 'Unknown') + '</div>');
+                $btn.prop('disabled', false);
+            }
+        }).fail(function(xhr, status, err) {
+            console.error('KHM INLINE: Validate→preview fail', status, err, xhr.responseText);
+            $results.html('<div class="khm-seo-validation-error">Network error: ' + status + '</div>');
+            $btn.prop('disabled', false);
+        });
+    });
+
+    function doValidate(json, $btn, $results) {
+        $btn.prop('disabled', true);
+        $results.html('<div class="khm-seo-validation-loading">Validating...</div>').slideDown();
+
+        $.post(khm_seo_schema.ajax_url, {
+            action: 'khm_seo_validate_schema',
+            nonce: khm_seo_schema.nonce,
+            schema_json: json
+        })
+        .done(function(r) {
+            console.log('KHM INLINE: Validate AJAX success', r);
+            var html = '';
+            if (r.success && r.data) {
+                var d = r.data;
+                if (d.valid) {
+                    html += '<div class="khm-seo-validation-success"><span class="dashicons dashicons-yes-alt"></span> ' + khm_seo_schema.strings.validation_success + ' (Score: ' + (d.score || 'N/A') + '/100)</div>';
+                } else {
+                    html += '<div class="khm-seo-validation-error"><span class="dashicons dashicons-warning"></span> ' + khm_seo_schema.strings.validation_error + '</div>';
+                }
+                if (d.errors && d.errors.length) {
+                    html += '<div class="validation-errors"><h4>Errors:</h4><ul>';
+                    d.errors.forEach(function(err) { html += '<li>' + err + '</li>'; });
+                    html += '</ul></div>';
+                }
+                if (d.warnings && d.warnings.length) {
+                    html += '<div class="validation-warnings"><h4>Warnings:</h4><ul>';
+                    d.warnings.forEach(function(w) { html += '<li>' + w + '</li>'; });
+                    html += '</ul></div>';
+                }
+            } else {
+                html += '<div class="khm-seo-validation-error">Validation failed: ' + (r.data || 'Unknown error') + '</div>';
+            }
+            $results.html(html);
+        })
+        .fail(function(xhr, status, err) {
+            console.error('KHM INLINE: Validate AJAX fail', status, err);
+            $results.html('<div class="khm-seo-validation-error">Network error: ' + status + '</div>');
+        })
+        .always(function() {
+            $btn.prop('disabled', false);
+        });
+    }
+
+    // === TEST WITH GOOGLE (direct binding, not delegated) ===
+    (function() {
+        var $tg = $('#khm-seo-test-schema');
+        console.log('KHM INLINE: Wiring Test Google button. Found:', $tg.length);
+        if (!$tg.length) return;
+        $tg.off('click.khminline').on('click.khminline', function(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            var $btn = $(this);
+            var postId = $('#post_ID').val() || $('input[name="post_ID"]').val() || 0;
+            console.log('KHM INLINE: Test Google CLICKED. postId=' + postId);
+
+            if (!postId || postId === '0') {
+                alert('No post ID found. Please save the post first.');
+                return;
+            }
+
+            $btn.prop('disabled', true);
+
+            $.post(khm_seo_schema.ajax_url, {
+                action: 'khm_seo_test_with_google',
+                nonce: khm_seo_schema.nonce,
+                post_id: postId
+            })
+            .done(function(r) {
+                console.log('KHM INLINE: Test Google response', JSON.stringify(r));
+                if (r.success && r.data && r.data.google_url) {
+                    var w = window.open(r.data.google_url, '_blank');
+                    if (!w || w.closed) {
+                        alert('Popup blocked! Allow popups or open manually:\n' + r.data.google_url);
+                    }
+                } else {
+                    alert('Error: ' + (typeof r.data === 'string' ? r.data : JSON.stringify(r.data)));
+                }
+            })
+            .fail(function(xhr, status, err) {
+                console.error('KHM INLINE: Test Google fail', status, err, xhr.responseText);
+                alert('Network error: ' + status + ' — check console');
+            })
+            .always(function() {
+                $btn.prop('disabled', false);
+            });
+        });
+    })();
+
+    console.log('KHM INLINE: All 3 schema tool buttons wired and ready.');
+});
+</script>

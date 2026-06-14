@@ -1317,15 +1317,18 @@ class SchemaGenerator {
         $validation_results = [
             'valid' => true,
             'errors' => [],
-            'warnings' => []
+            'warnings' => [],
+            'score' => 100,
         ];
 
         if (empty($schema_data['@graph'])) {
             $validation_results['valid'] = false;
             $validation_results['errors'][] = 'No schema data found in @graph';
+            $validation_results['score'] = 0;
             return $validation_results;
         }
 
+        $item_count = count($schema_data['@graph']);
         foreach ($schema_data['@graph'] as $index => $schema_item) {
             $item_validation = $this->validate_schema_item($schema_item);
             
@@ -1348,6 +1351,11 @@ class SchemaGenerator {
                 );
             }
         }
+
+        // Calculate score: deduct for errors and warnings
+        $error_deduction = count($validation_results['errors']) * 10;
+        $warning_deduction = count($validation_results['warnings']) * 3;
+        $validation_results['score'] = max(0, 100 - $error_deduction - $warning_deduction);
 
         return $validation_results;
     }
@@ -1402,7 +1410,7 @@ class SchemaGenerator {
      * @param string $type_key Lowercase type key (e.g. 'techarticle', 'qapage').
      * @return string|null PascalCase type key or null if not found.
      */
-    private function resolve_schema_type_key($type_key) {
+    public function resolve_schema_type_key($type_key) {
         $map = [
             'article'       => 'Article',
             'organization'  => 'Organization',

@@ -15,9 +15,10 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly
 }
-?>
 
-<div class="wrap">
+// Diagnostic: confirm template is being included.
+error_log( 'KHM SEO: admin-page-schema.php template loaded.' );
+?>
     <h1><?php _e( 'Schema Settings', 'khm-seo' ); ?></h1>
     
     <div id="khm-seo-schema-admin" class="khm-seo-admin-page">
@@ -325,14 +326,14 @@ if ( ! defined( 'ABSPATH' ) ) {
                             </button>
                         </div>
                         <div id="cache-status">
-                            <?php
-                            $cache_stats = $this->get_cache_stats();
-                            printf( 
-                                __( 'Cached items: %d | Last updated: %s', 'khm-seo' ),
-                                $cache_stats['count'],
-                                $cache_stats['last_updated']
-                            );
-                            ?>
+            <?php
+            $cache_stats = $this->get_schema_cache_stats();
+            printf( 
+                __( 'Cached items: %d | Last updated: %s', 'khm-seo' ),
+                $cache_stats['count'],
+                $cache_stats['last_updated']
+            );
+            ?>
                         </div>
                     </div>
 
@@ -518,23 +519,7 @@ jQuery(document).ready(function($) {
         $('#' + target).addClass('active');
     });
     
-    // Tool handlers would be implemented here
+// Tool handlers would be implemented here
     // This is a template file, so actual functionality would be in admin JS file
 });
 </script>
-
-<?php
-// Helper method for cache stats (would normally be in class)
-if ( ! method_exists( $this, 'get_cache_stats' ) ) {
-    $this->get_cache_stats = function() {
-        global $wpdb;
-        $count = $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = '_khm_seo_schema_cache'" );
-        $last_updated = $wpdb->get_var( "SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key = '_khm_seo_schema_cache_updated' ORDER BY post_id DESC LIMIT 1" );
-        
-        return array(
-            'count' => (int) $count,
-            'last_updated' => $last_updated ? date( 'M j, Y g:i a', strtotime( $last_updated ) ) : __( 'Never', 'khm-seo' )
-        );
-    };
-}
-?>

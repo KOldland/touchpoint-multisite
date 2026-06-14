@@ -44,6 +44,7 @@
         const [statusMessage, setStatusMessage] = useState('');
         const [statusType, setStatusType] = useState(''); // 'success' or 'error'
         const [showResult, setShowResult] = useState(false);
+        const [schemaPreview, setSchemaPreview] = useState('');
         const postId = wp.data.select('core/editor').getCurrentPostId();
 
         // Load current schema config on mount
@@ -240,6 +241,51 @@
                         help="AI-recommended on audit. Manually select to override."
                     />
                     {schemaLoading && <Spinner />}
+                </PanelBody>
+                <PanelBody title="Schema Tools" initialOpen={false}>
+                    <Button
+                        isSecondary
+                        onClick={() => {
+                            setLoading(true);
+                            apiFetch({ path: 'khm-seo-agent/v1/audit', method: 'POST', data: { post_id: postId } })
+                                .then(response => {
+                                    if (response?.analysis?.llm_output) {
+                                        const output = response.analysis.llm_output;
+                                        setSchemaPreview(JSON.stringify(output, null, 2));
+                                    } else {
+                                        setSchemaPreview(JSON.stringify(response, null, 2));
+                                    }
+                                })
+                                .catch(() => setSchemaPreview('Preview failed. Re-run audit.'))
+                                .finally(() => setLoading(false));
+                        }}
+                    >
+                        <span className="dashicons dashicons-visibility" style={{ marginRight: '4px' }}></span>
+                        Preview Schema
+                    </Button>
+                    <Button
+                        isSecondary
+                        style={{ marginTop: '8px' }}
+                        onClick={() => {
+                            const permalink = wp.data.select('core/editor').getCurrentPostAttribute('link');
+                            if (!permalink) { alert('Save the post first to get a URL Google can test.'); return; }
+                            window.open('https://search.google.com/test/rich-results?url=' + encodeURIComponent(permalink), '_blank');
+                        }}
+                    >
+                        <span className="dashicons dashicons-google" style={{ marginRight: '4px' }}></span>
+                        Test with Google
+                    </Button>
+                    {schemaPreview && (
+                        <div style={{ marginTop: '12px' }}>
+                            <h4>Schema Preview</h4>
+                            <textarea
+                                readOnly
+                                rows={10}
+                                style={{ width: '100%', fontFamily: 'monospace', fontSize: '11px', resize: 'vertical' }}
+                                value={schemaPreview}
+                            />
+                        </div>
+                    )}
                 </PanelBody>
                 {showModal && details && (
                     <Modal

@@ -71,9 +71,7 @@ class SchemaManager {
         add_action( 'wp', array( $this, 'determine_schema_for_current_page' ) );
         add_filter( 'khm_seo_schema_data', array( $this, 'filter_schema_data' ), 10, 2 );
         
-        // AJAX hooks for schema preview
-        add_action( 'wp_ajax_khm_seo_preview_schema', array( $this, 'ajax_preview_schema' ) );
-        add_action( 'wp_ajax_khm_seo_validate_schema', array( $this, 'ajax_validate_schema' ) );
+        // AJAX hooks for schema preview — handled by Schema\Admin\SchemaAdminManager
     }
 
     /**

@@ -131,28 +131,16 @@
         /**
          * Bind event handlers
          */
-        bindEvents: function() {
-            // Schema preview
-            $(document).on('click', '#khm-seo-preview-schema', this.previewSchema.bind(this));
-            
-            // Schema validation
-            $(document).on('click', '#khm-seo-validate-schema', this.validateSchema.bind(this));
-            
-            // Test with Google
-            $(document).on('click', '#khm-seo-test-schema', this.testWithGoogle.bind(this));
-            
-            // Copy schema to clipboard
-            $(document).on('click', '#khm-seo-copy-schema', this.copySchemaToClipboard.bind(this));
-            
-            // Site validation
-            $(document).on('click', '#khm-seo-run-site-validation', this.runSiteValidation.bind(this));
-            
-            // Google Rich Results test
-            $(document).on('click', '#khm-seo-test-google', this.testGoogleRichResults.bind(this));
-            
-            // Schema.org validation
-            $(document).on('click', '#khm-seo-validate-schema', this.validateSchemaOrg.bind(this));
-        },
+    bindEvents: function() {
+        // Schema preview — handled by inline script in meta-box-schema.php
+        // Schema validation — handled by inline script in meta-box-schema.php
+        
+        // Test with Google
+        $(document).on('click', '#khm-seo-test-schema', this.testWithGoogle.bind(this));
+        
+        // Copy schema to clipboard
+        $(document).on('click', '#khm-seo-copy-schema', this.copySchemaToClipboard.bind(this));
+    },
         
         /**
          * Auto-populate schema fields from post content
@@ -224,6 +212,7 @@
          */
         previewSchema: function(e) {
             e.preventDefault();
+            console.log('KHM Schema: previewSchema() FIRED');
             
             var $button = $(e.currentTarget);
             var $preview = $('#khm-seo-schema-preview');
@@ -266,6 +255,7 @@
          */
         validateSchema: function(e) {
             e.preventDefault();
+            console.log('KHM Schema: validateSchema() FIRED');
             
             var $button = $(e.currentTarget);
             var $results = $('#khm-seo-validation-results');
@@ -278,13 +268,30 @@
             var schemaJson = $('#khm-seo-preview-output').val();
             
             if (!schemaJson) {
-                // Generate schema first
-                this.generateSchemaForValidation(function(json) {
+                // Generate schema first, then validate
+                var config = KHMSchemaAdmin.collectSchemaFormData();
+                var postId = $('input[name="post_ID"]').val() || 0;
+                $.post(khm_seo_schema.ajax_url, {
+                    action: 'khm_seo_preview_schema',
+                    nonce: khm_seo_schema.nonce,
+                    post_id: postId,
+                    schema_config: config,
+                }).done(function(response) {
+                    var json = (response.success && response.data.formatted) ? response.data.formatted : '';
+                    if (!json) {
+                        $results.html('<div class="khm-seo-validation-error">Could not generate schema for validation</div>');
+                        return;
+                    }
+                    $('#khm-seo-preview-output').val(json);
                     KHMSchemaAdmin.performValidation(json, $button, $results);
+                }).fail(function() {
+                    $results.html('<div class="khm-seo-validation-error">Could not generate schema for validation</div>');
+                    $button.prop('disabled', false);
                 });
-            } else {
-                this.performValidation(schemaJson, $button, $results);
+                return;
             }
+            
+            KHMSchemaAdmin.performValidation(schemaJson, $button, $results);
         },
         
         /**
@@ -356,17 +363,33 @@
          */
         testWithGoogle: function(e) {
             e.preventDefault();
+            console.log('KHM Schema: testWithGoogle() FIRED');
             
-            var postUrl = this.getCurrentPostUrl();
+            var $button = $(e.currentTarget);
+            var postId = $('input[name="post_ID"]').val() || 0;
             
-            if (!postUrl) {
-                alert('Please save the post first to test with Google.');
-                return;
-            }
+            // Show loading state
+            $button.prop('disabled', true).find('.dashicons').removeClass('dashicons-admin-tools').addClass('dashicons-update-alt');
             
-            // Open Google Rich Results Test in new tab
-            var googleTestUrl = 'https://search.google.com/test/rich-results?url=' + encodeURIComponent(postUrl);
-            window.open(googleTestUrl, '_blank');
+            // Call server to get permalink + Google URL (handles draft state gracefully)
+            $.post(khm_seo_schema.ajax_url, {
+                action: 'khm_seo_test_with_google',
+                nonce: khm_seo_schema.nonce,
+                post_id: postId
+            })
+            .done(function(response) {
+                if (response.success && response.data.google_url) {
+                    window.open(response.data.google_url, '_blank');
+                } else {
+                    alert(response.data || 'Could not generate test URL. Please save the post first.');
+                }
+            })
+            .fail(function() {
+                alert('Network error. Could not test with Google.');
+            })
+            .always(function() {
+                $button.prop('disabled', false).find('.dashicons').removeClass('dashicons-update-alt').addClass('dashicons-admin-tools');
+            });
         },
         
         /**
@@ -868,10 +891,50 @@
     
     // Initialize when document is ready
     $(document).ready(function() {
+        // Diagnostic: verify JS loaded and localized data exists
+        if (typeof khm_seo_schema === 'undefined') {
+            console.error('KHM Schema: khm_seo_schema not localized — schema-admin.js will not function');
+            return;
+        }
+        console.log('KHM Schema: schema-admin.js initialized. ajax_url=' + khm_seo_schema.ajax_url + ' nonce=' + (khm_seo_schema.nonce ? 'present' : 'MISSING'));
         KHMSchemaAdmin.init();
     });
     
     // Make globally available
     window.KHMSchemaAdmin = KHMSchemaAdmin;
-    
+
+    // Debug helper: type khm_debug in console to inspect state
+    window.khm_debug = {
+        buttons: function() {
+            return {
+                preview: $('#khm-seo-preview-schema').length,
+                validate: $('#khm-seo-validate-schema').length,
+                testGoogle: $('#khm-seo-test-schema').length,
+                copy: $('#khm-seo-copy-schema').length
+            };
+        },
+        state: function() {
+            return {
+                khm_seo_schema: typeof khm_seo_schema !== 'undefined' ? khm_seo_schema : 'NOT LOCALIZED',
+                postId: $('input[name="post_ID"]').val() || 'none',
+                schemaType: $('#khm_seo_schema_type').val() || 'none',
+                schemaEnabled: $('#khm_seo_schema_enabled').is(':checked')
+            };
+        },
+        testAjax: function() {
+            console.log('Testing AJAX to: ' + khm_seo_schema.ajax_url);
+            $.post(khm_seo_schema.ajax_url, {
+                action: 'khm_seo_preview_schema',
+                nonce: khm_seo_schema.nonce,
+                post_id: $('input[name="post_ID"]').val() || 0,
+                schema_config: { type: 'article' }
+            }).done(function(r) {
+                console.log('AJAX success:', r);
+            }).fail(function(xhr, status, err) {
+                console.error('AJAX fail:', status, err, xhr.responseText);
+            });
+        }
+    };
+    console.log('KHM Schema: Debug helper available — type khm_debug.buttons(), khm_debug.state(), or khm_debug.testAjax() in console');
+
 })(jQuery);

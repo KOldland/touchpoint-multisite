@@ -146,8 +146,10 @@ class SchemaAdminManager {
         \add_action( 'admin_init', array( $this, 'register_settings' ) );
         
         // AJAX handlers
+        \error_log( 'KHM SEO: SchemaAdminManager::init_hooks() registering AJAX handlers.' );
         \add_action( 'wp_ajax_khm_seo_preview_schema', array( $this, 'ajax_preview_schema' ) );
         \add_action( 'wp_ajax_khm_seo_validate_schema', array( $this, 'ajax_validate_schema' ) );
+        \add_action( 'wp_ajax_khm_seo_test_with_google', array( $this, 'ajax_test_with_google' ) );
         \add_action( 'wp_ajax_khm_seo_bulk_schema_update', array( $this, 'ajax_bulk_schema_update' ) );
         
         // Scripts and styles
@@ -334,6 +336,34 @@ class SchemaAdminManager {
         
         include dirname( __FILE__ ) . '/templates/admin-page-schema.php';
     }
+
+    /**
+     * Get schema cache statistics for the tools tab.
+     *
+     * @return array Associative array with 'count' and 'last_updated' keys.
+     */
+    public function get_schema_cache_stats() {
+        global $wpdb;
+        $count = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s",
+                '_khm_seo_schema_cache'
+            )
+        );
+        $last_updated = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s ORDER BY post_id DESC LIMIT 1",
+                '_khm_seo_schema_cache_updated'
+            )
+        );
+
+        return array(
+            'count'        => (int) $count,
+            'last_updated' => $last_updated
+                ? date( 'M j, Y g:i a', strtotime( $last_updated ) )
+                : __( 'Never', 'khm-seo' ),
+        );
+    }
     
     /**
      * Enqueue admin assets
@@ -357,6 +387,8 @@ class SchemaAdminManager {
         if ( ! $load_assets ) {
             return;
         }
+        
+        \error_log( 'KHM SEO: enqueue_admin_assets() FIRING on hook=' . $hook . ' post_type=' . ( $post->post_type ?? 'none' ) );
         
         // Schema admin CSS
         \wp_enqueue_style(
@@ -538,6 +570,7 @@ class SchemaAdminManager {
      * AJAX preview schema
      */
     public function ajax_preview_schema() {
+        \error_log( 'KHM SEO: ajax_preview_schema called. POST=' . wp_json_encode( $_POST ) );
         \check_ajax_referer( 'khm_seo_ajax', 'nonce' );
         
         $post_id = intval( $_POST['post_id'] ?? 0 );
@@ -548,16 +581,15 @@ class SchemaAdminManager {
         }
         
         try {
-            // Generate schema preview
-            $schema_manager = new \KHM_SEO\Schema\SchemaManager();
-            $schema_json = $schema_manager->generate_post_schema( $post_id, $schema_config );
+            // Use config-aware preview generator that respects the user's selected schema type
+            $schema_json = $this->generate_schema_for_preview( $post_id, $schema_config );
             
             \wp_send_json_success( array(
                 'schema' => $schema_json,
                 'formatted' => wp_json_encode( $schema_json, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES )
             ) );
             
-        } catch ( Exception $e ) {
+        } catch ( \Exception $e ) {
             \wp_send_json_error( $e->getMessage() );
         }
     }
@@ -568,7 +600,11 @@ class SchemaAdminManager {
     public function ajax_validate_schema() {
         \check_ajax_referer( 'khm_seo_ajax', 'nonce' );
         
-        $schema_json = $_POST['schema_json'] ?? '';
+        // WordPress applies addslashes to $_POST via wp_magic_quotes.
+        // json_decode will choke on escaped quotes like {\"@context\":...
+        $schema_json = \wp_unslash( $_POST['schema_json'] ?? '' );
+        
+        \error_log( 'KHM SEO: ajax_validate_schema received. Length=' . strlen( $schema_json ) . ' First 200 chars: ' . substr( $schema_json, 0, 200 ) );
         
         if ( empty( $schema_json ) ) {
             \wp_send_json_error( __( 'No schema data provided', 'khm-seo' ) );
@@ -579,7 +615,9 @@ class SchemaAdminManager {
             $schema_data = json_decode( $schema_json, true );
             
             if ( json_last_error() !== JSON_ERROR_NONE ) {
-                \wp_send_json_error( __( 'Invalid JSON format', 'khm-seo' ) );
+                $json_err = json_last_error_msg();
+                \error_log( 'KHM SEO: ajax_validate_schema JSON decode error: ' . $json_err . ' Input first 500 chars: ' . substr( $schema_json, 0, 500 ) );
+                \wp_send_json_error( __( 'Invalid JSON format', 'khm-seo' ) . ' — ' . $json_err );
             }
             
             // Schema.org validation
@@ -627,107 +665,118 @@ class SchemaAdminManager {
     }
     
     /**
-     * Validate schema structure
-     * 
+     * Validate schema structure using SchemaGenerator's comprehensive validation
+     * which covers all 12+ schema types including the 4 new rich types.
+     *
      * @param array $schema_data Schema data
      * @return array Validation result
      */
     private function validate_schema_structure( $schema_data ) {
-        $validation = array(
-            'valid' => true,
-            'errors' => array(),
-            'warnings' => array(),
-            'score' => 100
-        );
-        
-        // Check required fields
-        if ( empty( $schema_data['@type'] ) ) {
-            $validation['errors'][] = 'Missing @type field';
-            $validation['valid'] = false;
-            $validation['score'] -= 30;
-        }
-        
-        if ( empty( $schema_data['@context'] ) ) {
-            $validation['warnings'][] = 'Missing @context field';
-            $validation['score'] -= 10;
-        }
-        
-        // Type-specific validation
-        if ( ! empty( $schema_data['@type'] ) ) {
-            switch ( $schema_data['@type'] ) {
-                case 'Article':
-                    $validation = $this->validate_article_schema( $schema_data, $validation );
-                    break;
-                case 'Organization':
-                    $validation = $this->validate_organization_schema( $schema_data, $validation );
-                    break;
-            }
-        }
-        
-        return $validation;
+        // Delegate to SchemaGenerator::validate_schema() for comprehensive validation
+        $generator = new \KHM_SEO\Schema\SchemaGenerator();
+        return $generator->validate_schema( $schema_data );
     }
-    
+
     /**
-     * Validate Article schema
-     * 
-     * @param array $schema_data Schema data
-     * @param array $validation Validation result
-     * @return array Updated validation
+     * Generate schema preview for a post and return formatted JSON-LD.
+     *
+     * Called via AJAX from editor-modal.js and schema-admin.js.
+     *
+     * @param int   $post_id       Post ID.
+     * @param array $schema_config Schema configuration from form.
+     * @return array Full schema data array.
      */
-    private function validate_article_schema( $schema_data, $validation ) {
-        // Required fields for Article
-        $required_fields = array( 'headline', 'author', 'datePublished' );
-        
-        foreach ( $required_fields as $field ) {
-            if ( empty( $schema_data[ $field ] ) ) {
-                $validation['errors'][] = "Missing required field: {$field}";
-                $validation['valid'] = false;
-                $validation['score'] -= 20;
+    public function generate_schema_for_preview( $post_id, $schema_config = array() ) {
+        $post = \get_post( $post_id );
+        if ( ! $post ) {
+            return array();
+        }
+
+        // Start with SchemaGenerator's native generation
+        $generator = new \KHM_SEO\Schema\SchemaGenerator();
+        $json_ld = $generator->generate_schema( $post );
+
+        // Strip <script> wrapper
+        $json = preg_replace( '#<script[^>]*>|</script>#', '', $json_ld );
+        $decoded = json_decode( trim( $json ), true );
+        if ( JSON_ERROR_NONE !== json_last_error() ) {
+            return array();
+        }
+
+        // If a specific schema config type was provided, swap the primary type
+        if ( ! empty( $schema_config['type'] ) ) {
+            $target_type = $generator->resolve_schema_type_key( $schema_config['type'] );
+            // Walk @graph and replace the first non-global type with the target
+            if ( $target_type ) {
+                $global_types = array( 'Organization', 'WebSite', 'BreadcrumbList' );
+                foreach ( $decoded['@graph'] as &$item ) {
+                    $t = $item['@type'] ?? '';
+                    if ( ! in_array( $t, $global_types, true ) ) {
+                        // Re-generate with the specific type
+                        $schema_item = $this->generate_schema_item_for_type( $target_type, $post, $generator );
+                        if ( $schema_item ) {
+                            $item = $schema_item;
+                        }
+                        break;
+                    }
+                }
+                unset( $item );
             }
         }
-        
-        // Recommended fields
-        $recommended_fields = array( 'description', 'image', 'dateModified' );
-        
-        foreach ( $recommended_fields as $field ) {
-            if ( empty( $schema_data[ $field ] ) ) {
-                $validation['warnings'][] = "Missing recommended field: {$field}";
-                $validation['score'] -= 5;
-            }
-        }
-        
-        return $validation;
+
+        return $decoded;
     }
-    
+
     /**
-     * Validate Organization schema
-     * 
-     * @param array $schema_data Schema data
-     * @param array $validation Validation result
-     * @return array Updated validation
+     * Generate a single schema item of a given type using SchemaGenerator.
+     *
+     * @param string          $type      PascalCase type (e.g. 'TechArticle').
+     * @param \WP_Post        $post      Post object.
+     * @param SchemaGenerator $generator SchemaGenerator instance.
+     * @return array|null Schema item array.
      */
-    private function validate_organization_schema( $schema_data, $validation ) {
-        // Required fields for Organization
-        $required_fields = array( 'name', 'url' );
-        
-        foreach ( $required_fields as $field ) {
-            if ( empty( $schema_data[ $field ] ) ) {
-                $validation['errors'][] = "Missing required field: {$field}";
-                $validation['valid'] = false;
-                $validation['score'] -= 20;
+    private function generate_schema_item_for_type( $type, $post, $generator ) {
+        $method = 'generate_' . strtolower( $type ) . '_schema';
+        // Access private methods on SchemaGenerator via reflection for types not exposed publicly
+        $reflection = new \ReflectionClass( $generator );
+        if ( $reflection->hasMethod( $method ) ) {
+            $rm = $reflection->getMethod( $method );
+            $rm->setAccessible( true );
+            $result = $rm->invoke( $generator, $post );
+            if ( is_array( $result ) && ! empty( $result ) ) {
+                return $result;
             }
         }
-        
-        // Recommended fields
-        $recommended_fields = array( 'logo', 'contactPoint', 'address' );
-        
-        foreach ( $recommended_fields as $field ) {
-            if ( empty( $schema_data[ $field ] ) ) {
-                $validation['warnings'][] = "Missing recommended field: {$field}";
-                $validation['score'] -= 5;
-            }
+        return null;
+    }
+
+    /**
+     * AJAX test with Google — open Rich Results Test URL.
+     *
+     * For drafts, generates a temporary preview URL that Google can crawl
+     * (requires the post to be saved at least once). Returns the Google
+     * Rich Results Test URL with the post permalink.
+     */
+    public function ajax_test_with_google() {
+        \check_ajax_referer( 'khm_seo_ajax', 'nonce' );
+
+        $post_id = intval( $_POST['post_id'] ?? 0 );
+
+        if ( ! $post_id || ! \current_user_can( 'edit_post', $post_id ) ) {
+            \wp_send_json_error( __( 'Invalid post or insufficient permissions', 'khm-seo' ) );
         }
-        
-        return $validation;
+
+        $permalink = \get_permalink( $post_id );
+
+        if ( ! $permalink ) {
+            \wp_send_json_error( __( 'Post must be saved (not auto-draft) before testing with Google. Please save the post first.', 'khm-seo' ) );
+        }
+
+        $google_url = 'https://search.google.com/test/rich-results?url=' . urlencode( $permalink );
+
+        \wp_send_json_success( array(
+            'google_url' => $google_url,
+            'post_url'   => $permalink,
+        ) );
     }
 }
