@@ -181,10 +181,9 @@ class PromptFactory {
         $prompt[] = '- Key Points: 3-6 bullets.';
         $prompt[] = '- Context: 3 sentences or fewer.';
         $prompt[] = '- Application: 3 sentences or fewer.';
-        $prompt[] = '- Editorial Summary: 100-200 words.';
-        $prompt[] = '- Meta Summary: 160 characters or fewer.';
+        $prompt[] = '- Keywords: 3-6 relevant keywords or phrases.';
         $prompt[] = 'Output JSON schema:';
-        $prompt[] = '{"overview":"","key_points":[""],"context":"","application":"","keywords":[""],"editorial_summary":"","meta_summary":""}';
+        $prompt[] = '{"overview":"","key_points":[""],"context":"","application":"","keywords":[""]}';
 
         return implode("\n", $prompt);
     }

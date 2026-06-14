@@ -53,7 +53,7 @@ class AbstractAgent {
         $warnings = [];
         $errors = [];
 
-        $required = ['overview', 'key_points', 'context', 'application', 'keywords', 'editorial_summary', 'meta_summary'];
+        $required = ['overview', 'key_points', 'context', 'application', 'keywords'];
         foreach ($required as $key) {
             if (!array_key_exists($key, $abstract)) {
                 $errors[] = 'Missing field: ' . $key;
@@ -74,16 +74,6 @@ class AbstractAgent {
         $key_points_count = is_array($abstract['key_points'] ?? null) ? count($abstract['key_points']) : 0;
         if ($key_points_count < 3 || $key_points_count > 6) {
             $warnings[] = 'Key Points should have 3-6 bullets.';
-        }
-
-        $editorial_word_count = str_word_count($abstract['editorial_summary'] ?? '');
-        if ($editorial_word_count > 0 && ($editorial_word_count < 100 || $editorial_word_count > 200)) {
-            $warnings[] = 'Editorial Summary should be 100-200 words.';
-        }
-
-        $meta_summary = $abstract['meta_summary'] ?? '';
-        if (!empty($meta_summary) && strlen($meta_summary) > 160) {
-            $warnings[] = 'Meta Summary should be 160 characters or fewer.';
         }
 
         return [

@@ -112,6 +112,28 @@ class AuthorEndpoints {
                 'blocks'             => ['type' => 'array', 'required' => false],
             ],
         ]);
+
+        register_rest_route('editorial/v1', '/abstract/generate', [
+            'methods' => 'POST',
+            'callback' => [$this, 'generate_abstract'],
+            'permission_callback' => [$this, 'check_permissions'],
+            'args' => [
+                'post_id' => [
+                    'type' => 'integer',
+                    'required' => true,
+                ],
+            ],
+        ]);
+
+        register_rest_route('editorial/v1', '/abstract/save-to-post', [
+            'methods' => 'POST',
+            'callback' => [$this, 'save_abstract_to_post'],
+            'permission_callback' => [$this, 'check_permissions'],
+            'args' => [
+                'post_id'      => ['type' => 'integer', 'required' => true],
+                'abstract_data' => ['type' => 'object', 'required' => true],
+            ],
+        ]);
     }
 
     public function check_permissions() {
@@ -445,5 +467,212 @@ class AuthorEndpoints {
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Generate an abstract from the full post content using the AbstractAgent.
+     */
+    public function generate_abstract(WP_REST_Request $request) {
+        $post_id = $request->get_param('post_id');
+        $post = get_post($post_id);
+
+        if (!$post) {
+            return new WP_Error('post_not_found', 'Post not found.', ['status' => 404]);
+        }
+
+        // Strip blocks/shortcodes to get clean plain text
+        $content = wp_strip_all_tags($post->post_content, true);
+        // Use full content for abstract generation (unlike excerpt which limits to 3000 chars)
+        // Limit to 10000 characters to keep LLM context manageable
+        $content = mb_substr($content, 0, 10000);
+
+        if (empty(trim($content))) {
+            return new WP_REST_Response([
+                'success' => false,
+                'message' => 'Post content is empty.',
+            ], 200);
+        }
+
+        try {
+            $orchestrator = \KH\EditorialAuthor\Core\AuthorPlugin::get_instance()->get_orchestrator();
+            $result = $orchestrator->run([
+                'mode'          => 'abstract',
+                'draft_content' => $content,
+            ], get_current_user_id());
+
+            if (is_wp_error($result)) {
+                return new WP_REST_Response([
+                    'success' => false,
+                    'message' => $result->get_error_message(),
+                ], 200);
+            }
+
+            $abstract_output = $result['output'] ?? [];
+
+            return new WP_REST_Response([
+                'success'   => true,
+                'abstract'  => $abstract_output,
+                'warnings'  => $result['warnings'] ?? [],
+                'errors'    => $result['validation_errors'] ?? [],
+            ], 200);
+
+        } catch (\Throwable $e) {
+            error_log('[Abstract] generate_abstract failed: ' . $e->getMessage());
+            return new WP_REST_Response([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Save abstract data to the ACF abstract Gutenberg block in the post.
+     *
+     * The acf/abstract block stores data as post meta using ACF conventions:
+     *   - Simple fields: overview, context, application (post meta keys)
+     *   - Repeater: key_points_N_bullet (N = 0-based index)
+     * The block comment in post_content is a marker; ACF reads from get_field() / post meta.
+     */
+    public function save_abstract_to_post(WP_REST_Request $request) {
+        $post_id       = $request->get_param('post_id');
+        $abstract_data = $request->get_param('abstract_data');
+
+        if (!current_user_can('edit_post', $post_id)) {
+            return new WP_Error('forbidden', 'You do not have permission to edit this post.', ['status' => 403]);
+        }
+
+        $post = get_post($post_id);
+        if (!$post) {
+            return new WP_Error('post_not_found', 'Post not found.', ['status' => 404]);
+        }
+
+        // ---- Write simple fields as post meta (ACF reads these) ----
+        update_post_meta($post_id, 'overview', sanitize_textarea_field($abstract_data['overview'] ?? ''));
+        update_post_meta($post_id, 'context', sanitize_textarea_field($abstract_data['context'] ?? ''));
+        update_post_meta($post_id, 'application', sanitize_textarea_field($abstract_data['application'] ?? ''));
+
+        // ---- Write key_points as ACF repeater meta ----
+        // ACF stores repeaters as: base_N_subfield (e.g., key_points_0_bullet, key_points_1_bullet)
+        // + a count row: key_points => N
+
+        // Delete any existing repeater rows
+        delete_post_meta($post_id, 'key_points');
+        global $wpdb;
+        $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key LIKE %s",
+            $post_id,
+            'key_points_%'
+        ));
+
+        $raw_key_points = $abstract_data['key_points'] ?? [];
+        if (!is_array($raw_key_points)) {
+            $raw_key_points = [];
+        }
+
+        // Write each bullet as a repeater sub-field
+        $valid_count = 0;
+        foreach ($raw_key_points as $i => $point) {
+            $bullet_text = is_string($point) ? $point : ($point['bullet'] ?? '');
+            $bullet_text = sanitize_text_field(trim($bullet_text));
+            if ($bullet_text === '') {
+                continue;
+            }
+            update_post_meta($post_id, "key_points_{$valid_count}_bullet", $bullet_text);
+            $valid_count++;
+        }
+
+        // Write the count so ACF knows how many rows exist
+        if ($valid_count > 0) {
+            update_post_meta($post_id, 'key_points', $valid_count);
+        }
+
+        // Try ACF update_field as well if available (for ACF Pro in-block editing)
+        if (function_exists('update_field')) {
+            $acf_key_points = array_map(function($point) {
+                $bullet_text = is_string($point) ? $point : ($point['bullet'] ?? '');
+                return ['bullet' => sanitize_text_field(trim($bullet_text))];
+            }, $raw_key_points);
+            $acf_key_points = array_values(array_filter($acf_key_points, fn($p) => $p['bullet'] !== ''));
+
+            update_field('field_abstract_overview', sanitize_textarea_field($abstract_data['overview'] ?? ''), $post_id);
+            update_field('field_abstract_context', sanitize_textarea_field($abstract_data['context'] ?? ''), $post_id);
+            update_field('field_abstract_application', sanitize_textarea_field($abstract_data['application'] ?? ''), $post_id);
+            update_field('field_abstract_key_points', $acf_key_points, $post_id);
+        }
+
+        // ---- Insert/update the block marker in post_content ----
+        // The block comment serves two consumers:
+        // 1. ACF Gutenberg editor — reads _field_abstract_* keys with underscore prefix
+        // 2. Frontend template / PDFService — reads simple keys (overview, context, key_points_0_bullet, etc.)
+        // Include both formats so all consumers work.
+
+        // Build simple flat keys for frontend/PDF backward compatibility
+        $flat_block_data = [
+            'overview'    => sanitize_textarea_field($abstract_data['overview'] ?? ''),
+            'context'     => sanitize_textarea_field($abstract_data['context'] ?? ''),
+            'application' => sanitize_textarea_field($abstract_data['application'] ?? ''),
+            'key_points'  => $valid_count,
+        ];
+        // Add each bullet as flat key_points_N_bullet
+        for ($i = 0; $i < $valid_count; $i++) {
+            $flat_block_data["key_points_{$i}_bullet"] = get_post_meta($post_id, "key_points_{$i}_bullet", true);
+        }
+
+        // Build ACF-prefixed keys for the Gutenberg editor
+        $acf_key_points_for_block = array_values(array_map(fn($p) => [
+            'field_abstract_key_points_bullet' => sanitize_text_field(is_string($p) ? $p : ($p['bullet'] ?? ''))
+        ], $raw_key_points));
+
+        $acf_block_data = [
+            '_field_abstract_overview'    => sanitize_textarea_field($abstract_data['overview'] ?? ''),
+            '_field_abstract_context'     => sanitize_textarea_field($abstract_data['context'] ?? ''),
+            '_field_abstract_application' => sanitize_textarea_field($abstract_data['application'] ?? ''),
+            '_field_abstract_key_points'  => $acf_key_points_for_block,
+        ];
+
+        // Merge both — the _ prefixed keys take priority for ACF editor
+        $block_data_for_marker = array_merge($flat_block_data, $acf_block_data);
+        $block_json = wp_json_encode($block_data_for_marker, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $abstract_block = '<!-- wp:acf/abstract {"name":"acf/abstract","data":' . $block_json . ',"mode":"preview"} /-->';
+
+        $current_content = $post->post_content;
+
+        // Check if an abstract block marker already exists — replace it
+        $pattern = '/<!-- wp:acf\/abstract \{"name":"acf\/abstract","data":\{.+?\},"mode":"[^"]*"\} \/-->/s';
+        if (preg_match($pattern, $current_content)) {
+            $new_content = preg_replace($pattern, $abstract_block, $current_content, 1);
+        } else {
+            // Prepend the abstract block to the content
+            $new_content = $abstract_block . "\n\n" . $current_content;
+        }
+
+        // Store all abstract fields as post meta for PDF/reference
+        $full_abstract_meta = [
+            'overview'    => sanitize_textarea_field($abstract_data['overview'] ?? ''),
+            'context'     => sanitize_textarea_field($abstract_data['context'] ?? ''),
+            'application' => sanitize_textarea_field($abstract_data['application'] ?? ''),
+            'key_points'  => $raw_key_points,
+            'keywords'    => array_map('sanitize_text_field', (array) ($abstract_data['keywords'] ?? [])),
+        ];
+        update_post_meta($post_id, '_kh_abstract_data', $full_abstract_meta);
+
+        // Update post content with the new block
+        $updated = wp_update_post([
+            'ID'           => $post_id,
+            'post_content' => $new_content,
+        ], true);
+
+        if (is_wp_error($updated)) {
+            error_log('[Abstract] save_abstract_to_post failed: ' . $updated->get_error_message());
+            return new WP_REST_Response([
+                'success' => false,
+                'message' => 'Failed to update post: ' . $updated->get_error_message(),
+            ], 200);
+        }
+
+        return new WP_REST_Response([
+            'success' => true,
+            'message' => 'Abstract saved to post.',
+        ], 200);
     }
 }

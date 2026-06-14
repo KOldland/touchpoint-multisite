@@ -111,6 +111,9 @@
         var _useState12 = useState('risograph_print'), artStyle = _useState12[0], setArtStyle = _useState12[1];
         var _useState13 = useState('terracotta_indigo'), colourPalette = _useState13[0], setColourPalette = _useState13[1];
         var _useState14 = useState(false), generatingExcerpt = _useState14[0], setGeneratingExcerpt = _useState14[1];
+        var _useState15 = useState(false), generatingAbstract = _useState15[0], setGeneratingAbstract = _useState15[1];
+        var _useState16 = useState(false), savingAbstract = _useState16[0], setSavingAbstract = _useState16[1];
+        var _useState17 = useState(null), abstractData = _useState17[0], setAbstractData = _useState17[1];
 
         function buildPayload(extras) {
             return Object.assign({
@@ -244,7 +247,66 @@
             });
         }
 
-        var isBusy = recommending || generating || generatingExcerpt;
+        function handleGenerateAbstract() {
+            if (!postId) return;
+            setGeneratingAbstract(true);
+            setAbstractData(null);
+            setNotice(null);
+            wp.apiFetch({
+                path: 'editorial/v1/abstract/generate',
+                method: 'POST',
+                data: { post_id: postId },
+            }).then(function (res) {
+                if (!res.success) {
+                    setNotice({ type: 'error', text: res.message || 'Failed to generate abstract.' });
+                    setGeneratingAbstract(false);
+                    return;
+                }
+                setAbstractData(res.abstract || {});
+                if (res.warnings && res.warnings.length) {
+                    setNotice({ type: 'warning', text: 'Abstract generated with warnings: ' + res.warnings.join(', ') });
+                } else {
+                    setNotice({ type: 'success', text: 'Abstract generated.' });
+                }
+            }).catch(function (err) {
+                setNotice({ type: 'error', text: err.message || 'Failed to generate abstract.' });
+            }).finally(function () {
+                setGeneratingAbstract(false);
+            });
+        }
+
+        function handleSaveAbstract() {
+            if (!postId || !abstractData) return;
+            setSavingAbstract(true);
+            setNotice(null);
+            wp.apiFetch({
+                path: 'editorial/v1/abstract/save-to-post',
+                method: 'POST',
+                data: {
+                    post_id: postId,
+                    abstract_data: abstractData,
+                },
+            }).then(function (res) {
+                if (!res.success) {
+                    setNotice({ type: 'error', text: res.message || 'Failed to save abstract to post.' });
+                    setSavingAbstract(false);
+                    return;
+                }
+                // Save the post to sync the editor with the updated post_content,
+                // then reload to render the new ACF abstract block.
+                wp.data.dispatch('core/editor').savePost().then(function () {
+                    window.location.reload();
+                }).catch(function () {
+                    // Save may fail if no changes in the editor — reload anyway
+                    window.location.reload();
+                });
+            }).catch(function (err) {
+                setNotice({ type: 'error', text: err.message || 'Failed to save abstract.' });
+                setSavingAbstract(false);
+            });
+        }
+
+        var isBusy = recommending || generating || generatingExcerpt || generatingAbstract || savingAbstract;
 
         return createElement(
             wp.element.Fragment,
@@ -394,6 +456,60 @@
                             },
                             generatingExcerpt ? createElement(Spinner, null) : 'Generate Excerpt'
                         )
+                    ),
+
+                    createElement(
+                        PanelBody,
+                        { title: 'Generate Abstract', initialOpen: false },
+                        createElement('p', { style: { marginBottom: '8px', fontSize: '13px' } },
+                            'AI generates Overview, Context, Application, and Observations from the post content.'
+                        ),
+                        createElement(
+                            Button,
+                            {
+                                isPrimary: true,
+                                onClick: handleGenerateAbstract,
+                                disabled: isBusy,
+                                style: { marginBottom: '12px' },
+                            },
+                            generatingAbstract ? createElement(Spinner, null) : 'Generate Abstract'
+                        ),
+
+                        abstractData
+                            ? createElement(
+                                'div',
+                                { style: { marginTop: '12px' } },
+
+                                createElement('h4', { style: { marginBottom: '4px' } }, 'Overview'),
+                                createElement('p', { style: { fontSize: '12px', color: '#555', lineHeight: '1.5' } }, abstractData.overview || ''),
+
+                                createElement('h4', { style: { marginBottom: '4px', marginTop: '12px' } }, 'Observations'),
+                                createElement(
+                                    'ul',
+                                    { style: { fontSize: '12px', color: '#555', paddingLeft: '16px', marginTop: '4px' } },
+                                    (abstractData.key_points || []).map(function (kp, i) {
+                                        return createElement('li', { key: i }, kp);
+                                    })
+                                ),
+
+                                createElement('h4', { style: { marginBottom: '4px', marginTop: '12px' } }, 'Context'),
+                                createElement('p', { style: { fontSize: '12px', color: '#555', lineHeight: '1.5' } }, abstractData.context || ''),
+
+                                createElement('h4', { style: { marginBottom: '4px', marginTop: '12px' } }, 'Application'),
+                                createElement('p', { style: { fontSize: '12px', color: '#555', lineHeight: '1.5' } }, abstractData.application || ''),
+
+                                createElement(
+                                    Button,
+                                    {
+                                        isPrimary: true,
+                                        onClick: handleSaveAbstract,
+                                        disabled: isBusy,
+                                        style: { marginTop: '12px' },
+                                    },
+                                    savingAbstract ? createElement(Spinner, null) : 'Save Abstract to Post'
+                                )
+                              )
+                            : null
                     )
 
                 )
