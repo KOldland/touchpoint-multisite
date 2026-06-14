@@ -14,7 +14,7 @@ class EditorialAdmin {
     }
 
     public function register_menu() {
-        // Parent: Editorial Studio
+        // Parent: Editorial Studio — the dashboard hub
         add_menu_page(
             __( 'Editorial Studio', 'kh-editorial-intelligence' ),
             __( 'Editorial Studio', 'kh-editorial-intelligence' ),
@@ -26,8 +26,19 @@ class EditorialAdmin {
         );
 
         // Sub: Planner (registered by kh-editorial-planner, do not duplicate)
-
         // Sub: Writing Studio (registered by kh-editorial-author, do not duplicate)
+
+        // Sub: Posts — keep as sidebar fallback, but primary nav lives in the dashboard
+        remove_menu_page( 'edit.php' );
+        add_submenu_page(
+            'kh-editorial-studio',
+            __( 'All Posts', 'kh-editorial-intelligence' ),
+            __( 'All Posts', 'kh-editorial-intelligence' ),
+            'edit_posts',
+            'edit.php'
+        );
+        // Note: Add New, Categories, Tags, Authors, Atomic Articles are all
+        // surfaced as cards on the dashboard — no sidebar clutter needed.
 
         // Sub: Intelligence Admin
         add_submenu_page(
@@ -74,67 +85,211 @@ class EditorialAdmin {
         $seo_active = function_exists('khm_seo');
         $geo_active = class_exists('\KHM\GEO\SuggestAnswerCardsEndpoint');
 
-        // Fetch recent jobs
+        // Fetch post counts
+        $post_counts = wp_count_posts();
+        $total_posts = (int) $post_counts->publish + (int) $post_counts->draft + (int) $post_counts->pending + (int) $post_counts->future;
+
+        // Fetch recent posts
+        $recent_posts = get_posts( [
+            'post_type'      => 'post',
+            'post_status'    => [ 'publish', 'draft', 'pending', 'future' ],
+            'posts_per_page' => 5,
+            'orderby'        => 'modified',
+            'order'          => 'DESC',
+        ] );
+
+        // Fetch recent AI jobs
         $table_jobs = $wpdb->prefix . 'ai_jobs';
         $recent_jobs = [];
         if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_jobs'" ) ) {
             $recent_jobs = $wpdb->get_results( "SELECT * FROM $table_jobs ORDER BY created_at DESC LIMIT 10" );
         }
 
+        // Navigation menu items (like a front-end grid)
+        $nav_items = [
+            [
+                'title'    => __( 'All Posts', 'kh-editorial-intelligence' ),
+                'url'      => admin_url( 'edit.php' ),
+                'icon'     => 'dashicons-admin-post',
+                'desc'     => __( 'Browse, edit, and manage all content.', 'kh-editorial-intelligence' ),
+                'primary'  => false,
+            ],
+            [
+                'title'    => __( 'New Post', 'kh-editorial-intelligence' ),
+                'url'      => admin_url( 'post-new.php' ),
+                'icon'     => 'dashicons-plus-alt',
+                'desc'     => __( 'Create a new article.', 'kh-editorial-intelligence' ),
+                'primary'  => true,
+            ],
+            [
+                'title'    => __( 'Categories', 'kh-editorial-intelligence' ),
+                'url'      => admin_url( 'edit-tags.php?taxonomy=category' ),
+                'icon'     => 'dashicons-category',
+                'desc'     => __( 'Organise content by topic.', 'kh-editorial-intelligence' ),
+                'primary'  => false,
+            ],
+            [
+                'title'    => __( 'Tags', 'kh-editorial-intelligence' ),
+                'url'      => admin_url( 'edit-tags.php?taxonomy=post_tag' ),
+                'icon'     => 'dashicons-tag',
+                'desc'     => __( 'Manage content tags.', 'kh-editorial-intelligence' ),
+                'primary'  => false,
+            ],
+            [
+                'title'    => __( 'Authors', 'kh-editorial-intelligence' ),
+                'url'      => post_type_exists( 'multi_author' ) ? admin_url( 'edit.php?post_type=multi_author' ) : '',
+                'icon'     => 'dashicons-admin-users',
+                'desc'     => __( 'Manage author profiles and bios.', 'kh-editorial-intelligence' ),
+                'primary'  => false,
+                'cond'     => post_type_exists( 'multi_author' ),
+            ],
+            [
+                'title'    => __( 'Atomic Articles', 'kh-editorial-intelligence' ),
+                'url'      => post_type_exists( 'atomic_article' ) ? admin_url( 'edit.php?post_type=atomic_article' ) : '',
+                'icon'     => 'dashicons-grid-view',
+                'desc'     => __( 'LLM-decomposed micro-content for RAG.', 'kh-editorial-intelligence' ),
+                'primary'  => false,
+                'cond'     => post_type_exists( 'atomic_article' ),
+            ],
+            [
+                'title'    => __( 'Planner', 'kh-editorial-intelligence' ),
+                'url'      => admin_url( 'admin.php?page=kh-editorial-planner' ),
+                'icon'     => 'dashicons-calendar-alt',
+                'desc'     => __( 'Plan editorial sessions and strategy.', 'kh-editorial-intelligence' ),
+                'primary'  => false,
+            ],
+            [
+                'title'    => __( 'Writing Studio', 'kh-editorial-intelligence' ),
+                'url'      => admin_url( 'admin.php?page=kh-editorial-author' ),
+                'icon'     => 'dashicons-edit',
+                'desc'     => __( 'AI-assisted writing and frameworks.', 'kh-editorial-intelligence' ),
+                'primary'  => false,
+            ],
+            [
+                'title'    => __( 'API Settings', 'kh-editorial-intelligence' ),
+                'url'      => admin_url( 'admin.php?page=kh-editorial-settings' ),
+                'icon'     => 'dashicons-admin-settings',
+                'desc'     => __( 'LLM keys, social, and search config.', 'kh-editorial-intelligence' ),
+                'primary'  => false,
+                'cond'     => current_user_can( 'manage_options' ),
+            ],
+        ];
+
         ?>
-        <div class="wrap">
-            <h1>Editorial Suite Status</h1>
-            <div class="welcome-panel" style="padding: 20px;">
-                <div class="welcome-panel-column-container">
-                    <div class="welcome-panel-column">
-                        <h3>Core Infrastructure</h3>
-                        <ul>
-                            <li>
-                                <?php echo $llm_configured ? '[OK]' : '[X]'; ?> 
-                                <strong>LLM API:</strong> <?php echo $llm_configured ? 'Configured' : 'Not Configured'; ?>
-                            </li>
-                            <li>
-                                <?php echo $seo_active ? '[OK]' : '[X]'; ?> 
-                                <strong>SEO Engine:</strong> <?php echo $seo_active ? 'Active' : 'Inactive'; ?>
-                            </li>
-                            <li>
-                                <?php echo $geo_active ? '[OK]' : '[X]'; ?> 
-                                <strong>GEO Researcher:</strong> <?php echo $geo_active ? 'Active' : 'Inactive'; ?>
-                            </li>
-                        </ul>
-                    </div>
-                    <div class="welcome-panel-column welcome-panel-last">
-                        <h3>Recent AI Jobs</h3>
-                        <?php if ( ! empty( $recent_jobs ) ) : ?>
-                            <table class="wp-list-table widefat fixed striped">
-                                <thead>
-                                    <tr>
-                                        <th>Type</th>
-                                        <th>Status</th>
-                                        <th>Created</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ( $recent_jobs as $job ) : ?>
-                                        <tr>
-                                            <td><code><?php echo esc_html( $job->model ?: 'N/A' ); ?></code></td>
-                                            <td>
-                                                <span class="status-tag status-<?php echo esc_attr( $job->status ); ?>">
-                                                    <?php echo esc_html( ucfirst( $job->status ) ); ?>
-                                                </span>
-                                            </td>
-                                            <td><?php echo esc_html( human_time_diff( strtotime( $job->created_at ), current_time( 'timestamp' ) ) ); ?> ago</td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        <?php else : ?>
-                            <p>No recent jobs found.</p>
-                        <?php endif; ?>
-                    </div>
+        <div class="wrap kh-studio-dashboard">
+            <h1><?php esc_html_e( 'Editorial Studio', 'kh-editorial-intelligence' ); ?></h1>
+
+            <!-- Stat cards row -->
+            <div class="kh-stats-row" style="display: flex; gap: 16px; margin-bottom: 24px;">
+                <div class="kh-stat-card" style="flex: 1; background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 16px; text-align: center;">
+                    <div style="font-size: 28px; font-weight: 700; color: #1d2327;"><?php echo esc_html( $total_posts ); ?></div>
+                    <div style="color: #646970; font-size: 13px;"><?php esc_html_e( 'Total Posts', 'kh-editorial-intelligence' ); ?></div>
+                </div>
+                <div class="kh-stat-card" style="flex: 1; background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 16px; text-align: center;">
+                    <div style="font-size: 28px; font-weight: 700; color: #dba617;"><?php echo esc_html( $post_counts->draft ?? 0 ); ?></div>
+                    <div style="color: #646970; font-size: 13px;"><?php esc_html_e( 'Drafts', 'kh-editorial-intelligence' ); ?></div>
+                </div>
+                <div class="kh-stat-card" style="flex: 1; background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 16px; text-align: center;">
+                    <div style="font-size: 28px; font-weight: 700; color: #d63638;"><?php echo esc_html( $post_counts->pending ?? 0 ); ?></div>
+                    <div style="color: #646970; font-size: 13px;"><?php esc_html_e( 'Pending Review', 'kh-editorial-intelligence' ); ?></div>
+                </div>
+                <div class="kh-stat-card" style="flex: 1; background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 16px; text-align: center;">
+                    <div style="font-size: 28px; font-weight: 700; color: #2271b1;"><?php echo esc_html( $post_counts->future ?? 0 ); ?></div>
+                    <div style="color: #646970; font-size: 13px;"><?php esc_html_e( 'Scheduled', 'kh-editorial-intelligence' ); ?></div>
                 </div>
             </div>
 
+            <!-- Navigation grid (hub-style) -->
+            <h2 style="margin-bottom: 12px;"><?php esc_html_e( 'Quick Actions', 'kh-editorial-intelligence' ); ?></h2>
+            <div class="kh-nav-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px;">
+                <?php foreach ( $nav_items as $item ) :
+                    if ( isset( $item['cond'] ) && ! $item['cond'] ) continue;
+                    $card_style = ! empty( $item['primary'] )
+                        ? 'background: #2271b1; color: #fff; border-color: #2271b1;'
+                        : 'background: #fff; border: 1px solid #c3c4c7;';
+                    $text_style = ! empty( $item['primary'] ) ? 'color: #fff;' : 'color: #1d2327;';
+                    $desc_style = ! empty( $item['primary'] ) ? 'color: rgba(255,255,255,0.75);' : 'color: #646970;';
+                ?>
+                    <a href="<?php echo esc_url( $item['url'] ); ?>" class="kh-nav-card" style="display: flex; align-items: flex-start; gap: 12px; padding: 20px; border-radius: 6px; text-decoration: none; <?php echo $card_style; ?> transition: transform 0.15s, box-shadow 0.15s;">
+                        <span class="dashicons <?php echo esc_attr( $item['icon'] ); ?>" style="font-size: 28px; width: 28px; height: 28px; <?php echo $text_style; ?>"></span>
+                        <div>
+                            <strong style="display: block; font-size: 14px; <?php echo $text_style; ?>"><?php echo esc_html( $item['title'] ); ?></strong>
+                            <span style="font-size: 12px; <?php echo $desc_style; ?>"><?php echo esc_html( $item['desc'] ); ?></span>
+                        </div>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+
+            <!-- Bottom row: Recent Posts + System Status -->
+            <div style="display: flex; gap: 20px;">
+                <!-- Recently Modified Posts -->
+                <div style="flex: 1; background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 16px;">
+                    <h3 style="margin-top: 0;"><?php esc_html_e( 'Recently Modified', 'kh-editorial-intelligence' ); ?></h3>
+                    <?php if ( ! empty( $recent_posts ) ) : ?>
+                        <ul style="margin: 0; padding-left: 0; list-style: none;">
+                            <?php foreach ( $recent_posts as $post ) : ?>
+                                <li style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f1;">
+                                    <a href="<?php echo esc_url( get_edit_post_link( $post->ID ) ); ?>" style="font-weight: 600;">
+                                        <?php echo esc_html( get_the_title( $post ) ?: '(no title)' ); ?>
+                                    </a>
+                                    <span style="color: #888; font-size: 12px; margin-left: 8px;">
+                                        — <?php echo esc_html( $post->post_status ); ?>
+                                    </span>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php else : ?>
+                        <p style="color: #646970;"><?php esc_html_e( 'No posts yet.', 'kh-editorial-intelligence' ); ?></p>
+                    <?php endif; ?>
+                </div>
+
+                <!-- System Status -->
+                <div style="flex: 1; background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 16px;">
+                    <h3 style="margin-top: 0;"><?php esc_html_e( 'System Status', 'kh-editorial-intelligence' ); ?></h3>
+                    <table class="widefat" style="border: none;">
+                        <tbody>
+                            <tr>
+                                <td style="border: none; padding: 6px 0;"><?php echo $llm_configured ? '✅' : '❌'; ?> <strong><?php esc_html_e( 'LLM API', 'kh-editorial-intelligence' ); ?></strong></td>
+                                <td style="border: none; padding: 6px 0; text-align: right;"><?php echo $llm_configured ? esc_html__( 'Configured', 'kh-editorial-intelligence' ) : esc_html__( 'Offline', 'kh-editorial-intelligence' ); ?></td>
+                            </tr>
+                            <tr>
+                                <td style="border: none; padding: 6px 0;"><?php echo $seo_active ? '✅' : '❌'; ?> <strong><?php esc_html_e( 'SEO Engine', 'kh-editorial-intelligence' ); ?></strong></td>
+                                <td style="border: none; padding: 6px 0; text-align: right;"><?php echo $seo_active ? esc_html__( 'Active', 'kh-editorial-intelligence' ) : esc_html__( 'Inactive', 'kh-editorial-intelligence' ); ?></td>
+                            </tr>
+                            <tr>
+                                <td style="border: none; padding: 6px 0;"><?php echo $geo_active ? '✅' : '❌'; ?> <strong><?php esc_html_e( 'GEO Researcher', 'kh-editorial-intelligence' ); ?></strong></td>
+                                <td style="border: none; padding: 6px 0; text-align: right;"><?php echo $geo_active ? esc_html__( 'Active', 'kh-editorial-intelligence' ) : esc_html__( 'Inactive', 'kh-editorial-intelligence' ); ?></td>
+                            </tr>
+                            <?php if ( ! empty( $recent_jobs ) ) : ?>
+                                <tr><td colspan="2" style="border: none; padding-top: 12px;"><strong><?php esc_html_e( 'Recent AI Jobs', 'kh-editorial-intelligence' ); ?></strong></td></tr>
+                                <?php foreach ( array_slice( $recent_jobs, 0, 5 ) as $job ) : ?>
+                                    <tr>
+                                        <td style="border: none; padding: 3px 0; font-size: 12px;"><code><?php echo esc_html( $job->model ?: 'N/A' ); ?></code></td>
+                                        <td style="border: none; padding: 3px 0; font-size: 12px; text-align: right;">
+                                            <?php echo esc_html( ucfirst( $job->status ) ); ?>
+                                            — <?php echo esc_html( human_time_diff( strtotime( $job->created_at ), current_time( 'timestamp' ) ) ); ?> ago
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <style>
+                .kh-nav-card:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                }
+                @media (max-width: 900px) {
+                    .kh-nav-grid { grid-template-columns: repeat(2, 1fr) !important; }
+                    .kh-stats-row { flex-wrap: wrap; }
+                }
+                @media (max-width: 600px) {
+                    .kh-nav-grid { grid-template-columns: 1fr !important; }
+                }
+            </style>
         </div>
         <?php
     }
