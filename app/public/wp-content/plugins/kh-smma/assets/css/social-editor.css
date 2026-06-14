@@ -1,0 +1,23 @@
+/**
+ * KH SMMA Social Editor CSS
+ *
+ * Styles for the "Social Media" meta box in the post editor.
+ *
+ * @package KH_SMMA
+ * @since 0.2.0
+ */
+
+/* Prevent meta box content from being too wide */
+#kh-smma-social .inside {
+	margin: 0;
+	padding: 0;
+}
+
+/* Card preview hover effect */
+.kh-smma-social-card {
+	transition: box-shadow 0.2s ease;
+}
+
+.kh-smma-social-card:hover {
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}

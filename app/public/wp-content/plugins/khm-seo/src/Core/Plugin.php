@@ -19,7 +19,6 @@ use KHM_SEO\Schema\Admin\SchemaAdminManager;
 use KHM_SEO\Sitemap\SitemapManager;
 use KHM_SEO\Admin\AdminManager;
 use KHM_SEO\Tools\ToolsManager;
-use KHM_SEO\Social\SocialMediaManager;
 use KHM_SEO\Validation\SchemaValidator;
 use KHM_SEO\Utils\DatabaseManager;
 use KHM_SEO\Analysis\AnalysisEngine;
@@ -34,7 +33,6 @@ use KHM_SEO\Elementor\Widgets\SeoChart_Widget;
 use KHM_SEO\Elementor\Widgets\SeoStats_Widget;
 use KHM_SEO\Elementor\Widgets\SeoAlerts_Widget;
 use KHM_SEO\Elementor\ElementorIntegration;
-use KHM_SEO\Preview\SocialMediaPreviewManager;
 
 /**
  * Main plugin class.
@@ -89,20 +87,6 @@ final class Plugin {
      * @var ToolsManager|null
      */
     public $tools = null;
-
-    /**
-     * Preview manager instance.
-     *
-     * @var Preview\SocialMediaPreviewManager|null
-     */
-    public $preview = null;
-
-    /**
-     * Social media manager instance.
-     *
-     * @var SocialMediaManager|null
-     */
-    public $social = null;
 
     /**
      * Schema admin manager instance.
@@ -246,9 +230,6 @@ final class Plugin {
             $this->tools = new ToolsManager();
         }
         
-        // Initialize Phase 3 social media manager
-        $this->social = new SocialMediaManager();
-        
         // Initialize Phase 4 schema admin interface
         if ( is_admin() ) {
             $this->schema_admin = new SchemaAdminManager();
@@ -258,9 +239,6 @@ final class Plugin {
         if ( ( ! $is_post_editor && ! $is_rest_request ) || ( defined( 'DOING_AJAX' ) && DOING_AJAX ) ) {
             $this->validator = new SchemaValidator();
         }
-        
-        // Initialize Phase 6 social media preview manager
-        $this->preview = new SocialMediaPreviewManager();
         
         // Initialize analysis engine with default configuration
         if ( ! $is_post_editor && ! $is_rest_request ) {

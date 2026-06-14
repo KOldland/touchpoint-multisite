@@ -73,6 +73,7 @@ use KH_SMMA\Telemetry\AlertEvaluator;
 use KH_SMMA\Telemetry\TelemetryTraceService;
 use KH_SMMA\Notifications\ApprovalNotificationService;
 use KH_SMMA\SponsorApproval\ApprovalPermissionService;
+use KH_SMMA\Social\SocialManager;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -200,6 +201,9 @@ class Plugin {
         $this->register_oauth();
         $this->register_cli();
         $this->capability_manager->register();
+
+        // Social media tools — meta box, wp_head tags, live preview
+        ( new SocialManager() );
     }
 
     /**

@@ -53,6 +53,7 @@
         '<footer class="kh-smma-variant-actions">' +
         '<button type="button" class="button kh-smma-edit-btn" data-action="edit">Edit</button>' +
         '<button type="button" class="button button-primary kh-smma-schedule-btn" data-action="schedule" ' + (complianceStatus === "FAIL" ? "disabled" : "") + '>Schedule</button>' +
+        '<button type="button" class="button kh-smma-use-social-btn" data-action="usesocial" title="Copy variant text to LinkedIn social fields">Use as social text</button>' +
         (complianceStatus === "FAIL" ? '<p class="description">Scheduling blocked due to compliance violation.</p>' : "") +
         "</footer>" +
         "</article>";
@@ -73,6 +74,14 @@
         var card = button.closest(".kh-smma-variant-card");
         if (!card || !handlers || typeof handlers.onSchedule !== "function") return;
         handlers.onSchedule(String(card.getAttribute("data-variant-id") || ""));
+      });
+    });
+
+    root.querySelectorAll("[data-action='usesocial']").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var card = button.closest(".kh-smma-variant-card");
+        if (!card || !handlers || typeof handlers.onUseSocial !== "function") return;
+        handlers.onUseSocial(String(card.getAttribute("data-variant-id") || ""), button);
       });
     });
   }

@@ -117,6 +117,14 @@
               var variant = findVariant(variantId);
               if (!variant) return;
               window.KHSMMAEditor.ScheduleModal.open(variant);
+            },
+            onUseSocial: function (variantId, buttonEl) {
+              var variant = findVariant(variantId);
+              if (!variant || !variant.linkedIn || !variant.linkedIn.text) return;
+              // Dispatch custom event for social-editor.js to pick up
+              document.dispatchEvent(new CustomEvent('smma:social.populate', {
+                detail: { text: variant.linkedIn.text, button: buttonEl }
+              }));
             }
           });
         };
