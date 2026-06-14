@@ -185,6 +185,10 @@ class EditorialAdmin {
                     'EUR' => (float) ( $_POST['rate_eur'] ?? 1.15 ),
                     'USD' => (float) ( $_POST['rate_usd'] ?? 1.25 ),
                 ],
+                'linkedin_client_id'     => sanitize_text_field( $_POST['linkedin_client_id'] ?? '' ),
+                'linkedin_client_secret' => sanitize_text_field( $_POST['linkedin_client_secret'] ?? '' ),
+                'linkedin_access_token'  => sanitize_text_field( $_POST['linkedin_access_token'] ?? '' ),
+                'linkedin_author_urn'    => sanitize_text_field( $_POST['linkedin_author_urn'] ?? '' ),
             ];
 
             update_option( 'kh_editorial_settings', $settings );
@@ -319,6 +323,21 @@ class EditorialAdmin {
                                         <option value="openrouter" <?php selected( $settings['provider_priority'], 'openrouter' ); ?>>OpenRouter First → OpenAI</option>
                                     </select>
                                     <div class="kh-desc">When providers are added they appear here. Set primary and fallback order.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Social Media -->
+                        <div class="kh-subsection">
+                            <h3>Social Media</h3>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label"><strong>LinkedIn</strong><span class="kh-help">OAuth</span></div>
+                                <div class="kh-form-control">
+                                    <input name="linkedin_client_id" type="text" value="<?php echo esc_attr( $settings['linkedin_client_id'] ?? '' ); ?>" placeholder="Client ID" class="small" style="width:300px;margin-bottom:6px;">
+                                    <input name="linkedin_client_secret" type="password" value="<?php echo esc_attr( $settings['linkedin_client_secret'] ?? '' ); ?>" placeholder="Client Secret" class="small" style="width:300px;margin-bottom:6px;">
+                                    <input name="linkedin_access_token" type="password" value="<?php echo esc_attr( $settings['linkedin_access_token'] ?? '' ); ?>" placeholder="Access Token" class="small" style="width:300px;margin-bottom:6px;">
+                                    <input name="linkedin_author_urn" type="text" value="<?php echo esc_attr( $settings['linkedin_author_urn'] ?? '' ); ?>" placeholder="Author URN (e.g. urn:li:person:abc123)" class="small" style="width:350px;">
+                                    <div class="kh-desc">Client ID + Secret from <a href="https://www.linkedin.com/developers/apps" target="_blank">LinkedIn Developer Apps</a>. Access Token from OAuth flow. Author URN identifies the person/organization posting.</div>
                                 </div>
                             </div>
                         </div>

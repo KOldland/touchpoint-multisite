@@ -7,11 +7,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use KH\Planner\Agents\PlannerOrchestrator;
+use KH\Planner\Core\TopLineCategoriesStore;
 
 class PlannerEndpoints {
 
+    private $categories_store;
+
     public function init() {
         add_action( 'rest_api_init', [ $this, 'register_routes' ] );
+        // Seed categories on init if empty
+        add_action( 'init', [ $this, 'seed_categories_if_empty' ], 20 );
+        // Wire the filter so the legacy stub endpoint returns real data
+        add_filter( 'kh_editorial_planner_top_line_categories', [ $this, 'get_categories_for_filter' ] );
     }
 
     public function register_routes() {
@@ -61,9 +68,7 @@ class PlannerEndpoints {
             'permission_callback' => [ $this, 'check_permission' ],
         ] );
 
-        // Add GET top-line-categories endpoint (Step 4)
-        
-        // Add GET presets endpoint (Step 5)
+        // GET presets endpoint (Step 5)
         register_rest_route("editorial/v1", "/presets", [
             "methods" => "GET",
             "callback" => [$this, "get_presets"],
@@ -83,9 +88,31 @@ class PlannerEndpoints {
             "callback" => [$this, "create_job"],
             "permission_callback" => [$this, "check_permission"],
         ]);
+
+        // GET top-line-categories (legacy stub — now returns real data via filter)
         register_rest_route( 'editorial/v1', '/top-line-categories', [
             'methods'             => 'GET',
             'callback'            => [ $this, 'get_top_line_categories' ],
+            'permission_callback' => [ $this, 'check_permission' ]
+        ] );
+
+        // ─── Top-Line Categories CRUD (planner namespace — used by React UI) ───
+
+        register_rest_route( 'editorial/v1', '/planner/top-line-categories', [
+            'methods'             => 'GET',
+            'callback'            => [ $this, 'list_top_line_categories' ],
+            'permission_callback' => [ $this, 'check_permission' ]
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/top-line-categories', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'save_top_line_category' ],
+            'permission_callback' => [ $this, 'check_permission' ]
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/top-line-categories/import', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'import_top_line_categories' ],
             'permission_callback' => [ $this, 'check_permission' ]
         ] );
     }
@@ -93,6 +120,83 @@ class PlannerEndpoints {
     public function check_permission() {
         return current_user_can( 'edit_posts' );
     }
+
+    // ─── Top-Line Categories Store ──────────────────────────────────────
+
+    private function get_store(): TopLineCategoriesStore {
+        if ( ! $this->categories_store ) {
+            $this->categories_store = new TopLineCategoriesStore();
+        }
+        return $this->categories_store;
+    }
+
+    /**
+     * Seed categories from legacy backup on init if store is empty.
+     */
+    public function seed_categories_if_empty() {
+        $this->get_store()->seed_if_empty();
+    }
+
+    /**
+     * Filter callback for kh_editorial_planner_top_line_categories.
+     */
+    public function get_categories_for_filter() {
+        return $this->get_store()->get_all();
+    }
+
+    /**
+     * GET editorial/v1/top-line-categories (legacy stub — now real).
+     */
+    public function get_top_line_categories() {
+        $categories = apply_filters( 'kh_editorial_planner_top_line_categories', [] );
+        return rest_ensure_response( [ 'top_line_categories' => $categories ] );
+    }
+
+    /**
+     * GET editorial/v1/planner/top-line-categories — list all.
+     */
+    public function list_top_line_categories() {
+        $categories = $this->get_store()->get_all();
+        return rest_ensure_response( [ 'top_line_categories' => $categories ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/top-line-categories — save or update.
+     */
+    public function save_top_line_category( \WP_REST_Request $request ) {
+        $params = $request->get_json_params();
+        $category = $params['top_line_category'] ?? $params ?? [];
+
+        if ( empty( $category['name'] ) ) {
+            return new \WP_Error( 'missing_name', 'Category name is required.', [ 'status' => 400 ] );
+        }
+
+        $ok = $this->get_store()->save( $category );
+        if ( ! $ok ) {
+            return new \WP_Error( 'save_failed', 'Failed to save category.', [ 'status' => 500 ] );
+        }
+
+        return rest_ensure_response( [ 'ok' => true, 'category' => $category ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/top-line-categories/import — bulk import.
+     */
+    public function import_top_line_categories( \WP_REST_Request $request ) {
+        $params = $request->get_json_params();
+
+        $result = [ 'created_or_updated' => 0, 'skipped' => 0 ];
+
+        if ( ! empty( $params['csv'] ) ) {
+            $result = $this->get_store()->import_csv( $params['csv'] );
+        } elseif ( ! empty( $params['rows'] ) && is_array( $params['rows'] ) ) {
+            $result = $this->get_store()->import_rows( $params['rows'] );
+        }
+
+        return rest_ensure_response( $result );
+    }
+
+    // ─── Existing Endpoints ────────────────────────────────────────────
 
     public function export_session( $request ) {
         $session_id = $request->get_param( 'id' );
@@ -226,11 +330,6 @@ class PlannerEndpoints {
         ] );
     }
 
-    public function get_top_line_categories() {
-        $categories = apply_filters( 'kh_editorial_planner_top_line_categories', [] );
-        return rest_ensure_response( $categories );
-    }
-
     public function run_session( $request ) {
         $id = $request['id'];
         $orchestrator = new PlannerOrchestrator();
@@ -265,4 +364,3 @@ class PlannerEndpoints {
         ] );
     }
 }
-

@@ -2,16 +2,22 @@
 /**
  * Social Media Meta Box Template
  *
- * Single unified meta box with:
- * - LinkedIn title/description fields
+ * Active LinkedIn publishing composer with:
+ * - Title / description / image fields
  * - Live card preview
- * - Character counters + validation warnings
+ * - AI suggest
+ * - Save Social Data button
+ * - Post to LinkedIn Now button
+ * - Save for Later (Queue) button
+ * - Status indicator (saved / queued / published)
  *
  * Available variables:
  * @var \WP_Post $post          Current post object.
  * @var string   $title         LinkedIn custom title.
  * @var string   $description   LinkedIn custom description.
  * @var string   $image_id      LinkedIn custom image attachment ID.
+ * @var string   $queue_status  Queue status (pending / published / '').
+ * @var string   $last_posted   Timestamp of last LinkedIn publish.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -21,11 +27,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 <div id="kh-smma-social-meta-box" class="kh-smma-social-meta-box" style="padding:12px;">
 
+	<!-- Status Bar -->
+	<div id="kh-smma-status-bar" class="kh-smma-status-bar" style="margin-bottom:15px;padding:8px 12px;background:#f0f6fc;border:1px solid #c5d9ed;border-radius:4px;display:none;">
+		<span id="kh-smma-status-icon" class="dashicons" style="vertical-align:middle;"></span>
+		<span id="kh-smma-status-text"></span>
+	</div>
+
 	<!-- LinkedIn Fields -->
 	<div class="kh-smma-social-section">
 		<h4><?php esc_html_e( 'LinkedIn Sharing', 'kh-smma' ); ?></h4>
 		<p class="description">
-			<?php esc_html_e( 'Customize how this post appears when shared on LinkedIn. Leave blank to use the default title and excerpt.', 'kh-smma' ); ?>
+			<?php esc_html_e( 'Customize how this post appears on LinkedIn. Save to persist, then Post Now or Save for Later.', 'kh-smma' ); ?>
 		</p>
 
 		<div class="kh-smma-field">
@@ -108,6 +120,35 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 		<!-- Warnings -->
 		<div id="kh-smma-preview-warnings" class="kh-smma-preview-warnings" style="display:none;"></div>
+	</div>
+
+	<!-- Action Buttons -->
+	<div class="kh-smma-social-section" style="border-bottom:none;padding-top:5px;">
+		<div class="kh-smma-action-buttons" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+			<button type="button" class="button button-primary" id="kh-smma-save-social">
+				<span class="dashicons dashicons-database" style="vertical-align:middle;margin-right:2px;"></span>
+				<?php esc_html_e( 'Save Social Data', 'kh-smma' ); ?>
+			</button>
+			<button type="button" class="button" id="kh-smma-post-now" style="background:#0073b0;color:#fff;border-color:#005a87;">
+				<span class="dashicons dashicons-linkedin" style="vertical-align:middle;margin-right:2px;"></span>
+				<?php esc_html_e( 'Post to LinkedIn Now', 'kh-smma' ); ?>
+			</button>
+			<button type="button" class="button" id="kh-smma-queue-later">
+				<span class="dashicons dashicons-clock" style="vertical-align:middle;margin-right:2px;"></span>
+				<?php esc_html_e( 'Save for Later', 'kh-smma' ); ?>
+			</button>
+		</div>
+		<?php if ( ! empty( $queue_status ) ) : ?>
+			<div id="kh-smma-current-status" style="margin-top:10px;font-size:13px;color:#555;">
+				<?php if ( 'published' === $queue_status ) : ?>
+					<span class="dashicons dashicons-yes-alt" style="color:#008a20;vertical-align:middle;"></span>
+					<?php printf( __( 'Posted to LinkedIn %s', 'kh-smma' ), human_time_diff( (int) $last_posted, current_time( 'timestamp' ) ) . ' ago' ); ?>
+				<?php elseif ( 'pending' === $queue_status ) : ?>
+					<span class="dashicons dashicons-clock" style="color:#dba617;vertical-align:middle;"></span>
+					<?php esc_html_e( 'Queued for later — review in SMMA → Social Queue.', 'kh-smma' ); ?>
+				<?php endif; ?>
+			</div>
+		<?php endif; ?>
 	</div>
 
 </div>
@@ -216,5 +257,23 @@ if ( ! defined( 'ABSPATH' ) ) {
 .kh-smma-warning.low {
 	background: #e8f5e9;
 	border-left-color: #4caf50;
+}
+
+/* Status bar variants */
+.kh-smma-status-bar.saved {
+	background: #ecf7ed;
+	border-color: #a7d6a9;
+}
+.kh-smma-status-bar.posted {
+	background: #e8f5e9;
+	border-color: #81c784;
+}
+.kh-smma-status-bar.queued {
+	background: #fff8e1;
+	border-color: #ffe082;
+}
+.kh-smma-status-bar.error {
+	background: #ffebee;
+	border-color: #ef9a9a;
 }
 </style>

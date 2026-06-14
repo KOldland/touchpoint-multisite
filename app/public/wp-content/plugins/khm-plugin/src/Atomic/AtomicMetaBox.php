@@ -7,6 +7,7 @@
  *  - Opt-in checkbox: "Generate atomic articles on publish/update"
  *  - "Regenerate Now" button (calls POST /khm/v1/posts/{id}/atomic/regenerate)
  *  - List of existing atomic articles with edit/view links
+ *  - "View all in list →" filtered link to Atomic Articles admin list
  *
  * @package KHM\Atomic
  */
@@ -64,6 +65,15 @@ class AtomicMetaBox {
         $enabled     = AtomicArticlePostType::is_generation_enabled( $post->ID );
         $atomic_ids  = AtomicArticlePostType::get_ids_for_parent( $post->ID );
         $count       = count( $atomic_ids );
+
+        // Build the filtered list URL for this parent post
+        $filter_url = add_query_arg(
+            array(
+                'post_type'        => AtomicArticlePostType::POST_TYPE,
+                'atomic_parent_id' => $post->ID,
+            ),
+            admin_url( 'edit.php' )
+        );
         ?>
         <p>
             <label>
@@ -83,6 +93,11 @@ class AtomicMetaBox {
             /* translators: %d: number of atomic articles */
             printf( esc_html( _n( '%d atomic article generated.', '%d atomic articles generated.', $count, 'khm-membership' ) ), $count );
             ?>
+        </p>
+        <p style="font-size:0.85em;">
+            <a href="<?php echo esc_url( $filter_url ); ?>">
+                <?php esc_html_e( 'View all in list →', 'khm-membership' ); ?>
+            </a>
         </p>
         <ul style="margin:0.5em 0; padding-left:1.25em; font-size:0.85em;">
             <?php foreach ( $atomic_ids as $id ) : ?>

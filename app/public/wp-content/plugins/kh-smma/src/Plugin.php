@@ -74,6 +74,7 @@ use KH_SMMA\Telemetry\TelemetryTraceService;
 use KH_SMMA\Notifications\ApprovalNotificationService;
 use KH_SMMA\SponsorApproval\ApprovalPermissionService;
 use KH_SMMA\Social\SocialManager;
+use KH_SMMA\Admin\SocialQueuePage;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -202,8 +203,11 @@ class Plugin {
         $this->register_cli();
         $this->capability_manager->register();
 
-        // Social media tools — meta box, wp_head tags, live preview
+        // Social media tools — meta box, save/queue/post-now, LinkedIn API publishing
         ( new SocialManager() );
+
+        // Social Queue admin page
+        ( new SocialQueuePage() )->register();
     }
 
     /**

@@ -4,10 +4,15 @@
  * Handles the "Social Media" meta box:
  * - Live LinkedIn card preview
  * - Character counters
+ * - Save Social Data button
+ * - Post to LinkedIn Now button
+ * - Save for Later (Queue) button
+ * - Status indicator bar
+ * - AI suggest
  * - Variant auto-populate listener (from editor-generate.js)
  *
  * @package KH_SMMA
- * @since 0.2.0
+ * @since 0.3.0
  */
 
 (function ($) {
@@ -26,7 +31,19 @@
 
 			this.bindEvents();
 			this.initCharCounters();
+			this.restoreStatus();
 			console.log('KH SMMA: Social editor initialized for post ID', khSmmaSocial.postId);
+		},
+
+		/**
+		 * Restore existing status on page load.
+		 */
+		restoreStatus: function () {
+			if (khSmmaSocial.queueStatus === 'published') {
+				this.showStatus('posted', 'Posted to LinkedIn' + (khSmmaSocial.lastPosted ? ' ' + khSmmaSocial.lastPosted : ''));
+			} else if (khSmmaSocial.queueStatus === 'pending') {
+				this.showStatus('queued', 'Queued for later — review in SMMA → Social Queue.');
+			}
 		},
 
 		/**
@@ -34,6 +51,21 @@
 		 */
 		bindEvents: function () {
 			var self = this;
+
+			// Save button
+			$('#kh-smma-save-social').on('click', function () {
+				self.saveSocialData();
+			});
+
+			// Post Now button
+			$('#kh-smma-post-now').on('click', function () {
+				self.postNow();
+			});
+
+			// Queue for later button
+			$('#kh-smma-queue-later').on('click', function () {
+				self.queueLater();
+			});
 
 			// Suggest with AI button
 			$('#kh-smma-suggest-ai').on('click', function () {
@@ -78,6 +110,189 @@
 		},
 
 		/**
+		 * Show the status bar with a message.
+		 *
+		 * @param {string} type    Status type: saved / posted / queued / error
+		 * @param {string} message Status message text
+		 * @param {number} timeout Auto-hide timeout in ms (0 = persist)
+		 */
+		showStatus: function (type, message, timeout) {
+			var $bar = $('#kh-smma-status-bar');
+			var $icon = $('#kh-smma-status-icon');
+			var $text = $('#kh-smma-status-text');
+
+			$bar.removeClass('saved posted queued error');
+
+			switch (type) {
+				case 'saved':
+					$bar.addClass('saved');
+					$icon.attr('class', 'dashicons dashicons-yes');
+					break;
+				case 'posted':
+					$bar.addClass('posted');
+					$icon.attr('class', 'dashicons dashicons-yes-alt');
+					break;
+				case 'queued':
+					$bar.addClass('queued');
+					$icon.attr('class', 'dashicons dashicons-clock');
+					break;
+				case 'error':
+					$bar.addClass('error');
+					$icon.attr('class', 'dashicons dashicons-warning');
+					break;
+				default:
+					$icon.attr('class', 'dashicons dashicons-info');
+			}
+
+			$text.text(message);
+			$bar.show();
+
+			if (timeout && timeout > 0) {
+				setTimeout(function () {
+					$bar.fadeOut(500);
+				}, timeout);
+			}
+		},
+
+		/**
+		 * Hide the status bar.
+		 */
+		hideStatus: function () {
+			$('#kh-smma-status-bar').hide();
+		},
+
+		/**
+		 * Collect current field values.
+		 *
+		 * @returns {{ post_id: number, kh_smma_social_linkedin_title: string, kh_smma_social_linkedin_description: string, kh_smma_social_linkedin_image: string }}
+		 */
+		getFieldData: function () {
+			return {
+				post_id: khSmmaSocial.postId,
+				nonce: khSmmaSocial.nonce,
+				kh_smma_social_linkedin_title: $('#kh_smma_social_linkedin_title').val() || '',
+				kh_smma_social_linkedin_description: $('#kh_smma_social_linkedin_description').val() || '',
+				kh_smma_social_linkedin_image: $('#kh_smma_social_linkedin_image').val() || ''
+			};
+		},
+
+		/**
+		 * Save social data to post meta.
+		 */
+		saveSocialData: function () {
+			var self = this;
+			var $btn = $('#kh-smma-save-social');
+			var originalText = $btn.text();
+
+			$btn.prop('disabled', true).text(khSmmaSocial.strings.saving || 'Saving...');
+			self.hideStatus();
+
+			$.post(khSmmaSocial.ajaxUrl, $.extend(self.getFieldData(), {
+				action: 'kh_smma_save_social'
+			}))
+			.done(function (response) {
+				if (response.success) {
+					self.showStatus('saved', khSmmaSocial.strings.saved || 'Social data saved', 5000);
+					// Update the "Last saved" indicator in the UI if present
+					if (response.data && response.data.human) {
+						self.showStatus('saved', (khSmmaSocial.strings.lastSaved || 'Last saved') + ': ' + response.data.human, 5000);
+					}
+				} else {
+					self.showStatus('error', (response.data && response.data.message) || khSmmaSocial.strings.saveError || 'Save failed', 8000);
+				}
+			})
+			.fail(function (xhr) {
+				console.error('KH SMMA: Save failed', xhr.responseText);
+				self.showStatus('error', khSmmaSocial.strings.saveError || 'Save failed', 8000);
+			})
+			.always(function () {
+				$btn.text(originalText).prop('disabled', false);
+			});
+		},
+
+		/**
+		 * Post to LinkedIn immediately.
+		 */
+		postNow: function () {
+			var self = this;
+			var $btn = $('#kh-smma-post-now');
+			var originalText = $btn.text();
+
+			$btn.prop('disabled', true).text(khSmmaSocial.strings.posting || 'Posting to LinkedIn...');
+			self.hideStatus();
+
+			$.post(khSmmaSocial.ajaxUrl, $.extend(self.getFieldData(), {
+				action: 'kh_smma_post_now'
+			}))
+			.done(function (response) {
+				if (response.success) {
+					self.showStatus('posted', khSmmaSocial.strings.posted || 'Posted to LinkedIn', 0);
+					// Update current-status section
+					$('#kh-smma-current-status').remove();
+					var $statusDiv = $('<div id="kh-smma-current-status" style="margin-top:10px;font-size:13px;color:#555;">' +
+						'<span class="dashicons dashicons-yes-alt" style="color:#008a20;vertical-align:middle;"></span> ' +
+						(khSmmaSocial.strings.posted || 'Posted to LinkedIn') +
+						(response.data && response.data.human ? ' ' + response.data.human : '') +
+						'</div>');
+					$('#kh-smma-queue-later').parent().after($statusDiv);
+				} else {
+					var errMsg = (response.data && response.data.message) || khSmmaSocial.strings.postError || 'LinkedIn publish failed';
+					self.showStatus('error', errMsg, 0);
+				}
+			})
+			.fail(function (xhr) {
+				console.error('KH SMMA: Post now failed', xhr.responseText);
+				try {
+					var resp = JSON.parse(xhr.responseText);
+					self.showStatus('error', (resp.data && resp.data.message) || khSmmaSocial.strings.postError || 'LinkedIn publish failed', 0);
+				} catch (e) {
+					self.showStatus('error', khSmmaSocial.strings.postError || 'LinkedIn publish failed', 0);
+				}
+			})
+			.always(function () {
+				$btn.text(originalText).prop('disabled', false);
+			});
+		},
+
+		/**
+		 * Save and queue for later SMMA admin review.
+		 */
+		queueLater: function () {
+			var self = this;
+			var $btn = $('#kh-smma-queue-later');
+			var originalText = $btn.text();
+
+			$btn.prop('disabled', true).text(khSmmaSocial.strings.queuing || 'Queuing...');
+			self.hideStatus();
+
+			$.post(khSmmaSocial.ajaxUrl, $.extend(self.getFieldData(), {
+				action: 'kh_smma_queue_later'
+			}))
+			.done(function (response) {
+				if (response.success) {
+					self.showStatus('queued', khSmmaSocial.strings.queued || 'Queued for later', 0);
+					// Update current-status section
+					$('#kh-smma-current-status').remove();
+					var $statusDiv = $('<div id="kh-smma-current-status" style="margin-top:10px;font-size:13px;color:#555;">' +
+						'<span class="dashicons dashicons-clock" style="color:#dba617;vertical-align:middle;"></span> ' +
+						(khSmmaSocial.strings.queued || 'Queued for later') +
+						(response.data && response.data.message ? ' — ' + response.data.message : '') +
+						'</div>');
+					$('#kh-smma-queue-later').parent().after($statusDiv);
+				} else {
+					self.showStatus('error', (response.data && response.data.message) || khSmmaSocial.strings.queueError || 'Queue failed', 8000);
+				}
+			})
+			.fail(function (xhr) {
+				console.error('KH SMMA: Queue later failed', xhr.responseText);
+				self.showStatus('error', khSmmaSocial.strings.queueError || 'Queue failed', 8000);
+			})
+			.always(function () {
+				$btn.text(originalText).prop('disabled', false);
+			});
+		},
+
+		/**
 		 * Initialize character counters.
 		 */
 		initCharCounters: function () {
@@ -115,7 +330,7 @@
 			var $warnings = $('#kh-smma-preview-warnings');
 			var $btn = $('#kh-smma-refresh-preview');
 
-			$btn.prop('disabled', true);
+			if ($btn.length) $btn.prop('disabled', true);
 			$container.html('<div class="kh-smma-preview-placeholder">' + (khSmmaSocial.strings.generating || 'Generating preview...') + '</div>');
 
 			$.post(khSmmaSocial.ajaxUrl, {
@@ -130,7 +345,7 @@
 					$container.html(response.data.preview_html);
 					SocialEditor.renderWarnings(response.data.warnings);
 				} else {
-					$container.html('<div class="kh-smma-preview-placeholder" style="color:#d63638;">' + (response.data || 'Error generating preview') + '</div>');
+					$container.html('<div class="kh-smma-preview-placeholder" style="color:#d63638;">' + ((response.data && response.data.message) || 'Error generating preview') + '</div>');
 					$warnings.hide();
 				}
 			})
@@ -139,7 +354,7 @@
 				$warnings.hide();
 			})
 			.always(function () {
-				$btn.prop('disabled', false);
+				if ($btn.length) $btn.prop('disabled', false);
 			});
 		},
 
@@ -196,12 +411,12 @@
 					'<img src="' + (attachment.sizes && attachment.sizes.medium ? attachment.sizes.medium.url : attachment.url) +
 					'" style="max-width:300px;" alt="" />'
 				);
-				$('#kh-smma-select-social-image').text('Change Image');
+				$('#kh-smma-select-social-image').text(khSmmaSocial.strings.changeImage || 'Change Image');
 
 				// Ensure remove button exists
 				if (!$('#kh-smma-remove-social-image').length) {
 					$('#kh-smma-select-social-image').after(
-						' <button type="button" class="button" id="kh-smma-remove-social-image">Remove Image</button>'
+						' <button type="button" class="button" id="kh-smma-remove-social-image">' + (khSmmaSocial.strings.removeImage || 'Remove Image') + '</button>'
 					);
 				}
 

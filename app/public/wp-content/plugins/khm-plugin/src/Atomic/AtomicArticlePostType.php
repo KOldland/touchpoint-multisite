@@ -54,6 +54,11 @@ class AtomicArticlePostType {
     public function register(): void {
         add_action( 'init', array( $this, 'register_post_type' ) );
         add_filter( 'template_include', array( $this, 'template_include' ) );
+
+        // Admin list table: parent post column + URL filtering
+        add_filter( 'manage_' . self::POST_TYPE . '_posts_columns', array( $this, 'add_admin_columns' ) );
+        add_action( 'manage_' . self::POST_TYPE . '_posts_custom_column', array( $this, 'render_admin_column' ), 10, 2 );
+        add_action( 'pre_get_posts', array( $this, 'filter_by_parent' ) );
     }
 
     /**
@@ -112,6 +117,114 @@ class AtomicArticlePostType {
         }
 
         return $template;
+    }
+
+    /**
+     * Add custom columns to the Atomic Articles admin list table.
+     *
+     * @param array $columns Existing columns.
+     * @return array
+     */
+    public function add_admin_columns( array $columns ): array {
+        $new = array();
+        foreach ( $columns as $key => $label ) {
+            $new[ $key ] = $label;
+            if ( 'title' === $key ) {
+                $new['parent_post'] = __( 'Parent Post', 'khm-membership' );
+            }
+        }
+        return $new;
+    }
+
+    /**
+     * Render custom column content for the Atomic Articles admin list table.
+     *
+     * @param string $column  Column key.
+     * @param int    $post_id Current post ID.
+     * @return void
+     */
+    public function render_admin_column( string $column, int $post_id ): void {
+        if ( 'parent_post' !== $column ) {
+            return;
+        }
+
+        $parent_id = (int) get_post_meta( $post_id, '_atomic_parent_id', true );
+        if ( ! $parent_id ) {
+            echo '<em>' . esc_html__( '—', 'khm-membership' ) . '</em>';
+            return;
+        }
+
+        $parent = get_post( $parent_id );
+        if ( ! $parent ) {
+            echo '<em>' . esc_html__( 'Deleted', 'khm-membership' ) . '</em>';
+            return;
+        }
+
+        $edit_url = get_edit_post_link( $parent_id );
+        $title    = get_the_title( $parent );
+
+        // Link to edit the parent post
+        if ( $edit_url ) {
+            printf(
+                '<a href="%s">%s</a>',
+                esc_url( $edit_url ),
+                esc_html( $title ?: __( '(no title)', 'khm-membership' ) )
+            );
+        } else {
+            echo esc_html( $title ?: __( '(no title)', 'khm-membership' ) );
+        }
+
+        // Quick filter link: show only atomics for this parent
+        $filter_url = add_query_arg(
+            array(
+                'post_type'          => self::POST_TYPE,
+                'atomic_parent_id'   => $parent_id,
+            ),
+            admin_url( 'edit.php' )
+        );
+        printf(
+            ' <a href="%s" title="%s" style="font-size:0.85em;color:#2271b1;">↗</a>',
+            esc_url( $filter_url ),
+            esc_attr__( 'Filter by this parent', 'khm-membership' )
+        );
+    }
+
+    /**
+     * Filter the Atomic Articles admin list by parent post ID.
+     *
+     * Activates when `atomic_parent_id` is present in the URL.
+     *
+     * @param \WP_Query $query The current WP_Query.
+     * @return void
+     */
+    public function filter_by_parent( \WP_Query $query ): void {
+        if ( ! is_admin() || ! $query->is_main_query() ) {
+            return;
+        }
+
+        $post_type = $query->get( 'post_type' );
+        if ( $post_type !== self::POST_TYPE ) {
+            return;
+        }
+
+        $parent_id = isset( $_GET['atomic_parent_id'] ) ? absint( $_GET['atomic_parent_id'] ) : 0;
+        if ( ! $parent_id ) {
+            return;
+        }
+
+        $meta_query = $query->get( 'meta_query', array() );
+        if ( ! is_array( $meta_query ) ) {
+            $meta_query = array();
+        }
+
+        $meta_query[] = array(
+            'key'     => '_atomic_parent_id',
+            'value'   => $parent_id,
+            'type'    => 'NUMERIC',
+            'compare' => '=',
+        );
+
+        $query->set( 'meta_query', $meta_query );
     }
 
     /**
