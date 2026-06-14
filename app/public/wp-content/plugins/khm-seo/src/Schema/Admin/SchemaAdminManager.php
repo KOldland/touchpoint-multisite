@@ -73,6 +73,30 @@ class SchemaAdminManager {
             'description' => 'Breadcrumb navigation schema',
             'applicable_to' => array( 'all' ),
             'fields' => array( 'itemListElement' )
+        ),
+        'techarticle' => array(
+            'label' => 'TechArticle (Atomic Article)',
+            'description' => 'Atomic article with isPartOf parent guide link',
+            'applicable_to' => array( 'post' ),
+            'fields' => array( 'headline', 'author', 'datePublished', 'isPartOf', 'about', 'articleSection' )
+        ),
+        'qapage' => array(
+            'label' => 'QAPage (Answer Cards)',
+            'description' => 'Q&A page with nested Question and acceptedAnswer',
+            'applicable_to' => array( 'post', 'page' ),
+            'fields' => array( 'mainEntity' )
+        ),
+        'videoobject' => array(
+            'label' => 'VideoObject (YouTube)',
+            'description' => 'Video content with embed URL and key moments',
+            'applicable_to' => array( 'post' ),
+            'fields' => array( 'name', 'thumbnailUrl', 'embedUrl', 'hasPart' )
+        ),
+        'audioobject' => array(
+            'label' => 'AudioObject (Podcast)',
+            'description' => 'Audio content nested in BlogPosting or Article',
+            'applicable_to' => array( 'post' ),
+            'fields' => array( 'name', 'contentUrl', 'encodingFormat' )
         )
     );
     

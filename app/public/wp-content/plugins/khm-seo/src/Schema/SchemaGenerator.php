@@ -288,8 +288,22 @@ class SchemaGenerator {
 
         if ($context instanceof WP_Post) {
             $post_type = $context->post_type;
+
+            // Check for per-post schema config override (_khm_seo_schema_config)
+            $post_schema_config = get_post_meta($context->ID, '_khm_seo_schema_config', true);
+            if (
+                is_array($post_schema_config) &&
+                !empty($post_schema_config['enabled']) &&
+                !empty($post_schema_config['type'])
+            ) {
+                $override_type = $this->resolve_schema_type_key($post_schema_config['type']);
+                if ($override_type && isset($this->supported_types[$override_type])) {
+                    $types[] = $override_type;
+                    return apply_filters('khm_seo_schema_types', $types, $context);
+                }
+            }
             
-            // Check each supported type
+            // Check each supported type via auto-detection
             foreach ($this->supported_types as $schema_type => $config) {
                 if (
                     $config['auto_detect'] && 
@@ -1379,6 +1393,33 @@ class SchemaGenerator {
         }
 
         return $validation;
+    }
+
+    /**
+     * Resolve a lowercase schema type key (from _khm_seo_schema_config) to the
+     * PascalCase key used in $this->supported_types.
+     *
+     * @param string $type_key Lowercase type key (e.g. 'techarticle', 'qapage').
+     * @return string|null PascalCase type key or null if not found.
+     */
+    private function resolve_schema_type_key($type_key) {
+        $map = [
+            'article'       => 'Article',
+            'organization'  => 'Organization',
+            'person'        => 'Person',
+            'product'       => 'Product',
+            'recipe'        => 'Recipe',
+            'event'         => 'Event',
+            'faq'           => 'FAQ',
+            'breadcrumb'    => 'BreadcrumbList',
+            'website'       => 'WebSite',
+            'techarticle'   => 'TechArticle',
+            'qapage'        => 'QAPage',
+            'videoobject'   => 'VideoObject',
+            'audioobject'   => 'AudioObject',
+        ];
+
+        return $map[ strtolower( $type_key ) ] ?? null;
     }
 
     /**

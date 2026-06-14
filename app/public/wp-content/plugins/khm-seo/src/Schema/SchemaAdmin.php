@@ -436,6 +436,30 @@ class SchemaAdmin {
                                 <input type="checkbox" name="khm_seo_schema_settings[enable_faq]" 
                                        value="1" <?php checked($settings['enable_faq']); ?>>
                                 FAQ (for question/answer content)
+                            </label><br>
+
+                            <label>
+                                <input type="checkbox" name="khm_seo_schema_settings[enable_techarticle]" 
+                                       value="1" <?php checked($settings['enable_techarticle'] ?? true); ?>>
+                                TechArticle (Atomic Articles with parent guide links)
+                            </label><br>
+
+                            <label>
+                                <input type="checkbox" name="khm_seo_schema_settings[enable_qapage]" 
+                                       value="1" <?php checked($settings['enable_qapage'] ?? true); ?>>
+                                QAPage (Answer Cards with Question/Answer)
+                            </label><br>
+
+                            <label>
+                                <input type="checkbox" name="khm_seo_schema_settings[enable_videoobject]" 
+                                       value="1" <?php checked($settings['enable_videoobject'] ?? true); ?>>
+                                VideoObject (YouTube embeds with key moments)
+                            </label><br>
+
+                            <label>
+                                <input type="checkbox" name="khm_seo_schema_settings[enable_audioobject]" 
+                                       value="1" <?php checked($settings['enable_audioobject'] ?? true); ?>>
+                                AudioObject (Podcast-style audio content)
                             </label>
                         </fieldset>
                     </td>
@@ -864,7 +888,8 @@ class SchemaAdmin {
         $boolean_fields = [
             'enable_schema', 'auto_output', 'enable_article', 'enable_organization',
             'enable_person', 'enable_product', 'enable_recipe', 'enable_event',
-            'enable_faq', 'enable_breadcrumb', 'enable_website'
+            'enable_faq', 'enable_breadcrumb', 'enable_website',
+            'enable_techarticle', 'enable_qapage', 'enable_videoobject', 'enable_audioobject'
         ];
         
         foreach ($boolean_fields as $field) {

@@ -196,13 +196,19 @@ class SchemaManager {
         
         // Page-specific schema
         if ( \is_single() || \is_page() ) {
-            if ( \is_single() && $this->config['enable_article_schema'] ) {
-                $schema_data[] = $this->get_article_schema();
+            global $post;
+            if ( $post instanceof \WP_Post ) {
+                // Delegate to SchemaGenerator for rich per-post schema (including TechArticle, QAPage, VideoObject, AudioObject)
+                $generator = new SchemaGenerator();
+                $post_schema = $generator->generate_schema( $post );
+                if ( ! empty( $post_schema ) ) {
+                    // generate_schema returns JSON-LD script string; parse it back to array for merging
+                    $this->merge_generated_schema( $post_schema, $schema_data );
+                }
             }
             
             // Author schema for posts
             if ( \is_single() && $this->config['enable_person_schema'] ) {
-                global $post;
                 $author = \get_user_by( 'id', $post->post_author );
                 if ( $author ) {
                     $schema_data[] = $this->generate_person_schema( $author );
@@ -663,5 +669,60 @@ class SchemaManager {
     private function should_output_breadcrumb_schema() {
         $options = get_option( 'khm_seo_schema', array() );
         return ! empty( $options['enable_breadcrumbs'] );
+    }
+
+    /**
+     * Merge SchemaGenerator's JSON-LD output into the $schema_data array.
+     *
+     * SchemaGenerator::generate_schema() returns a JSON-LD script string.
+     * This parses it, extracts the @graph entries, and appends them to
+     * the $schema_data array (skipping global schemas already handled by SchemaManager).
+     *
+     * @param string $json_ld   JSON-LD script string from SchemaGenerator.
+     * @param array  &$schema_data  Reference to the schema data array being built.
+     */
+    private function merge_generated_schema( $json_ld, &$schema_data ) {
+        // Strip <script> wrapper
+        $json = preg_replace( '#<script[^>]*>|</script>#', '', $json_ld );
+        $decoded = json_decode( trim( $json ), true );
+        if ( JSON_ERROR_NONE !== json_last_error() || empty( $decoded['@graph'] ) ) {
+            return;
+        }
+
+        // SchemaGenerator includes global schemas (Organization, WebSite, BreadcrumbList).
+        // SchemaManager already handles those separately, so skip them from the generator output.
+        $global_types = array( 'Organization', 'WebSite', 'BreadcrumbList' );
+        foreach ( $decoded['@graph'] as $item ) {
+            $type = $item['@type'] ?? '';
+            if ( ! in_array( $type, $global_types, true ) ) {
+                $schema_data[] = $item;
+            }
+        }
+    }
+
+    /**
+     * Generate post schema for admin preview and cache (used by SchemaAdminManager).
+     *
+     * @param int   $post_id       Post ID.
+     * @param array $schema_config Per-post schema configuration from _khm_seo_schema_config meta.
+     * @return array Generated schema data array.
+     */
+    public function generate_post_schema( $post_id, $schema_config ) {
+        $post = \get_post( $post_id );
+        if ( ! $post ) {
+            return array();
+        }
+
+        $generator = new SchemaGenerator();
+        $json_ld = $generator->generate_schema( $post );
+
+        // Strip <script> wrapper and return array
+        $json = preg_replace( '#<script[^>]*>|</script>#', '', $json_ld );
+        $decoded = json_decode( trim( $json ), true );
+        if ( JSON_ERROR_NONE !== json_last_error() ) {
+            return array();
+        }
+
+        return $decoded;
     }
 }
