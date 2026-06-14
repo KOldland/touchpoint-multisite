@@ -63,8 +63,10 @@ function enqueue_answercard_frontend_assets() {
 
     $asset_path = __DIR__ . '/build/view.asset.php';
     $asset = file_exists( $asset_path ) ? include $asset_path : array( 'dependencies' => array(), 'version' => null );
-    $version = $asset['version'] ?? filemtime( __DIR__ . '/build/view.js' );
-    $css_version = filemtime( __DIR__ . '/build/view.css' );
+    $view_js  = __DIR__ . '/build/view.js';
+    $view_css = __DIR__ . '/build/view.css';
+    $version     = $asset['version'] ?? ( file_exists( $view_js ) ? filemtime( $view_js ) : '1.1.0' );
+    $css_version = file_exists( $view_css ) ? filemtime( $view_css ) : '1.1.0';
 
     wp_enqueue_style( 'dashicons' );
     wp_enqueue_script(
@@ -150,6 +152,30 @@ function render_answercard_block( $attributes, $content ) {
     $meta_publisher = isset( $topic_meta['publisher'] ) ? sanitize_text_field( $topic_meta['publisher'] ) : '';
     $meta_date = isset( $topic_meta['date'] ) ? sanitize_text_field( $topic_meta['date'] ) : '';
 
+    // Auto-populate metadata from current post when attributes were never set
+    // (e.g. blocks inserted via Suggest flow which doesn't include topicDiscussedAt)
+    if ( ! $meta_title || ! $meta_url || ! $meta_author ) {
+        $post_id_for_meta = function_exists( 'get_the_ID' ) ? get_the_ID() : 0;
+        if ( $post_id_for_meta ) {
+            if ( ! $meta_title ) {
+                $meta_title = get_the_title( $post_id_for_meta );
+            }
+            if ( ! $meta_url ) {
+                $meta_url = get_permalink( $post_id_for_meta );
+            }
+            if ( ! $meta_author ) {
+                $lead_author = get_lead_author_identity( $post_id_for_meta );
+                $meta_author = $lead_author['name'] ?? '';
+            }
+            if ( ! $meta_publisher ) {
+                $meta_publisher = get_bloginfo( 'name' );
+            }
+            if ( ! $meta_date ) {
+                $meta_date = get_the_date( 'Y-m-d', $post_id_for_meta );
+            }
+        }
+    }
+
     $answer_card_id = isset( $attributes['answerCardId'] ) ? sanitize_text_field( $attributes['answerCardId'] ) : '';
     $modal_id = $answer_card_id ? 'khm-answer-card-modal-' . $answer_card_id : 'khm-answer-card-modal-' . uniqid();
     $meta_id = $modal_id . '-meta';
@@ -159,7 +185,7 @@ function render_answercard_block( $attributes, $content ) {
     $share_nonce = is_user_logged_in() ? wp_create_nonce( 'khm_library_nonce' ) : '';
     $ajax_url = function_exists( 'admin_url' ) ? admin_url( 'admin-ajax.php' ) : '';
     $login_url = function_exists( 'wp_login_url' ) ? wp_login_url( get_permalink() ) : '';
-    $bookmark_icon = function_exists( 'plugins_url' ) ? plugins_url( 'social-strip/assets/bookmark.png', WP_PLUGIN_DIR ) : '';
+    $bookmark_icon = function_exists( 'plugins_url' ) ? plugins_url( '/social-strip/assets/bookmark.png' ) : '';
 
     // Build HTML output
     $html  = '<section class="khm-answer-card" role="region" aria-label="' . esc_attr( $question ) . '">';

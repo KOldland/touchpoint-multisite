@@ -70,7 +70,7 @@ class KSS_Social_Strip_Widget extends Widget_Base {
 
         $price = $acf_price !== '' ? floatval( $acf_price ) : ( $meta_price !== '' ? floatval( $meta_price ) : ( isset( $settings['article_price'] ) ? floatval( $settings['article_price'] ) : 0 ) );
         $credit_cost = $meta_credit_cost !== '' ? (int) $meta_credit_cost : 0;
-        $icon_base = plugin_dir_url(__DIR__) . 'assets/';
+        $icon_base = plugins_url( '/social-strip/assets/' );
         
         // Pass data to partials
         $data = [

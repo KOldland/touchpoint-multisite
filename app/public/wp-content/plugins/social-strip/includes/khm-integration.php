@@ -425,7 +425,7 @@ class KSS_KHM_Integration {
             'post_id' => $post_id,
             'is_logged_in' => $is_logged_in,
             'user_id' => $user_id,
-            'icon_base' => plugin_dir_url(__FILE__) . '../assets/img/',
+            'icon_base' => plugins_url( '/social-strip/assets/' ),
         ];
 
         // Get user membership information
