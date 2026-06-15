@@ -34,20 +34,28 @@ class AllocationService {
     ];
 
     /**
-     * Map site slugs to blog path fragments for blog_id resolution.
+     * Map site slugs to immutable blog_ids.
+     *
+     * Override via `kh_allocation_blog_ids` filter in production (wp-config.php
+     * or a mu-plugin). This avoids hardcoding domain paths that differ between
+     * environments.
+     *
+     * @return array slug => blog_id
      */
-    const SLUG_TO_BLOG_PATH = [
-        'pricing'       => 'pricing',
-        'aftermarket'   => 'aftermarket',
-        'field-service' => 'field-service',
-        'spare-parts'   => 'spare-parts',
-        'ecommerce'     => 'ecommerce',
-        'industrial'    => 'industrial',
-        'aerospace'     => 'aerospace',
-        'utilities'     => 'utilities',
-        'built-env'     => 'built-env',
-        'manufacturing' => 'manufacturing',
-    ];
+    public function get_blog_id_map(): array {
+        return apply_filters( 'kh_allocation_blog_ids', [
+            'pricing'       => 19,
+            'aftermarket'   => 21,
+            'field-service' => 17,
+            'spare-parts'   => 18,
+            'ecommerce'     => 20,
+            'industrial'    => 16,
+            'aerospace'     => 13,
+            'utilities'     => 22,
+            'built-env'     => 15,
+            'manufacturing' => 23,
+        ] );
+    }
 
     /**
      * Get all available target sites with their blog IDs.
@@ -55,21 +63,25 @@ class AllocationService {
      * @return array [{ slug, label, blog_id, url }]
      */
     public function get_available_sites(): array {
-        $sites = [];
+        $blog_ids = $this->get_blog_id_map();
+        $sites    = [];
 
         foreach ( self::TARGET_SITES as $slug => $label ) {
-            $blog_id = $this->resolve_blog_id( $slug );
-            if ( ! $blog_id ) {
+            $blog_id = $blog_ids[ $slug ] ?? null;
+            if ( ! $blog_id || $blog_id === get_current_blog_id() ) {
                 continue;
             }
 
             $blog_details = get_blog_details( $blog_id );
+            if ( ! $blog_details ) {
+                continue;
+            }
 
             $sites[] = [
                 'slug'    => $slug,
                 'label'   => $label,
                 'blog_id' => $blog_id,
-                'url'     => $blog_details ? $blog_details->siteurl : '',
+                'url'     => $blog_details->siteurl,
             ];
         }
 
@@ -83,12 +95,9 @@ class AllocationService {
      * @return int|null
      */
     public function resolve_blog_id( string $slug ): ?int {
-        $path = self::SLUG_TO_BLOG_PATH[ $slug ] ?? null;
-        if ( ! $path ) {
-            return null;
-        }
+        $blog_ids = $this->get_blog_id_map();
+        $blog_id  = $blog_ids[ $slug ] ?? null;
 
-        $blog_id = get_blog_id_from_url( get_network()->domain, '/' . $path . '/' );
         if ( ! $blog_id || $blog_id === get_current_blog_id() ) {
             return null;
         }
