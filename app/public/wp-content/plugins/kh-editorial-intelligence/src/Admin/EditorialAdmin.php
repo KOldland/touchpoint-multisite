@@ -108,13 +108,6 @@ class EditorialAdmin {
         // Navigation menu items (like a front-end grid)
         $nav_items = [
             [
-                'title'    => __( 'All Posts', 'kh-editorial-intelligence' ),
-                'url'      => admin_url( 'edit.php' ),
-                'icon'     => 'dashicons-admin-post',
-                'desc'     => __( 'Browse, edit, and manage all content.', 'kh-editorial-intelligence' ),
-                'primary'  => false,
-            ],
-            [
                 'title'    => __( 'New Post', 'kh-editorial-intelligence' ),
                 'url'      => admin_url( 'post-new.php' ),
                 'icon'     => 'dashicons-plus-alt',
@@ -163,13 +156,6 @@ class EditorialAdmin {
                 'url'      => admin_url( 'admin.php?page=kh-editorial-author' ),
                 'icon'     => 'dashicons-edit',
                 'desc'     => __( 'AI-assisted writing and frameworks.', 'kh-editorial-intelligence' ),
-                'primary'  => false,
-            ],
-            [
-                'title'    => __( 'Content Allocations', 'kh-editorial-intelligence' ),
-                'url'      => admin_url( 'edit.php' ),
-                'icon'     => 'dashicons-networking',
-                'desc'     => __( 'View and manage cross-site content variants.', 'kh-editorial-intelligence' ),
                 'primary'  => false,
             ],
             [

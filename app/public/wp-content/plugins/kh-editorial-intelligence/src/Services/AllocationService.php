@@ -21,32 +21,32 @@ class AllocationService {
      * slug => [ 'label' => human-readable, 'domain' => site domain ]
      */
     const TARGET_SITES = [
-        'pricing'                => 'Revenue Operations',
-        'aftermarket'            => 'Aftermarket Operations',
-        'field-service'          => 'Field Service Management',
+        'pricing'                => 'Pricing in Manufacturing',
+        'aftermarket'            => 'Aftermarket',
+        'field-service'          => 'Field Service',
         'spare-parts'            => 'Spare Parts & Logistics',
-        'ecommerce'              => 'Industrial eCommerce',
-        'industrial'             => 'Industrial Operations',
-        'aerospace'              => 'Aerospace Engineering',
-        'utilities-ops'          => 'Utilities Operations',
-        'built-env'              => 'Infrastructure Operations',
-        'manufacturing-flagship' => 'Modern Manufacturing',
+        'ecommerce'              => 'eCommerce',
+        'industrial'             => 'Industrial Equipment',
+        'aerospace'              => 'Aerospace & Aviation',
+        'utilities'              => 'Utilities Operations',
+        'built-env'              => 'Built Environment',
+        'manufacturing'          => 'Modern Manufacturing',
     ];
 
     /**
      * Map site slugs to blog path fragments for blog_id resolution.
      */
     const SLUG_TO_BLOG_PATH = [
-        'pricing'                => 'pricing',
-        'aftermarket'            => 'aftermarket',
-        'field-service'          => 'field-service',
-        'spare-parts'            => 'spare-parts',
-        'ecommerce'              => 'ecommerce',
-        'industrial'             => 'industrial',
-        'aerospace'              => 'aerospace',
-        'utilities-ops'          => 'utilities-ops',
-        'built-env'              => 'built-env',
-        'manufacturing-flagship' => 'manufacturing-flagship',
+        'pricing'       => 'pricing',
+        'aftermarket'   => 'aftermarket',
+        'field-service' => 'field-service',
+        'spare-parts'   => 'spare-parts',
+        'ecommerce'     => 'ecommerce',
+        'industrial'    => 'industrial',
+        'aerospace'     => 'aerospace',
+        'utilities'     => 'utilities',
+        'built-env'     => 'built-env',
+        'manufacturing' => 'manufacturing',
     ];
 
     /**
