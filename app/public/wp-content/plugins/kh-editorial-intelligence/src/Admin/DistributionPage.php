@@ -10,10 +10,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Distribution Overview page — shows all posts that have been distributed
- * (cloned) to network sites from the hub, with a modal popup for new distributions.
+ * Distribution Overview page — central control panel for cross-site
+ * content distribution. Shows ALL hub posts with their allocation status
+ * across network sites, and allows distributing any post to any site.
  */
 class DistributionPage {
+
+    const PER_PAGE = 20;
 
     private AllocationService $service;
 
@@ -41,7 +44,6 @@ class DistributionPage {
         if ( strpos( $hook, 'kh-distribution' ) === false ) {
             return;
         }
-
         wp_enqueue_script(
             'kh-distribution-page',
             plugins_url( 'assets/js/allocation-meta-box.js', KH_EDITORIAL_PLUGIN_DIR . 'kh-editorial-intelligence.php' ),
@@ -49,70 +51,76 @@ class DistributionPage {
             '1.0.0',
             true
         );
-
-        // Add Thickbox for modal
         add_thickbox();
     }
 
     public function render_page(): void {
-        $allocations = AllocationTable::get_all_distributed();
         $sites       = $this->service->get_available_sites();
+        $allocations = AllocationTable::get_all_distributed();
 
-        // Build site label lookup
+        // Build site lookup tables
         $site_labels = [];
+        $site_slugs  = [];
         foreach ( $sites as $s ) {
             $site_labels[ (int) $s['blog_id'] ] = $s['label'];
+            $site_slugs[ (int) $s['blog_id'] ]  = $s['slug'];
         }
+
+        // Pagination
+        $paged   = max( 1, (int) ( $_GET['kh_paged'] ?? 1 ) );
+        $offset  = ( $paged - 1 ) * self::PER_PAGE;
+
+        // Query all hub posts (published, draft, pending, future)
+        $query = new \WP_Query( [
+            'post_type'      => 'post',
+            'post_status'    => [ 'publish', 'draft', 'pending', 'future' ],
+            'posts_per_page' => self::PER_PAGE,
+            'offset'         => $offset,
+            'orderby'        => 'modified',
+            'order'          => 'DESC',
+            'no_found_rows'  => false,
+        ] );
+
+        $total_pages = $query->max_num_pages;
+        $posts       = $query->posts;
 
         ?>
         <div class="wrap">
             <h1><?php esc_html_e( 'Content Distribution', 'kh-editorial-intelligence' ); ?></h1>
             <p style="color: #646970;">
-                <?php esc_html_e( 'Posts that have been distributed across network sites. Use the "Distribute" button on any post to clone it to additional sites.', 'kh-editorial-intelligence' ); ?>
+                <?php esc_html_e( 'All hub posts and their distribution status across network sites. Check sites and click "Distribute Selected" to clone posts.', 'kh-editorial-intelligence' ); ?>
             </p>
 
-            <?php if ( empty( $allocations ) ) : ?>
+            <?php if ( empty( $posts ) ) : ?>
                 <div class="notice notice-info">
-                    <p><?php esc_html_e( 'No posts have been distributed yet. Open a post in the editor and use the Content Allocation panel to distribute it.', 'kh-editorial-intelligence' ); ?></p>
+                    <p><?php esc_html_e( 'No posts found on the hub site.', 'kh-editorial-intelligence' ); ?></p>
                 </div>
             <?php else : ?>
                 <table class="wp-list-table widefat fixed striped">
                     <thead>
                         <tr>
-                            <th><?php esc_html_e( 'Post', 'kh-editorial-intelligence' ); ?></th>
-                            <th><?php esc_html_e( 'Author', 'kh-editorial-intelligence' ); ?></th>
-                            <th><?php esc_html_e( 'Distributed To', 'kh-editorial-intelligence' ); ?></th>
-                            <th><?php esc_html_e( 'Date Distributed', 'kh-editorial-intelligence' ); ?></th>
-                            <th><?php esc_html_e( 'Actions', 'kh-editorial-intelligence' ); ?></th>
+                            <th style="width: 30%;"><?php esc_html_e( 'Post', 'kh-editorial-intelligence' ); ?></th>
+                            <th style="width: 10%;"><?php esc_html_e( 'Status', 'kh-editorial-intelligence' ); ?></th>
+                            <th style="width: 8%;"><?php esc_html_e( 'Date', 'kh-editorial-intelligence' ); ?></th>
+                            <?php foreach ( $sites as $site ) : ?>
+                                <th style="width: 4%; text-align: center; white-space: nowrap;" title="<?php echo esc_attr( $site['label'] ); ?>">
+                                    <?php echo esc_html( substr( $site['label'], 0, 12 ) . ( strlen( $site['label'] ) > 12 ? '…' : '' ) ); ?>
+                                </th>
+                            <?php endforeach; ?>
+                            <th style="width: 8%;"><?php esc_html_e( 'Actions', 'kh-editorial-intelligence' ); ?></th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ( $allocations as $post_id => $sites_for_post ) :
-                            $post = get_post( $post_id );
-                            if ( ! $post ) continue;
+                        <?php foreach ( $posts as $post ) :
+                            $post_id       = $post->ID;
+                            $post_allocs   = $allocations[ $post_id ] ?? [];
+                            $distributed   = ! empty( $post_allocs );
 
-                            // Author
-                            $author_name = '';
-                            if ( function_exists( 'kh_get_post_authors' ) ) {
-                                $authors = \kh_get_post_authors( $post_id );
-                                if ( ! empty( $authors ) && is_object( $authors[0] ) ) {
-                                    $author_name = function_exists( 'get_field' )
-                                        ? get_field( 'author_name', $authors[0]->ID )
-                                        : '';
-                                    $author_name = $author_name ?: get_the_title( $authors[0]->ID );
-                                }
+                            // Build allocated blog_id -> row lookup
+                            $alloc_by_blog = [];
+                            foreach ( $post_allocs as $alloc ) {
+                                $alloc_by_blog[ (int) $alloc['target_blog_id'] ] = $alloc;
                             }
-                            if ( ! $author_name ) {
-                                $user = get_user_by( 'ID', $post->post_author );
-                                $author_name = $user ? $user->display_name : '—';
-                            }
-
-                            // Date
-                            $first_alloc = reset( $sites_for_post );
-                            $date = $first_alloc['allocated_at'] ?? $post->post_modified;
-                            $date_str = is_numeric( $date )
-                                ? wp_date( 'Y-m-d H:i', (int) $date )
-                                : wp_date( 'Y-m-d H:i', strtotime( $date ) );
                         ?>
                         <tr>
                             <td>
@@ -122,47 +130,86 @@ class DistributionPage {
                                     </a>
                                 </strong>
                             </td>
-                            <td><?php echo esc_html( $author_name ); ?></td>
                             <td>
-                                <?php foreach ( $sites_for_post as $alloc ) :
-                                    $blog_id   = (int) $alloc['blog_id'];
-                                    $label     = $site_labels[ $blog_id ] ?? ( 'Site ' . $blog_id );
-                                    $rewritten = (bool) ( $alloc['rewrite_applied'] ?? false );
-                                    $color     = $rewritten ? '#dba617' : '#2271b1';
-                                    $suffix    = $rewritten ? ' (RW)' : '';
-                                    printf(
-                                        '<span style="display:inline-block;background:%s;color:#fff;padding:2px 8px;border-radius:3px;font-size:11px;margin-right:4px;margin-bottom:2px;">%s%s</span>',
-                                        esc_attr( $color ),
-                                        esc_html( $label ),
-                                        esc_html( $suffix )
-                                    );
-                                endforeach; ?>
+                                <?php
+                                $status_labels = [
+                                    'publish' => [ 'Publish', '#00a32a', '#fff' ],
+                                    'draft'   => [ 'Draft', '#dba617', '#fff' ],
+                                    'pending' => [ 'Pending', '#d63638', '#fff' ],
+                                    'future'  => [ 'Scheduled', '#2271b1', '#fff' ],
+                                ];
+                                $sl = $status_labels[ $post->post_status ] ?? [ ucfirst( $post->post_status ), '#999', '#fff' ];
+                                printf(
+                                    '<span style="display:inline-block;padding:1px 8px;border-radius:3px;font-size:11px;background:%s;color:%s;">%s</span>',
+                                    esc_attr( $sl[1] ),
+                                    esc_attr( $sl[2] ),
+                                    esc_html( $sl[0] )
+                                );
+                                ?>
                             </td>
-                            <td><?php echo esc_html( $date_str ); ?></td>
+                            <td style="font-size: 12px;">
+                                <?php echo esc_html( wp_date( 'Y-m-d', strtotime( $post->post_modified ) ) ); ?>
+                            </td>
+                            <?php foreach ( $sites as $site ) :
+                                $blog_id   = (int) $site['blog_id'];
+                                $alloc     = $alloc_by_blog[ $blog_id ] ?? null;
+                                $cell_key  = 'kh-dist-cell-' . $post_id . '-' . $blog_id;
+
+                                if ( $alloc ) :
+                                    $rewritten = (bool) ( $alloc['rewrite_applied'] ?? false );
+                                    $color     = $rewritten ? '#dba617' : '#00a32a';
+                                    $icon      = $rewritten ? '✎' : '✓';
+                                    $title     = $rewritten
+                                        ? __( 'Distributed (rewritten)', 'kh-editorial-intelligence' )
+                                        : __( 'Distributed', 'kh-editorial-intelligence' );
+                                    ?>
+                                    <td id="<?php echo esc_attr( $cell_key ); ?>" style="text-align: center;" title="<?php echo esc_attr( $title ); ?>">
+                                        <span style="color: <?php echo esc_attr( $color ); ?>; font-weight: bold;"><?php echo esc_html( $icon ); ?></span>
+                                    </td>
+                                <?php else : ?>
+                                    <td id="<?php echo esc_attr( $cell_key ); ?>" style="text-align: center;">
+                                        <span style="color: #ccc;">—</span>
+                                    </td>
+                                <?php endif;
+                            endforeach; ?>
                             <td>
-                                <a href="#TB_inline?width=400&height=400&inlineId=kh-distribute-modal-<?php echo (int) $post_id; ?>"
+                                <a href="#TB_inline?width=450&height=450&inlineId=kh-distribute-modal-<?php echo (int) $post_id; ?>"
                                    class="button button-small thickbox">
-                                    <?php esc_html_e( 'Distribute More', 'kh-editorial-intelligence' ); ?>
-                                </a>
-                                <a href="<?php echo esc_url( get_edit_post_link( $post_id ) ); ?>" class="button button-small">
-                                    <?php esc_html_e( 'Edit', 'kh-editorial-intelligence' ); ?>
+                                    <?php esc_html_e( 'Distribute', 'kh-editorial-intelligence' ); ?>
                                 </a>
                             </td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+
+                <!-- Pagination -->
+                <?php if ( $total_pages > 1 ) : ?>
+                <div class="tablenav" style="margin-top: 8px;">
+                    <div class="tablenav-pages">
+                        <?php
+                        $base_args = [ 'page' => 'kh-distribution' ];
+                        echo paginate_links( [
+                            'base'      => add_query_arg( 'kh_paged', '%#%' ),
+                            'format'    => '',
+                            'current'   => $paged,
+                            'total'     => $total_pages,
+                            'prev_text' => '←',
+                            'next_text' => '→',
+                        ] );
+                        ?>
+                    </div>
+                </div>
+                <?php endif; ?>
             <?php endif; ?>
 
-            <!-- Inline thickbox modals for each distributed post -->
-            <?php foreach ( $allocations as $post_id => $sites_for_post ) :
-                $post = get_post( $post_id );
-                if ( ! $post ) continue;
-
-                // Determine which sites are already allocated
+            <!-- Inline thickbox modals for each post -->
+            <?php foreach ( $posts as $post ) :
+                $post_id     = $post->ID;
+                $post_allocs = $allocations[ $post_id ] ?? [];
                 $allocated_ids = [];
-                foreach ( $sites_for_post as $alloc ) {
-                    $allocated_ids[] = (int) $alloc['blog_id'];
+                foreach ( $post_allocs as $alloc ) {
+                    $allocated_ids[] = (int) $alloc['target_blog_id'];
                 }
             ?>
             <div id="kh-distribute-modal-<?php echo (int) $post_id; ?>" style="display:none;">
@@ -191,7 +238,7 @@ class DistributionPage {
                                        class="kh-allocation-checkbox"
                                        value="<?php echo esc_attr( $site['slug'] ); ?>"
                                        data-blog-id="<?php echo esc_attr( $blog_id ); ?>"
-                                       <?php echo $disabled ? 'disabled' : ''; ?>
+                                       <?php echo $disabled ? ' disabled' : ''; ?>
                                        style="margin-right: 8px;">
                                 <span style="flex: 1; font-size: 13px;"><?php echo esc_html( $site['label'] ); ?></span>
                                 <span class="kh-allocation-status" style="font-size: 12px;"><?php echo $status; ?></span>
@@ -232,6 +279,9 @@ class DistributionPage {
                 opacity: 0.6;
                 cursor: not-allowed;
             }
+            .wp-list-table th, .wp-list-table td {
+                vertical-align: middle;
+            }
         </style>
 
         <script>
@@ -239,13 +289,14 @@ class DistributionPage {
             'use strict';
 
             var labels = {
-                cloned: '<?php echo esc_js( __( 'Distributed', 'kh-editorial-intelligence' ) ); ?>',
                 cloning: '<?php echo esc_js( __( 'Distributing...', 'kh-editorial-intelligence' ) ); ?>',
                 rewriting: '<?php echo esc_js( __( 'AI rewriting...', 'kh-editorial-intelligence' ) ); ?>',
                 error: '<?php echo esc_js( __( 'An error occurred.', 'kh-editorial-intelligence' ) ); ?>',
                 selectSites: '<?php echo esc_js( __( 'Please select at least one site.', 'kh-editorial-intelligence' ) ); ?>',
                 success: '<?php echo esc_js( __( 'Post distributed successfully.', 'kh-editorial-intelligence' ) ); ?>',
             };
+
+            var siteLookup = <?php echo json_encode( $site_slugs ); ?>;
 
             // Enable/disable buttons based on checkbox selection within each modal
             $(document).on('change', '.kh-allocation-checkbox', function () {
@@ -292,7 +343,31 @@ class DistributionPage {
                 }).then(function (result) {
                     if (result.success) {
                         showStatus($modal, labels.success, 'success');
-                        // Reload after short delay
+
+                        // Update the inline grid icons
+                        if (result.results) {
+                            result.results.forEach(function (r) {
+                                var blogId = r.blog_id;
+                                var cellKey = 'kh-dist-cell-' + postId + '-' + blogId;
+                                var $cell = $('#' + cellKey);
+                                if ($cell.length) {
+                                    var icon = r.rewrite_applied ? '✎' : '✓';
+                                    var color = r.rewrite_applied ? '#dba617' : '#00a32a';
+                                    var title = r.rewrite_applied
+                                        ? 'Distributed (rewritten)'
+                                        : 'Distributed';
+                                    $cell.html('<span style="color:' + color + ';font-weight:bold;">' + icon + '</span>')
+                                        .attr('title', title);
+                                }
+                            });
+                        }
+
+                        // Close thickbox
+                        if (typeof tb_remove === 'function') {
+                            tb_remove();
+                        }
+
+                        // Reload after short delay to refresh modals
                         setTimeout(function () { location.reload(); }, 1500);
                     } else {
                         showStatus($modal, result.message || labels.error, 'error');
