@@ -122,6 +122,13 @@ class EditorialAdmin {
                 'primary'  => false,
             ],
             [
+                'title'    => __( 'Content Allocations', 'kh-editorial-intelligence' ),
+                'url'      => admin_url( 'edit.php' ),
+                'icon'     => 'dashicons-networking',
+                'desc'     => __( 'Open a post and use the Site Allocation meta box to clone content to network sites.', 'kh-editorial-intelligence' ),
+                'primary'  => false,
+            ],
+            [
                 'title'    => __( 'Categories', 'kh-editorial-intelligence' ),
                 'url'      => admin_url( 'edit-tags.php?taxonomy=category' ),
                 'icon'     => 'dashicons-category',
