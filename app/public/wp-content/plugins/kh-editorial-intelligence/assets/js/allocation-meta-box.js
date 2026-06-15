@@ -13,7 +13,8 @@
     const $btnRewrite = $('#kh-allocate-clone-rewrite');
     const $btnCloneOnly = $('#kh-allocate-clone-only');
     const $statusMsg = $('#kh-allocation-status-message');
-    const { postId, restUrl, nonce, labels } = window.khAllocationData || {};
+    const { postId, nonce, labels } = window.khAllocationData || {};
+    const API_BASE = 'kh-editorial/v1/allocation';
 
     // ─── Button enable / disable ───────────────────────────────────────────────
 
@@ -82,7 +83,7 @@
 
         try {
             const result = await apiFetch({
-                path: restUrl + 'clone',
+                path: API_BASE + '/clone',
                 method: 'POST',
                 headers: {
                     'X-WP-Nonce': nonce,
@@ -177,7 +178,7 @@
 
         try {
             const result = await apiFetch({
-                path: restUrl + 'status/' + parseInt(postId, 10),
+                path: API_BASE + '/status/' + parseInt(postId, 10),
                 method: 'GET',
                 headers: {
                     'X-WP-Nonce': nonce,

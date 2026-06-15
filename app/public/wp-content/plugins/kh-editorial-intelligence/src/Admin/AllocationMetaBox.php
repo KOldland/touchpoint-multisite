@@ -145,7 +145,6 @@ class AllocationMetaBox {
 
         wp_localize_script( 'kh-allocation-meta-box', 'khAllocationData', [
             'postId'       => get_the_ID(),
-            'restUrl'      => rest_url( 'kh-editorial/v1/allocation/' ),
             'nonce'        => wp_create_nonce( 'wp_rest' ),
             'labels'       => [
                 'cloning'           => __( 'Cloning...', 'kh-editorial-intelligence' ),
