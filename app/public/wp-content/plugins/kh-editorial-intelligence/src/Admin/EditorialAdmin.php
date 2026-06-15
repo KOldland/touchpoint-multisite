@@ -166,6 +166,13 @@ class EditorialAdmin {
                 'primary'  => false,
             ],
             [
+                'title'    => __( 'Content Allocations', 'kh-editorial-intelligence' ),
+                'url'      => admin_url( 'edit.php' ),
+                'icon'     => 'dashicons-networking',
+                'desc'     => __( 'View and manage cross-site content variants.', 'kh-editorial-intelligence' ),
+                'primary'  => false,
+            ],
+            [
                 'title'    => __( 'API Settings', 'kh-editorial-intelligence' ),
                 'url'      => admin_url( 'admin.php?page=kh-editorial-settings' ),
                 'icon'     => 'dashicons-admin-settings',

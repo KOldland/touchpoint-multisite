@@ -46,6 +46,11 @@ add_action( 'plugins_loaded', function() {
         KH\Editorial\Database\AtomicEmbeddingsMigration::run();
     }
 
+    // 2b. Content Allocation DB Table
+    if ( class_exists( 'KH\\Editorial\\Database\\AllocationTable' ) ) {
+        KH\Editorial\Database\AllocationTable::install();
+    }
+
     // 3. Taxonomies
     if ( class_exists( 'KH\\Editorial\\Taxonomies\\EditorialTaxonomy' ) ) {
         KH\Editorial\Taxonomies\EditorialTaxonomy::init();
@@ -94,10 +99,18 @@ add_action( 'plugins_loaded', function() {
         KH\Editorial\Core\Container::get( 'RecommendationAgent' )->init();
     }
 
-    // 8. REST API
+     // 8. REST API
     if ( class_exists( 'KH\\Editorial\\API\\Rest_Api' ) ) {
         $rest_api = new KH\Editorial\API\Rest_Api();
         $rest_api->init();
+    }
+
+    // 9. Content Allocation System
+    if ( class_exists( 'KH\\Editorial\\API\\AllocationEndpoints' ) ) {
+        ( new KH\Editorial\API\AllocationEndpoints() )->register();
+    }
+    if ( is_admin() && class_exists( 'KH\\Editorial\\Admin\\AllocationMetaBox' ) ) {
+        ( new KH\Editorial\Admin\AllocationMetaBox() )->init();
     }
 
      // 7. Gutenberg Editor Assets

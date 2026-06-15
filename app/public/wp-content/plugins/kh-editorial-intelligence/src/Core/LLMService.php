@@ -23,6 +23,7 @@ class LLMService {
         'draft', 'abstract', 'excerpt',
         'seo_schema', 'geo_cards', 'social_posts', 'gutenberg_push',
         'atomic_article',
+        'content_rewrite',
     ];
 
     /**
@@ -106,6 +107,7 @@ class LLMService {
         'social_posts'    => 'meta-llama/llama-3.3-70b-instruct',
         'gutenberg_push'  => 'deepseek/deepseek-v4-flash',
         'atomic_article'  => 'anthropic/claude-sonnet-4.5',
+        'content_rewrite' => 'deepseek/deepseek-v4-flash',
     ];
 
     /**
@@ -140,6 +142,7 @@ class LLMService {
                 'social_posts'    => 'meta-llama/llama-3.3-70b-instruct',
                 'gutenberg_push'  => 'deepseek/deepseek-v4-flash',
                 'atomic_article'  => 'deepseek/deepseek-v4-flash',
+                'content_rewrite' => 'meta-llama/llama-3.3-70b-instruct',
             ],
             'fallback_chains' => [
                 'research_phase1' => ['meta-llama/llama-3.3-70b-instruct', 'qwen/qwen3-32b'],
@@ -155,6 +158,7 @@ class LLMService {
                 'social_posts'    => ['mistralai/mistral-small-3.1-24b-instruct', 'deepseek/deepseek-v4-flash'],
                 'gutenberg_push'  => ['google/gemini-2.5-flash', 'meta-llama/llama-3.3-70b-instruct'],
                 'atomic_article'  => ['meta-llama/llama-3.3-70b-instruct', 'deepseek/deepseek-v4-flash'],
+                'content_rewrite' => ['deepseek/deepseek-v4-flash', 'google/gemini-2.5-flash'],
             ],
         ],
         'speed' => [
@@ -173,6 +177,7 @@ class LLMService {
                 'social_posts'    => 'meta-llama/llama-4-scout',
                 'gutenberg_push'  => 'deepseek/deepseek-v4-flash',
                 'atomic_article'  => 'x-ai/grok-4.3',
+                'content_rewrite' => 'x-ai/grok-4.3',
             ],
             'fallback_chains' => [
                 'research_phase1' => ['deepseek/deepseek-v4-flash', 'x-ai/grok-4.3'],
@@ -188,6 +193,7 @@ class LLMService {
                 'social_posts'    => ['x-ai/grok-4.3', 'deepseek/deepseek-v4-flash'],
                 'gutenberg_push'  => ['google/gemini-2.5-flash', 'meta-llama/llama-4-scout'],
                 'atomic_article'  => ['deepseek/deepseek-v4-flash', 'google/gemini-2.5-flash'],
+                'content_rewrite' => ['deepseek/deepseek-v4-flash', 'meta-llama/llama-4-scout'],
             ],
         ],
         'balanced' => [
@@ -206,6 +212,7 @@ class LLMService {
                 'social_posts'    => 'meta-llama/llama-3.3-70b-instruct',
                 'gutenberg_push'  => 'deepseek/deepseek-v4-flash',
                 'atomic_article'  => 'anthropic/claude-sonnet-4.5',
+                'content_rewrite' => 'anthropic/claude-sonnet-4.5',
             ],
             'fallback_chains' => [
                 'research_phase1' => ['meta-llama/llama-3.3-70b-instruct', 'anthropic/claude-sonnet-4.5'],
@@ -221,6 +228,7 @@ class LLMService {
                 'social_posts'    => ['deepseek/deepseek-v4-pro', 'anthropic/claude-sonnet-4.5'],
                 'gutenberg_push'  => ['google/gemini-2.5-flash', 'meta-llama/llama-3.3-70b-instruct'],
                 'atomic_article'  => ['meta-llama/llama-3.3-70b-instruct', 'deepseek/deepseek-v4-pro'],
+                'content_rewrite' => ['deepseek/deepseek-v4-pro', 'meta-llama/llama-3.3-70b-instruct'],
             ],
         ],
         'performance' => [
@@ -239,6 +247,7 @@ class LLMService {
                 'social_posts'    => 'nousresearch/hermes-3-llama-3.1-405b',
                 'gutenberg_push'  => 'deepseek/deepseek-v4-pro',
                 'atomic_article'  => 'anthropic/claude-sonnet-4.5',
+                'content_rewrite' => 'anthropic/claude-sonnet-4.5',
             ],
             'fallback_chains' => [
                 'research_phase1' => ['deepseek/deepseek-v4-pro', 'google/gemini-2.5-pro'],
@@ -254,6 +263,7 @@ class LLMService {
                 'social_posts'    => ['mistralai/mistral-large', 'anthropic/claude-sonnet-4.5'],
                 'gutenberg_push'  => ['deepseek/deepseek-v4-flash', 'google/gemini-2.5-flash'],
                 'atomic_article'  => ['deepseek/deepseek-v4-pro', 'google/gemini-2.5-pro'],
+                'content_rewrite' => ['deepseek/deepseek-v4-pro', 'mistralai/mistral-large'],
             ],
         ],
     ];
