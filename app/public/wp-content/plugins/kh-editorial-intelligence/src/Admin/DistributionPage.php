@@ -99,22 +99,17 @@ class DistributionPage {
                 <table class="wp-list-table widefat fixed striped">
                     <thead>
                         <tr>
-                            <th style="width: 30%;"><?php esc_html_e( 'Post', 'kh-editorial-intelligence' ); ?></th>
+                            <th style="width: 35%;"><?php esc_html_e( 'Post', 'kh-editorial-intelligence' ); ?></th>
                             <th style="width: 10%;"><?php esc_html_e( 'Status', 'kh-editorial-intelligence' ); ?></th>
                             <th style="width: 8%;"><?php esc_html_e( 'Date', 'kh-editorial-intelligence' ); ?></th>
-                            <?php foreach ( $sites as $site ) : ?>
-                                <th style="width: 4%; text-align: center; white-space: nowrap;" title="<?php echo esc_attr( $site['label'] ); ?>">
-                                    <?php echo esc_html( substr( $site['label'], 0, 12 ) . ( strlen( $site['label'] ) > 12 ? '…' : '' ) ); ?>
-                                </th>
-                            <?php endforeach; ?>
-                            <th style="width: 8%;"><?php esc_html_e( 'Actions', 'kh-editorial-intelligence' ); ?></th>
+                            <th style="width: 30%;"><?php esc_html_e( 'Distribution', 'kh-editorial-intelligence' ); ?></th>
+                            <th style="width: 10%;"><?php esc_html_e( 'Actions', 'kh-editorial-intelligence' ); ?></th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ( $posts as $post ) :
                             $post_id       = $post->ID;
                             $post_allocs   = $allocations[ $post_id ] ?? [];
-                            $distributed   = ! empty( $post_allocs );
 
                             // Build allocated blog_id -> row lookup
                             $alloc_by_blog = [];
@@ -150,28 +145,34 @@ class DistributionPage {
                             <td style="font-size: 12px;">
                                 <?php echo esc_html( wp_date( 'Y-m-d', strtotime( $post->post_modified ) ) ); ?>
                             </td>
-                            <?php foreach ( $sites as $site ) :
-                                $blog_id   = (int) $site['blog_id'];
-                                $alloc     = $alloc_by_blog[ $blog_id ] ?? null;
-                                $cell_key  = 'kh-dist-cell-' . $post_id . '-' . $blog_id;
+                            <td>
+                                <?php foreach ( $sites as $site ) :
+                                    $blog_id   = (int) $site['blog_id'];
+                                    $alloc     = $alloc_by_blog[ $blog_id ] ?? null;
+                                    $cell_key  = 'kh-dist-cell-' . $post_id . '-' . $blog_id;
 
-                                if ( $alloc ) :
-                                    $rewritten = (bool) ( $alloc['rewrite_applied'] ?? false );
-                                    $color     = $rewritten ? '#dba617' : '#00a32a';
-                                    $icon      = $rewritten ? '✎' : '✓';
-                                    $title     = $rewritten
-                                        ? __( 'Distributed (rewritten)', 'kh-editorial-intelligence' )
-                                        : __( 'Distributed', 'kh-editorial-intelligence' );
-                                    ?>
-                                    <td id="<?php echo esc_attr( $cell_key ); ?>" style="text-align: center;" title="<?php echo esc_attr( $title ); ?>">
-                                        <span style="color: <?php echo esc_attr( $color ); ?>; font-weight: bold;"><?php echo esc_html( $icon ); ?></span>
-                                    </td>
-                                <?php else : ?>
-                                    <td id="<?php echo esc_attr( $cell_key ); ?>" style="text-align: center;">
-                                        <span style="color: #ccc;">—</span>
-                                    </td>
-                                <?php endif;
-                            endforeach; ?>
+                                    if ( $alloc ) :
+                                        $rewritten = (bool) ( $alloc['rewrite_applied'] ?? false );
+                                        $color     = $rewritten ? '#dba617' : '#00a32a';
+                                        $icon      = $rewritten ? '✎' : '✓';
+                                        $title     = $rewritten
+                                            ? __( 'Distributed (rewritten)', 'kh-editorial-intelligence' )
+                                            : __( 'Distributed', 'kh-editorial-intelligence' );
+                                        ?>
+                                        <span id="<?php echo esc_attr( $cell_key ); ?>"
+                                              title="<?php echo esc_attr( $title ); ?>"
+                                              style="display: inline-block; margin-right: 8px; font-size: 12px;">
+                                            <span style="color: <?php echo esc_attr( $color ); ?>; font-weight: bold;"><?php echo esc_html( $icon ); ?></span>
+                                            <span style="color: #50575e;"><?php echo esc_html( $site['label'] ); ?></span>
+                                        </span>
+                                    <?php else : ?>
+                                        <span id="<?php echo esc_attr( $cell_key ); ?>"
+                                              style="display: inline-block; margin-right: 8px; font-size: 12px; color: #ccc;">
+                                            — <?php echo esc_html( $site['label'] ); ?>
+                                        </span>
+                                    <?php endif;
+                                endforeach; ?>
+                            </td>
                             <td>
                                 <a href="#TB_inline?width=450&height=450&inlineId=kh-distribute-modal-<?php echo (int) $post_id; ?>"
                                    class="button button-small thickbox">
