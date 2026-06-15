@@ -169,6 +169,9 @@ class AllocationService {
         // Clone post meta (ACF fields, etc.)
         $this->clone_post_meta( $origin_post_id, $target_post_id );
 
+        // Remap multi_author references to target site
+        $this->clone_author_profiles( $origin_post_id, $target_post_id );
+
         $rewrite_applied = false;
 
         // Run LLM rewrite if requested
@@ -473,5 +476,165 @@ PROMPT;
                 update_post_meta( $target_post_id, $key, maybe_unserialize( $value ) );
             }
         }
+    }
+
+    /**
+     * Clone multi_author profiles from hub site to target site and remap
+     * the post's author relationship IDs accordingly.
+     *
+     * The ACF relationship field (field_multi_author_relationship) stores
+     * integer IDs that reference multi_author CPT posts. These only exist
+     * on the hub (blog 1) and resolve as null on target blogs, causing
+     * kh_get_post_authors() to return empty arrays on cloned posts.
+     *
+     * This method:
+     * 1. Reads the origin post's author IDs
+     * 2. For each author, checks if it already exists on the target site
+     *    (matched by author_name meta)
+     * 3. If not found, clones the multi_author profile to the target site
+     * 4. Rewrites field_multi_author_relationship on the target post with
+     *    the new local author IDs
+     *
+     * @param int $origin_post_id
+     * @param int $target_post_id
+     */
+    private function clone_author_profiles( int $origin_post_id, int $target_post_id ): void {
+        // Resolve origin author IDs from the hub post
+        $origin_author_ids = [];
+        if ( function_exists( 'get_field' ) ) {
+            $raw = get_field( 'field_multi_author_relationship', $origin_post_id, false );
+            if ( is_array( $raw ) ) {
+                $origin_author_ids = array_map( 'intval', $raw );
+            }
+        }
+        if ( empty( $origin_author_ids ) ) {
+            $raw = get_post_meta( $origin_post_id, 'field_multi_author_relationship', true );
+            if ( is_array( $raw ) ) {
+                $origin_author_ids = array_map( 'intval', $raw );
+            } elseif ( is_numeric( $raw ) ) {
+                $origin_author_ids = [ (int) $raw ];
+            }
+        }
+
+        if ( empty( $origin_author_ids ) ) {
+            return; // No multi_author relationship on this post
+        }
+
+        $new_author_ids = [];
+
+        foreach ( $origin_author_ids as $hub_author_id ) {
+            // Read author data from the hub blog
+            switch_to_blog( 1 );
+            $author_name  = get_post_meta( $hub_author_id, 'author_name', true );
+            $author_title = get_post_meta( $hub_author_id, 'author_title', true );
+            $author_company = get_post_meta( $hub_author_id, 'author_company', true );
+            $author_bio   = get_post_meta( $hub_author_id, 'author_bio', true );
+            $author_photo = get_post_meta( $hub_author_id, 'author_photo', true );
+            $author_slug  = get_post_field( 'post_name', $hub_author_id );
+            restore_current_blog();
+
+            if ( empty( $author_name ) ) {
+                continue;
+            }
+
+            // Check if this author already exists on the target site
+            $existing = get_posts( [
+                'post_type'      => 'multi_author',
+                'post_status'    => 'any',
+                'posts_per_page' => 1,
+                'fields'         => 'ids',
+                'meta_query'     => [
+                    [
+                        'key'   => 'author_name',
+                        'value' => $author_name,
+                    ],
+                ],
+            ] );
+
+            if ( ! empty( $existing ) ) {
+                $new_author_ids[] = (int) $existing[0];
+                continue;
+            }
+
+            // Clone the author profile to the target site
+            $new_author_id = wp_insert_post( [
+                'post_type'   => 'multi_author',
+                'post_title'  => $author_name,
+                'post_name'   => $author_slug,
+                'post_status' => 'publish',
+                'meta_input'  => [
+                    'author_name'    => $author_name,
+                    'author_title'   => $author_title,
+                    'author_company' => $author_company,
+                    'author_bio'     => $author_bio,
+                ],
+            ] );
+
+            if ( is_wp_error( $new_author_id ) || ! $new_author_id ) {
+                continue;
+            }
+
+            $new_author_id = (int) $new_author_id;
+
+            // Clone author photo attachment if present
+            if ( $author_photo ) {
+                switch_to_blog( 1 );
+                $photo_src = wp_get_attachment_url( (int) $author_photo );
+                restore_current_blog();
+
+                if ( $photo_src ) {
+                    $attachment_id = $this->copy_attachment_to_target( $photo_src );
+                    if ( $attachment_id ) {
+                        update_post_meta( $new_author_id, 'author_photo', $attachment_id );
+                    }
+                }
+            }
+
+            $new_author_ids[] = $new_author_id;
+        }
+
+        // Rewrite the relationship field on the target post
+        if ( ! empty( $new_author_ids ) ) {
+            update_post_meta( $target_post_id, 'field_multi_author_relationship', $new_author_ids );
+            update_post_meta( $target_post_id, '_field_multi_author_relationship', 'field_multi_author_relationship' );
+
+            // Also write to the 'authors' meta key used as fallback in kh_get_post_authors
+            update_post_meta( $target_post_id, 'authors', $new_author_ids );
+            update_post_meta( $target_post_id, '_authors', 'field_multi_author_relationship' );
+
+            // Sync with ACF if available
+            if ( function_exists( 'update_field' ) ) {
+                update_field( 'field_multi_author_relationship', $new_author_ids, $target_post_id );
+            }
+        }
+    }
+
+    /**
+     * Copy a media attachment from URL to the current blog.
+     *
+     * @param string $attachment_url
+     * @return int|false Attachment ID on success, false on failure.
+     */
+    private function copy_attachment_to_target( string $attachment_url ): int|false {
+        // Download the image from the hub
+        $tmp_file = download_url( $attachment_url );
+
+        if ( is_wp_error( $tmp_file ) ) {
+            return false;
+        }
+
+        $file_array = [
+            'name'     => basename( parse_url( $attachment_url, PHP_URL_PATH ) ),
+            'tmp_name' => $tmp_file,
+        ];
+
+        $attachment_id = media_handle_sideload( $file_array, 0 );
+
+        if ( is_wp_error( $attachment_id ) ) {
+            @unlink( $tmp_file );
+            return false;
+        }
+
+        return (int) $attachment_id;
     }
 }
