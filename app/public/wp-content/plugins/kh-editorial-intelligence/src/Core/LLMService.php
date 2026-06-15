@@ -269,12 +269,27 @@ class LLMService {
     ];
 
     /**
+     * Get settings from the hub site (blog_id=1) when on a target site.
+     *
+     * In multisite, API keys and model config are stored only on the hub.
+     * Target sites (cloned posts) must read from blog 1 to use shared LLM.
+     *
+     * @return array
+     */
+    private static function get_settings(): array {
+        if ( is_multisite() && get_current_blog_id() !== 1 ) {
+            return get_blog_option( 1, 'kh_editorial_settings', [] ) ?: [];
+        }
+        return get_option( 'kh_editorial_settings', [] ) ?: [];
+    }
+
+    /**
      * Get the configured OpenAI API key.
      *
      * @return string|null
      */
     public static function get_api_key(): ?string {
-        $settings = get_option( 'kh_editorial_settings', [] );
+        $settings = self::get_settings();
         return ! empty( $settings['openai_api_key'] ) ? $settings['openai_api_key'] : null;
     }
 
@@ -284,7 +299,7 @@ class LLMService {
      * @return string|null
      */
     public static function get_openrouter_api_key(): ?string {
-        $settings = get_option( 'kh_editorial_settings', [] );
+        $settings = self::get_settings();
         return ! empty( $settings['openrouter_api_key'] ) ? $settings['openrouter_api_key'] : null;
     }
 
@@ -294,7 +309,7 @@ class LLMService {
      * @return string
      */
     public static function get_model(): string {
-        $settings = get_option( 'kh_editorial_settings', [] );
+        $settings = self::get_settings();
         return ! empty( $settings['openai_model'] ) ? $settings['openai_model'] : 'gpt-4o-mini';
     }
 
@@ -308,7 +323,7 @@ class LLMService {
      * @return array { provider: string, model: string, fallback_chain: string[] }
      */
     public static function resolve_agent_model( string $agent, string $profile = null ): array {
-        $settings = get_option( 'kh_editorial_settings', [] );
+        $settings = self::get_settings();
         $profile  = $profile ?? ( $settings['preset_profile'] ?? 'speed' );
 
         // Start with the selected preset profile as base
@@ -362,7 +377,7 @@ class LLMService {
      * @return array { provider: 'openai'|'openrouter', model: string, temperature: float }
      */
     public static function resolve_persona_model( string $persona ): array {
-        $settings       = get_option( 'kh_editorial_settings', [] );
+        $settings       = self::get_settings();
         $persona_models = $settings['persona_models'] ?? [];
         $config         = $persona_models[ $persona ] ?? ( self::DEFAULT_PERSONA_MODELS[ $persona ] ?? self::DEFAULT_PERSONA_MODELS['journalist'] );
 
@@ -385,7 +400,7 @@ class LLMService {
      * API key is missing, falls back to the other provider.
      */
     private static function resolve_provider( string $model ): array {
-        $settings         = get_option( 'kh_editorial_settings', [] );
+        $settings         = self::get_settings();
         $provider_priority = $settings['provider_priority'] ?? 'auto';
 
         $has_forward_slash = strpos( $model, '/' ) !== false;
