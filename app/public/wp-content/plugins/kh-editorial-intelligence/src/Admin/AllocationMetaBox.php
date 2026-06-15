@@ -147,6 +147,7 @@ class AllocationMetaBox {
             'postId'       => get_the_ID(),
             'nonce'        => wp_create_nonce( 'wp_rest' ),
             'labels'       => [
+                'cloned'            => __( 'Cloned', 'kh-editorial-intelligence' ),
                 'cloning'           => __( 'Cloning...', 'kh-editorial-intelligence' ),
                 'rewriting'         => __( 'AI rewriting...', 'kh-editorial-intelligence' ),
                 'cloneSuccess'      => __( 'Post cloned successfully.', 'kh-editorial-intelligence' ),

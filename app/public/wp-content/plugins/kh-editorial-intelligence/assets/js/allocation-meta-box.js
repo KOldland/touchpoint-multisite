@@ -139,7 +139,7 @@
         $checkbox.prop('disabled', true).prop('checked', false);
 
         const $status = $row.find('.kh-allocation-status');
-        let statusHtml = '<span style="color: #00a32a;">✅ Cloned</span>';
+        let statusHtml = '<span style="color: #00a32a;">' + labels.cloned + '</span>';
         if (rewriteApplied) {
             statusHtml += ' <span style="color: #2271b1; font-size: 11px;">(rewritten)</span>';
         }
