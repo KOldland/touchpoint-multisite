@@ -128,6 +128,33 @@ class AllocationTable {
     }
 
     /**
+     * Get all distributed posts grouped by origin post.
+     *
+     * @param int $origin_blog_id
+     * @return array Array keyed by origin_post_id, each value is an array of allocation rows.
+     */
+    public static function get_all_distributed( int $origin_blog_id = 1 ): array {
+        global $wpdb;
+        $table = $wpdb->base_prefix . self::TABLE_NAME;
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM $table WHERE origin_blog_id = %d ORDER BY allocated_at DESC",
+                $origin_blog_id
+            ),
+            ARRAY_A
+        );
+
+        $grouped = [];
+        foreach ( (array) $rows as $row ) {
+            $post_id = (int) $row['origin_post_id'];
+            $grouped[ $post_id ][] = $row;
+        }
+
+        return $grouped;
+    }
+
+    /**
      * Delete allocation records for an origin post across all targets.
      *
      * @param int $origin_post_id

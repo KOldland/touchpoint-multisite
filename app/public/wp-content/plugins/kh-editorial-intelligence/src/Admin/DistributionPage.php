@@ -109,7 +109,7 @@ class DistributionPage {
 
                             // Date
                             $first_alloc = reset( $sites_for_post );
-                            $date = $first_alloc['created_at'] ?? $post->post_modified;
+                            $date = $first_alloc['allocated_at'] ?? $post->post_modified;
                             $date_str = is_numeric( $date )
                                 ? wp_date( 'Y-m-d H:i', (int) $date )
                                 : wp_date( 'Y-m-d H:i', strtotime( $date ) );
