@@ -122,10 +122,10 @@ class EditorialAdmin {
                 'primary'  => false,
             ],
             [
-                'title'    => __( 'Content Allocations', 'kh-editorial-intelligence' ),
-                'url'      => admin_url( 'edit.php' ),
+                'title'    => __( 'Content Distribution', 'kh-editorial-intelligence' ),
+                'url'      => admin_url( 'admin.php?page=kh-distribution' ),
                 'icon'     => 'dashicons-networking',
-                'desc'     => __( 'Open a post and use the Site Allocation meta box to clone content to network sites.', 'kh-editorial-intelligence' ),
+                'desc'     => __( 'View and manage cross-site content distribution.', 'kh-editorial-intelligence' ),
                 'primary'  => false,
             ],
             [

@@ -113,6 +113,16 @@ add_action( 'plugins_loaded', function() {
         ( new KH\Editorial\Admin\AllocationMetaBox() )->init();
     }
 
+    // 9b. Posts Table Columns (custom column set for edit.php)
+    if ( is_admin() && class_exists( 'KH\\Editorial\\Admin\\PostsTableColumns' ) ) {
+        ( new KH\Editorial\Admin\PostsTableColumns() )->init();
+    }
+
+    // 9c. Distribution Overview Page
+    if ( is_admin() && class_exists( 'KH\\Editorial\\Admin\\DistributionPage' ) ) {
+        ( new KH\Editorial\Admin\DistributionPage() )->init();
+    }
+
      // 7. Gutenberg Editor Assets
     add_action( 'enqueue_block_editor_assets', function() {
         $script_path = KH_EDITORIAL_PLUGIN_DIR . 'assets/js/editor-image-sidebar.js';
