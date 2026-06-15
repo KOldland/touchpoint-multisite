@@ -135,11 +135,9 @@ class AllocationMetaBox {
             return;
         }
 
-        $plugin_url = plugin_dir_url( dirname( __DIR__ ) . '/kh-editorial-intelligence.php' );
-
         wp_enqueue_script(
             'kh-allocation-meta-box',
-            $plugin_url . 'assets/js/allocation-meta-box.js',
+            plugins_url( 'assets/js/allocation-meta-box.js', KH_EDITORIAL_PLUGIN_DIR . 'kh-editorial-intelligence.php' ),
             [ 'jquery', 'wp-api-fetch' ],
             '1.0.0',
             true
