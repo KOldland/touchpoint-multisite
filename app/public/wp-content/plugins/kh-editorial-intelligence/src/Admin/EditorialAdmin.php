@@ -115,6 +115,13 @@ class EditorialAdmin {
                 'primary'  => true,
             ],
             [
+                'title'    => __( 'All Posts', 'kh-editorial-intelligence' ),
+                'url'      => admin_url( 'edit.php' ),
+                'icon'     => 'dashicons-admin-post',
+                'desc'     => __( 'Browse and manage all editorial content.', 'kh-editorial-intelligence' ),
+                'primary'  => false,
+            ],
+            [
                 'title'    => __( 'Categories', 'kh-editorial-intelligence' ),
                 'url'      => admin_url( 'edit-tags.php?taxonomy=category' ),
                 'icon'     => 'dashicons-category',
