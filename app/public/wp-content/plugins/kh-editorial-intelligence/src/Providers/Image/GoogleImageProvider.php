@@ -101,7 +101,7 @@ class GoogleImageProvider implements ImageProviderInterface {
     }
 
     private function resolve_api_key() {
-        $settings = get_option( 'kh_editorial_settings', [] );
+        $settings = \KH\Editorial\Core\LLMService::get_settings();
         return $settings['google_ai_key'] ?? ( defined( 'GOOGLE_AI_API_KEY' ) ? GOOGLE_AI_API_KEY : '' );
     }
 

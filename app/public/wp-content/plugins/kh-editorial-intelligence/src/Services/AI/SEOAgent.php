@@ -268,7 +268,7 @@ class SEOAgent {
             'technical_issues' => array_slice( $analysis['technical_issues'] ?? [], 0, 8 ),
         ];
 
-        $settings = get_option( 'kh_editorial_settings', [] );
+        $settings = \KH\Editorial\Core\LLMService::get_settings();
         $sponsor_safe = ! empty( $settings['sponsor_safe'] ) ? 'true' : 'false';
 
         $prompt = [

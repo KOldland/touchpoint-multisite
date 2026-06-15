@@ -276,7 +276,7 @@ class LLMService {
      *
      * @return array
      */
-    private static function get_settings(): array {
+    public static function get_settings(): array {
         if ( is_multisite() && get_current_blog_id() !== 1 ) {
             return get_blog_option( 1, 'kh_editorial_settings', [] ) ?: [];
         }

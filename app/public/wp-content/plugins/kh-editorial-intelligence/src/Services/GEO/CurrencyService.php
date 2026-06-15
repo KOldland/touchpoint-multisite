@@ -35,7 +35,7 @@ class CurrencyService {
      * Checks admin settings first, falls back to stable defaults.
      */
     private function get_rate($currency) {
-        $settings = get_option('kh_editorial_settings', []);
+        $settings = \KH\Editorial\Core\LLMService::get_settings();
         $rates_option = $settings['currency_rates'] ?? [];
 
         if (!empty($rates_option[$currency])) {

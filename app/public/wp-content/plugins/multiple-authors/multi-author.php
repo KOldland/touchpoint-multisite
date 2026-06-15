@@ -358,6 +358,10 @@ function kh_quick_add_author_rest( $request ) {
 /**
  * Enqueue Gutenberg sidebar plugin for quick-add author
  */
+// Removed enqueue of quick-add-author.js — ACF's relationship field has its own native
+// "Add New" button, so injecting a second "+ Create New Author" button is redundant.
+// The REST endpoint kh_quick_add_author_rest remains for potential other use.
+/*
 add_action( 'enqueue_block_editor_assets', function() {
 	$asset_file = plugin_dir_path( __FILE__ ) . 'assets/quick-add-author.js';
 	if ( ! file_exists( $asset_file ) ) {
@@ -372,6 +376,7 @@ add_action( 'enqueue_block_editor_assets', function() {
 		true
 	);
 } );
+*/
 
 function kh_get_post_authors( $post_id ) {
 	if ( ! $post_id ) {

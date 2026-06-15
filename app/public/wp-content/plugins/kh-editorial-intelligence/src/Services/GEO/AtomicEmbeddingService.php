@@ -308,7 +308,7 @@ class AtomicEmbeddingService {
      * @return string|null
      */
     private function get_api_key(): ?string {
-        $settings = get_option( 'kh_editorial_settings', [] );
+        $settings = \KH\Editorial\Core\LLMService::get_settings();
         return ! empty( $settings['openai_api_key'] ) ? $settings['openai_api_key'] : null;
     }
 }

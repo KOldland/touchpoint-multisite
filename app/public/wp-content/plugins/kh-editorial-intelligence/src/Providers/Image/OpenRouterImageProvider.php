@@ -145,7 +145,7 @@ class OpenRouterImageProvider implements ImageProviderInterface {
      * @return string
      */
     private function resolve_api_key() {
-        $settings = get_option( 'kh_editorial_settings', [] );
+        $settings = \KH\Editorial\Core\LLMService::get_settings();
         return $settings['openrouter_api_key'] ?? ( defined( 'OPENROUTER_API_KEY' ) ? OPENROUTER_API_KEY : '' );
     }
 

@@ -17,7 +17,7 @@ class SearchProvider {
      * Get the active provider chain.
      */
     public function get_active_chain() {
-        $settings = get_option( 'kh_editorial_settings', [] );
+        $settings = \KH\Editorial\Core\LLMService::get_settings();
         $primary  = ! empty( $settings['search_primary'] ) ? $settings['search_primary'] : 'serpapi';
         $fallback = ! empty( $settings['search_fallback'] ) ? $settings['search_fallback'] : '';
 
@@ -37,7 +37,7 @@ class SearchProvider {
      * Get configuration for a specific provider.
      */
     public function get_provider_config( $provider ) {
-        $settings = get_option( 'kh_editorial_settings', [] );
+        $settings = \KH\Editorial\Core\LLMService::get_settings();
         
         switch ( $provider ) {
             case 'serpapi':

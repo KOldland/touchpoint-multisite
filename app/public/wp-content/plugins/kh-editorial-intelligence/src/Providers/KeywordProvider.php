@@ -21,7 +21,7 @@ class KeywordProvider {
      * @return array
      */
     public function get_credentials() {
-        $settings = get_option( 'kh_editorial_settings', [] );
+        $settings = \KH\Editorial\Core\LLMService::get_settings();
         $login    = ! empty( $settings['dataforseo_login'] ) ? $settings['dataforseo_login'] : '';
         $password = ! empty( $settings['dataforseo_password'] ) ? $settings['dataforseo_password'] : '';
 
