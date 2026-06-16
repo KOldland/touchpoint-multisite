@@ -351,6 +351,9 @@ class EditorialAdmin {
                 'linkedin_client_secret' => sanitize_text_field( $_POST['linkedin_client_secret'] ?? '' ),
                 'linkedin_access_token'  => sanitize_text_field( $_POST['linkedin_access_token'] ?? '' ),
                 'linkedin_author_urn'    => sanitize_text_field( $_POST['linkedin_author_urn'] ?? '' ),
+                'default_article_price'  => (float) ( $_POST['default_article_price'] ?? 15.00 ),
+                'default_credit_cost'    => (int) ( $_POST['default_credit_cost'] ?? 1 ),
+                'show_per_post_pricing'  => isset( $_POST['show_per_post_pricing'] ) ? 1 : 0,
             ];
 
             update_option( 'kh_editorial_settings', $settings );
@@ -744,6 +747,40 @@ class EditorialAdmin {
                     </div>
                 </div>
 
+                <!-- =========================== SECTION: PRICING ============================ -->
+                <div class="kh-section">
+                    <div class="kh-section-header">
+                        <h2><span class="dashicons dashicons-cart"></span> Article Pricing</h2>
+                        <span class="kh-section-toggle"></span>
+                    </div>
+                    <div class="kh-section-body">
+                        <div class="kh-form-row">
+                            <div class="kh-form-label"><strong><?php esc_html_e( 'Default Article Price (£)', 'kh-editorial-intelligence' ); ?></strong></div>
+                            <div class="kh-form-control">
+                                <input name="default_article_price" type="number" step="0.01" min="0" value="<?php echo esc_attr( $settings['default_article_price'] ?? 15.00 ); ?>" style="width:120px;">
+                                <div class="kh-desc">Flat price for single-article purchase. Overridable per post when the editor panel is enabled.</div>
+                            </div>
+                        </div>
+                        <div class="kh-form-row">
+                            <div class="kh-form-label"><strong><?php esc_html_e( 'Default Credit Cost', 'kh-editorial-intelligence' ); ?></strong></div>
+                            <div class="kh-form-control">
+                                <input name="default_credit_cost" type="number" step="1" min="0" value="<?php echo esc_attr( $settings['default_credit_cost'] ?? 1 ); ?>" style="width:80px;">
+                                <div class="kh-desc">Credits required to download one article. Overridable per post when the editor panel is enabled.</div>
+                            </div>
+                        </div>
+                        <div class="kh-form-row">
+                            <div class="kh-form-label"><strong><?php esc_html_e( 'Per‑Post Pricing Panel', 'kh-editorial-intelligence' ); ?></strong></div>
+                            <div class="kh-form-control">
+                                <label style="display: flex; align-items: center; gap: 8px;">
+                                    <input name="show_per_post_pricing" type="checkbox" <?php checked( ! empty( $settings['show_per_post_pricing'] ) ); ?>>
+                                    <span>Show the eCommerce meta box in the post editor</span>
+                                </label>
+                                <div class="kh-desc">When disabled, all articles use the global defaults above. Turn on if you need per‑article price overrides.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- =========================== SUBMIT ============================ -->
                 <div class="kh-submit">
                     <input type="submit" name="kh_editorial_save_settings" class="button button-primary" value="Save Settings">
@@ -873,6 +910,24 @@ class EditorialAdmin {
         $settings = get_option( 'kh_editorial_settings', [] );
         return [
             'show_prompt_editor' => ! empty( $settings['show_prompt_editor'] ),
+        ];
+    }
+
+    /**
+     * Get global pricing defaults for article purchases.
+     *
+     * Returns: [ 'price' => float, 'credit_cost' => int ]
+     * Falls back to £15.00 / 1 credit when not configured.
+     *
+     * Callers should:
+     * 1. Check per-post meta (kss_article_price / kss_credit_cost) first
+     * 2. Fall through to this method when no per-post override exists
+     */
+    public static function get_pricing(): array {
+        $settings = \KH\Editorial\Core\LLMService::get_settings();
+        return [
+            'price'       => isset( $settings['default_article_price'] ) ? (float) $settings['default_article_price'] : 15.00,
+            'credit_cost' => isset( $settings['default_credit_cost'] ) ? (int) $settings['default_credit_cost'] : 1,
         ];
     }
 }

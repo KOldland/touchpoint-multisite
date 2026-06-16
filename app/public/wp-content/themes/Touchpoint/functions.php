@@ -974,8 +974,12 @@ add_action( 'template_redirect', function() {
 	}
 } );
 
-/* Social Strip meta (native, no ACF dependency) */
+/* Social Strip meta (native, no ACF dependency) — gated on show_per_post_pricing */
 add_action( 'add_meta_boxes', function() {
+	$settings = class_exists( '\\KH\\Editorial\\Admin\\EditorialAdmin' ) ? \KH\Editorial\Core\LLMService::get_settings() : [];
+	if ( empty( $settings['show_per_post_pricing'] ) ) {
+		return;
+	}
 	add_meta_box(
 		'touchpoint-social-strip',
 		__( 'eCommerce', 'touchpoint' ),
@@ -1504,6 +1508,34 @@ add_action( 'elementor/widgets/register', function( $widgets_manager ) {
 		if ( class_exists( $class ) ) {
 			$widgets_manager->register( new $class() );
 		}
+	}
+} );
+
+/*
+ * Elementor Query ID: exclude_hero_posts
+ *
+ * Allows category-loop blocks on the homepage to exclude the 5 most recent
+ * posts that are already displayed in the global hero.  Because every post
+ * belongs to one of three lead categories, "5 most recent globally" is
+ * equivalent to "5 most recent from the hero categories".
+ *
+ * Usage: set "Query ID" to "exclude_hero_posts" in any Elementor Posts/Loop
+ *        widget that should skip what the hero already shows.
+ */
+add_action( 'elementor/query/exclude_hero_posts', function( $query ) {
+	static $hero_post_ids = null;
+
+	if ( $hero_post_ids === null ) {
+		$recent = get_posts( array(
+			'posts_per_page'   => 5,
+			'fields'           => 'ids',
+			'no_found_rows'    => true,
+		) );
+		$hero_post_ids = ! empty( $recent ) ? $recent : array();
+	}
+
+	if ( ! empty( $hero_post_ids ) ) {
+		$query->set( 'post__not_in', $hero_post_ids );
 	}
 } );
 
