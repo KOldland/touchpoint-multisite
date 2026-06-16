@@ -71,9 +71,14 @@ class AllocationMetaBox {
                     $rewrite_badge = $alloc && (bool) $alloc['rewrite_applied'] 
                         ? '<span style="color: #2271b1; font-size: 11px;"> (' . esc_html__( 'rewritten', 'kh-editorial-intelligence' ) . ')</span>' 
                         : '';
-                    $status_text = $allocated
-                        ? '<span style="color: #00a32a;">✅ ' . esc_html__( 'Cloned', 'kh-editorial-intelligence' ) . $rewrite_badge . '</span>'
-                        : '';
+                    $rewritten = $alloc && (bool) $alloc['rewrite_applied'];
+                    if ( $rewritten ) {
+                        $status_text = '<span style="color: #7c3aed;">' . esc_html__( 'Rewritten', 'kh-editorial-intelligence' ) . '</span>';
+                    } elseif ( $allocated ) {
+                        $status_text = '<span style="color: #00a32a;">' . esc_html__( 'Cloned', 'kh-editorial-intelligence' ) . '</span>';
+                    } else {
+                        $status_text = '<span style="color: #999;">' . esc_html__( 'Available', 'kh-editorial-intelligence' ) . '</span>';
+                    }
                 ?>
                     <label class="kh-allocation-site-row" style="display: flex; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0f0f1; cursor: pointer;"
                            data-blog-id="<?php echo esc_attr( $site['blog_id'] ); ?>"
@@ -89,12 +94,20 @@ class AllocationMetaBox {
                             <?php echo $status_text; ?>
                         </span>
                         <?php if ( $allocated && $alloc ) : ?>
+                            <?php if ( ! $rewritten ) : ?>
+                                <button type="button"
+                                        class="kh-allocation-rewrite-btn button button-small"
+                                        data-slug="<?php echo esc_attr( $site['slug'] ); ?>"
+                                        style="margin-left: 6px; font-size: 10px; padding: 0 6px; line-height: 18px; min-height: 18px;">
+                                    <?php esc_html_e( 'Rewrite', 'kh-editorial-intelligence' ); ?>
+                                </button>
+                            <?php endif; ?>
                             <a href="<?php echo esc_url( $this->service->get_cross_site_edit_link( $site['blog_id'], (int) $alloc['target_post_id'] ) ); ?>"
                                class="kh-allocation-edit-link"
                                target="_blank"
-                               style="margin-left: 6px; font-size: 12px;"
+                               style="margin-left: 4px; font-size: 12px;"
                                title="<?php esc_attr_e( 'Edit variant', 'kh-editorial-intelligence' ); ?>">
-                                📝
+                                Edit
                             </a>
                         <?php endif; ?>
                     </label>

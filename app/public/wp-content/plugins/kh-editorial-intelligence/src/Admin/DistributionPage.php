@@ -154,7 +154,7 @@ class DistributionPage {
                                     if ( $alloc ) :
                                         $rewritten = (bool) ( $alloc['rewrite_applied'] ?? false );
                                         $color     = $rewritten ? '#dba617' : '#00a32a';
-                                        $icon      = $rewritten ? '✎' : '✓';
+                                        $icon      = $rewritten ? 'R' : 'C';
                                         $title     = $rewritten
                                             ? __( 'Distributed (rewritten)', 'kh-editorial-intelligence' )
                                             : __( 'Distributed', 'kh-editorial-intelligence' );
@@ -352,7 +352,7 @@ class DistributionPage {
                                 var cellKey = 'kh-dist-cell-' + postId + '-' + blogId;
                                 var $cell = $('#' + cellKey);
                                 if ($cell.length) {
-                                    var icon = r.rewrite_applied ? '✎' : '✓';
+                                    var icon = r.rewrite_applied ? 'R' : 'C';
                                     var color = r.rewrite_applied ? '#dba617' : '#00a32a';
                                     var title = r.rewrite_applied
                                         ? 'Distributed (rewritten)'

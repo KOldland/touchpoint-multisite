@@ -129,7 +129,57 @@
         }
     }
 
+    // ─── Execute standalone rewrite ────────────────────────────────────────────
+
+    async function doRewrite(slug) {
+        const $row = $container.find('.kh-allocation-site-row[data-slug="' + slug + '"]');
+        const $rewriteBtn = $row.find('.kh-allocation-rewrite-btn');
+        const $status = $row.find('.kh-allocation-status');
+
+        // Show loading state on the row
+        $rewriteBtn.prop('disabled', true).text(labels.rewriting);
+        $status.html('<span style="color: #dba617;">' + labels.rewriting + '</span>');
+
+        try {
+            const result = await apiFetch({
+                path: API_BASE + '/rewrite',
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': nonce,
+                    'Content-Type': 'application/json',
+                },
+                data: {
+                    post_id: parseInt(postId, 10),
+                    site_slug: slug,
+                },
+            });
+
+            if (result.success) {
+                markAsRewritten(slug, result.edit_url);
+                showStatus(result.message || labels.rewriteSuccess, 'success');
+            } else {
+                // Restore cloned status on failure
+                $status.html('<span style="color: #00a32a;">' + labels.cloned + '</span>');
+                $rewriteBtn.prop('disabled', false).text('Rewrite');
+                showStatus(
+                    (result && result.message) || labels.error,
+                    'error'
+                );
+            }
+        } catch (err) {
+            console.error('[Allocation] Rewrite error:', err);
+            // Restore cloned status on error
+            $status.html('<span style="color: #00a32a;">' + labels.cloned + '</span>');
+            $rewriteBtn.prop('disabled', false).text('Rewrite');
+            showStatus(
+                (err && err.message) || labels.error,
+                'error'
+            );
+        }
+    }
+
     // ─── Mark a site as cloned in the UI ───────────────────────────────────────
+    // Three-tier status: not allocated → cloned → rewritten
 
     function markAsCloned(slug, rewriteApplied, editUrl) {
         const $row = $container.find('.kh-allocation-site-row[data-slug="' + slug + '"]');
@@ -139,25 +189,71 @@
         $checkbox.prop('disabled', true).prop('checked', false);
 
         const $status = $row.find('.kh-allocation-status');
-        let statusHtml = '<span style="color: #00a32a;">' + labels.cloned + '</span>';
-        if (rewriteApplied) {
-            statusHtml += ' <span style="color: #2271b1; font-size: 11px;">(rewritten)</span>';
-        }
-        $status.html(statusHtml);
 
-        // Add edit link if we have one
+        if (rewriteApplied) {
+            markAsRewritten(slug, editUrl);
+            return;
+        }
+
+        $status.html('<span style="color: #00a32a;">' + labels.cloned + '</span>');
+
+        // Add Rewrite button and edit link if we have an edit URL
+        addRowActions($row, slug, editUrl, false);
+    }
+
+    function markAsRewritten(slug, editUrl) {
+        const $row = $container.find('.kh-allocation-site-row[data-slug="' + slug + '"]');
+        if (!$row.length) return;
+
+        const $status = $row.find('.kh-allocation-status');
+        $status.html('<span style="color: #7c3aed;">Rewritten</span>');
+
+        // Add edit link (remove Rewrite button since already rewritten)
+        addRowActions($row, slug, editUrl, true);
+    }
+
+    /**
+     * Add or refresh row action buttons — Rewrite button (if not already rewritten)
+     * and edit link.
+     */
+    function addRowActions($row, slug, editUrl, isRewritten) {
+        // Remove existing action buttons
+        $row.find('.kh-allocation-rewrite-btn, .kh-allocation-edit-link').remove();
+
+        // Add Rewrite button if not already rewritten
+        if (!isRewritten) {
+            const $rewriteBtn = $('<button>')
+                .attr('type', 'button')
+                .addClass('kh-allocation-rewrite-btn button button-small')
+                .attr('data-slug', slug)
+                .css({
+                    marginLeft: '6px',
+                    fontSize: '10px',
+                    padding: '0 6px',
+                    lineHeight: '18px',
+                    minHeight: '18px',
+                })
+                .text('Rewrite');
+
+            $rewriteBtn.on('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                doRewrite(slug);
+            });
+
+            $row.append($rewriteBtn);
+        }
+
+        // Add edit link
         if (editUrl) {
-            const existingLink = $row.find('.kh-allocation-edit-link');
-            if (!existingLink.length) {
-                const $editLink = $('<a>')
-                    .attr('href', editUrl)
-                    .attr('target', '_blank')
-                    .addClass('kh-allocation-edit-link')
-                    .css({ marginLeft: '6px', fontSize: '12px' })
-                    .attr('title', 'Edit variant')
-                    .text('📝');
-                $status.after($editLink);
-            }
+            const $editLink = $('<a>')
+                .attr('href', editUrl)
+                .attr('target', '_blank')
+                .addClass('kh-allocation-edit-link')
+                .css({ marginLeft: '4px', fontSize: '12px' })
+                .attr('title', 'Edit variant')
+                .text('Edit');
+            $row.append($editLink);
         }
     }
 
@@ -169,6 +265,16 @@
 
     $btnCloneOnly.on('click', function () {
         doClone(false);
+    });
+
+    // Delegate Rewrite button clicks (handles both initial and dynamically-added buttons)
+    $container.on('click', '.kh-allocation-rewrite-btn', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const slug = $(this).data('slug');
+        if (slug) {
+            doRewrite(slug);
+        }
     });
 
     // ─── Load existing allocation status on page load ──────────────────────────

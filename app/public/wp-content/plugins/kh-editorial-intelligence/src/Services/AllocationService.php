@@ -201,23 +201,18 @@ class AllocationService {
         // Remap multi_author references to target site
         $this->clone_author_profiles( $origin_post_id, $target_post_id );
 
+        // ── COMMIT ALLOCATION RECORD IMMEDIATELY ──
+        // Must happen before the LLM rewrite call so the clone is durable even
+        // if the LLM times out. rewrite_applied starts as false and is updated
+        // after a successful rewrite.
         $rewrite_applied = false;
 
-        // Run LLM rewrite if requested
-        if ( $rewrite ) {
-            $rewrite_result = $this->rewrite_for_site( $target_post_id, $target_blog_id );
-            if ( $rewrite_result['success'] ) {
-                $rewrite_applied = true;
-            }
-        }
-
-        // Record allocation
         $record_id = AllocationTable::record(
             get_current_blog_id(), // origin (hub)
             $origin_post_id,
             $target_blog_id,
             $target_post_id,
-            $rewrite_applied
+            $rewrite_applied  // starts false
         );
 
         // Get edit link for the target post
@@ -225,14 +220,36 @@ class AllocationService {
 
         restore_current_blog();
 
+        // ── OPTIONAL LLM REWRITE (best-effort, after the clone is committed) ──
+        $rewrite_message = '';
+        if ( $rewrite ) {
+            $rewrite_result = $this->rewrite_for_site( $target_post_id, $target_blog_id );
+            if ( $rewrite_result['success'] ) {
+                AllocationTable::update_rewrite_applied( $origin_post_id, $target_blog_id, true );
+                $rewrite_applied = true;
+                $rewrite_message = ' ' . $rewrite_result['message'];
+            } else {
+                // Rewrite failed but clone is safe — surface the error
+                $rewrite_message = ' ' . sprintf(
+                    /* translators: %s: error message from rewrite attempt */
+                    __( 'Rewrite skipped: %s', 'kh-editorial-intelligence' ),
+                    $rewrite_result['message'] ?? __( 'LLM unavailable', 'kh-editorial-intelligence' )
+                );
+                error_log( '[Allocation] Clone OK but rewrite failed for origin=' . $origin_post_id . ' target_blog=' . $target_blog_id . ': ' . json_encode( $rewrite_result ) );
+            }
+        }
+
         return [
             'success'         => true,
             'target_post_id'  => $target_post_id,
             'edit_url'        => $edit_url,
             'rewrite_applied' => $rewrite_applied,
             'message'         => $rewrite_applied
-                ? __( 'Post cloned and rewritten successfully.', 'kh-editorial-intelligence' )
-                : __( 'Post cloned successfully (no rewrite).', 'kh-editorial-intelligence' ),
+                ? ( __( 'Post cloned and rewritten successfully.', 'kh-editorial-intelligence' ) . $rewrite_message )
+                : ( $rewrite
+                    ? __( 'Post cloned but rewrite failed.', 'kh-editorial-intelligence' ) . $rewrite_message
+                    : __( 'Post cloned successfully.', 'kh-editorial-intelligence' )
+                ),
         ];
     }
 
@@ -278,6 +295,41 @@ class AllocationService {
     }
 
     /**
+     * Rewrite an already-cloned post for a target site.
+     *
+     * Used by the standalone Rewrite button on already-allocated posts. Resolves
+     * the target post from the allocation table, switches to the target blog,
+     * runs the rewrite, and updates the allocation record.
+     *
+     * @param int $origin_post_id  Hub site post ID.
+     * @param int $target_blog_id
+     * @return array { success, message, edit_url }
+     */
+    public function rewrite_for_post( int $origin_post_id, int $target_blog_id ): array {
+        $existing = AllocationTable::find( $origin_post_id, $target_blog_id );
+        if ( ! $existing ) {
+            return [
+                'success' => false,
+                'message' => __( 'Post has not been allocated to this site yet.', 'kh-editorial-intelligence' ),
+            ];
+        }
+
+        $target_post_id = (int) $existing['target_post_id'];
+
+        switch_to_blog( $target_blog_id );
+        $rewrite_result = $this->rewrite_for_site( $target_post_id, $target_blog_id );
+
+        if ( $rewrite_result['success'] ) {
+            AllocationTable::update_rewrite_applied( $origin_post_id, $target_blog_id, true );
+        }
+
+        $edit_url = $this->get_cross_site_edit_link( $target_blog_id, $target_post_id );
+        restore_current_blog();
+
+        return array_merge( $rewrite_result, [ 'edit_url' => $edit_url ] );
+    }
+
+    /**
      * Rewrite cloned post content for the target site's audience via LLM.
      *
      * @param int $target_post_id The post ID on the target blog (must be switched).
@@ -292,22 +344,43 @@ class AllocationService {
             ];
         }
 
-        $post       = get_post( $target_post_id );
-        $site_label = $this->get_site_label_by_blog_id( $target_blog_id );
+        $post = get_post( $target_post_id );
 
-        if ( ! $post || ! $site_label ) {
-            return [ 'success' => false, 'message' => 'Could not resolve post or site for rewrite.' ];
+        // Resolve the site slug from the blog ID so we can pull audience context
+        $site_slug = $this->get_site_slug_by_blog_id( $target_blog_id );
+        $site_label = $site_slug
+            ? ( SiteAudienceProfile::get_label( $site_slug ) ?? 'target site' )
+            : 'target site';
+
+        if ( ! $post ) {
+            return [ 'success' => false, 'message' => 'Could not resolve post for rewrite.' ];
         }
 
-        $prompt = $this->build_rewrite_prompt( $post, $site_label );
+        $prompt = $this->build_rewrite_prompt( $post, $site_slug, $site_label );
+
+        // Resolve agent model, provider, and fallback chain
+        $route = LLMService::resolve_agent_model( 'content_rewrite' );
+
+        // Build proper messages array for the LLM
+        $messages = [
+            [
+                'role'    => 'user',
+                'content' => $prompt,
+            ],
+        ];
 
         try {
-            $llm = new LLMService();
-            $result = $llm->post_completion(
-                'content_rewrite',
-                $prompt,
-                [ 'temperature' => 0.7, 'max_tokens' => 4096 ]
-            );
+            $result = LLMService::post_completion_with_retry( $messages, [
+                'provider'       => $route['provider'],
+                'model'          => $route['model'],
+                'temperature'    => 0.7,
+                'max_tokens'     => 4096,
+                'fallback_chain' => $route['fallback_chain'],
+            ] );
+
+            if ( is_wp_error( $result ) ) {
+                return [ 'success' => false, 'message' => $result->get_error_message() ];
+            }
 
             $parsed = $this->parse_rewrite_response( $result );
 
@@ -337,25 +410,38 @@ class AllocationService {
      * @param string   $site_label
      * @return string
      */
-    private function build_rewrite_prompt( \WP_Post $post, string $site_label ): string {
+    private function build_rewrite_prompt( \WP_Post $post, string $site_slug, string $site_label ): string {
         $title   = $post->post_title;
         $excerpt = $post->post_excerpt ?: '';
-        $content = wp_strip_all_tags( $post->post_content );
+
+        // Preserve semantic HTML tags so the LLM can maintain structure
+        $content = $this->strip_non_semantic_tags( $post->post_content );
         // Truncate very long content to avoid token limits
         if ( strlen( $content ) > 8000 ) {
             $content = substr( $content, 0, 8000 ) . '...';
         }
 
+        // Build audience context from the centralised profiles
+        $audience_context = $site_slug
+            ? SiteAudienceProfile::get_audience_context( $site_slug )
+            : '';
+
+        $audience_block = $audience_context
+            ? "AUDIENCE PROFILE:\n{$audience_context}\n\n"
+            : '';
+
         return <<<PROMPT
-You are an editorial assistant rewriting content for a specific audience.
+You are an editorial assistant rewriting content for a specific B2B publication audience.
 
-The target publication focuses on: {$site_label}
+The target publication is: {$site_label}
 
-Rewrite the following article to better serve this audience:
+{$audience_block}Rewrite the following article to better serve this audience:
 
-1. TITLE: Adjust to emphasize {$site_label}-relevant keywords and framing.
-2. EXCERPT: Write 1-2 sentences that appeal specifically to {$site_label} readers.
-3. BODY CONTENT: Lightly shift framing, examples, and emphasis toward {$site_label} without fabricating facts, removing core information, or changing the article's essential structure.
+1. TITLE: Adjust to emphasize {$site_label}-relevant keywords and framing. Speak directly to the readers' priorities.
+2. EXCERPT: Write 1-2 sentences that appeal specifically to {$site_label} readers, referencing their specific concerns.
+3. BODY CONTENT: Lightly shift framing, examples, and emphasis toward {$site_label} without fabricating facts, removing core information, or changing the article's essential structure. Preserve the original HTML structure (headings, paragraphs, lists, links). Rewrite the text content while keeping all markup intact.
+
+IMPORTANT: Maintain approximately the same word count as the original. Do not add invented statistics, quotes, or data points.
 
 Original title: {$title}
 Original excerpt: {$excerpt}
@@ -419,13 +505,28 @@ PROMPT;
      * @param int $blog_id
      * @return string|null
      */
-    private function get_site_label_by_blog_id( int $blog_id ): ?string {
+    private function get_site_slug_by_blog_id( int $blog_id ): ?string {
         foreach ( self::TARGET_SITES as $slug => $label ) {
             if ( $this->resolve_blog_id( $slug ) === $blog_id ) {
-                return $label;
+                return $slug;
             }
         }
         return null;
+    }
+
+    /**
+     * Strip non-semantic HTML tags from post content, preserving structural markup
+     * that the LLM should see: headings, paragraphs, lists, links, bold, italic.
+     *
+     * @param string $html
+     * @return string
+     */
+    private function strip_non_semantic_tags( string $html ): string {
+        // Allow these tags and their content
+        $allowed = '<h1><h2><h3><h4><h5><h6><p><ul><ol><li><a><strong><b><em><i><blockquote><br><hr>';
+
+        // Strip all tags not in the allowed list
+        return strip_tags( $html, $allowed );
     }
 
     /**
