@@ -253,21 +253,18 @@ foreach ( $this->schema_types as $type_key => $type_config ) {
                 <button type="button" 
                         id="khm-seo-preview-schema" 
                         class="button button-secondary">
-                    <span class="dashicons dashicons-visibility"></span>
                     <?php _e( 'Preview Schema', 'khm-seo' ); ?>
                 </button>
                 
                 <button type="button" 
                         id="khm-seo-validate-schema" 
                         class="button button-secondary">
-                    <span class="dashicons dashicons-yes-alt"></span>
                     <?php _e( 'Validate Schema', 'khm-seo' ); ?>
                 </button>
                 
                 <button type="button" 
                         id="khm-seo-test-schema" 
                         class="button button-secondary">
-                    <span class="dashicons dashicons-admin-tools"></span>
                     <?php _e( 'Test with Google', 'khm-seo' ); ?>
                 </button>
             </div>

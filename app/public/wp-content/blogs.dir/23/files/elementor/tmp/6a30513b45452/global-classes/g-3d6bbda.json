@@ -1,0 +1,1 @@
+{"id":"g-3d6bbda","label":"HP_CAT_1","type":"class","variants":[{"meta":{"breakpoint":"desktop","state":null},"props":{"width":{"$$type":"size","value":{"size":1450,"unit":"px"}},"display":{"$$type":"string","value":"flex"},"gap":{"$$type":"size","value":{"size":30,"unit":"px"}},"justify-content":{"$$type":"string","value":"center"}},"custom_css":null}]}

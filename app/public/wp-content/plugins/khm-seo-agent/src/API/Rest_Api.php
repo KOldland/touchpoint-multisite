@@ -583,12 +583,20 @@ class Rest_Api {
         $post = get_post( $post_id );
 
         foreach ( $actions as $action ) {
-            if ( ! is_array( $action ) || empty( $action['action_type'] ) || ! isset( $action['payload']['value'] ) ) {
+            if ( ! is_array( $action ) || empty( $action['action_type'] ) ) {
                 continue;
             }
 
             $action_type = sanitize_key( $action['action_type'] );
-            $new_value = $action['payload']['value'];
+            // Support both payload.value and direct value fields
+            $new_value = $action['payload']['value'] ?? $action['value'] ?? null;
+            if ( $new_value === null ) {
+                $applied[] = array(
+                    'action_type' => $action_type,
+                    'error' => 'Skipped: no value provided.',
+                );
+                continue;
+            }
 
             switch ( $action_type ) {
                 case 'set_meta_title':

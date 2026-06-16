@@ -29,55 +29,17 @@ html {
   box-sizing: border-box; /* Makes width unaffected by padding/border */
 }
 
-/* Target Elementor kit-specific headings */
-.elementor-kit-6 h1,
-.elementor-kit-6 h2,
-.elementor-kit-6 h3, 
-.elementor-kit-6 h4 {
-  margin-top: 2rem !important;         /* Vertical breathing room above */
-  margin-bottom: 0.75rem !important;   /* Clean spacing below */
-  line-height: 1.3 !important;
-  font-family: 'DM Sans', sans-serif !important; /* Ensure DM Sans is used */
-  color: #222 !important; /* Adjust color as needed */
-}
+/*
+ * Elementor Kit heading overrides REMOVED.
+ * These were forcibly overriding Elementor Site Settings with !important.
+ * Use Elementor → Site Settings → Typography to control heading styles instead.
+ * Theme-level defaults are now handled via theme.json and Elementor's own kit.
+ */
 
-/* Specific styling for each heading level */
-.elementor-kit-6 h1 {
-  font-weight: 900 !important;
-  font-size: 40px !important;
-  line-height: 1.1 !important;
-  margin-bottom: 1rem !important;
-}
-
-.elementor-kit-6 h2 {
-  font-weight: 700 !important;
-  font-size: 28px !important;
-  line-height: 1.25 !important;
-}
-
-.elementor-kit-6 h3 {
-  font-weight: 600 !important;
-  font-size: 22px !important;
-  line-height: 1.3 !important;
-}
-
-.elementor-kit-6 h4 {
-  font-weight: 600 !important;
-  font-size: 18px !important;
-  line-height: 1.3 !important;
-}
-
-/* Hide, h5, h6 */
-.elementor-kit-6 h5,
-.elementor-kit-6 h6 {
-  display: none !important;
-}
-
-
-/* Body text in Elementor */
+/* Body text in Elementor (no !important — respects Elementor Site Settings) */
 .elementor-widget-text-editor,
 .elementor-widget-theme-post-content {
-  font-family: 'DM Sans', sans-serif !important;
+  font-family: 'DM Sans', sans-serif;
   font-size: 1rem;
   font-weight: 400;
   line-height: 1.5;
@@ -91,7 +53,7 @@ html {
 .page-content p,
 .elementor-widget-theme-post-content,
 .elementor-widget-theme-post-content p {
-  font-family: 'DM Sans', sans-serif !important;
+  font-family: 'DM Sans', sans-serif;
   font-size: 10pt;
   letter-spacing: 0.01em;
   color: #474747;
@@ -99,7 +61,7 @@ html {
 
 .author-description,
 .author-description p {
-  font-family: 'DM Sans', sans-serif !important;
+  font-family: 'DM Sans', sans-serif;
   font-size: 10pt;
   letter-spacing: 0.01em;
   color: #474747;
@@ -1054,4 +1016,16 @@ table tbody tr:hover > th {
     background: gold !important;
     border: 2px dashed crimson !important;
   }
+  
+}
+
+/* ── Flat loop items: kill border, shadow, background, and padding from Loop Grid skin ── */
+[data-elementor-type="loop-item"],
+[data-elementor-type="loop-item"] .e-flexbox-base,
+[data-elementor-type="loop-item"] > .e-flexbox-base {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
   

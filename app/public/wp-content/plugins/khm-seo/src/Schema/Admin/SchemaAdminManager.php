@@ -193,8 +193,11 @@ class SchemaAdminManager {
         // Security nonce
         \wp_nonce_field( 'khm_seo_schema_meta', 'khm_seo_schema_nonce' );
         
-        // Get current schema settings
+        // Get current schema settings — default to enabled
         $current_schema = \get_post_meta( $post->ID, '_khm_seo_schema_config', true );
+        if ( ! is_array( $current_schema ) || empty( $current_schema ) ) {
+            $current_schema = array( 'enabled' => true );
+        }
         $current_type = $current_schema['type'] ?? $this->get_default_schema_type( $post );
         $custom_fields = $current_schema['custom_fields'] ?? array();
         

@@ -292,14 +292,11 @@
                     setSavingAbstract(false);
                     return;
                 }
-                // Save the post to sync the editor with the updated post_content,
-                // then reload to render the new ACF abstract block.
-                wp.data.dispatch('core/editor').savePost().then(function () {
+                // The PHP endpoint already updated post_content. Reload with a short
+                // delay to let the autosave/block-sync settle before the refresh.
+                setTimeout(function() {
                     window.location.reload();
-                }).catch(function () {
-                    // Save may fail if no changes in the editor — reload anyway
-                    window.location.reload();
-                });
+                }, 600);
             }).catch(function (err) {
                 setNotice({ type: 'error', text: err.message || 'Failed to save abstract.' });
                 setSavingAbstract(false);

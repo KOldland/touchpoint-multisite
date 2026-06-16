@@ -31,6 +31,17 @@
         { value: 'breadcrumb', label: 'BreadcrumbList' },
     ];
 
+    /**
+     * Format a machine-style label for human display.
+     * Converts snake_case to Title Case with spaces.
+     */
+    var formatLabel = function (label) {
+        if (!label) return '';
+        return label
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+    };
+
     const SEOAgentSidebar = () => {
         const [loading, setLoading] = useState(false);
         const [summary, setSummary] = useState(null);
@@ -302,7 +313,7 @@
                                     <h4>Suggestions</h4>
                                     <ul style={{ margin: '8px 0 0 16px', padding: 0 }}>
                                         {(details.output?.suggestions || []).map(function (s, i) {
-                                            return <li key={i} style={{ marginBottom: '4px' }}><strong>{s.title || 'Suggestion'}:</strong> {s.message || ''}</li>;
+                                            return <li key={i} style={{ marginBottom: '4px' }}><strong>{formatLabel(s.title) || 'Suggestion'}:</strong> {s.message || ''}</li>;
                                         })}
                                     </ul>
                                 </div>
@@ -312,14 +323,14 @@
                             {(details.output?.apply_actions || []).length === 0 && (
                                 <p>No apply actions available.</p>
                             )}
-                            {(details.output?.apply_actions || []).map((action, index) => (
-                                <CheckboxControl
-                                    key={index}
-                                    label={ACTION_LABELS[action.action_type] || action.action_type}
-                                    checked={selectedActions.includes(action)}
-                                    onChange={(checked) => toggleAction(action, checked)}
-                                />
-                            ))}
+                        {(details.output?.apply_actions || []).map((action, index) => (
+                            <CheckboxControl
+                                key={index}
+                                label={ACTION_LABELS[action.action_type] || action.action_type}
+                                checked={selectedActions.some(function(a) { return a.action_type === action.action_type; })}
+                                onChange={(checked) => toggleAction(action, checked)}
+                            />
+                        ))}
 
                             <div style={{ marginTop: '16px' }}>
                                 <Button isSecondary disabled={!selectedActions.length || applyLoading} onClick={runPreview}>
