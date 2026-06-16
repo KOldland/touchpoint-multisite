@@ -142,14 +142,20 @@ class AllocationService {
         // Switch to target blog
         switch_to_blog( $target_blog_id );
 
-        // Build clone args
+        // Build clone args — carry original author if possible, fallback to current user
+        $original_author_id = (int) $origin_post->post_author;
+        $target_author_id   = get_current_user_id();
+        if ( $original_author_id && is_user_member_of_blog( $original_author_id, $target_blog_id ) ) {
+            $target_author_id = $original_author_id;
+        }
+
         $post_args = [
             'post_title'   => $origin_post->post_title,
             'post_content' => $origin_post->post_content,
             'post_excerpt' => $origin_post->post_excerpt,
             'post_type'    => $origin_post->post_type,
             'post_status'  => 'draft',
-            'post_author'  => get_current_user_id(),
+            'post_author'  => $target_author_id,
         ];
 
         // Insert the clone
@@ -525,12 +531,13 @@ PROMPT;
         foreach ( $origin_author_ids as $hub_author_id ) {
             // Read author data from the hub blog
             switch_to_blog( 1 );
-            $author_name  = get_post_meta( $hub_author_id, 'author_name', true );
-            $author_title = get_post_meta( $hub_author_id, 'author_title', true );
+            $author_name    = get_post_meta( $hub_author_id, 'author_name', true );
+            $author_title   = get_post_meta( $hub_author_id, 'author_title', true );
             $author_company = get_post_meta( $hub_author_id, 'author_company', true );
-            $author_bio   = get_post_meta( $hub_author_id, 'author_bio', true );
-            $author_photo = get_post_meta( $hub_author_id, 'author_photo', true );
-            $author_slug  = get_post_field( 'post_name', $hub_author_id );
+            $author_bio     = get_post_meta( $hub_author_id, 'author_bio', true );
+            $author_photo   = get_post_meta( $hub_author_id, 'author_photo', true );
+            $author_slug    = get_post_field( 'post_name', $hub_author_id );
+            $photo_src      = $author_photo ? wp_get_attachment_url( (int) $author_photo ) : '';
             restore_current_blog();
 
             if ( empty( $author_name ) ) {
@@ -552,7 +559,15 @@ PROMPT;
             ] );
 
             if ( ! empty( $existing ) ) {
-                $new_author_ids[] = (int) $existing[0];
+                $existing_id = (int) $existing[0];
+                // Sync author photo to existing profile on target site
+                if ( $photo_src && ! get_post_meta( $existing_id, 'author_photo', true ) ) {
+                    $attachment_id = $this->copy_attachment_to_target( $photo_src );
+                    if ( $attachment_id ) {
+                        update_post_meta( $existing_id, 'author_photo', $attachment_id );
+                    }
+                }
+                $new_author_ids[] = $existing_id;
                 continue;
             }
 
@@ -576,17 +591,11 @@ PROMPT;
 
             $new_author_id = (int) $new_author_id;
 
-            // Clone author photo attachment if present
-            if ( $author_photo ) {
-                switch_to_blog( 1 );
-                $photo_src = wp_get_attachment_url( (int) $author_photo );
-                restore_current_blog();
-
-                if ( $photo_src ) {
-                    $attachment_id = $this->copy_attachment_to_target( $photo_src );
-                    if ( $attachment_id ) {
-                        update_post_meta( $new_author_id, 'author_photo', $attachment_id );
-                    }
+            // Clone author photo attachment if present (photo_src already resolved above)
+            if ( $photo_src ) {
+                $attachment_id = $this->copy_attachment_to_target( $photo_src );
+                if ( $attachment_id ) {
+                    update_post_meta( $new_author_id, 'author_photo', $attachment_id );
                 }
             }
 

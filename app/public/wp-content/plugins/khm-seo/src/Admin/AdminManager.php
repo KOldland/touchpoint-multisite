@@ -45,7 +45,6 @@ class AdminManager {
         
         // Meta boxes for posts and pages
         add_action( 'add_meta_boxes', array( $this, 'add_meta_boxes' ) );
-        add_action( 'add_meta_boxes', array( $this, 'add_boost_visibility_meta_box' ) );
         add_action( 'edit_form_after_title', array( $this, 'render_editor_score_panel' ) );
         add_action( 'save_post', array( $this, 'save_post_meta' ) );
         
@@ -58,9 +57,6 @@ class AdminManager {
         // Ajax handlers
         add_action( 'wp_ajax_khm_seo_analyze_content', array( $this, 'ajax_analyze_content' ) );
 
-        // Post list actions
-        add_filter( 'post_row_actions', array( $this, 'add_boost_visibility_row_actions' ), 10, 2 );
-        add_filter( 'page_row_actions', array( $this, 'add_boost_visibility_row_actions' ), 10, 2 );
     }
 
     /**

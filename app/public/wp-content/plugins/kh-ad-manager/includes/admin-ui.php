@@ -390,17 +390,8 @@ add_action( 'admin_notices', function() {
     }
 } );
 
-// Slot overrides meta box
-add_action( 'add_meta_boxes', function() {
-    add_meta_box(
-        'kh_ad_slot_overrides',
-        __( 'Ad Slot Overrides', 'kh-ad-manager' ),
-        'kh_ad_manager_render_slot_overrides',
-        [ 'post', 'page' ],
-        'side',
-        'default'
-    );
-} );
+// Slot overrides meta box — REMOVED from sidebar (too basic, kept code for future expansion)
+// add_action( 'add_meta_boxes', function() { ... } );
 
 function kh_ad_manager_render_slot_overrides( $post ) {
     wp_nonce_field( 'kh_ad_override_save', 'kh_ad_override_nonce' );
@@ -445,44 +436,6 @@ add_action( 'save_post', function( $post_id ) {
     }
 } );
 
-// Options page for global ad codes (native).
-add_action( 'admin_menu', function() {
-    add_options_page(
-        __( 'KH Ad Settings', 'kh-ad-manager' ),
-        __( 'KH Ad Settings', 'kh-ad-manager' ),
-        'manage_options',
-        'kh-ad-settings-native',
-        'kh_ad_manager_render_options_page'
-    );
-} );
-
-add_action( 'admin_init', function() {
-    register_setting( 'kh_ad_settings', 'ad_code_exit_overlay' );
-    register_setting( 'kh_ad_settings', 'ad_code_footer' );
-    register_setting( 'kh_ad_settings', 'ad_code_header' );
-    register_setting( 'kh_ad_settings', 'ad_code_popup' );
-    register_setting( 'kh_ad_settings', 'ad_code_sidebar1' );
-    register_setting( 'kh_ad_settings', 'ad_code_sidebar2' );
-    register_setting( 'kh_ad_settings', 'ad_code_ticker' );
-    register_setting( 'kh_ad_settings', 'ad_code_slide_in' );
-} );
-
-function kh_ad_manager_render_options_page() {
-    ?>
-    <div class="wrap">
-        <h1><?php esc_html_e( 'KH Ad Settings', 'kh-ad-manager' ); ?></h1>
-        <form method="post" action="options.php">
-            <?php settings_fields( 'kh_ad_settings' ); ?>
-            <table class="form-table">
-                <?php foreach ( [ 'exit_overlay', 'footer', 'header', 'popup', 'sidebar1', 'sidebar2', 'ticker', 'slide_in' ] as $slot ) : ?>
-                    <tr>
-                        <th><label for="ad_code_<?php echo esc_attr( $slot ); ?>"><?php echo esc_html( ucfirst( str_replace( '_', ' ', $slot ) ) ); ?></label></th>
-                        <td><textarea class="large-text" rows="3" id="ad_code_<?php echo esc_attr( $slot ); ?>" name="ad_code_<?php echo esc_attr( $slot ); ?>"><?php echo esc_textarea( get_option( "ad_code_{$slot}", '' ) ); ?></textarea></td>
-                    </tr>
-                <?php endforeach; ?>
-            </table>
-            <?php submit_button(); ?>
-        </form>
-    </div>
-    <?php
-}
+// Global Ad Codes and Overlay Settings pages are now rendered under
+// the Ad Studio top-level menu via AdStudioDashboard.
+// The old standalone Settings pages are removed to avoid duplication.

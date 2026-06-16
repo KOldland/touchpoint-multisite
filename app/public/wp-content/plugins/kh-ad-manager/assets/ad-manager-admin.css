@@ -128,7 +128,255 @@
         width: 100% !important;
         object-fit: contain !important;
     }
-    
+}
+
 #acf-group_68a0fd1858e61 {
     display: none;
+}
+
+/* ============================================================
+   Ad Studio Dashboard — card grid & stat styles
+   Mirrors Editorial Studio dashboard pattern.
+   ============================================================ */
+
+.kh-ad-studio-dashboard {
+    max-width: 1200px;
+    margin: 20px 0;
+}
+
+/* ── Stat cards row ── */
+.kh-ad-stats-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.kh-ad-stat-card {
+    flex: 1;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 16px;
+    text-align: center;
+}
+
+.kh-ad-stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1d2327;
+}
+
+.kh-ad-stat-label {
+    color: #646970;
+    font-size: 13px;
+    margin-top: 4px;
+}
+
+/* ── Quick Create row ── */
+.kh-ad-quick-create {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.kh-ad-create-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 20px;
+    border-radius: 6px;
+    text-decoration: none;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    color: #1d2327;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.kh-ad-create-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    color: #1d2327;
+}
+
+.kh-ad-create-card--primary {
+    background: #2271b1;
+    color: #fff;
+    border-color: #2271b1;
+}
+
+.kh-ad-create-card--primary:hover {
+    color: #fff;
+}
+
+.kh-ad-create-card .dashicons {
+    font-size: 28px;
+    width: 28px;
+    height: 28px;
+}
+
+.kh-ad-create-card strong {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 2px;
+}
+
+.kh-ad-create-card span {
+    font-size: 12px;
+    color: inherit;
+    opacity: 0.8;
+}
+
+.kh-ad-create-card--primary span {
+    color: rgba(255,255,255,0.75);
+}
+
+/* ── Two-column dashboard grid ── */
+.kh-ad-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+/* ── Dashboard cards ── */
+.kh-ad-dashboard-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.kh-ad-dashboard-card--wide {
+    grid-column: span 2;
+}
+
+.kh-ad-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #f9fafb;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.kh-ad-card-header .dashicons {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    color: #2271b1;
+}
+
+.kh-ad-card-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    flex: 1;
+}
+
+.kh-ad-card-badge {
+    display: inline-block;
+    background: #2271b1;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    min-width: 20px;
+    text-align: center;
+}
+
+.kh-ad-card-body {
+    padding: 16px;
+}
+
+/* ── Dashboard tables ── */
+.kh-ad-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.kh-ad-table th {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 2px solid #e0e0e0;
+    color: #646970;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.kh-ad-table td {
+    padding: 8px;
+    border-bottom: 1px solid #f0f0f1;
+    vertical-align: middle;
+}
+
+.kh-ad-table tr:last-child td {
+    border-bottom: none;
+}
+
+.kh-ad-table code {
+    font-size: 11px;
+    background: #f0f0f1;
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+/* ── Clicks stat display ── */
+.kh-ad-click-stats {
+    display: flex;
+    gap: 20px;
+}
+
+.kh-ad-click-item {
+    flex: 1;
+    text-align: center;
+    padding: 12px;
+    background: #f9fafb;
+    border-radius: 4px;
+}
+
+.kh-ad-click-number {
+    font-size: 24px;
+    font-weight: 700;
+    color: #2271b1;
+}
+
+.kh-ad-click-label {
+    font-size: 12px;
+    color: #646970;
+    margin-top: 4px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+    .kh-ad-quick-create {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .kh-ad-dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+    .kh-ad-dashboard-card--wide {
+        grid-column: span 1;
+    }
+    .kh-ad-stats-row {
+        flex-wrap: wrap;
+    }
+    .kh-ad-stat-card {
+        flex: 1 1 45%;
+    }
+}
+
+@media (max-width: 600px) {
+    .kh-ad-quick-create {
+        grid-template-columns: 1fr;
+    }
+    .kh-ad-stat-card {
+        flex: 1 1 100%;
+    }
+    .kh-ad-click-stats {
+        flex-direction: column;
+    }
 }

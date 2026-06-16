@@ -66,21 +66,25 @@ require_once AM_PATH . 'includes/admin-ui.php';
 register_activation_hook(__FILE__, 'kh_ad_manager_activate');
 add_action('plugins_loaded', 'kh_ad_manager_maybe_update_tables');
 
-// Paid reconciliation admin page.
+// Ad Studio Dashboard — unified admin menu (replaces scattered admin pages).
 add_action( 'plugins_loaded', function () {
-    if ( file_exists( AM_PATH . 'src/Admin/ReconciliationPage.php' ) ) {
-        require_once AM_PATH . 'src/Admin/ReconciliationPage.php';
-        ( new KH_AdManager_ReconciliationPage() )->register();
+    if ( file_exists( AM_PATH . 'src/Admin/AdStudioDashboard.php' ) ) {
+        require_once AM_PATH . 'src/Admin/AdStudioDashboard.php';
+        ( new KH_AdManager_AdStudioDashboard() )->init();
     }
 } );
 
-// Finance reconciliation admin page + adjustment modal (PAID-05).
+// Load legacy Reconciliation & Finance classes (still needed for their internal logic)
+// Their admin pages are now rendered under the Ad Studio menu via AdStudioDashboard.
 add_action( 'plugins_loaded', function () {
+    if ( file_exists( AM_PATH . 'src/Admin/ReconciliationPage.php' ) ) {
+        require_once AM_PATH . 'src/Admin/ReconciliationPage.php';
+        // No longer calls ->register() — menu slot handled by AdStudioDashboard.
+    }
     if ( file_exists( AM_PATH . 'src/Admin/FinanceReconciliationPage.php' ) ) {
         require_once AM_PATH . 'src/Admin/FinanceReconciliationPage.php';
         require_once AM_PATH . 'src/Admin/AdjustmentModal.php';
-        ( new KH_AdManager_FinanceReconciliationPage() )->register();
-        ( new KH_AdManager_AdjustmentModal() )->register();
+        // No longer calls ->register() — menu slot handled by AdStudioDashboard.
     }
 } );
 
@@ -303,16 +307,8 @@ function kh_ad_manager_overlay_slots() {
     ];
 }
 
-add_action('admin_menu', function() {
-    add_options_page(
-        __('Ad Overlay Settings', 'kh-ad-manager'),
-        __('Ad Overlays', 'kh-ad-manager'),
-        'manage_options',
-        'kh-ad-overlays',
-        'kh_ad_manager_render_overlay_settings_page'
-    );
-});
-
+// Overlay settings page is now rendered under Ad Studio → Overlay Settings.
+// The old admin_menu registration is removed; AdStudioDashboard handles it.
 add_action('admin_init', 'kh_ad_manager_register_overlay_settings');
 
 function kh_ad_manager_register_overlay_settings() {

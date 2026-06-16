@@ -86,7 +86,7 @@ class SocialManager {
 		foreach ( $post_types as $post_type ) {
 			add_meta_box(
 				'kh-smma-social',
-				__( 'Social Media', 'kh-smma' ),
+				__( 'LinkedIn Post', 'kh-smma' ),
 				array( $this, 'render_social_meta_box' ),
 				$post_type,
 				'normal',

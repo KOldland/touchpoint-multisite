@@ -13,20 +13,8 @@ class EditorialTaxonomy {
     }
 
     public static function register_taxonomies() {
-        // 1. Editorial Frameworks (Post Types)
-        register_taxonomy( 'editorial_framework', [ 'planner_session', 'post' ], [
-            'labels' => [
-                'name'          => 'Article Frameworks',
-                'singular_name' => 'Framework',
-            ],
-            'hierarchical'      => false,
-            'show_ui'           => true,
-            'show_admin_column' => true,
-            'show_in_rest'      => true,
-        ] );
-
-        // 2. Top-Line Categories
-        register_taxonomy( 'editorial_category', [ 'planner_session', 'post' ], [
+        // Top-Line Categories (planner only — post categories use core 'category' taxonomy)
+        register_taxonomy( 'editorial_category', [ 'planner_session' ], [
             'labels' => [
                 'name'          => 'Editorial Categories',
                 'singular_name' => 'Editorial Category',

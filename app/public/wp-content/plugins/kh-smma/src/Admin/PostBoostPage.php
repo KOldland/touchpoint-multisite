@@ -24,10 +24,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class PostBoostPage {
-	public function register(): void {
-		add_action( 'add_meta_boxes', array( $this, 'register_meta_box' ) );
-		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
-	}
+    public function register(): void {
+        // Meta box removed — functionality now lives in the Social Media panel and SMMA dashboard.
+    }
 
 	public function register_meta_box(): void {
 		if ( ! current_user_can( 'edit_posts' ) ) {

@@ -33,7 +33,7 @@ add_action( 'init', function() {
         'labels'             => $labels,
         'public'             => false,
         'show_ui'            => true,
-        'show_in_menu'       => 'edit.php?post_type=ad_unit',
+        'show_in_menu'       => 'ad-studio',
         'show_in_rest'       => true,
         'rest_base'          => 'sponsors',
         'rest_controller_class' => 'WP_REST_Posts_Controller',

@@ -13,14 +13,14 @@ add_action('init', function() {
             'not_found'          => 'No ads found.',
             'not_found_in_trash' => 'No ads found in Trash.',
         ],
-        'public'              => false,      // Not shown on frontend queries
-        'show_ui'             => true,       // Show in admin
-        'show_in_menu'        => true,
+        'public'              => false,           // Not shown on frontend queries
+        'show_ui'             => true,            // Show in admin
+        'show_in_menu'        => 'ad-studio',     // Nested under Ad Studio top-level menu
         'menu_icon'           => 'dashicons-megaphone',
         'supports'            => ['title'],
         'taxonomies'          => ['category', 'ad-slot'],
         'has_archive'         => false,
-        'show_in_rest'        => false,      // No Gutenberg block exposure—yet
+        'show_in_rest'        => true,            // Enable REST API for client portal (Phase 2)
         'capability_type'     => 'post',
     ]);
 });

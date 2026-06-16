@@ -102,11 +102,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 		<div class="kh-smma-social-actions">
 			<button type="button" class="button button-secondary" id="kh-smma-suggest-ai">
-				<span class="dashicons dashicons-superhero"></span>
 				<?php esc_html_e( 'Suggest with AI', 'kh-smma' ); ?>
 			</button>
 			<button type="button" class="button button-secondary" id="kh-smma-refresh-preview">
-				<span class="dashicons dashicons-visibility"></span>
 				<?php esc_html_e( 'Refresh Preview', 'kh-smma' ); ?>
 			</button>
 		</div>
@@ -126,15 +124,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	<div class="kh-smma-social-section" style="border-bottom:none;padding-top:5px;">
 		<div class="kh-smma-action-buttons" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
 			<button type="button" class="button button-primary" id="kh-smma-save-social">
-				<span class="dashicons dashicons-database" style="vertical-align:middle;margin-right:2px;"></span>
 				<?php esc_html_e( 'Save Social Data', 'kh-smma' ); ?>
 			</button>
 			<button type="button" class="button" id="kh-smma-post-now" style="background:#0073b0;color:#fff;border-color:#005a87;">
-				<span class="dashicons dashicons-linkedin" style="vertical-align:middle;margin-right:2px;"></span>
 				<?php esc_html_e( 'Post to LinkedIn Now', 'kh-smma' ); ?>
 			</button>
 			<button type="button" class="button" id="kh-smma-queue-later">
-				<span class="dashicons dashicons-clock" style="vertical-align:middle;margin-right:2px;"></span>
 				<?php esc_html_e( 'Save for Later', 'kh-smma' ); ?>
 			</button>
 		</div>
@@ -159,14 +154,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	padding: 12px;
 }
 
-#kh-smma-suggest-ai {
-	margin-right: 6px;
-}
 
-#kh-smma-suggest-ai .dashicons {
-	margin-right: 2px;
-	vertical-align: middle;
-}
 
 .kh-smma-social-section {
 	margin-bottom: 20px;
