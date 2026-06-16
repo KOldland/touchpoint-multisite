@@ -59,19 +59,19 @@ $icon_base = $widget_data['icon_base'];
                 data-title="<?= esc_attr(get_the_title($post_id)); ?>"
                 data-image="<?= esc_url(get_the_post_thumbnail_url($post_id, 'medium') ?: ''); ?>"
                 data-purchased="<?= $is_purchased ? '1' : '0'; ?>"
-                title="<?= $is_purchased ? 'Purchased' : 'Calculating price...'; ?>">
+                title="<?= $is_purchased ? 'Purchased' : 'Buy (' . $widget_data['pricing']['currency'] . number_format($widget_data['pricing']['member_price'], 2) . ')'; ?>">
             <img src="<?= esc_url($icon_base . 'buy.png'); ?>" alt="Buy PDF">
         </button>
-        <span class="kss-label"><?= $is_purchased ? 'Purchased' : '...'; ?></span>
+        <span class="kss-label"><?= $is_purchased ? 'Purchased' : $widget_data['pricing']['currency'] . number_format($widget_data['pricing']['member_price'], 2); ?></span>
     </div>
 
     <div class="kss-action">
         <button class="kss-gift-button"
                 data-post-id="<?= esc_attr($post_id); ?>"
-                title="Calculating gift price...">
+                title="Send as Gift (<?= $widget_data['pricing']['currency'] . number_format($widget_data['gift']['price'], 2); ?>)">
             <img src="<?= esc_url($icon_base . 'gift.png'); ?>" alt="Gift Article">
         </button>
-        <span class="kss-label">...</span>
+        <span class="kss-label">Gift for <?= $widget_data['pricing']['currency'] . number_format($widget_data['gift']['price'], 2); ?></span>
     </div>
 
     <div class="kss-action">
