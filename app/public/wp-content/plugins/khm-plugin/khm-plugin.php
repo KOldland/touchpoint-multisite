@@ -1211,10 +1211,10 @@ if ( defined('WP_CLI') && WP_CLI ) {
     require_once __DIR__ . $cli_dir . 'AnonymizeAttributionCommand.php';
     require_once __DIR__ . $cli_dir . 'RetentionRunCommand.php';
     require_once __DIR__ . $cli_dir . 'MembershipEmailControlCommand.php';
-    require_once __DIR__ . $cli_dir . 'SeedTaxonomyFromCsvCommand.php';
+    // require_once __DIR__ . $cli_dir . 'SeedTaxonomyFromCsvCommand.php'; // File missing - commented out for local dev
 
     // Register CLI commands
-    WP_CLI::add_command( 'khm seed-csv', 'KHM\\CLI\\SeedTaxonomyFromCsvCommand' );
+    // WP_CLI::add_command( 'khm seed-csv', 'KHM\\CLI\\SeedTaxonomyFromCsvCommand' ); // File missing
     WP_CLI::add_command( 'khm membership:dlq', 'KHM\\CLI\\MembershipWebhookDeadLettersCommand' );
     WP_CLI::add_command( 'khm membership:dlq:replay', 'KHM\\CLI\\MembershipWebhookDeadLettersReplayCommand' );
     WP_CLI::add_command( 'khm anonymize_attribution', 'KHM\\CLI\\AnonymizeAttributionCommand' );

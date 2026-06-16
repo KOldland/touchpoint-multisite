@@ -108,6 +108,10 @@ class AllocationService {
     /**
      * Clone a post to a target site, optionally rewriting content via LLM.
      *
+     * CRITICAL: All origin data (taxonomies, post meta, featured image) is
+     * collected BEFORE switch_to_blog() so we read from the hub site's tables,
+     * not the target site's (where the origin post doesn't exist).
+     *
      * @param int    $origin_post_id
      * @param int    $target_blog_id
      * @param bool   $rewrite       Whether to run the LLM rewrite agent.
@@ -127,9 +131,6 @@ class AllocationService {
             ];
         }
 
-        // Ensure user exists on target blog
-        $this->ensure_user_on_blog( get_current_user_id(), $target_blog_id );
-
         // Get the origin post
         $origin_post = get_post( $origin_post_id );
         if ( ! $origin_post ) {
@@ -138,6 +139,19 @@ class AllocationService {
                 'message' => __( 'Origin post not found.', 'kh-editorial-intelligence' ),
             ];
         }
+
+        // ── COLLECT ALL ORIGIN DATA BEFORE SWITCHING BLOGS ──
+        // These must run on the hub site where the origin post exists.
+        $taxonomy_data   = $this->collect_taxonomy_data( $origin_post_id );
+        $meta_data       = $this->collect_post_meta_data( $origin_post_id );
+        $thumbnail_url   = get_the_post_thumbnail_url( $origin_post_id, 'full' );
+        $featured_image_id = get_post_thumbnail_id( $origin_post_id );
+        $featured_image_alt = $featured_image_id
+            ? get_post_meta( $featured_image_id, '_wp_attachment_image_alt', true )
+            : '';
+
+        // Ensure user exists on target blog
+        $this->ensure_user_on_blog( get_current_user_id(), $target_blog_id );
 
         // Switch to target blog
         switch_to_blog( $target_blog_id );
@@ -169,11 +183,20 @@ class AllocationService {
             ];
         }
 
-        // Clone taxonomies
-        $this->clone_taxonomies( $origin_post_id, $target_post_id );
+        // ── APPLY COLLECTED DATA TO THE TARGET POST ──
+        $this->apply_taxonomy_data( $target_post_id, $taxonomy_data );
+        $this->apply_post_meta_data( $target_post_id, $meta_data );
 
-        // Clone post meta (ACF fields, etc.)
-        $this->clone_post_meta( $origin_post_id, $target_post_id );
+        // Clone featured image — sideload to target site's media library
+        if ( $thumbnail_url ) {
+            $new_thumb_id = $this->copy_attachment_to_target( $thumbnail_url );
+            if ( $new_thumb_id ) {
+                set_post_thumbnail( $target_post_id, $new_thumb_id );
+                if ( $featured_image_alt ) {
+                    update_post_meta( $new_thumb_id, '_wp_attachment_image_alt', $featured_image_alt );
+                }
+            }
+        }
 
         // Remap multi_author references to target site
         $this->clone_author_profiles( $origin_post_id, $target_post_id );
@@ -417,34 +440,103 @@ PROMPT;
         }
     }
 
+    // ──────────────────────────────────────────────
+    // TAXONOMY COLLECTION & APPLICATION
+    // ──────────────────────────────────────────────
+
     /**
-     * Clone taxonomies from origin post to target post.
+     * Collect taxonomy data from the origin post BEFORE switching blogs.
+     *
+     * Returns an array of taxonomy => [ 'terms' => [ { slug, name, parent } ... ] ]
+     * so we can recreate terms on the target site with proper names and hierarchy.
      *
      * @param int $origin_post_id
-     * @param int $target_post_id
+     * @return array
      */
-    private function clone_taxonomies( int $origin_post_id, int $target_post_id ): void {
+    private function collect_taxonomy_data( int $origin_post_id ): array {
         $taxonomies = get_object_taxonomies( get_post_type( $origin_post_id ) );
+        $data       = [];
 
         foreach ( $taxonomies as $taxonomy ) {
-            $terms = wp_get_object_terms( $origin_post_id, $taxonomy, [ 'fields' => 'slugs' ] );
+            $terms = wp_get_object_terms( $origin_post_id, $taxonomy, [
+                'fields' => 'all',
+            ] );
 
             if ( is_wp_error( $terms ) || empty( $terms ) ) {
                 continue;
             }
 
-            // Ensure terms exist on target site
+            $data[ $taxonomy ] = [
+                'terms' => array_map( function ( $term ) {
+                    return [
+                        'slug'   => $term->slug,
+                        'name'   => $term->name,
+                        'parent' => $term->parent ? (int) $term->parent : 0,
+                    ];
+                }, $terms ),
+            ];
+        }
+
+        return $data;
+    }
+
+    /**
+     * Apply collected taxonomy data to the target post AFTER switching blogs.
+     *
+     * Creates terms on the target site if they don't exist, preserving names
+     * and parent/child relationships.
+     *
+     * @param int   $target_post_id
+     * @param array $taxonomy_data  From collect_taxonomy_data().
+     */
+    private function apply_taxonomy_data( int $target_post_id, array $taxonomy_data ): void {
+        foreach ( $taxonomy_data as $taxonomy => $info ) {
             $term_ids = [];
-            foreach ( $terms as $slug ) {
-                $term = get_term_by( 'slug', $slug, $taxonomy );
-                if ( ! $term ) {
-                    // Create the term if it doesn't exist on target
-                    $inserted = wp_insert_term( $slug, $taxonomy );
-                    if ( ! is_wp_error( $inserted ) ) {
-                        $term_ids[] = (int) $inserted['term_id'];
+
+            foreach ( $info['terms'] as $term_data ) {
+                $slug = $term_data['slug'];
+
+                // Check if term already exists on target site
+                $existing = get_term_by( 'slug', $slug, $taxonomy );
+
+                if ( $existing ) {
+                    $term_ids[] = (int) $existing->term_id;
+                    continue;
+                }
+
+                // Create the term — use the actual name, not the slug
+                $insert_args = [];
+
+                // Handle parent term if specified
+                if ( $term_data['parent'] ) {
+                    // Look up the parent term by slug on the hub to get its name,
+                    // then try to find or create it on the target
+                    $parent_term = get_term( $term_data['parent'], $taxonomy );
+                    if ( $parent_term && ! is_wp_error( $parent_term ) ) {
+                        $target_parent = get_term_by( 'slug', $parent_term->slug, $taxonomy );
+                        if ( ! $target_parent ) {
+                            $parent_inserted = wp_insert_term(
+                                $parent_term->name,
+                                $taxonomy,
+                                [ 'slug' => $parent_term->slug ]
+                            );
+                            if ( ! is_wp_error( $parent_inserted ) ) {
+                                $insert_args['parent'] = (int) $parent_inserted['term_id'];
+                            }
+                        } else {
+                            $insert_args['parent'] = (int) $target_parent->term_id;
+                        }
                     }
-                } else {
-                    $term_ids[] = (int) $term->term_id;
+                }
+
+                $inserted = wp_insert_term(
+                    $term_data['name'],
+                    $taxonomy,
+                    array_merge( [ 'slug' => $slug ], $insert_args )
+                );
+
+                if ( ! is_wp_error( $inserted ) ) {
+                    $term_ids[] = (int) $inserted['term_id'];
                 }
             }
 
@@ -454,14 +546,19 @@ PROMPT;
         }
     }
 
+    // ──────────────────────────────────────────────
+    // POST META COLLECTION & APPLICATION
+    // ──────────────────────────────────────────────
+
     /**
-     * Clone post meta from origin to target.
-     * Handles ACF fields and all other meta keys, skipping internal WP keys.
+     * Collect post meta from the origin post BEFORE switching blogs.
+     *
+     * Skips internal WP keys that shouldn't be copied.
      *
      * @param int $origin_post_id
-     * @param int $target_post_id
+     * @return array key => [ values... ]
      */
-    private function clone_post_meta( int $origin_post_id, int $target_post_id ): void {
+    private function collect_post_meta_data( int $origin_post_id ): array {
         $skip_keys = [
             '_edit_lock',
             '_edit_last',
@@ -469,20 +566,39 @@ PROMPT;
             '_wp_page_template',
         ];
 
-        $meta = get_post_meta( $origin_post_id );
+        $meta      = get_post_meta( $origin_post_id );
+        $collected = [];
 
         foreach ( $meta as $key => $values ) {
             if ( in_array( $key, $skip_keys, true ) ) {
                 continue;
             }
 
-            // ACF fields start with underscore as the field key reference;
-            // the actual value is stored without underscore. We need both.
+            $collected[ $key ] = array_map( 'maybe_unserialize', $values );
+        }
+
+        return $collected;
+    }
+
+    /**
+     * Apply collected post meta to the target post AFTER switching blogs.
+     *
+     * Handles ACF fields (both field_* and _field_* keys) and all other custom meta.
+     *
+     * @param int   $target_post_id
+     * @param array $meta_data From collect_post_meta_data().
+     */
+    private function apply_post_meta_data( int $target_post_id, array $meta_data ): void {
+        foreach ( $meta_data as $key => $values ) {
             foreach ( $values as $value ) {
-                update_post_meta( $target_post_id, $key, maybe_unserialize( $value ) );
+                update_post_meta( $target_post_id, $key, $value );
             }
         }
     }
+
+    // ──────────────────────────────────────────────
+    // AUTHOR PROFILE CLONING
+    // ──────────────────────────────────────────────
 
     /**
      * Clone multi_author profiles from hub site to target site and remap
@@ -621,14 +737,23 @@ PROMPT;
     /**
      * Copy a media attachment from URL to the current blog.
      *
+     * Tries download_url() first (HTTP), then falls back to a direct
+     * filesystem copy for local environments where the site cannot
+     * make HTTP requests to itself.
+     *
      * @param string $attachment_url
      * @return int|false Attachment ID on success, false on failure.
      */
     private function copy_attachment_to_target( string $attachment_url ): int|false {
-        // Download the image from the hub
-        $tmp_file = download_url( $attachment_url );
+        // Try direct filesystem copy first — instant for local same-server URLs
+        $tmp_file = $this->copy_attachment_via_filesystem( $attachment_url );
 
-        if ( is_wp_error( $tmp_file ) ) {
+        // Fallback: HTTP download for external/remote URLs
+        if ( ! $tmp_file || is_wp_error( $tmp_file ) ) {
+            $tmp_file = download_url( $attachment_url );
+        }
+
+        if ( ! $tmp_file || is_wp_error( $tmp_file ) ) {
             return false;
         }
 
@@ -637,7 +762,25 @@ PROMPT;
             'tmp_name' => $tmp_file,
         ];
 
+        // Temporarily allow webp/avif mime types that WP core may reject
+        $allow_webp = function ( $mimes ) {
+            $mimes['webp'] = 'image/webp';
+            return $mimes;
+        };
+        $allow_check = function ( $allowed, $file, $filename, $mimes ) {
+            if ( ! $allowed && preg_match( '/\.webp$/i', $filename ) ) {
+                return 'image/webp';
+            }
+            return $allowed;
+        };
+
+        add_filter( 'upload_mimes', $allow_webp, 999 );
+        add_filter( 'wp_check_filetype_and_ext', $allow_check, 999, 4 );
+
         $attachment_id = media_handle_sideload( $file_array, 0 );
+
+        remove_filter( 'upload_mimes', $allow_webp, 999 );
+        remove_filter( 'wp_check_filetype_and_ext', $allow_check, 999 );
 
         if ( is_wp_error( $attachment_id ) ) {
             @unlink( $tmp_file );
@@ -645,5 +788,59 @@ PROMPT;
         }
 
         return (int) $attachment_id;
+    }
+
+    /**
+     * Copy an attachment via direct filesystem access.
+     *
+     * Used as a fallback when download_url() fails (common in local dev
+     * environments where the site cannot make HTTP requests to itself).
+     *
+     * @param string $attachment_url
+     * @return string|false Path to temp file, or false on failure.
+     */
+    private function copy_attachment_via_filesystem( string $attachment_url ): string|false {
+        // Determine the local filesystem path from the URL.
+        // The upload URL structure is: {site_url}/wp-content/uploads/sites/{blog_id}/...
+        $upload_dir = wp_upload_dir();
+        $base_upload_url = $upload_dir['baseurl'];
+        $base_upload_path = $upload_dir['basedir'];
+
+        // Only attempt this if the URL points to our own site
+        $site_url = get_site_url( 1 ); // hub site URL
+        if ( ! str_starts_with( $attachment_url, $site_url ) ) {
+            return false;
+        }
+
+        // Convert URL to filesystem path
+        $relative_url = substr( $attachment_url, strlen( $site_url ) );
+        $file_path = untrailingslashit( ABSPATH ) . $relative_url;
+
+        // ABSPATH for multisite subdirectory install: fix double path segment
+        if ( ! file_exists( $file_path ) ) {
+            // Try without the /wp/ segment that ABSPATH adds
+            $wp_content_pos = strpos( $relative_url, '/wp-content/' );
+            if ( $wp_content_pos !== false ) {
+                $alt_path = WP_CONTENT_DIR . substr( $relative_url, $wp_content_pos );
+                $file_path = $alt_path;
+            }
+        }
+
+        if ( ! file_exists( $file_path ) || ! is_readable( $file_path ) ) {
+            return false;
+        }
+
+        // Copy to temp file
+        $tmp_file = wp_tempnam( basename( $file_path ) );
+        if ( ! $tmp_file ) {
+            return false;
+        }
+
+        if ( ! copy( $file_path, $tmp_file ) ) {
+            @unlink( $tmp_file );
+            return false;
+        }
+
+        return $tmp_file;
     }
 }
