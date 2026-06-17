@@ -34,10 +34,27 @@ class PlannerOrchestrator {
         $includes = $this->normalize_terms( get_post_meta( $post_id, 'kh_planner_includes', true ) );
         $focus    = (int) get_post_meta( $post_id, 'kh_planner_focus_level', true ) ?: 50;
         
+        // Read pillar and audience context from the session meta
+        $pillar       = get_post_meta( $post_id, 'kh_planner_pillar', true ) ?: '';
+        $audience_slug = get_post_meta( $post_id, 'kh_planner_audience_slug', true ) ?: '';
+        
+        // Resolve target blog_id from audience_slug for multisite-scoped coverage analysis
+        $blog_id = null;
+        if ( $audience_slug && class_exists( '\KH\Editorial\Services\AllocationService' ) ) {
+            $alloc = new \KH\Editorial\Services\AllocationService();
+            $blog_id = $alloc->resolve_blog_id( $audience_slug );
+        }
+        
+        // Resolve audience context for Phase 1 — consistent with phases 2-4 pattern
+        $audience_context = '';
+        if ( $audience_slug && class_exists( '\KH\Editorial\Services\SiteAudienceProfile' ) ) {
+            $audience_context = \KH\Editorial\Services\SiteAudienceProfile::get_audience_context( $audience_slug );
+        }
+        
         $research_agent = new ResearchAgent();
-        $phase1_data = $research_agent->gather_discovery_inputs( $topic, $includes );
+        $phase1_data = $research_agent->gather_discovery_inputs( $topic, $includes, '', $pillar, $audience_slug, $blog_id );
 
-        $prompt = PromptFactory::get_phase1_prompt( $topic, $focus, wp_json_encode( $phase1_data ) );
+        $prompt = PromptFactory::get_phase1_prompt( $topic, $focus, wp_json_encode( $phase1_data ), $pillar, $audience_context );
         
         return $this->enqueue_job( $post_id, $prompt, 'research_phase1', 'planner-p1-' . $post_id, 'phase1_running' );
     }
@@ -64,10 +81,21 @@ class PlannerOrchestrator {
         }
 
         $ranked_metrics = $research_agent->rank_keywords( $metrics );
+
+        // Read pillar and audience context from session meta
+        $pillar           = get_post_meta( $post_id, 'kh_planner_pillar', true ) ?: '';
+        $audience_slug    = get_post_meta( $post_id, 'kh_planner_audience_slug', true ) ?: '';
+        $audience_context = '';
+        if ( $audience_slug && class_exists( '\KH\Editorial\Services\SiteAudienceProfile' ) ) {
+            $audience_context = \KH\Editorial\Services\SiteAudienceProfile::get_audience_context( $audience_slug );
+        }
+
         $prompt = PromptFactory::get_phase2_prompt( 
             $post->post_title, 
             $phase1_payload['executive_summary'] ?? '', 
-            wp_json_encode( $ranked_metrics ) 
+            wp_json_encode( $ranked_metrics ),
+            $pillar,
+            $audience_context
         );
 
         return $this->enqueue_job( $post_id, $prompt, 'research_phase2', 'planner-p2-' . $post_id, 'phase2_running' );
@@ -80,11 +108,21 @@ class PlannerOrchestrator {
         $post = get_post( $post_id );
         $phase1_payload = get_post_meta( $post_id, 'kh_planner_phase1_result', true );
         $phase2_payload = get_post_meta( $post_id, 'kh_planner_phase2_result', true );
+
+        // Read pillar and audience context from session meta
+        $pillar           = get_post_meta( $post_id, 'kh_planner_pillar', true ) ?: '';
+        $audience_slug    = get_post_meta( $post_id, 'kh_planner_audience_slug', true ) ?: '';
+        $audience_context = '';
+        if ( $audience_slug && class_exists( '\KH\Editorial\Services\SiteAudienceProfile' ) ) {
+            $audience_context = \KH\Editorial\Services\SiteAudienceProfile::get_audience_context( $audience_slug );
+        }
         
         $prompt = PromptFactory::get_phase3_prompt( 
             $post->post_title, 
             $phase1_payload['executive_summary'] ?? '', 
-            wp_json_encode( $phase2_payload['ranked_keywords'] ?? [] ) 
+            wp_json_encode( $phase2_payload['ranked_keywords'] ?? [] ),
+            $pillar,
+            $audience_context
         );
 
         return $this->enqueue_job( $post_id, $prompt, 'research_phase3', 'planner-p3-' . $post_id, 'phase3_running' );
@@ -101,6 +139,14 @@ class PlannerOrchestrator {
         $post = get_post( $post_id );
         $phase1_payload = get_post_meta( $post_id, 'kh_planner_phase1_result', true );
         $phase3_payload = get_post_meta( $post_id, 'kh_planner_phase3_result', true );
+
+        // Read pillar and audience context from session meta
+        $pillar           = get_post_meta( $post_id, 'kh_planner_pillar', true ) ?: '';
+        $audience_slug    = get_post_meta( $post_id, 'kh_planner_audience_slug', true ) ?: '';
+        $audience_context = '';
+        if ( $audience_slug && class_exists( '\KH\Editorial\Services\SiteAudienceProfile' ) ) {
+            $audience_context = \KH\Editorial\Services\SiteAudienceProfile::get_audience_context( $audience_slug );
+        }
 
         // Gather citations from Phase 1 trends and verify them
         $verified_citations = [];
@@ -130,7 +176,9 @@ class PlannerOrchestrator {
         $prompt = PromptFactory::get_phase4_prompt(
             $post->post_title,
             wp_json_encode( $phase3_payload['prioritized_topics'] ?? [] ),
-            wp_json_encode( $verification_context )
+            wp_json_encode( $verification_context ),
+            $pillar,
+            $audience_context
         );
 
         return $this->enqueue_job( $post_id, $prompt, 'research_phase4', 'planner-p4-' . $post_id, 'phase4_running' );
@@ -168,8 +216,16 @@ class PlannerOrchestrator {
             'phase4' => get_post_meta( $post_id, 'kh_planner_phase4_result', true ),
         ];
 
+        // Read pillar and audience context from session meta
+        $pillar           = get_post_meta( $post_id, 'kh_planner_pillar', true ) ?: '';
+        $audience_slug    = get_post_meta( $post_id, 'kh_planner_audience_slug', true ) ?: '';
+        $audience_context = '';
+        if ( $audience_slug && class_exists( '\KH\Editorial\Services\SiteAudienceProfile' ) ) {
+            $audience_context = \KH\Editorial\Services\SiteAudienceProfile::get_audience_context( $audience_slug );
+        }
+
         $directives = $policy_agent->get_exclusion_directives( $post_id );
-        $prompt = PromptFactory::get_final_synopsis_prompt( $post->post_title, wp_json_encode( $context ), $directives );
+        $prompt = PromptFactory::get_final_synopsis_prompt( $post->post_title, wp_json_encode( $context ), $directives, $pillar, $audience_context );
 
         return $this->enqueue_job( $post_id, $prompt, 'framework', 'planner-final-' . $post_id, 'generating_synopses' );
     }
@@ -211,6 +267,10 @@ class PlannerOrchestrator {
             $citation_ids = wp_list_pluck( $citations, 'id' );
         }
 
+        // Read pillar and audience context from the session
+        $pillar       = get_post_meta( $post_id, 'kh_planner_pillar', true ) ?: '';
+        $audience_slug = get_post_meta( $post_id, 'kh_planner_audience_slug', true ) ?: '';
+
         $store = new \KH\Planner\Core\BriefStore();
         $brief_id = $store->save_brief( $post_id, [
             'title'          => $post->post_title,
@@ -218,6 +278,8 @@ class PlannerOrchestrator {
             'context'        => wp_json_encode( [
                 'phase4_validation' => $phase4['validation_summary'] ?? '',
                 'synopses'          => $synopses['synopses'] ?? [],
+                'pillar'            => $pillar,
+                'audience_slug'     => $audience_slug,
             ] ),
             'key_themes'     => $phase3['prioritized_topics'] ?? [],
             'citations'      => $citation_ids,
@@ -226,6 +288,8 @@ class PlannerOrchestrator {
             'metadata'       => [
                 'phase2_keywords' => $phase2['ranked_keywords'] ?? [],
                 'generated_at'    => current_time( 'mysql' ),
+                'pillar'          => $pillar,
+                'audience_slug'   => $audience_slug,
             ],
         ] );
 

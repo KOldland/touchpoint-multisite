@@ -70,6 +70,11 @@ const EditorialNewSessionApp = () => {
     const [circleClientName, setCircleClientName] = useState('');
     const [circleClientType, setCircleClientType] = useState('');
     
+    // Pillar selection state
+    const [pillarOptions, setPillarOptions] = useState([]);
+    const [selectedPillar, setSelectedPillar] = useState('');
+    const [loadingPillars, setLoadingPillars] = useState(false);
+    
     // Presets for dropdowns
     const [researchPresets, setResearchPresets] = useState([]);
     const [loadingPresets, setLoadingPresets] = useState(false);
@@ -80,6 +85,7 @@ const EditorialNewSessionApp = () => {
         loadTopLineCategories();
     }, []);
 
+    // When topic changes, update subgroup options and load pillars
     useEffect(() => {
         const selected = topLineCategories.find((category) => String(category?.name || '') === String(selectedTopic));
         const subgroupRows = Array.isArray(selected?.subgroups) ? selected.subgroups : [];
@@ -91,7 +97,45 @@ const EditorialNewSessionApp = () => {
         if (!options.some((option) => option.value === selectedSubgroup)) {
             setSelectedSubgroup('');
         }
+        
+        // Load pillar options for this category
+        loadPillarsForTopic(selected);
     }, [selectedTopic, topLineCategories, selectedSubgroup]);
+
+    const loadPillarsForTopic = async (selectedCategory) => {
+        // Determine the slug: prefer site_slug, then category slug, then derive from name
+        const slug = selectedCategory?.site_slug || selectedCategory?.slug || '';
+        if (!slug) {
+            setPillarOptions([]);
+            setSelectedPillar('');
+            return;
+        }
+
+        try {
+            setLoadingPillars(true);
+            const response = await apiFetch({
+                path: `editorial/v1/planner/top-line-categories/${encodeURIComponent(slug)}/pillars`,
+                method: 'GET',
+            });
+
+            const pillars = Array.isArray(response?.pillars) ? response.pillars : [];
+            const options = pillars.map((p) => ({
+                label: p.name,
+                value: p.name,
+                slug: p.name ? p.name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '') : '',
+            }));
+            setPillarOptions(options);
+            // Reset pillar selection if current selection not in options
+            if (!options.some((o) => o.value === selectedPillar)) {
+                setSelectedPillar('');
+            }
+        } catch (err) {
+            console.error('Failed to load pillars:', err);
+            setPillarOptions([]);
+        } finally {
+            setLoadingPillars(false);
+        }
+    };
 
     const loadTopLineCategories = async () => {
         try {
@@ -202,6 +246,11 @@ const EditorialNewSessionApp = () => {
                     includes,
                     excludes,
                     ...(showFocusControls ? { focus_level: focusLevel } : {}),
+                    // Pillar context for audience-aware research
+                    ...(selectedPillar ? {
+                        pillar: selectedPillar,
+                        pillar_slug: selectedPillar.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, ''),
+                    } : {}),
                     is_sponsored: isSponsored,
                     ...(isSponsored ? {
                         sponsor_id: selectedSponsor || undefined,
@@ -259,6 +308,8 @@ const EditorialNewSessionApp = () => {
             setExcludes([]);
             setSelectedTopic(topicOptions[0]?.value || TOPIC_OPTIONS[0].value);
             setSelectedSubgroup('');
+            setSelectedPillar('');
+            setPillarOptions([]);
             setFocusLevel(50);
             setResearchProfile('');
             setIsSponsored(false);
@@ -312,6 +363,21 @@ const EditorialNewSessionApp = () => {
                         onChange: setSelectedSubgroup,
                         help: 'Optional: focus this session on a specific subgroup within the top-line category.',
                     })
+                ),
+                // Pillar selection dropdown
+                pillarOptions.length > 0 && wp.element.createElement('div', { style: { marginTop: '12px' } },
+                    loadingPillars ?
+                        wp.element.createElement(Spinner, null) :
+                        wp.element.createElement(SelectControl, {
+                            label: 'Editorial Pillar',
+                            value: selectedPillar,
+                            options: [
+                                { label: '-- No specific pillar --', value: '' },
+                                ...pillarOptions.map((p) => ({ label: p.label, value: p.value })),
+                            ],
+                            onChange: setSelectedPillar,
+                            help: 'Optional: scope research to a specific editorial pillar within this topic.',
+                        })
                 ),
                 wp.element.createElement('hr', { style: { margin: '20px 0', borderColor: '#ddd' } }),
                 wp.element.createElement(SelectControl, {
