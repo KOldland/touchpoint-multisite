@@ -17,6 +17,11 @@ class DraftAgent {
         $policy = AuthorPolicy::sanitize($context['author_policy'] ?? []);
         $persona = $context['persona'] ?? null;
 
+        // Include verified citations in the policy so the validator can
+        // check that all [1], [2] markers in the draft match actual sources.
+        $citations = $context['citations'] ?? [];
+        $policy['citations'] = $citations;
+
         $system_prompt = PromptFactory::build_draft_system_prompt($policy, $persona);
         $user_prompt = PromptFactory::build_draft_user_prompt($context, $instructions, $policy);
 
@@ -49,6 +54,7 @@ class DraftAgent {
             'blocks'            => $data['blocks'],
             'text'              => $text,
             'word_count'        => str_word_count($text),
+            'citations'         => $citations,
             'warnings'          => $validation['warnings'],
             'validation_errors' => $validation['errors'],
             'author_policy'     => $policy,

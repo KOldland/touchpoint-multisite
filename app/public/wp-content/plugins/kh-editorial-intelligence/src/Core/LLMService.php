@@ -19,7 +19,7 @@ class LLMService {
      */
     const AGENTS = [
         'research_phase1', 'research_phase2', 'research_phase3', 'research_phase4',
-        'framework',
+        'research', 'framework',
         'draft', 'abstract', 'excerpt',
         'seo_schema', 'geo_cards', 'social_posts', 'gutenberg_push',
         'atomic_article',
@@ -98,6 +98,7 @@ class LLMService {
         'research_phase2' => 'meta-llama/llama-3.3-70b-instruct',
         'research_phase3' => 'deepseek/deepseek-v4-pro',
         'research_phase4' => 'deepseek/deepseek-v4-pro',
+        'research'        => 'qwen/qwen3-32b',
         'framework'       => 'anthropic/claude-sonnet-4.5',
         'draft'           => 'anthropic/claude-sonnet-4.5',
         'abstract'        => 'anthropic/claude-sonnet-4.5',
@@ -203,7 +204,11 @@ class LLMService {
                 'research_phase2' => 'meta-llama/llama-3.3-70b-instruct',
                 'research_phase3' => 'deepseek/deepseek-v4-pro',
                 'research_phase4' => 'deepseek/deepseek-v4-pro',
-                'framework'       => 'anthropic/claude-sonnet-4.5',
+                // Use gpt-4o-mini for framework generation so that the
+                // response_format: json_object mode activates (required by
+                // the expanded schema). OpenRouter models don't support
+                // response_format, so we route through OpenAI here.
+                'framework'       => 'gpt-4o-mini',
                 'draft'           => 'anthropic/claude-sonnet-4.5',
                 'abstract'        => 'anthropic/claude-sonnet-4.5',
                 'excerpt'         => 'meta-llama/llama-3.3-70b-instruct',

@@ -18,14 +18,7 @@ const {
 } = wp.components;
 const { dispatch } = wp.data;
 
-const TOPIC_OPTIONS = [
-    { label: 'Manufacturing', value: 'Manufacturing' },
-    { label: 'Field Service', value: 'Field Service' },
-    { label: 'Logistics', value: 'Logistics' },
-    { label: 'Energy', value: 'Energy' },
-    { label: 'Retail', value: 'Retail' },
-    { label: 'Pricing', value: 'Pricing' },
-];
+const TOPIC_OPTIONS = [];
 
 const DEFAULT_RESEARCH_POLICY = {
     recency_months: 36,
@@ -78,15 +71,15 @@ const IDEAL_CITATIONS_TARGET = 6;
 const LOW_CITATION_QUEUE_BATCH_SIZE = 6;
 const SYNOPSIS_BATCH_SIZE = 2;
 const PHASE_ORDER = ['phase1', 'phase2', 'phase3', 'phase4'];
-const DIVE_DEEPER_STALL_SECONDS = 90;
-const DIVE_DEEPER_STAGE_META = {
-    queued: { label: 'Queued', progress: 20, detail: 'Waiting for the queue worker to pick up the job.' },
-    running: { label: 'Running', progress: 55, detail: 'Analyzing sources and collecting evidence.' },
-    processing: { label: 'Processing', progress: 85, detail: 'Applying citations to this article.' },
-    completed: { label: 'Complete', progress: 100, detail: 'Source-check finished successfully.' },
-    failed: { label: 'Failed', progress: 100, detail: 'Source-check failed. You can retry.' },
-    starting: { label: 'Starting', progress: 10, detail: 'Preparing the source-check request.' },
-};
+    const DIVE_DEEPER_STALL_SECONDS = 120;
+    const DIVE_DEEPER_STAGE_META = {
+        queued: { label: 'Starting', progress: 15, detail: 'Job dispatched. Waiting for worker to begin.' },
+        running: { label: 'Researching', progress: 50, detail: 'Searching for citations and analyzing sources.' },
+        processing: { label: 'Finalizing', progress: 85, detail: 'Applying citations to this article.' },
+        completed: { label: 'Complete', progress: 100, detail: 'Source-check finished successfully.' },
+        failed: { label: 'Failed', progress: 100, detail: 'Source-check failed. You can retry.' },
+        starting: { label: 'Preparing', progress: 5, detail: 'Preparing the source-check request.' },
+    };
 
 const apiFetch = (options) =>
     wp.apiFetch({
@@ -104,7 +97,9 @@ const EditorialPlannerApp = () => {
 
     const [startModalOpen, setStartModalOpen] = useState(false);
     const [topicOptions, setTopicOptions] = useState(TOPIC_OPTIONS);
-    const [selectedTopic, setSelectedTopic] = useState(TOPIC_OPTIONS[0].value);
+    const [selectedTopic, setSelectedTopic] = useState('');
+    const [selectedPillar, setSelectedPillar] = useState(null);
+    const [pillarOptions, setPillarOptions] = useState([]);
     const [includes, setIncludes] = useState([]);
     const [excludes, setExcludes] = useState([]);
     const [starting, setStarting] = useState(false);
@@ -131,6 +126,7 @@ const EditorialPlannerApp = () => {
     const [frameworkLoading, setFrameworkLoading] = useState({});
     const [frameworkProgress, setFrameworkProgress] = useState({});
     const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+    const [deletingSessionId, setDeletingSessionId] = useState('');
     const [authorPreview, setAuthorPreview] = useState(null);
     const [authorProfileSelection, setAuthorProfileSelection] = useState({});
     const [authorProgress, setAuthorProgress] = useState({});
@@ -145,6 +141,7 @@ const EditorialPlannerApp = () => {
     const [imageActionLoading, setImageActionLoading] = useState({});
     const [generatedImageByArticle, setGeneratedImageByArticle] = useState({});
     const [expandedPhases, setExpandedPhases] = useState({});
+    const [expandedPillars, setExpandedPillars] = useState({});
     const [focusLevel, setFocusLevel] = useState(50);
     const [synopsisModalOpen, setSynopsisModalOpen] = useState(false);
     const [synopsisPlan, setSynopsisPlan] = useState({});
@@ -158,7 +155,7 @@ const EditorialPlannerApp = () => {
     const [thinkingPhraseIndex, setThinkingPhraseIndex] = useState(0);
     const [diveDeeperModalOpen, setDiveDeeperModalOpen] = useState(false);
     const [diveDeeperArticle, setDiveDeeperArticle] = useState(null);
-    const [diveDeeperDepthSlider, setDiveDeeperDepthSlider] = useState(3);
+    const [diveDeeperDepthSlider, setDiveDeeperDepthSlider] = useState(3); // Kept for legacy compatibility but no longer user-adjustable
     const [diveDeeperSuccess, setDiveDeeperSuccess] = useState(false);
     const [diveDeeperJobId, setDiveDeeperJobId] = useState('');
     const [diveDeeperJobStatus, setDiveDeeperJobStatus] = useState('');
@@ -199,8 +196,7 @@ const EditorialPlannerApp = () => {
         const url = new URL(window.location.href);
         url.searchParams.set('id', String(sessionId));
         url.searchParams.delete('session');
-        window.history.pushState(null, '', `${url.pathname}${url.search}`);
-        openSessionDetail(sessionId);
+        window.location.href = `${url.pathname}${url.search}`;
     };
 
     const navigateBack = () => {
@@ -220,11 +216,45 @@ const EditorialPlannerApp = () => {
         loadSessions();
     };
 
+    const deleteSession = async (sessionId) => {
+        if (!sessionId) {
+            return;
+        }
+
+        const confirmed = window.confirm('Delete this session permanently? This cannot be undone.');
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            setDeletingSessionId(sessionId);
+            setSessionsError('');
+            await apiFetch({
+                path: `editorial/v1/sessions/${sessionId}`,
+                method: 'DELETE',
+            });
+            dispatch('core/notices').createNotice(
+                'success',
+                'Session deleted successfully.',
+                { type: 'snackbar' }
+            );
+            if (sessionDetail?.id === sessionId) {
+                navigateBack();
+            }
+            await loadSessions();
+        } catch (error) {
+            console.error('Failed to delete session:', error);
+            setSessionsError(error?.message || 'Failed to delete session.');
+        } finally {
+            setDeletingSessionId('');
+        }
+    };
+
     const navigateToNewSession = () => {
         const url = new URL(window.location.href);
         url.searchParams.delete('id');
         url.searchParams.delete('session');
-        url.searchParams.set('page', 'editorial_new_session');
+        url.searchParams.set('page', 'kh-planner-new');
         window.location.href = `${url.pathname}${url.search}`;
     };
 
@@ -244,10 +274,17 @@ const EditorialPlannerApp = () => {
                 return;
             }
 
-            const options = rows.map((row) => ({ label: row.name, value: row.name }));
+            // Store full category data (including pillars) alongside options
+            const options = rows.map((row) => ({ 
+                label: row.name, 
+                value: row.name,
+                slug: row.slug,
+                site_slug: row.site_slug || row.slug,
+                pillars: row.pillars || [],
+            }));
             setTopicOptions(options);
             if (!selectedTopic || !options.some((option) => option.value === selectedTopic)) {
-                setSelectedTopic(options[0].value);
+                setSelectedTopic(options[0].value || '');
             }
         } catch (error) {
             console.error('Failed to load top-line categories:', error);
@@ -334,12 +371,20 @@ const EditorialPlannerApp = () => {
             setStarting(true);
             setSessionsError('');
 
+            // Resolve audience_slug and pillar from the selected topic options
+            const selectedCategory = topicOptions.find(o => o.value === selectedTopic);
+            const audienceSlug = selectedCategory?.site_slug || selectedTopic.toLowerCase().replace(/\s+/g, '-');
+            const pillarValue = selectedPillar || '';
+
             const sessionPayload = {
                 role: 'research',
                 preset_id: 'research-default',
                 title: selectedTopic,
                 meta: {
                     topic: selectedTopic,
+                    pillar: pillarValue,
+                    pillar_slug: pillarValue.toLowerCase().replace(/\s+/g, '-'),
+                    audience_slug: audienceSlug,
                     includes,
                     excludes,
                     ...(showFocusControls ? { focus_level: focusLevel } : {}),
@@ -376,7 +421,7 @@ const EditorialPlannerApp = () => {
             setStartModalOpen(false);
             setIncludes([]);
             setExcludes([]);
-            setSelectedTopic(topicOptions[0]?.value || TOPIC_OPTIONS[0].value);
+            setSelectedTopic(topicOptions[0]?.value || '');
             await loadSessions();
             await openSessionDetail(sessionResponse.id);
         } catch (error) {
@@ -556,7 +601,7 @@ const EditorialPlannerApp = () => {
             // Add cache-busting timestamp to force fresh data
             const cacheBuster = new Date().getTime();
             const response = await apiFetch({
-                path: `editorial/v1/planner/queue?_t=${cacheBuster}`,
+                path: `editorial/v1/planner/queue?id=${sessionDetail.id}&_t=${cacheBuster}`,
                 method: 'GET',
             });
             console.log('[QUEUE] Loaded queue:', response);
@@ -1319,6 +1364,16 @@ const EditorialPlannerApp = () => {
     const getAuthorProfileLabel = (value) =>
         AUTHOR_PROFILE_OPTIONS.find((item) => item.value === value)?.label || 'Balanced';
 
+    const getScoringBadgeColor = (qualityLevel) => {
+        if (!qualityLevel) return '#f0f0f1';
+        const level = qualityLevel.toLowerCase();
+        if (level === 'excellent') return '#edfaef';
+        if (level === 'good') return '#e7f5ff';
+        if (level === 'standard' || level === 'poor') return '#fffbe6';
+        // Any unrecognised value gets a neutral background
+        return '#f6f7f7';
+    };
+
     const isFrameworkGenerating = Object.values(frameworkLoading || {}).some(Boolean);
     const isAuthorGenerating = Object.values(authorLoading || {}).some(Boolean);
     const hasRunningFrameworks = (sessionDetail?.meta?.articles || []).some((article) =>
@@ -1418,18 +1473,12 @@ const EditorialPlannerApp = () => {
             return { min: 0, max: 0, estimate: 0, topics: 0 };
         }
         const phase1Trends = meta?.phases?.phase1?.payload?.trends?.length || 0;
-        const phase1Keywords =
-            meta?.phase1?.candidate_keywords?.length ||
-            meta?.phases?.phase1?.payload?.candidate_keywords?.length ||
-            0;
-        const phase2Metrics =
-            meta?.phase2?.keyword_metrics?.length ||
-            meta?.phases?.phase2?.payload?.keyword_metrics?.length ||
-            0;
+        const phase1Keywords = meta?.phases?.phase1?.payload?.candidate_keywords?.length || 0;
+        const phase2Metrics = meta?.phases?.phase2?.payload?.keyword_metrics?.length || 0;
         const phase3Topics = meta?.phases?.phase3?.payload?.prioritized_topics?.length || 0;
         const phase4Topics = meta?.phases?.phase4?.payload?.validated_topics?.length || 0;
         const phase4Citations = (meta?.phases?.phase4?.payload?.validated_topics || []).reduce(
-            (total, item) => total + (Array.isArray(item?.citations) ? item.citations.length : 0),
+            (total, item) => total + (Array.isArray(item?.supporting_citations || item?.citations) ? (item.supporting_citations || item.citations).length : 0),
             0
         );
 
@@ -2512,6 +2561,211 @@ const EditorialPlannerApp = () => {
         );
     };
 
+    const renderContentGapsByPillar = () => {
+        // Try multiple possible storage paths so the card doesn't silently
+        // return null if data is stored under an unexpected key.
+        const internalCoverage =
+            sessionDetail?.meta?.phases?.phase1?.payload?.internal_coverage ||
+            sessionDetail?.meta?.phase1_result?.internal_coverage ||
+            sessionDetail?.meta?.internal_coverage ||
+            sessionDetail?.meta?.phases?.phase1?.internal_coverage_calculated ||
+            null;
+
+        if ( ! internalCoverage || ! Array.isArray( internalCoverage.gaps_by_pillar ) || internalCoverage.gaps_by_pillar.length === 0 ) {
+            return null;
+        }
+
+        const totalPosts = internalCoverage.summary || 'No coverage data.';
+        const pillars = internalCoverage.gaps_by_pillar;
+
+        const togglePillar = ( slug ) => {
+            setExpandedPillars( ( prev ) => ( { ...prev, [ slug ]: ! prev[ slug ] } ) );
+        };
+
+        const handleExportCsv = ( pillar ) => {
+            const pillarSlug = pillar.pillar_slug || pillar.pillar || 'unknown';
+            const allStats = Array.isArray( pillar.stats ) ? pillar.stats : [];
+            const csv = [
+                [ 'term', 'hits', 'latest' ],
+                ...allStats.map( s => [ s.term, String( s.hits ), s.latest || '' ] )
+            ].map( row => row.join( ',' ) ).join( '\n' );
+            const blob = new Blob( [ csv ], { type: 'text/csv' } );
+            const url = URL.createObjectURL( blob );
+            const a = document.createElement( 'a' );
+            a.href = url;
+            a.download = `content-gaps-${ pillarSlug }.csv`;
+            a.click();
+            URL.revokeObjectURL( url );
+        };
+
+        const handleReanalyseGaps = async () => {
+            if ( ! sessionDetail?.id ) {
+                return;
+            }
+            dispatch( 'core/notices' ).createNotice(
+                'info',
+                'Re-analysing content gaps...',
+                { type: 'snackbar' }
+            );
+            try {
+                await apiFetch( {
+                    path: 'editorial/v1/planner/phase1',
+                    method: 'POST',
+                    data: { id: sessionDetail.id },
+                } );
+                dispatch( 'core/notices' ).createNotice(
+                    'success',
+                    'Content gap analysis queued. Refresh in a moment.',
+                    { type: 'snackbar' }
+                );
+            } catch ( error ) {
+                dispatch( 'core/notices' ).createNotice(
+                    'error',
+                    error.message || 'Failed to re-analyse gaps.',
+                    { type: 'snackbar' }
+                );
+            }
+        };
+
+        return wp.element.createElement(
+            Card,
+            { style: { marginBottom: '12px', marginTop: '16px' } },
+            wp.element.createElement(
+                CardHeader,
+                null,
+                wp.element.createElement(
+                    'div',
+                    { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' } },
+                    wp.element.createElement( 'span', null, 'Content Gaps by Pillar' ),
+                    wp.element.createElement(
+                        Button,
+                        {
+                            isSecondary: true,
+                            style: { fontSize: '11px' },
+                            onClick: handleReanalyseGaps,
+                        },
+                        'Re-analyse Gaps'
+                    )
+                )
+            ),
+            wp.element.createElement(
+                CardBody,
+                null,
+                wp.element.createElement(
+                    'p',
+                    { style: { margin: '0 0 8px', fontSize: '12px', color: '#50575e' } },
+                    totalPosts
+                ),
+                pillars.map( ( pillar, idx ) => {
+                    const gapTerms = Array.isArray( pillar.gaps ) ? pillar.gaps : [];
+                    const allStats = Array.isArray( pillar.stats ) ? pillar.stats : [];
+                    const pillarKey = pillar.pillar_slug || pillar.pillar || `pillar-${ idx }`;
+                    const isExpanded = !! expandedPillars[ pillarKey ];
+
+                    return wp.element.createElement(
+                        'div',
+                        { key: `gap-pillar-${ idx }`, style: { marginBottom: '12px' } },
+                        wp.element.createElement(
+                            'div',
+                            {
+                                style: {
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    marginBottom: '4px',
+                                    cursor: 'pointer',
+                                },
+                                onClick: () => togglePillar( pillarKey ),
+                            },
+                            wp.element.createElement(
+                                'span',
+                                { style: { fontSize: '14px', color: '#50575e', width: '16px' } },
+                                isExpanded ? '▼' : '▶'
+                            ),
+                            wp.element.createElement(
+                                'strong',
+                                null,
+                                pillar.pillar || pillar.pillar_slug || 'Pillar'
+                            ),
+                            wp.element.createElement(
+                                'span',
+                                { style: { fontSize: '11px', color: '#50575e' } },
+                                `(${ pillar.total_posts || 0 } posts, ${ pillar.total_terms || 0 } terms, ${ pillar.gap_count || 0 } gaps)`
+                            )
+                        ),
+                        isExpanded && wp.element.createElement(
+                            'div',
+                            { style: { marginLeft: '24px' } },
+                            gapTerms.length > 0
+                                ? wp.element.createElement(
+                                    'div',
+                                    { style: { marginBottom: '6px' } },
+                                    wp.element.createElement(
+                                        'span',
+                                        { style: { fontSize: '12px', color: '#b32d2e', fontWeight: 600 } },
+                                        'Uncovered terms: '
+                                    ),
+                                    gapTerms.map( ( g, gi ) =>
+                                        wp.element.createElement(
+                                            'span',
+                                            { key: `gap-${ idx }-${ gi }`, style: { fontSize: '12px', color: '#b32d2e', marginRight: '6px' } },
+                                            g.term
+                                        )
+                                    )
+                                )
+                                : wp.element.createElement(
+                                    'p',
+                                    { style: { margin: '0 0 6px', fontSize: '12px', color: '#1e7e34' } },
+                                    'No gaps — all analysed terms have at least one post.'
+                                ),
+                            allStats.length > 0 && wp.element.createElement(
+                                'div',
+                                { style: { marginTop: '4px' } },
+                                wp.element.createElement(
+                                    'table',
+                                    { style: { fontSize: '11px', borderCollapse: 'collapse', width: '100%' } },
+                                    wp.element.createElement(
+                                        'thead',
+                                        null,
+                                        wp.element.createElement(
+                                            'tr',
+                                            { style: { borderBottom: '1px solid #ddd' } },
+                                            wp.element.createElement( 'th', { style: { textAlign: 'left', padding: '2px 6px' } }, 'Term' ),
+                                            wp.element.createElement( 'th', { style: { textAlign: 'right', padding: '2px 6px' } }, 'Hits' ),
+                                            wp.element.createElement( 'th', { style: { textAlign: 'right', padding: '2px 6px' } }, 'Latest' )
+                                        )
+                                    ),
+                                    wp.element.createElement(
+                                        'tbody',
+                                        null,
+                                        allStats.map( ( s, si ) =>
+                                            wp.element.createElement(
+                                                'tr',
+                                                { key: `stat-${ idx }-${ si }`, style: { borderBottom: '1px solid #f0f0f0' } },
+                                                wp.element.createElement( 'td', { style: { padding: '2px 6px' } }, s.term ),
+                                                wp.element.createElement( 'td', { style: { textAlign: 'right', padding: '2px 6px', color: s.hits === 0 ? '#b32d2e' : '#1e7e34' } }, String( s.hits ) ),
+                                                wp.element.createElement( 'td', { style: { textAlign: 'right', padding: '2px 6px', fontSize: '10px', color: '#50575e' } }, s.latest || '—' )
+                                            )
+                                        )
+                                    )
+                                ),
+                                wp.element.createElement(
+                                    Button,
+                                    {
+                                        isSecondary: true,
+                                        style: { marginTop: '6px', fontSize: '11px' },
+                                        onClick: () => handleExportCsv( pillar ),
+                                    },
+                                    'Export CSV'
+                                )
+                            )
+                        )
+                    );
+                } )
+            )
+        );
+    };
+
     const renderPhaseSummaries = () => {
         const phases = sessionDetail?.meta?.phases || {};
         const phaseOrder = PHASE_ORDER;
@@ -2548,6 +2802,38 @@ const EditorialPlannerApp = () => {
             );
         };
 
+        /**
+         * Render a list of citations, showing clickable hyperlinks when URLs are present
+         * and plain text fallback when they're not. Handles mixed arrays of strings and objects.
+         */
+        const renderCitationList = (citations) => {
+            if (!Array.isArray(citations) || !citations.length) {
+                return null;
+            }
+            return wp.element.createElement(
+                'ul',
+                { style: { marginTop: '6px', marginBottom: 0 } },
+                citations.map((citation, idx) => {
+                    if (typeof citation === 'string') {
+                        return wp.element.createElement('li', { key: idx }, citation);
+                    }
+                    const label = (citation.apa && citation.apa !== 'details_unavailable') ? citation.apa : (citation.title || citation.url || 'Citation');
+                    if (citation.url) {
+                        return wp.element.createElement(
+                            'li',
+                            { key: idx },
+                            wp.element.createElement(
+                                'a',
+                                { href: citation.url, target: '_blank', rel: 'noreferrer' },
+                                label
+                            )
+                        );
+                    }
+                    return wp.element.createElement('li', { key: idx }, label);
+                })
+            );
+        };
+
         const renderTrendBlocks = (trends) => {
             if (!Array.isArray(trends) || !trends.length) {
                 return null;
@@ -2574,9 +2860,6 @@ const EditorialPlannerApp = () => {
                     ? trend.implications_for_articles
                     : [];
                 const evidencePoints = Array.isArray(trend.evidence) ? trend.evidence : [];
-                const citationTitles = Array.isArray(trend.citations)
-                    ? trend.citations.map((citation) => citation.title || citation.url || 'Citation')
-                    : [];
                 const whyMatters = normalizeText(trend.why_it_matters);
                 return wp.element.createElement(
                     'div',
@@ -2603,12 +2886,12 @@ const EditorialPlannerApp = () => {
                             wp.element.createElement('h3', { style: { margin: '0 0 4px' } }, 'Implications for articles'),
                             renderList(implications)
                         ),
-                    citationTitles.length
+                    Array.isArray(trend.citations) && trend.citations.length
                         ? wp.element.createElement(
                               'div',
                               { style: { marginTop: '6px' } },
                               wp.element.createElement('h3', { style: { margin: '0 0 4px' } }, 'Citations'),
-                              renderList(citationTitles)
+                              renderCitationList(trend.citations)
                           )
                         : null,
                     evidencePoints.length
@@ -2669,7 +2952,11 @@ const EditorialPlannerApp = () => {
                               'div',
                               { style: { marginTop: '6px' } },
                               wp.element.createElement('h3', { style: { margin: '0 0 4px' } }, 'Keywords'),
-                              renderList(keywords)
+                              renderList(
+                                  keywords.map((item) =>
+                                      typeof item === 'object' && item !== null ? item.keyword || String(item) : item
+                                  )
+                              )
                           )
                         : null,
                     topic.content_opportunity &&
@@ -2684,7 +2971,7 @@ const EditorialPlannerApp = () => {
                               'div',
                               { style: { marginTop: '6px' } },
                               wp.element.createElement('h3', { style: { margin: '0 0 4px' } }, 'Citations'),
-                              renderList(citations.map((cite) => cite.title || cite.url || 'Citation'))
+                              renderCitationList(citations)
                           )
                         : null,
                     wp.element.createElement('div', {
@@ -2719,9 +3006,11 @@ const EditorialPlannerApp = () => {
             const isExpanded = !!expandedPhases[key];
             const statusText = hasError
                 ? phase.error_message
-                : phase.status && phase.status !== 'completed'
+                : !phase.status || phase.status === 'pending'
+                ? 'Pending'
+                : phase.status !== 'completed'
                 ? 'In progress...'
-                : 'No summary yet.';
+                : 'Completed';
             const detailBlocks = [];
             const referencedLinks = [];
             const seenUrls = new Set();
@@ -2769,7 +3058,8 @@ const EditorialPlannerApp = () => {
             }
             if (phase.payload?.validated_topics) {
                 phase.payload.validated_topics.forEach((topic) => {
-                    (topic.citations || []).forEach((citation) => {
+                    const citations = topic.supporting_citations || topic.citations || [];
+                    citations.forEach((citation) => {
                         pushLink(citation.title, citation.url);
                     });
                 });
@@ -2779,31 +3069,35 @@ const EditorialPlannerApp = () => {
                     pushLink(source.title, source.url);
                 });
             }
-            if (key === 'phase1' && sessionDetail?.meta?.phase1?.serp_snapshot) {
-                Object.values(sessionDetail.meta.phase1.serp_snapshot).forEach((snapshot) => {
+            if (key === 'phase1' && phase.payload?.serp_snapshot) {
+                Object.values(phase.payload.serp_snapshot).forEach((snapshot) => {
                     (snapshot.results || []).forEach((result) => {
                         pushLink(result.title, result.url);
                     });
                 });
             }
-            if (key === 'phase1' && sessionDetail?.meta?.phase1?.candidate_keywords?.length) {
+            if (key === 'phase1' && phase.payload?.candidate_keywords?.length) {
                 detailBlocks.push(
                     wp.element.createElement(
                         'div',
                         { key: 'candidate-keywords', style: { marginTop: '8px' } },
                         wp.element.createElement('strong', null, 'Candidate Keywords'),
-                        renderList(sessionDetail.meta.phase1.candidate_keywords)
+                        renderList(
+                            phase.payload.candidate_keywords.map((item) =>
+                                typeof item === 'object' && item !== null ? item.keyword || String(item) : item
+                            )
+                        )
                     )
                 );
             }
-            if (key === 'phase1' && sessionDetail?.meta?.phase1?.trend_summary?.length) {
+            if (key === 'phase1' && phase.payload?.trend_summary?.length) {
                 detailBlocks.push(
                     wp.element.createElement(
                         'div',
                         { key: 'trend-summary-phase1', style: { marginTop: '8px' } },
                         wp.element.createElement('strong', null, 'Trend Summary'),
                         renderList(
-                            sessionDetail.meta.phase1.trend_summary.map(
+                            phase.payload.trend_summary.map(
                                 (item) =>
                                     `${item.trend || 'Trend'}: ${
                                         item.repeated_in_research || item.insight || ''
@@ -2820,7 +3114,7 @@ const EditorialPlannerApp = () => {
                     )
                 );
             }
-            if (key === 'phase2' && sessionDetail?.meta?.phase2?.keyword_metrics?.length) {
+            if (key === 'phase2' && phase.payload?.keyword_metrics?.length) {
                 detailBlocks.push(
                     wp.element.createElement(
                         'div',
@@ -2846,7 +3140,7 @@ const EditorialPlannerApp = () => {
                             wp.element.createElement(
                                 'tbody',
                                 null,
-                                sessionDetail.meta.phase2.keyword_metrics.slice(0, 10).map((item, idx) =>
+                                phase.payload.keyword_metrics.slice(0, 10).map((item, idx) =>
                                     wp.element.createElement(
                                         'tr',
                                         { key: `kw-${idx}` },
@@ -2863,14 +3157,14 @@ const EditorialPlannerApp = () => {
                     )
                 );
             }
-            if (key === 'phase2' && sessionDetail?.meta?.phase2?.ranked_keywords?.length) {
+            if (key === 'phase2' && phase.payload?.ranked_keywords?.length) {
                 detailBlocks.push(
                     wp.element.createElement(
                         'div',
                         { key: 'ranked-keywords-phase2', style: { marginTop: '10px' } },
                         wp.element.createElement('strong', null, 'Priority Ranking'),
                         renderList(
-                            sessionDetail.meta.phase2.ranked_keywords.slice(0, 10).map((item) => {
+                            phase.payload.ranked_keywords.slice(0, 10).map((item) => {
                                 const score = item.priority_score != null ? item.priority_score : '—';
                                 const volume = item.search_volume ?? '—';
                                 const cpc = item.cpc ?? '—';
@@ -2885,7 +3179,7 @@ const EditorialPlannerApp = () => {
                         'div',
                         { key: 'serp-signals-phase2', style: { marginTop: '8px' } },
                         wp.element.createElement('strong', null, 'SERP Signals'),
-                        sessionDetail.meta.phase2.ranked_keywords.slice(0, 6).map((item, idx) =>
+                        phase.payload.ranked_keywords.slice(0, 6).map((item, idx) =>
                             wp.element.createElement(
                                 'div',
                                 { key: `serp-${idx}`, style: { marginTop: '6px' } },
@@ -2987,18 +3281,36 @@ const EditorialPlannerApp = () => {
                 );
             }
             if (phase.payload?.validated_topics) {
+                const validatedTopicBlocks = [];
+                phase.payload.validated_topics.forEach((item, vIdx) => {
+                    const topic = item.topic || 'Topic';
+                    const citations = item.supporting_citations || item.citations || [];
+                    validatedTopicBlocks.push(
+                        wp.element.createElement(
+                            'div',
+                            { key: `vt-${vIdx}`, style: { marginTop: '8px', border: '1px solid #ddd', borderRadius: '4px', padding: '8px' } },
+                            wp.element.createElement('strong', null, topic),
+                            item.confidence_score &&
+                                wp.element.createElement('span', { style: { marginLeft: '8px', color: '#666' } }, `(confidence: ${item.confidence_score})`),
+                            item.reason &&
+                                wp.element.createElement('p', { style: { margin: '4px 0 0', fontSize: '0.9em' } }, item.reason),
+                            citations.length
+                                ? wp.element.createElement(
+                                      'div',
+                                      { style: { marginTop: '6px' } },
+                                      wp.element.createElement('span', { style: { fontWeight: 600, fontSize: '0.85em' } }, 'Supporting Citations:'),
+                                      renderCitationList(citations)
+                                  )
+                                : null
+                        )
+                    );
+                });
                 detailBlocks.push(
                     wp.element.createElement(
                         'div',
                         { key: 'validated-topics', style: { marginTop: '8px' } },
                         wp.element.createElement('strong', null, 'Validated Topics'),
-                        renderList(
-                            phase.payload.validated_topics.map((item) => {
-                                const topic = item.topic || 'Topic';
-                                const citations = Array.isArray(item.citations) ? item.citations.length : 0;
-                                return `${topic} (citations: ${citations})`;
-                            })
-                        )
+                        validatedTopicBlocks
                     )
                 );
             }
@@ -3237,7 +3549,7 @@ const EditorialPlannerApp = () => {
             return wp.element.createElement('p', null, 'No article synopses yet.');
         }
 
-        const keywordMetrics = sessionDetail?.meta?.phase2?.keyword_metrics || [];
+        const keywordMetrics = sessionDetail?.meta?.phases?.phase2?.payload?.keyword_metrics || [];
         const findMetric = (keywords) => {
             if (!keywords || !keywords.length) {
                 return null;
@@ -4289,6 +4601,24 @@ const EditorialPlannerApp = () => {
             ? 'SerpAPI is failing (quota or credential issue). Please contact your System Administrator to restore SerpAPI access and verify fallback provider support before rerunning Research Phase 4.'
             : 'Search provider is failing. Please contact your System Administrator to restore provider access before rerunning Research Phase 4.');
 
+    // Show loading spinner when navigating to a session
+    if (viewingSessionId && !sessionDetail) {
+        return wp.element.createElement(
+            'div',
+            { className: 'editorial-planner-dashboard' },
+            wp.element.createElement(
+                'div',
+                { style: { textAlign: 'center', padding: '48px 24px' } },
+                wp.element.createElement(Spinner, null),
+                wp.element.createElement(
+                    'p',
+                    { style: { marginTop: '16px', fontSize: '14px', color: '#50575e' } },
+                    'Loading session details...'
+                )
+            )
+        );
+    }
+
     // Render the detail page when viewing a session
     if (viewingSessionId && sessionDetail) {
         return wp.element.createElement(
@@ -4497,6 +4827,7 @@ const EditorialPlannerApp = () => {
                           )
                       ),
                       renderPhaseSummaries(),
+                      renderContentGapsByPillar(),
                       renderEditorQueueTable(),
                       (sessionDetail?.meta?.articles || []).length > 0
                           ? wp.element.createElement(
@@ -4603,53 +4934,7 @@ const EditorialPlannerApp = () => {
                               wp.element.createElement(
                                   'p',
                                   { style: { marginBottom: '16px', color: '#50575e' } },
-                                  'Select how much research depth you want. The slider controls how many citations and how recent the sources should be.'
-                              ),
-                              wp.element.createElement(RangeControl, {
-                                  label: 'Depth Level',
-                                  value: diveDeeperDepthSlider,
-                                  onChange: setDiveDeeperDepthSlider,
-                                  min: 0,
-                                  max: 4,
-                                  step: 1,
-                                  marks: [
-                                      { value: 0, label: 'A bit more' },
-                                      { value: 1, label: '' },
-                                      { value: 2, label: 'Default' },
-                                      { value: 3, label: '' },
-                                      { value: 4, label: 'Deep dive' },
-                                  ],
-                              }),
-                              wp.element.createElement(
-                                  'div',
-                                  { style: { marginTop: '16px', padding: '12px', background: '#f0f0f0', borderRadius: '4px' } },
-                                  wp.element.createElement(
-                                      'strong',
-                                      null,
-                                      'Parameters:'
-                                  ),
-                                  (() => {
-                                      const params = mapSliderToDepthParams(diveDeeperDepthSlider);
-                                      return wp.element.createElement(
-                                          'ul',
-                                          { style: { margin: '8px 0 0', paddingLeft: '20px' } },
-                                          wp.element.createElement(
-                                              'li',
-                                              null,
-                                              `Target: ${params.target_min_citations} citations`
-                                          ),
-                                          wp.element.createElement(
-                                              'li',
-                                              null,
-                                              `Recency: Last ${params.recency_months} months`
-                                          ),
-                                          wp.element.createElement(
-                                              'li',
-                                              null,
-                                              `Sources: ${Object.keys(params.source_mix_minimums).join(', ')}`
-                                          )
-                                      );
-                                  })()
+                                  'The system will automatically find additional citations to bring the total to at least 4 per article.'
                               ),
                               wp.element.createElement(
                                   'div',
@@ -4950,7 +5235,7 @@ const EditorialPlannerApp = () => {
                                     wp.element.createElement(
                                         'li',
                                         { key: idx },
-                                        citation.title || citation.url || 'Citation'
+                                        typeof citation === 'string' ? citation : citation.title || citation.url || 'Citation'
                                     )
                                 )
                             )
@@ -5088,23 +5373,65 @@ const EditorialPlannerApp = () => {
                                 )
                             )
                         ),
-                    frameworkPreview.citations &&
-                        frameworkPreview.citations.length > 0 &&
+                    frameworkPreview.framework?.output?.citations &&
+                        frameworkPreview.framework.output.citations.length > 0 &&
                         wp.element.createElement(
                             'div',
                             { style: { marginTop: '12px' } },
-                            wp.element.createElement('strong', null, 'Citations'),
+                            wp.element.createElement('strong', null, `Citations (${frameworkPreview.framework.output.citations.length} sources)`),
                             wp.element.createElement(
                                 'ul',
-                                null,
-                                frameworkPreview.citations.map((citation, idx) =>
+                                { style: { listStyle: 'none', padding: 0 } },
+                                frameworkPreview.framework.output.citations.map((citation, idx) =>
                                     wp.element.createElement(
                                         'li',
-                                        { key: idx },
-                                        citation.apa || citation.title || citation.url || 'Citation',
-                                        citation.relevance
-                                            ? wp.element.createElement('p', null, citation.relevance)
-                                            : null
+                                        { key: idx, style: { marginBottom: '10px', padding: '8px 10px', border: '1px solid #f0f0f1', borderRadius: '4px', background: '#fafafa' } },
+                                        // APA citation string
+                                        citation.apa &&
+                                            wp.element.createElement(
+                                                'p',
+                                                { style: { fontStyle: 'italic', margin: '0 0 4px' } },
+                                                citation.apa
+                                            ),
+                                        // Title + URL fallback if APA not available
+                                        !citation.apa && citation.title &&
+                                            wp.element.createElement(
+                                                'p',
+                                                { style: { fontWeight: 'bold', margin: '0 0 2px' } },
+                                                citation.title
+                                            ),
+                                        // Link
+                                        citation.url &&
+                                            wp.element.createElement(
+                                                'p',
+                                                { style: { margin: '0 0 4px' } },
+                                                wp.element.createElement(
+                                                    'a',
+                                                    { href: citation.url, target: '_blank', rel: 'noopener' },
+                                                    citation.url
+                                                )
+                                            ),
+                                        // Lead author + organisation + date
+                                        (citation.lead_author || citation.organisation || citation.publication_date) &&
+                                            wp.element.createElement(
+                                                'p',
+                                                { style: { fontSize: '12px', color: '#50575e', margin: '0 0 4px' } },
+                                                [citation.lead_author, citation.organisation, citation.publication_date].filter(Boolean).join(' · ')
+                                            ),
+                                        // Passage snippet
+                                        citation.passage_snippet &&
+                                            wp.element.createElement(
+                                                'p',
+                                                { style: { fontSize: '12px', color: '#787c82', margin: '0 0 2px', fontStyle: 'italic' } },
+                                                '"' + citation.passage_snippet + '"'
+                                            ),
+                                        // Relevance
+                                        citation.relevance &&
+                                            wp.element.createElement(
+                                                'p',
+                                                { style: { fontSize: '12px', color: '#50575e', margin: '2px 0 0' } },
+                                                'Relevance: ' + citation.relevance
+                                            )
                                     )
                                 )
                             )
@@ -5217,8 +5544,9 @@ const EditorialPlannerApp = () => {
                                     wp.element.createElement(
                                         'tr',
                                         null,
-                                        wp.element.createElement('th', null, 'Title'),
-                                        wp.element.createElement('th', null, 'Topic'),
+                                        wp.element.createElement('th', null, 'Magazine'),
+                                        wp.element.createElement('th', null, 'Editorial Pillar'),
+                                        wp.element.createElement('th', null, 'Articles'),
                                         wp.element.createElement('th', null, 'Created'),
                                         wp.element.createElement('th', null, 'Actions')
                                     )
@@ -5231,7 +5559,8 @@ const EditorialPlannerApp = () => {
                                             'tr',
                                             { key: session.id },
                                             wp.element.createElement('td', null, session.title || session.meta?.topic || session.id),
-                                            wp.element.createElement('td', null, session.meta?.topic || '—'),
+                                            wp.element.createElement('td', null, session.pillar || session.meta?.pillar || '—'),
+                                            wp.element.createElement('td', null, String(session.article_count ?? 0)),
                                             wp.element.createElement('td', null, session.created_at || '—'),
                                             wp.element.createElement(
                                                 'td',
@@ -5241,8 +5570,22 @@ const EditorialPlannerApp = () => {
                                                     {
                                                         isSecondary: true,
                                                         onClick: () => navigateToSession(session.id),
+                                                        style: { marginRight: '5px' },
                                                     },
                                                     'View'
+                                                ),
+                                                wp.element.createElement(
+                                                    Button,
+                                                    {
+                                                        isSecondary: true,
+                                                        onClick: () => deleteSession(session.id),
+                                                        disabled: deletingSessionId === session.id,
+                                                        style: {
+                                                            color: '#b32d2e',
+                                                            borderColor: '#b32d2e',
+                                                        },
+                                                    },
+                                                    deletingSessionId === session.id ? 'Deleting…' : 'Delete'
                                                 )
                                             )
                                         )
@@ -5263,8 +5606,29 @@ const EditorialPlannerApp = () => {
                     label: 'Top-line Topic',
                     value: selectedTopic,
                     options: topicOptions,
-                    onChange: setSelectedTopic,
+                    onChange: (value) => {
+                        setSelectedTopic(value);
+                        // Update pillar options when topic changes
+                        const category = topicOptions.find(o => o.value === value);
+                        if (category && category.pillars && category.pillars.length) {
+                            setPillarOptions(category.pillars.map(p => ({ label: p.name, value: p.name })));
+                        } else {
+                            setPillarOptions([]);
+                        }
+                        setSelectedPillar(null);
+                    },
                 }),
+                pillarOptions.length > 0 &&
+                    wp.element.createElement(SelectControl, {
+                        label: 'Editorial Pillar (optional)',
+                        value: selectedPillar || '',
+                        options: [
+                            { label: 'All pillars', value: '' },
+                            ...pillarOptions
+                        ],
+                        onChange: setSelectedPillar,
+                        help: 'Narrow research to a specific editorial pillar within this topic.',
+                    }),
                 wp.element.createElement(FormTokenField, {
                     label: 'Includes',
                     value: includes,
@@ -5796,6 +6160,7 @@ const EditorialPlannerApp = () => {
                               )
                           ),
                           renderPhaseSummaries(),
+                          renderContentGapsByPillar(),
                           (sessionDetail?.meta?.articles || []).length > 0
                               ? wp.element.createElement(
                                     wp.element.Fragment,
@@ -6012,7 +6377,7 @@ const EditorialPlannerApp = () => {
                                 wp.element.createElement(
                                     'li',
                                     { key: idx },
-                                    citation.title || citation.url || 'Citation'
+                                    typeof citation === 'string' ? citation : citation.title || citation.url || 'Citation'
                                 )
                             )
                         )
@@ -6054,7 +6419,25 @@ const EditorialPlannerApp = () => {
                     wp.element.createElement(
                         'div',
                         { style: { marginTop: '12px' } },
-                        wp.element.createElement('h3', null, frameworkPreview.framework.output.title),
+                        // ── Article Idea (retained original) ──
+                        frameworkPreview.framework.output.article_idea &&
+                            wp.element.createElement(
+                                'div',
+                                { style: { marginTop: '8px' } },
+                                wp.element.createElement('strong', null, 'Article Idea'),
+                                wp.element.createElement('p', null, frameworkPreview.framework.output.article_idea.title || ''),
+                                frameworkPreview.framework.output.article_idea.summary &&
+                                    wp.element.createElement('p', { style: { color: '#50575e', fontSize: '13px' } }, frameworkPreview.framework.output.article_idea.summary),
+                                frameworkPreview.framework.output.article_idea.keywords &&
+                                    frameworkPreview.framework.output.article_idea.keywords.length > 0 &&
+                                    wp.element.createElement(
+                                        'p',
+                                        { style: { color: '#787c82', fontSize: '12px', marginTop: '4px' } },
+                                        'Keywords: ' + frameworkPreview.framework.output.article_idea.keywords.join(', ')
+                                    )
+                            ),
+                        wp.element.createElement('h3', { style: { marginTop: '12px' } }, frameworkPreview.framework.output.title),
+                        // ── Overview ──
                         frameworkPreview.framework.output.overview &&
                             wp.element.createElement(
                                 'div',
@@ -6062,6 +6445,7 @@ const EditorialPlannerApp = () => {
                                 wp.element.createElement('strong', null, 'Overview'),
                                 wp.element.createElement('p', null, frameworkPreview.framework.output.overview)
                             ),
+                        // ── Context ──
                         frameworkPreview.framework.output.context &&
                             wp.element.createElement(
                                 'div',
@@ -6069,6 +6453,7 @@ const EditorialPlannerApp = () => {
                                 wp.element.createElement('strong', null, 'Context'),
                                 wp.element.createElement('p', null, frameworkPreview.framework.output.context)
                             ),
+                        // ── Application ──
                         frameworkPreview.framework.output.application &&
                             wp.element.createElement(
                                 'div',
@@ -6089,6 +6474,7 @@ const EditorialPlannerApp = () => {
                                         : null
                                 )
                             ),
+                        // ── Observations with Evidence ──
                         frameworkPreview.framework.output.observations &&
                             frameworkPreview.framework.output.observations.length > 0 &&
                             wp.element.createElement(
@@ -6101,13 +6487,28 @@ const EditorialPlannerApp = () => {
                                     frameworkPreview.framework.output.observations.map((item, idx) =>
                                         wp.element.createElement(
                                             'li',
-                                            { key: idx },
+                                            { key: idx, style: { marginBottom: '10px' } },
                                             wp.element.createElement('strong', null, item.headline || 'Observation'),
-                                            wp.element.createElement('p', null, item.detail || '')
+                                            wp.element.createElement('p', null, item.detail || ''),
+                                            // ── Evidence links ──
+                                            item.evidence && item.evidence.length > 0 &&
+                                                wp.element.createElement(
+                                                    'div',
+                                                    { style: { marginTop: '4px', paddingLeft: '12px', borderLeft: '2px solid #ddd', fontSize: '12px', color: '#50575e' } },
+                                                    item.evidence.map((ev, evIdx) =>
+                                                        wp.element.createElement(
+                                                            'p',
+                                                            { key: evIdx, style: { margin: '2px 0' } },
+                                                            '🔗 Citation ' + (ev.citation_index !== undefined ? `#${ev.citation_index + 1}: ` : '') + (ev.passage_snippet || '') +
+                                                            (ev.confidence ? ` (confidence: ${Math.round(ev.confidence * 100)}%)` : '')
+                                                        )
+                                                    )
+                                                )
                                         )
                                     )
                                 )
                             ),
+                        // ── Key Themes ──
                         frameworkPreview.framework.output.key_themes &&
                             frameworkPreview.framework.output.key_themes.length > 0 &&
                             wp.element.createElement(
@@ -6121,6 +6522,59 @@ const EditorialPlannerApp = () => {
                                         wp.element.createElement('li', { key: idx }, theme)
                                     )
                                 )
+                            ),
+                        // ── Writer Guidance ──
+                        frameworkPreview.framework.output.writer_guidance &&
+                            wp.element.createElement(
+                                'div',
+                                { style: { marginTop: '8px', padding: '10px 12px', border: '1px solid #dcdcde', borderRadius: '6px', background: '#f6f7f7' } },
+                                wp.element.createElement('strong', null, 'Writer Guidance'),
+                                frameworkPreview.framework.output.writer_guidance.tone &&
+                                    wp.element.createElement('p', { style: { marginTop: '6px' } }, '🎯 Tone: ' + frameworkPreview.framework.output.writer_guidance.tone),
+                                frameworkPreview.framework.output.writer_guidance.structure &&
+                                    wp.element.createElement('p', null, '📋 Structure: ' + frameworkPreview.framework.output.writer_guidance.structure),
+                                frameworkPreview.framework.output.writer_guidance.key_messages &&
+                                    frameworkPreview.framework.output.writer_guidance.key_messages.length > 0 &&
+                                    wp.element.createElement(
+                                        'div',
+                                        null,
+                                        wp.element.createElement('strong', { style: { fontSize: '13px' } }, 'Key Messages:'),
+                                        wp.element.createElement(
+                                            'ul',
+                                            null,
+                                            frameworkPreview.framework.output.writer_guidance.key_messages.map((msg, idx) =>
+                                                wp.element.createElement('li', { key: idx }, msg)
+                                            )
+                                        )
+                                    ),
+                                frameworkPreview.framework.output.writer_guidance.target_audience_notes &&
+                                    wp.element.createElement('p', null, '👥 ' + frameworkPreview.framework.output.writer_guidance.target_audience_notes),
+                                frameworkPreview.framework.output.writer_guidance.citation_usage &&
+                                    wp.element.createElement('p', null, '📚 ' + frameworkPreview.framework.output.writer_guidance.citation_usage)
+                            ),
+                        // ── Scoring Badge ──
+                        frameworkPreview.framework.output.scoring &&
+                            wp.element.createElement(
+                                'div',
+                                { style: { marginTop: '12px', padding: '8px 12px', borderRadius: '6px', display: 'flex', gap: '12px', alignItems: 'center', background: getScoringBadgeColor(frameworkPreview.framework.output.scoring.quality_level) } },
+                                wp.element.createElement('strong', null, 'Quality Score'),
+                                wp.element.createElement(
+                                    'span',
+                                    { style: { fontWeight: 'bold', fontSize: '18px' } },
+                                    frameworkPreview.framework.output.scoring.total_score !== undefined ? frameworkPreview.framework.output.scoring.total_score + '/100' : 'N/A'
+                                ),
+                                frameworkPreview.framework.output.scoring.quality_level &&
+                                    wp.element.createElement(
+                                        'span',
+                                        { style: { textTransform: 'capitalize', fontWeight: 'bold' } },
+                                        frameworkPreview.framework.output.scoring.quality_level
+                                    ),
+                                frameworkPreview.framework.output.scoring.is_publishable !== undefined &&
+                                    wp.element.createElement(
+                                        'span',
+                                        { style: { color: frameworkPreview.framework.output.scoring.is_publishable ? '#008a20' : '#d63638', fontWeight: 'bold' } },
+                                        frameworkPreview.framework.output.scoring.is_publishable ? '✅ Publishable' : '❌ Not Publishable'
+                                    )
                             )
                     ),
                 !frameworkPreview.framework?.output?.title &&
@@ -6150,23 +6604,59 @@ const EditorialPlannerApp = () => {
                             )
                         )
                     ),
-                frameworkPreview.citations &&
-                    frameworkPreview.citations.length > 0 &&
+                frameworkPreview.framework?.output?.citations &&
+                    frameworkPreview.framework.output.citations.length > 0 &&
                     wp.element.createElement(
                         'div',
                         { style: { marginTop: '12px' } },
-                        wp.element.createElement('strong', null, 'Citations'),
+                        wp.element.createElement('strong', null, `Citations (${frameworkPreview.framework.output.citations.length} sources)`),
                         wp.element.createElement(
                             'ul',
-                            null,
-                            frameworkPreview.citations.map((citation, idx) =>
+                            { style: { listStyle: 'none', padding: 0 } },
+                            frameworkPreview.framework.output.citations.map((citation, idx) =>
                                 wp.element.createElement(
                                     'li',
-                                    { key: idx },
-                                    citation.apa || citation.title || citation.url || 'Citation',
-                                    citation.relevance
-                                        ? wp.element.createElement('p', null, citation.relevance)
-                                        : null
+                                    { key: idx, style: { marginBottom: '10px', padding: '8px 10px', border: '1px solid #f0f0f1', borderRadius: '4px', background: '#fafafa' } },
+                                    citation.apa &&
+                                        wp.element.createElement(
+                                            'p',
+                                            { style: { fontStyle: 'italic', margin: '0 0 4px' } },
+                                            citation.apa
+                                        ),
+                                    !citation.apa && citation.title &&
+                                        wp.element.createElement(
+                                            'p',
+                                            { style: { fontWeight: 'bold', margin: '0 0 2px' } },
+                                            citation.title
+                                        ),
+                                    citation.url &&
+                                        wp.element.createElement(
+                                            'p',
+                                            { style: { margin: '0 0 4px' } },
+                                            wp.element.createElement(
+                                                'a',
+                                                { href: citation.url, target: '_blank', rel: 'noopener' },
+                                                citation.url
+                                            )
+                                        ),
+                                    (citation.lead_author || citation.organisation || citation.publication_date) &&
+                                        wp.element.createElement(
+                                            'p',
+                                            { style: { fontSize: '12px', color: '#50575e', margin: '0 0 4px' } },
+                                            [citation.lead_author, citation.organisation, citation.publication_date].filter(Boolean).join(' · ')
+                                        ),
+                                    citation.passage_snippet &&
+                                        wp.element.createElement(
+                                            'p',
+                                            { style: { fontSize: '12px', color: '#787c82', margin: '0 0 2px', fontStyle: 'italic' } },
+                                            '"' + citation.passage_snippet + '"'
+                                        ),
+                                    citation.relevance &&
+                                        wp.element.createElement(
+                                            'p',
+                                            { style: { fontSize: '12px', color: '#50575e', margin: '2px 0 0' } },
+                                            'Relevance: ' + citation.relevance
+                                        )
                                 )
                             )
                         )

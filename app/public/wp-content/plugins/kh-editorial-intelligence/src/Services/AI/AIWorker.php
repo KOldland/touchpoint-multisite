@@ -120,7 +120,8 @@ class AIWorker {
      * Specialized handler for Planner jobs (Phases 1-4 and Final Synopsis).
      */
     public function handle_planner_job( $dummy, $job ) {
-        $payload = json_decode( $job['payload'], true );
+        $payload = ( $job['payload'] ?? null ) ? json_decode( $job['payload'], true ) : [];
+        $payload = is_array( $payload ) ? $payload : [];
         $prompt = $payload['prompt'] ?? $job['prompt'] ?? '';
         $session_id = (int) ($payload['session_id'] ?? $job['session_id'] ?? 0);
 
@@ -134,25 +135,79 @@ class AIWorker {
                 [ 'role' => 'user', 'content' => $prompt ]
             ];
 
-            $llm_result = LLMService::post_completion_with_retry( $messages );
+            // Pass the job's resolved model AND provider so LLMService routes correctly.
+            // post_completion() defaults provider to 'openai' if not set — models with '/'
+            // (e.g. deepseek/deepseek-v4-flash) must explicitly request 'openrouter'.
+            // Framework generation jobs (fw- prefix) need higher max_tokens
+            // to accommodate the expanded schema (article_idea, writer_guidance,
+            // scoring, observations.evidence, 6-8 APA citations).
+            $is_framework_job = strpos( $job['idempotency_key'] ?? '', 'fw-' ) === 0;
+            $llm_args = [
+                'max_tokens' => $is_framework_job ? 24000 : 16000,
+            ];
+            if ( ! empty( $job['model'] ) ) {
+                $llm_args['model']    = $job['model'];
+                $llm_args['provider'] = ( strpos( $job['model'], '/' ) !== false ) ? 'openrouter' : 'openai';
+
+                // For framework jobs routed through OpenAI, enable json_object mode
+                // to ensure valid structured JSON output. This requires OpenAI models
+                // (gpt-4o-mini, gpt-4o) which support response_format.
+                // OpenRouter does not support response_format, so skip for those.
+                if ( $is_framework_job && $llm_args['provider'] === 'openai' ) {
+                    $llm_args['response_format'] = [ 'type' => 'json_object' ];
+                }
+            }
+
+            $llm_result = LLMService::post_completion_with_retry( $messages, $llm_args );
 
             if ( is_wp_error( $llm_result ) ) {
+                $this->reset_planner_status_on_failure( $job );
                 return $llm_result;
             }
 
-            $content = json_decode( $llm_result['content'], true );
+        $content = json_decode( $llm_result['content'], true );
 
-            if ( json_last_error() !== JSON_ERROR_NONE ) {
-                preg_match( '/```(?:json)?\s*([\s\S]*?)```/', $llm_result['content'], $matches );
-                if ( ! empty( $matches[1] ) ) {
-                    $content = json_decode( $matches[1], true );
-                }
-                if ( json_last_error() !== JSON_ERROR_NONE ) {
-                    return new \WP_Error( 'invalid_json', 'LLM response was not valid JSON: ' . $llm_result['content'] );
-                }
+        if ( json_last_error() !== JSON_ERROR_NONE ) {
+            preg_match( '/\`\`\`(?:json)?\s*([\s\S]*?)\`\`\`/', $llm_result['content'], $matches );
+            if ( ! empty( $matches[1] ) ) {
+                $content = json_decode( $matches[1], true );
             }
+            if ( json_last_error() !== JSON_ERROR_NONE ) {
+                $this->reset_planner_status_on_failure( $job );
+                return new \WP_Error( 'invalid_json', 'LLM response was not valid JSON: ' . $llm_result['content'] );
+            }
+        }
 
-            $idempotency_key = $job['idempotency_key'] ?? '';
+        // Validate framework output schema — warn if required sections missing.
+        $idempotency_key = $job['idempotency_key'] ?? '';
+        if ( strpos( $idempotency_key, 'fw-' ) === 0 ) {
+            $framework = $content['framework'] ?? [];
+            $missing_sections = [];
+            if ( ! isset( $content['article_idea'] ) ) $missing_sections[] = 'article_idea';
+            if ( ! isset( $framework['writer_guidance'] ) ) $missing_sections[] = 'writer_guidance';
+            if ( ! isset( $framework['scoring'] ) ) $missing_sections[] = 'scoring';
+            if ( ! isset( $framework['observations'] ) ) $missing_sections[] = 'observations';
+            if ( ! empty( $missing_sections ) ) {
+                error_log( '[PLANNER] Framework output missing sections: ' . implode( ', ', $missing_sections ) . ' — Job ID: ' . $job['id'] );
+                // Don't fail the job — the LLM may still produce useful partial output.
+                // But log the issue so operators can monitor quality.
+            }
+        }
+
+        // Validate dive_deeper citation count — fail if fewer than expected.
+        // The prompt already says "EXACTLY N" via the slider's target_min_citations (default 3).
+        // Accept any response with at least 1 citation; the prompt enforces the upper bound.
+        if ( strpos( $idempotency_key, 'dive-' ) === 0 ) {
+            $citations = $content['citations'] ?? [];
+            if ( empty( $citations ) ) {
+                error_log( '[PLANNER] Dive deeper returned 0 citations. Job ID: ' . $job['id'] );
+                $this->reset_planner_status_on_failure( $job );
+                return new \WP_Error( 'insufficient_citations', 
+                    'Dive deeper returned 0 citations — rerun with a higher depth setting.'
+                );
+            }
+        }
+
             if ( $session_id && ! empty( $idempotency_key ) ) {
                 if ( strpos( $idempotency_key, 'planner-p1-' ) === 0 ) {
                     update_post_meta( $session_id, 'kh_planner_phase1_result', $content );
@@ -164,6 +219,71 @@ class AIWorker {
                     update_post_meta( $session_id, 'kh_planner_phase4_result', $content );
                 } elseif ( strpos( $idempotency_key, 'planner-final-' ) === 0 ) {
                     update_post_meta( $session_id, 'kh_planner_final_synopses', $content );
+                } elseif ( strpos( $idempotency_key, 'dive-' ) === 0 ) {
+                    // Store dive_deeper results: kh_planner_dives
+                    $existing = get_post_meta( $session_id, 'kh_planner_dives', true ) ?: [];
+                    $dive_id = substr( $idempotency_key, strlen( 'dive-' ) ); // {session_id}-{hash}
+                    $existing[ $dive_id ] = [
+                        'citations'  => $content['citations'] ?? $content,
+                        'article_headline' => $content['article_headline'] ?? '',
+                        'updated_at' => current_time( 'mysql' ),
+                    ];
+                    update_post_meta( $session_id, 'kh_planner_dives', $existing );
+                } elseif ( strpos( $idempotency_key, 'fw-' ) === 0 ) {
+                    // Store framework generation results into session meta articles
+                    $meta_json = get_post_meta( $session_id, 'kh_planner_meta', true );
+                    $meta = ( $meta_json ? json_decode( $meta_json, true ) : null ) ?: [];
+                    $articles = $meta['articles'] ?? [];
+                    
+                    // Extract the article hash from the idempotency key.
+                    // Format: fw-{session_id}-{article_hash}[-r{timestamp}]
+                    // Strip the session_id prefix and any -r suffix to get just the hash.
+                    $after_prefix = substr( $idempotency_key, strlen( 'fw-' . $session_id . '-' ) );
+                    // Remove any -r{timestamp} suffix from force re-run mode
+                    $article_hash = preg_replace( '/-r\d+$/', '', $after_prefix );
+                    
+                    $found = false;
+                    foreach ( $articles as &$article ) {
+                        $article_hash_check = substr( md5( $article['id'] ?? '' ), 0, 12 );
+                        if ( $article_hash_check === $article_hash ) {
+                            $article['framework'] = [
+                                'status'  => 'completed',
+                                'output'  => $content,
+                                'completed_at' => current_time( 'mysql' ),
+                            ];
+                            $found = true;
+                            error_log( '[PLANNER] Framework result matched article ' . $article['id'] . ' via hash ' . $article_hash );
+                            break;
+                        }
+                    }
+                    unset( $article );
+                    
+                    if ( $found ) {
+                        $meta['articles'] = $articles;
+                        update_post_meta( $session_id, 'kh_planner_meta', wp_json_encode( $meta ) );
+                        error_log( '[PLANNER] Framework result stored for article in session ' . $session_id );
+                    } else {
+                        error_log( '[PLANNER] Framework result: article not found in session meta for key ' . $idempotency_key . ' (hash: ' . $article_hash . ')' );
+                        // Fallback: try matching by matching any article where framework.status === 'running'
+                        // (the status was set before the job was created)
+                        foreach ( $articles as &$article ) {
+                            if ( ( $article['framework']['status'] ?? '' ) === 'running' ) {
+                                $article['framework'] = [
+                                    'status'  => 'completed',
+                                    'output'  => $content,
+                                    'completed_at' => current_time( 'mysql' ),
+                                ];
+                                $found = true;
+                                error_log( '[PLANNER] Framework result matched article ' . $article['id'] . ' via running-status fallback' );
+                                break;
+                            }
+                        }
+                        unset( $article );
+                        if ( $found ) {
+                            $meta['articles'] = $articles;
+                            update_post_meta( $session_id, 'kh_planner_meta', wp_json_encode( $meta ) );
+                        }
+                    }
                 }
                 update_post_meta( $session_id, 'kh_planner_status', 'phase_complete' );
             }
@@ -175,9 +295,24 @@ class AIWorker {
             ];
 
         } catch ( \Exception $e ) {
+            $this->reset_planner_status_on_failure( $job );
             return new \WP_Error( 'planner_error', $e->getMessage() );
         }
     }
+
+    /**
+     * Reset planner session status on failure so the UI doesn't show it stuck at "running".
+     */
+    private function reset_planner_status_on_failure( $job ) {
+        $session_id = (int) ( $job['session_id'] ?? 0 );
+        if ( $session_id && ! empty( $job['idempotency_key'] ) && strpos( $job['idempotency_key'], 'planner-' ) === 0 ) {
+            $current_status = get_post_meta( $session_id, 'kh_planner_status', true );
+            if ( in_array( $current_status, [ 'phase1_running', 'phase2_running', 'phase3_running', 'phase4_running' ], true ) ) {
+                update_post_meta( $session_id, 'kh_planner_status', 'phase_complete' );
+            }
+        }
+    }
+
     /**
      * Handle successful job completion.
      */
