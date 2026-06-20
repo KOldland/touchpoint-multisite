@@ -179,14 +179,19 @@ class AIWorker {
         }
 
         // Validate framework output schema — warn if required sections missing.
+        // The LLM now outputs a flat schema (no "framework" wrapper).
+        // Validate top-level keys directly on $content.
         $idempotency_key = $job['idempotency_key'] ?? '';
         if ( strpos( $idempotency_key, 'fw-' ) === 0 ) {
-            $framework = $content['framework'] ?? [];
             $missing_sections = [];
             if ( ! isset( $content['article_idea'] ) ) $missing_sections[] = 'article_idea';
-            if ( ! isset( $framework['writer_guidance'] ) ) $missing_sections[] = 'writer_guidance';
-            if ( ! isset( $framework['scoring'] ) ) $missing_sections[] = 'scoring';
-            if ( ! isset( $framework['observations'] ) ) $missing_sections[] = 'observations';
+            if ( ! isset( $content['title'] ) ) $missing_sections[] = 'title';
+            if ( ! isset( $content['overview'] ) ) $missing_sections[] = 'overview';
+            if ( ! isset( $content['context'] ) ) $missing_sections[] = 'context';
+            if ( ! isset( $content['application'] ) ) $missing_sections[] = 'application';
+            if ( ! isset( $content['writer_guidance'] ) ) $missing_sections[] = 'writer_guidance';
+            if ( ! isset( $content['scoring'] ) ) $missing_sections[] = 'scoring';
+            if ( ! isset( $content['observations'] ) ) $missing_sections[] = 'observations';
             if ( ! empty( $missing_sections ) ) {
                 error_log( '[PLANNER] Framework output missing sections: ' . implode( ', ', $missing_sections ) . ' — Job ID: ' . $job['id'] );
                 // Don't fail the job — the LLM may still produce useful partial output.
