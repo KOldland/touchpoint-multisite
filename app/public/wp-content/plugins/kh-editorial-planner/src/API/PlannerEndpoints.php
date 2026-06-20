@@ -751,7 +751,9 @@ class PlannerEndpoints {
             'dives'  => $dives,
         ] );
 
-        // Convert synopses to meta.articles entries so the JS renderArticlesTable can display them
+        // Convert synopses to meta.articles entries so the JS renderArticlesTable can display them.
+        // Persist back to post meta so run_framework_generation() etc. can find the articles.
+        $articles_persisted = false;
         if ( $synopses && is_array( $synopses['synopses'] ?? null ) ) {
             $existing_articles = $meta['articles'] ?? [];
             $existing_ids      = wp_list_pluck( $existing_articles, 'id' );
@@ -774,7 +776,12 @@ class PlannerEndpoints {
                 ];
             }
 
-            $meta['articles'] = $articles;
+            // Only persist if we actually added new articles (no-op if everything already existed)
+            if ( count( $articles ) > count( $existing_articles ) ) {
+                $meta['articles'] = $articles;
+                update_post_meta( $id, 'kh_planner_meta', wp_json_encode( $meta ) );
+                $articles_persisted = true;
+            }
         }
 
         // Enrich articles with live dive_deeper job status from AI job table
