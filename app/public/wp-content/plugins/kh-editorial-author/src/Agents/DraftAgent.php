@@ -41,7 +41,13 @@ class DraftAgent {
             return $response;
         }
 
-        $data = json_decode($response['content'], true);
+        // Strip markdown code fences (```json ... ```) that the LLM may wrap around JSON
+        $content = $response['content'];
+        $content = preg_replace('/^```(?:json)?\s*\n?/i', '', $content);
+        $content = preg_replace('/\n?```\s*$/', '', $content);
+        $content = trim($content);
+
+        $data = json_decode($content, true);
         if (!is_array($data) || empty($data['blocks'])) {
             return new \WP_Error('invalid_draft_output', 'Draft output is not valid JSON with blocks.');
         }
