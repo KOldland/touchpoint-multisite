@@ -1246,9 +1246,10 @@ class PlannerEndpoints {
         }
 
         if ( $task_type === 'article_creation' && $article_id && $session_id ) {
-            $author_profile = $item['payload']['author_profile'] ?? '';
+            $author_profile   = $item['payload']['author_profile'] ?? '';
+            $word_count_range = $item['payload']['word_count_range'] ?? 'short';
             $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
-            $result = $orchestrator->run_author_generation( $session_id, $article_id, $author_profile );
+            $result = $orchestrator->run_author_generation( $session_id, $article_id, $author_profile, $word_count_range );
 
             if ( is_wp_error( $result ) ) {
                 $queue[ $item_idx ]['status'] = 'failed';
@@ -1346,10 +1347,11 @@ class PlannerEndpoints {
                 update_post_meta( $session_id, 'kh_planner_queue', $queue );
             }
 
-            if ( $task_type === 'article_creation' && $article_id ) {
-                $author_profile = $qi['payload']['author_profile'] ?? '';
-                $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
-                $result = $orchestrator->run_author_generation( $session_id, $article_id, $author_profile );
+        if ( $task_type === 'article_creation' && $article_id ) {
+            $author_profile   = $qi['payload']['author_profile'] ?? '';
+            $word_count_range = $qi['payload']['word_count_range'] ?? 'short';
+            $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
+            $result = $orchestrator->run_author_generation( $session_id, $article_id, $author_profile, $word_count_range );
 
                 if ( is_wp_error( $result ) ) {
                     $queue[ $idx ]['status'] = 'failed';
@@ -1716,13 +1718,17 @@ class PlannerEndpoints {
      * Uses connection-close pattern for synchronous background processing
      * (same as dive_deeper in article_action).
      *
-     * Expects: { id: session_id, article_id: string, author_profile?: string }
+     * Expects: { id: session_id, article_id: string, author_profile?: string, word_count_range?: string }
+     * word_count_range: 'short' (800-1500), 'standard' (1500-3000), 'long' (3000-5000). Default 'short'.
      */
     public function run_author( \WP_REST_Request $request ) {
-        $params         = $request->get_json_params();
-        $session_id     = (int) ( $params['id'] ?? 0 );
-        $article_id     = sanitize_text_field( $params['article_id'] ?? '' );
-        $author_profile = sanitize_text_field( $params['author_profile'] ?? '' );
+        $params           = $request->get_json_params();
+        $session_id       = (int) ( $params['id'] ?? 0 );
+        $article_id       = sanitize_text_field( $params['article_id'] ?? '' );
+        $author_profile   = sanitize_text_field( $params['author_profile'] ?? '' );
+        $word_count_range = in_array( $params['word_count_range'] ?? '', [ 'short', 'standard', 'long' ], true )
+            ? $params['word_count_range']
+            : 'short';
 
         if ( ! $session_id ) {
             return new \WP_Error( 'missing_id', 'Session ID is required.', [ 'status' => 400 ] );
@@ -1764,7 +1770,7 @@ class PlannerEndpoints {
         error_log( '[PLANNER] Early response sent for run_author — starting background author generation' );
 
         $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
-        $result = $orchestrator->run_author_generation( $session_id, $article_id, $author_profile );
+        $result = $orchestrator->run_author_generation( $session_id, $article_id, $author_profile, $word_count_range );
 
         if ( is_wp_error( $result ) ) {
             error_log( '[PLANNER] run_author failed: ' . $result->get_error_message() );

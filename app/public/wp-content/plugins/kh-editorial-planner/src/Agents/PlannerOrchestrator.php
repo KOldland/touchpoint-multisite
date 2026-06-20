@@ -1180,12 +1180,13 @@ APA_EXAMPLES;
      * prompt construction, LLM calling, policy enforcement, and citation validation.
      * Runs synchronously using the connection-close pattern from the endpoint.
      *
-     * @param int    $post_id        Session post ID.
-     * @param string $article_id     Article ID from session meta.
-     * @param string $author_profile Author profile key ('balanced', 'authoritative', 'conversational', 'analytical').
+     * @param int    $post_id          Session post ID.
+     * @param string $article_id       Article ID from session meta.
+     * @param string $author_profile   Author profile key ('balanced', 'authoritative', 'conversational', 'analytical').
+     * @param string $word_count_range Word count range key: 'short' (800-1500), 'standard' (1500-3000), 'long' (3000-5000).
      * @return array|\WP_Error
      */
-    public function run_author_generation( $post_id, $article_id, $author_profile = '' ) {
+    public function run_author_generation( $post_id, $article_id, $author_profile = '', $word_count_range = 'short' ) {
         $post = get_post( $post_id );
         if ( ! $post || $post->post_type !== 'planner_session' ) {
             return new \WP_Error( 'invalid_session', 'Invalid planner session.' );
@@ -1253,7 +1254,21 @@ APA_EXAMPLES;
 
         // Build the author policy from session meta (or defaults)
         $author_policy = get_post_meta( $post_id, 'kh_planner_author_policy', true ) ?: [];
+
+        // Apply word count range from the request param
+        $word_count_ranges = [
+            'short'    => [ 'min_words' => 800,  'max_words' => 1500 ],
+            'standard' => [ 'min_words' => 1500, 'max_words' => 3000 ],
+            'long'     => [ 'min_words' => 3000, 'max_words' => 5000 ],
+        ];
+        $wc = $word_count_ranges[ $word_count_range ] ?? $word_count_ranges['short'];
+        $author_policy['min_words'] = $wc['min_words'];
+        $author_policy['max_words'] = $wc['max_words'];
+
         $author_policy = \KH\EditorialAuthor\Core\AuthorPolicy::sanitize( $author_policy );
+
+        // Store word_count_range on the article meta so the UI can display it
+        $article['author']['word_count_range'] = $word_count_range;
 
         // Use the framework output as planner_data context
         $framework_output = $article['framework']['output'] ?? [];
@@ -1268,7 +1283,7 @@ APA_EXAMPLES;
         ];
 
         $instructions = sprintf(
-            'Write a draft article based on the framework "%s" using the %s writing profile. Word count: 800-1200 words.',
+            'Write a draft article based on the framework "%s" using the %s writing profile.',
             $framework_output['title'] ?? ( $article['headline'] ?? $article['title'] ?? '' ),
             $author_profile
         );
