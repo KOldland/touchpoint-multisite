@@ -2020,8 +2020,11 @@ const EditorialPlannerApp = () => {
             const maxPolls = 120; // 120 * 2.5s = 5 minutes max
             const pollSynopses = async () => {
                 pollCount++;
-                await refreshSessionDetail();
-                const articlesCount = sessionDetail?.meta?.articles?.length || 0;
+                // Use the response from refreshSessionDetail() rather than the stale
+                // closure variable, which would always see articlesCount === 0.
+                const freshDetail = await refreshSessionDetail();
+                const articles = freshDetail?.meta?.articles || [];
+                const articlesCount = articles.length;
                 if (articlesCount > 0 || pollCount >= maxPolls) {
                     setSynopsisGenerateLoading(false);
                     setSynopsisModalOpen(false);
