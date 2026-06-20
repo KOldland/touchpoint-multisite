@@ -4529,59 +4529,6 @@ const EditorialPlannerApp = () => {
         );
     };
 
-    const renderFrameworks = () => {
-        const frameworks =
-            (sessionDetail?.meta?.frameworks || []).length > 0
-                ? sessionDetail.meta.frameworks
-                : (sessionDetail?.meta?.articles || [])
-                      .filter((article) => article?.framework?.output)
-                      .map((article, index) => ({
-                          job_id: article?.framework?.job_id || article?.id || `framework-${index}`,
-                          article_id: article?.id || null,
-                          article_title: article?.headline || article?.title || 'Framework',
-                          output: article?.framework?.output,
-                      }));
-        if (!frameworks.length) {
-            return null;
-        }
-
-        const formatFrameworkOutput = (output) => {
-            if (!output) {
-                return 'No output captured.';
-            }
-            if (typeof output === 'string') {
-                return output;
-            }
-            try {
-                return JSON.stringify(output, null, 2);
-            } catch (error) {
-                return 'Framework output available but could not be formatted.';
-            }
-        };
-
-        return wp.element.createElement(
-            'div',
-            { style: { marginTop: '16px' } },
-            wp.element.createElement('h3', null, 'Generated Frameworks'),
-            frameworks.map((framework, index) =>
-                wp.element.createElement(
-                    Card,
-                    { key: `${framework.job_id}-${index}`, style: { marginTop: '8px' } },
-                    wp.element.createElement(CardHeader, null, framework.article_title || 'Framework'),
-                    wp.element.createElement(
-                        CardBody,
-                        null,
-                        wp.element.createElement(
-                            'pre',
-                            { style: { whiteSpace: 'pre-wrap' } },
-                            formatFrameworkOutput(framework.output)
-                        )
-                    )
-                )
-            )
-        );
-    };
-
     const phase1Complete = sessionDetail?.meta?.phases?.phase1?.status === 'completed';
     const phase2Complete = sessionDetail?.meta?.phases?.phase2?.status === 'completed';
     const allPhasesExpanded = PHASE_ORDER.every((key) => !!expandedPhases[key]);
@@ -4837,8 +4784,7 @@ const EditorialPlannerApp = () => {
                                 wp.element.Fragment,
                                 null,
                                 wp.element.createElement('h2', { style: { marginTop: '16px' } }, 'Article Synopses'),
-                                                                renderArticlesTable(),
-                                                                renderFrameworks()
+                                                                renderArticlesTable()
                             )
                           : null
                   ),
@@ -6169,11 +6115,10 @@ const EditorialPlannerApp = () => {
                                     wp.element.Fragment,
                                     null,
                                     wp.element.createElement('h2', { style: { marginTop: '16px' } }, 'Article Synopses'),
-                                                                        renderArticlesTable(),
-                                                                        renderFrameworks()
+                                                                        renderArticlesTable()
                                 )
                               : null
-            ),
+              ),
         detailModalOpen &&
             showThinkingIndicator &&
             wp.element.createElement(
