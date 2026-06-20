@@ -1245,6 +1245,32 @@ class PlannerEndpoints {
             ] );
         }
 
+        if ( $task_type === 'article_creation' && $article_id && $session_id ) {
+            $author_profile = $item['payload']['author_profile'] ?? '';
+            $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
+            $result = $orchestrator->run_author_generation( $session_id, $article_id, $author_profile );
+
+            if ( is_wp_error( $result ) ) {
+                $queue[ $item_idx ]['status'] = 'failed';
+                $queue[ $item_idx ]['error_message'] = $result->get_error_message();
+                $queue[ $item_idx ]['completed_at'] = current_time( 'mysql' );
+                update_post_meta( $session_id, 'kh_planner_queue', $queue );
+                return $result;
+            }
+
+            $queue[ $item_idx ]['status'] = 'dispatched';
+            $queue[ $item_idx ]['job_id'] = $result['job_id'];
+            $queue[ $item_idx ]['completed_at'] = current_time( 'mysql' );
+            update_post_meta( $session_id, 'kh_planner_queue', $queue );
+
+            return rest_ensure_response( [
+                'ok'      => true,
+                'job_id'  => $result['job_id'],
+                'queue_id' => $queue_id,
+                'status'  => 'dispatched',
+            ] );
+        }
+
         // For other task types, return simple acknowledgment
         $job_id = uniqid( 'job_', true );
         return rest_ensure_response( [ 'ok' => true, 'job_id' => $job_id, 'queue_id' => $queue_id ] );
@@ -1306,6 +1332,24 @@ class PlannerEndpoints {
             if ( $task_type === 'framework_generation' && $article_id ) {
                 $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
                 $result = $orchestrator->run_framework_generation( $session_id, $article_id );
+
+                if ( is_wp_error( $result ) ) {
+                    $queue[ $idx ]['status'] = 'failed';
+                    $queue[ $idx ]['error_message'] = $result->get_error_message();
+                    $queue[ $idx ]['completed_at'] = current_time( 'mysql' );
+                    $failed++;
+                } else {
+                    $queue[ $idx ]['status'] = 'dispatched';
+                    $queue[ $idx ]['job_id'] = $result['job_id'] ?? '';
+                    $queue[ $idx ]['completed_at'] = current_time( 'mysql' );
+                }
+                update_post_meta( $session_id, 'kh_planner_queue', $queue );
+            }
+
+            if ( $task_type === 'article_creation' && $article_id ) {
+                $author_profile = $qi['payload']['author_profile'] ?? '';
+                $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
+                $result = $orchestrator->run_author_generation( $session_id, $article_id, $author_profile );
 
                 if ( is_wp_error( $result ) ) {
                     $queue[ $idx ]['status'] = 'failed';
