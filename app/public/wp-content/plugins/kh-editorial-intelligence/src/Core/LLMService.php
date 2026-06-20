@@ -485,7 +485,7 @@ class LLMService {
         unset( $payload['provider'] );
 
         $response = wp_remote_post( 'https://api.openai.com/v1/chat/completions', [
-            'timeout' => 45,
+            'timeout' => 300,
             'headers' => [
                 'Authorization' => 'Bearer ' . $api_key,
                 'Content-Type'  => 'application/json',
@@ -514,7 +514,7 @@ class LLMService {
         unset( $payload['provider'] );
 
         $response = wp_remote_post( 'https://openrouter.ai/api/v1/chat/completions', [
-            'timeout' => 60,
+            'timeout' => 300,
             'headers' => [
                 'Authorization'      => 'Bearer ' . $api_key,
                 'Content-Type'       => 'application/json',
