@@ -1020,15 +1020,16 @@ const EditorialPlannerApp = () => {
 
     const getQueueProgressDetail = (item) => {
         const status = item?.status || 'queued';
-        const elapsed = formatQueueElapsed(item?.updated_at || item?.created_at);
+        if (status === 'queued') {
+            return 'Waiting in queue';
+        }
         if (status === 'dispatched') {
+            const elapsed = formatQueueElapsed(item?.started_at || item?.updated_at || item?.created_at);
             return elapsed ? `Job sent to backend · ${elapsed}` : 'Job sent to backend';
         }
         if (status === 'running') {
+            const elapsed = formatQueueElapsed(item?.started_at || item?.updated_at || item?.created_at);
             return elapsed ? `Backend processing · ${elapsed}` : 'Backend processing';
-        }
-        if (status === 'queued') {
-            return elapsed ? `Waiting in queue · ${elapsed}` : 'Waiting in queue';
         }
         if (status === 'completed') {
             return item?.updated_at ? `Completed at ${item.updated_at}` : 'Completed';
@@ -1036,7 +1037,7 @@ const EditorialPlannerApp = () => {
         if (status === 'failed') {
             return item?.updated_at ? `Failed at ${item.updated_at}` : 'Failed';
         }
-        return elapsed;
+        return '';
     };
 
     const openQueueModal = async () => {
