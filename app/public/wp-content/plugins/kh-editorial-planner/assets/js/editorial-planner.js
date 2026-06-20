@@ -709,10 +709,6 @@ const EditorialPlannerApp = () => {
                 dispatch('core/notices').createNotice('success', successMessage, { type: 'snackbar' });
             }
             await loadPlannerQueue();
-            // Auto-run the newly added queue item immediately
-            if (response?.queue_id) {
-                await runPlannerQueueItem(response.queue_id);
-            }
             return response;
         } catch (error) {
             console.error('Failed to enqueue planner task:', error);
