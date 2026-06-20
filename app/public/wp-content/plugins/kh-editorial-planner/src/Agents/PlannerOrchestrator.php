@@ -1305,17 +1305,22 @@ APA_EXAMPLES;
         $session_meta['articles'] = $articles;
         update_post_meta( $post_id, 'kh_planner_meta', wp_json_encode( $session_meta ) );
 
-        // Execute synchronously
-        $result = $draft_agent->execute( $context, $instructions, (int) get_post_field( 'post_author', $post_id ) );
+        // Execute synchronously — catch ALL errors (WP_Error, Exceptions, fatal errors) to avoid
+        // leaving article.author.status stuck at "running" forever
+        try {
+            $result = $draft_agent->execute( $context, $instructions, (int) get_post_field( 'post_author', $post_id ) );
 
-        if ( is_wp_error( $result ) ) {
+            if ( is_wp_error( $result ) ) {
+                throw new \RuntimeException( $result->get_error_message() );
+            }
+        } catch ( \Throwable $e ) {
             // Update session meta with failure
             $article['author']['status']   = 'failed';
-            $article['author']['error']    = $result->get_error_message();
+            $article['author']['error']    = $e->getMessage();
             $article['author']['completed_at'] = current_time( 'mysql' );
             $session_meta['articles'] = $articles;
             update_post_meta( $post_id, 'kh_planner_meta', wp_json_encode( $session_meta ) );
-            return $result;
+            return new \WP_Error( 'author_generation_failed', $e->getMessage() );
         }
 
         // Store result into article.author.output
