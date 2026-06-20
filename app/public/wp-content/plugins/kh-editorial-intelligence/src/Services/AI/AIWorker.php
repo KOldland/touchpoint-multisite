@@ -267,6 +267,29 @@ class AIWorker {
                         $meta['articles'] = $articles;
                         update_post_meta( $session_id, 'kh_planner_meta', wp_json_encode( $meta ) );
                         error_log( '[PLANNER] Framework result stored for article in session ' . $session_id );
+                        
+                        // Update the queue item status to 'completed' so the queue UI
+                        // reflects that the job is done, rather than staying stuck at 'dispatched'.
+                        $queue = get_post_meta( $session_id, 'kh_planner_queue', true );
+                        if ( is_array( $queue ) ) {
+                            $queue_updated = false;
+                            foreach ( $queue as $q_idx => $q_item ) {
+                                if (
+                                    ( $q_item['task_type'] ?? '' ) === 'framework_generation' &&
+                                    ( $q_item['article_id'] ?? '' ) === $article['id'] &&
+                                    in_array( $q_item['status'] ?? '', [ 'running', 'dispatched' ], true )
+                                ) {
+                                    $queue[ $q_idx ]['status'] = 'completed';
+                                    $queue[ $q_idx ]['completed_at'] = current_time( 'mysql' );
+                                    $queue_updated = true;
+                                    error_log( '[PLANNER] Queue item ' . $q_item['id'] . ' marked completed for article ' . $article['id'] . ' in session ' . $session_id );
+                                    break;
+                                }
+                            }
+                            if ( $queue_updated ) {
+                                update_post_meta( $session_id, 'kh_planner_queue', $queue );
+                            }
+                        }
                     } else {
                         error_log( '[PLANNER] Framework result: article not found in session meta for key ' . $idempotency_key . ' (hash: ' . $article_hash . ')' );
                         // Fallback: try matching by matching any article where framework.status === 'running'
