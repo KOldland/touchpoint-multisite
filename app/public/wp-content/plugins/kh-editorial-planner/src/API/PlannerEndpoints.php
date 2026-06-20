@@ -1667,16 +1667,38 @@ class PlannerEndpoints {
 
     /**
      * POST editorial/v1/planner/run-author
+     *
+     * Enqueues an author generation job for the specified article.
+     * Expects: { id: session_id, article_id: string, author_profile?: string }
      */
     public function run_author( \WP_REST_Request $request ) {
-        $params     = $request->get_json_params();
-        $session_id = (int) ( $params['id'] ?? 0 );
+        $params         = $request->get_json_params();
+        $session_id     = (int) ( $params['id'] ?? 0 );
+        $article_id     = sanitize_text_field( $params['article_id'] ?? '' );
+        $author_profile = sanitize_text_field( $params['author_profile'] ?? '' );
 
         if ( ! $session_id ) {
             return new \WP_Error( 'missing_id', 'Session ID is required.', [ 'status' => 400 ] );
         }
 
-        return rest_ensure_response( [ 'ok' => true, 'session_id' => $session_id, 'status' => 'queued' ] );
+        if ( ! $article_id ) {
+            return new \WP_Error( 'missing_article_id', 'article_id is required.', [ 'status' => 400 ] );
+        }
+
+        $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
+        $result = $orchestrator->run_author_generation( $session_id, $article_id, $author_profile );
+
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        return rest_ensure_response( [
+            'ok'         => true,
+            'session_id' => $session_id,
+            'article_id' => $article_id,
+            'job_id'     => $result['job_id'] ?? '',
+            'status'     => $result['status'] ?? 'queued',
+        ] );
     }
 
     /**

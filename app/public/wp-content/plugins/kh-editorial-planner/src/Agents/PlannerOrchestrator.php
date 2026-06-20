@@ -1172,4 +1172,79 @@ APA_EXAMPLES;
         }
         return is_array( $terms ) ? $terms : [];
     }
+
+    /**
+     * Run Author Generation for a specific article.
+     *
+     * Creates a draft article from the framework output using the author agent
+     * and enqueues the job for background processing.
+     *
+     * @param int    $post_id        Session post ID.
+     * @param string $article_id     Article ID from session meta.
+     * @param string $author_profile Author profile key (e.g. 'balanced', 'authoritative').
+     * @return array|\WP_Error
+     */
+    public function run_author_generation( $post_id, $article_id, $author_profile = '' ) {
+        $post = get_post( $post_id );
+        if ( ! $post || $post->post_type !== 'planner_session' ) {
+            return new \WP_Error( 'invalid_session', 'Invalid planner session.' );
+        }
+
+        if ( ! $author_profile ) {
+            $author_profile = 'balanced';
+        }
+
+        // Load session meta and find the target article
+        $session_meta = json_decode( get_post_meta( $post_id, 'kh_planner_meta', true ), true ) ?: [];
+        $articles     = $session_meta['articles'] ?? [];
+        $article      = null;
+
+        foreach ( $articles as &$a ) {
+            if ( $a['id'] === $article_id ) {
+                $article = &$a;
+                break;
+            }
+        }
+        unset( $a );
+
+        if ( ! $article ) {
+            return new \WP_Error( 'article_not_found', 'Article not found in session meta.' );
+        }
+
+        $title = $article['headline'] ?? $article['title'] ?? '';
+
+        // Collect citations from the article
+        $citations = $article['citations'] ?? [];
+
+        // Merge deep-dive citations
+        $dive_jobs = $article['dive_deeper_jobs'] ?? [];
+        if ( ! empty( $dive_jobs ) ) {
+            $dives = get_post_meta( $post_id, 'kh_planner_dives', true ) ?: [];
+            foreach ( $dive_jobs as $dj ) {
+                $dive_id = $dj['dive_id'] ?? '';
+                if ( $dive_id && isset( $dives[ $dive_id ]['citations'] ) ) {
+                    $citations = array_merge( $citations, $dives[ $dive_id ]['citations'] );
+                }
+            }
+        }
+
+        // Build the author generation prompt
+        $prompt = PromptFactory::get_author_prompt( $title, $citations, $article, $author_profile );
+
+        // Build a unique idempotency key
+        $article_hash    = substr( md5( $article_id . $author_profile . time() ), 0, 12 );
+        $idempotency_key = 'auth-' . $post_id . '-' . $article_hash;
+
+        // Mark the article as author-running so the frontend sees immediate state
+        if ( ! isset( $article['author'] ) ) {
+            $article['author'] = [];
+        }
+        $article['author']['status']  = 'running';
+        $article['author']['job_key'] = $idempotency_key;
+        $article['author']['profile'] = $author_profile;
+        $session_meta['articles'] = $articles;
+        update_post_meta( $post_id, 'kh_planner_meta', wp_json_encode( $session_meta ) );
+
+        return $this->enqueue_job( $post_id, $prompt, 'draft', $idempotency_key, 'phase_complete' );
+    }
 }
