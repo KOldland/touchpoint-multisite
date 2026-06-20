@@ -1358,20 +1358,63 @@ class PlannerEndpoints {
 
     /**
      * POST editorial/v1/planner/queue/remove
+     *
+     * Removes a single queue item from the session's queue array.
+     * Expects { queue_id: string } in the request body.
+     * The session_id is extracted from the queue item's stored data.
      */
     public function queue_remove( \WP_REST_Request $request ) {
         $params   = $request->get_json_params();
         $queue_id = sanitize_text_field( $params['queue_id'] ?? '' );
+        $session_id = (int) ( $params['id'] ?? 0 );
+
+        if ( ! $queue_id ) {
+            return new \WP_Error( 'missing_queue_id', 'queue_id is required.', [ 'status' => 400 ] );
+        }
+
+        if ( $session_id ) {
+            $queue = get_post_meta( $session_id, 'kh_planner_queue', true );
+            if ( is_array( $queue ) ) {
+                $updated = array_values( array_filter( $queue, function( $item ) use ( $queue_id ) {
+                    return ( $item['id'] ?? '' ) !== $queue_id;
+                } ) );
+                update_post_meta( $session_id, 'kh_planner_queue', $updated );
+            }
+        }
 
         return rest_ensure_response( [ 'ok' => true, 'queue_id' => $queue_id ] );
     }
 
     /**
      * POST editorial/v1/planner/queue/stop
+     *
+     * Marks a running queue item as 'stopped' in the session's queue array.
+     * Expects { queue_id: string, reason?: string } in the request body.
      */
     public function queue_stop( \WP_REST_Request $request ) {
         $params   = $request->get_json_params();
         $queue_id = sanitize_text_field( $params['queue_id'] ?? '' );
+        $session_id = (int) ( $params['id'] ?? 0 );
+        $reason   = sanitize_text_field( $params['reason'] ?? 'Stopped by operator.' );
+
+        if ( ! $queue_id ) {
+            return new \WP_Error( 'missing_queue_id', 'queue_id is required.', [ 'status' => 400 ] );
+        }
+
+        if ( $session_id ) {
+            $queue = get_post_meta( $session_id, 'kh_planner_queue', true );
+            if ( is_array( $queue ) ) {
+                foreach ( $queue as $idx => $item ) {
+                    if ( ( $item['id'] ?? '' ) === $queue_id ) {
+                        $queue[ $idx ]['status'] = 'stopped';
+                        $queue[ $idx ]['error_message'] = $reason;
+                        $queue[ $idx ]['completed_at'] = current_time( 'mysql' );
+                        break;
+                    }
+                }
+                update_post_meta( $session_id, 'kh_planner_queue', $queue );
+            }
+        }
 
         return rest_ensure_response( [ 'ok' => true, 'queue_id' => $queue_id, 'stopped' => true ] );
     }

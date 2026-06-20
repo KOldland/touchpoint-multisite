@@ -853,7 +853,7 @@ const EditorialPlannerApp = () => {
             await apiFetch({
                 path: 'editorial/v1/planner/queue/remove',
                 method: 'POST',
-                data: { queue_id: queueId },
+                data: { id: sessionDetail.id, queue_id: queueId },
             });
             setSelectedQueueItems((prev) => prev.filter((id) => id !== queueId));
             await loadPlannerQueue();
@@ -878,6 +878,7 @@ const EditorialPlannerApp = () => {
                 path: 'editorial/v1/planner/queue/stop',
                 method: 'POST',
                 data: {
+                    id: sessionDetail.id,
                     queue_id: queueId,
                     reason: 'Stopped by operator (manual cancel).',
                 },
