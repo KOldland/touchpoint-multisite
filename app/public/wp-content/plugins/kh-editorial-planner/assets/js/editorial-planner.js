@@ -66,6 +66,12 @@ const AUTHOR_PROFILE_OPTIONS = [
     { label: 'Executive', value: 'executive' },
 ];
 
+const WORD_LENGTH_OPTIONS = [
+    { label: 'Standard', value: 'standard' },
+    { label: 'Short', value: 'short' },
+    { label: 'Long', value: 'long' },
+];
+
 const MIN_CITATIONS_REQUIRED = 4;
 const IDEAL_CITATIONS_TARGET = 6;
 const LOW_CITATION_QUEUE_BATCH_SIZE = 6;
@@ -129,6 +135,7 @@ const EditorialPlannerApp = () => {
     const [deletingSessionId, setDeletingSessionId] = useState('');
     const [authorPreview, setAuthorPreview] = useState(null);
     const [authorProfileSelection, setAuthorProfileSelection] = useState({});
+    const [wordLengthSelection, setWordLengthSelection] = useState({});
     const [authorProgress, setAuthorProgress] = useState({});
     const [authorLoading, setAuthorLoading] = useState({});
     const authorStatusRef = useRef({});
@@ -1367,6 +1374,12 @@ const EditorialPlannerApp = () => {
     const getAuthorProfileLabel = (value) =>
         AUTHOR_PROFILE_OPTIONS.find((item) => item.value === value)?.label || 'Balanced';
 
+    const getSelectedWordLength = (article) =>
+        wordLengthSelection?.[article?.id] || 'standard';
+
+    const getWordLengthLabel = (value) =>
+        WORD_LENGTH_OPTIONS.find((item) => item.value === value)?.label || 'Standard';
+
     const getScoringBadgeColor = (qualityLevel) => {
         if (!qualityLevel) return '#f0f0f1';
         const level = qualityLevel.toLowerCase();
@@ -2165,6 +2178,7 @@ const EditorialPlannerApp = () => {
         }
 
         const selectedProfile = getSelectedAuthorProfile(article);
+        const selectedWordLength = getSelectedWordLength(article);
 
         try {
             setAuthorLoading((prev) => ({ ...prev, [article.id]: true }));
@@ -2172,6 +2186,7 @@ const EditorialPlannerApp = () => {
                 sessionId: sessionDetail.id,
                 articleId: article.id,
                 authorProfile: selectedProfile,
+                wordCountRange: selectedWordLength,
             });
             const data = await apiFetch({
                 path: 'editorial/v1/planner/run-author',
@@ -2180,6 +2195,7 @@ const EditorialPlannerApp = () => {
                     id: sessionDetail.id,
                     article_id: article.id,
                     author_profile: selectedProfile,
+                    word_count_range: selectedWordLength,
                 },
             });
             console.log('[Planner] Author job queued', data);
@@ -3981,19 +3997,38 @@ const EditorialPlannerApp = () => {
                             'td',
                             null,
                             wp.element.createElement(
-                                SelectControl,
-                                {
-                                    label: 'Author profile',
-                                    value: selectedProfile,
-                                    options: AUTHOR_PROFILE_OPTIONS,
-                                    onChange: (value) => {
-                                        setAuthorProfileSelection((prev) => ({
-                                            ...prev,
-                                            [article.id]: value,
-                                        }));
-                                    },
-                                    help: `Recommended: ${getAuthorProfileLabel(recommendedProfile)}`,
-                                }
+                                'div',
+                                { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' } },
+                                wp.element.createElement(
+                                    SelectControl,
+                                    {
+                                        label: 'Author profile',
+                                        value: selectedProfile,
+                                        options: AUTHOR_PROFILE_OPTIONS,
+                                        onChange: (value) => {
+                                            setAuthorProfileSelection((prev) => ({
+                                                ...prev,
+                                                [article.id]: value,
+                                            }));
+                                        },
+                                        help: `Recommended: ${getAuthorProfileLabel(recommendedProfile)}`,
+                                    }
+                                ),
+                                wp.element.createElement(
+                                    SelectControl,
+                                    {
+                                        label: 'Word length',
+                                        value: getSelectedWordLength(article),
+                                        options: WORD_LENGTH_OPTIONS,
+                                        onChange: (value) => {
+                                            setWordLengthSelection((prev) => ({
+                                                ...prev,
+                                                [article.id]: value,
+                                            }));
+                                        },
+                                        help: 'Short=~800, Standard=~1500, Long=~2500 words',
+                                    }
+                                )
                             ),
                             opinionPieceWritten &&
                                 wp.element.createElement(
