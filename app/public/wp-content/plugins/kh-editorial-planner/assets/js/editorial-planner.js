@@ -709,6 +709,10 @@ const EditorialPlannerApp = () => {
                 dispatch('core/notices').createNotice('success', successMessage, { type: 'snackbar' });
             }
             await loadPlannerQueue();
+            // Auto-run the newly added queue item immediately
+            if (response?.queue_id) {
+                await runPlannerQueueItem(response.queue_id);
+            }
             return response;
         } catch (error) {
             console.error('Failed to enqueue planner task:', error);
@@ -734,6 +738,7 @@ const EditorialPlannerApp = () => {
                 path: 'editorial/v1/planner/queue/run',
                 method: 'POST',
                 data: {
+                    id: sessionDetail.id,
                     queue_id: queueId,
                     ...(retryFailed ? { retry_failed: true } : {}),
                     ...(retryFailed && retryPayload && Object.keys(retryPayload).length
@@ -954,7 +959,7 @@ const EditorialPlannerApp = () => {
             await apiFetch({
                 path: 'editorial/v1/planner/queue/run',
                 method: 'POST',
-                data: { queue_id: newQueueId },
+                data: { id: sessionDetail.id, queue_id: newQueueId },
             });
 
             dispatch('core/notices').createNotice('success', `${taskTypeLabel(item.task_type)} re-run started.`, {

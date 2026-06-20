@@ -14,30 +14,20 @@ class PlannerEndpoints {
     private $categories_store;
 
     public function init() {
-        add_action( 'rest_api_init', [ $this, 'register_routes' ] );
+        add_action( 'rest_api_init', [ $this, 'register_routes' ], 99 );
         // Seed categories on init if empty
         add_action( 'init', [ $this, 'seed_categories_if_empty' ], 20 );
-        // Migrate legacy dual_gpt option to new key
-        add_action( 'init', [ $this, 'migrate_legacy_option' ], 5 );
         // Wire the filter so the legacy stub endpoint returns real data
         add_filter( 'kh_editorial_planner_top_line_categories', [ $this, 'get_categories_for_filter' ] );
+        // Flush rewrite rules on admin init to ensure new REST routes are picked up
+        add_action( 'admin_init', [ $this, 'maybe_flush_on_admin' ] );
     }
 
-    /**
-     * Migrate legacy dual_gpt_top_line_categories option to new key.
-     * Runs once on init, then removes itself.
-     */
-    public function migrate_legacy_option() {
-        $legacy_key = 'dual_gpt_top_line_categories';
-        $new_key    = 'kh_planner_top_line_categories';
-
-        $legacy = get_option( $legacy_key, false );
-        if ( $legacy !== false && ! empty( $legacy ) ) {
-            $current = get_option( $new_key, [] );
-            if ( empty( $current ) ) {
-                update_option( $new_key, $legacy, false );
-            }
-            delete_option( $legacy_key );
+    public function maybe_flush_on_admin() {
+        $flushed = get_option( 'kh_planner_routes_flushed_v3', false );
+        if ( ! $flushed ) {
+            flush_rewrite_rules( true );
+            update_option( 'kh_planner_routes_flushed_v3', true );
         }
     }
 
@@ -81,19 +71,177 @@ class PlannerEndpoints {
             'permission_callback' => [ $this, 'check_permission' ]
         ] );
 
-        // New DELETE route
         register_rest_route( 'editorial/v1', '/sessions/(?P<id>\d+)', [
             'methods'             => 'DELETE',
             'callback'            => [ $this, 'delete_session' ],
             'permission_callback' => [ $this, 'check_permission' ],
         ] );
 
-        // GET presets endpoint (Step 5)
-        register_rest_route("editorial/v1", "/presets", [
-            "methods" => "GET",
-            "callback" => [$this, "get_presets"],
-            "permission_callback" => [$this, "check_permission"],
-        ]);
+        // ─── Phase API Endpoints ──────────────────────────────────────
+        register_rest_route( 'editorial/v1', '/planner/phase1', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'run_phase1' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/phase2', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'run_phase3' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/phase2-qualification', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'run_phase2' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/phase4', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'run_phase4' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        // ─── Queue Endpoints ─────────────────────────────────────────────
+
+        register_rest_route( 'editorial/v1', '/planner/queue', [
+            'methods'             => 'GET',
+            'callback'            => [ $this, 'get_planner_queue' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/queue/add', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'queue_add' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/queue/run', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'queue_run' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/queue/run-bulk', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'queue_run_bulk' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/queue/reorder', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'queue_reorder' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/queue/remove', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'queue_remove' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/queue/stop', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'queue_stop' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/queue/remove-all', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'queue_remove_all' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/queue/clear', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'queue_clear' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        // ─── Research / Policy / Author Endpoints ─────────────────────────
+
+        register_rest_route( 'editorial/v1', '/planner/research-validation', [
+            'methods'             => 'GET',
+            'callback'            => [ $this, 'get_research_validation' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/author-policy', [
+            'methods'             => 'GET',
+            'callback'            => [ $this, 'get_author_policy' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/author-policy', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'save_author_policy' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/policy', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'save_policy' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/run-framework', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'run_framework' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/synopsis-plan', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'synopsis_plan' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/synopses', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'run_synopses' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/export', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'planner_export' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/export-synopses', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'export_synopses' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/export-framework', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'export_framework' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/run-author', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'run_author' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/article-action', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'article_action' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        // POST editorial/v1/planner/dispatch-job — async job dispatch
+        // Called via wp_remote_post(blocking=false) for jobs that take too long
+        // to run synchronously (e.g. dive_deeper on free model deepseek/deepseek-v4-flash
+        // which can take 60-120s). Permission is public because this is an internal
+        // fire-and-forget call that passes the job_id (a UUID) as proof of intent.
+        register_rest_route( 'editorial/v1', '/planner/dispatch-job', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'dispatch_job' ],
+            'permission_callback' => '__return_true',
+        ] );
 
         // Export endpoints
         register_rest_route( 'editorial/v1', '/sessions/(?P<id>\d+)/export/(?P<format>[a-z]+)', [
@@ -226,7 +374,7 @@ class PlannerEndpoints {
     }
 
     /**
-     * Seed categories from legacy backup on init if store is empty.
+     * Seed categories from SiteAudienceProfile on init if store is empty.
      */
     public function seed_categories_if_empty() {
         $this->get_store()->seed_if_empty();
@@ -325,22 +473,19 @@ class PlannerEndpoints {
         $posts = get_posts( $args );
         
         $out = array_map( function( $p ) {
-            $meta = [
-                'role'       => get_post_meta( $p->ID, 'kh_planner_role', true ) ?: 'research',
-                'preset_id'  => get_post_meta( $p->ID, 'kh_planner_preset_id', true ) ?: 'research-default',
-                'status'     => get_post_meta( $p->ID, 'kh_planner_status', true ) ?: 'draft',
-                'created_by' => (int) get_post_meta( $p->ID, 'created_by', true ) ?: (int) $p->post_author,
-            ];
+            $meta_json = get_post_meta( $p->ID, 'kh_planner_meta', true );
+            $meta      = $meta_json ? json_decode( $meta_json, true ) : [];
+            $articles  = $meta['articles'] ?? [];
+
             return [
-                'id'         => (string) $p->ID,
-                'session_id' => (string) $p->ID,
-                'title'      => $p->post_title,
-                'role'       => $meta['role'],
-                'preset_id'  => $meta['preset_id'],
-                'created_at' => $p->post_date,
-                'updated_at' => $p->post_modified,
-                'status'     => $meta['status'],
-                'meta'       => $meta,
+                'id'            => (string) $p->ID,
+                'session_id'    => (string) $p->ID,
+                'title'         => $p->post_title,
+                'created_at'    => $p->post_date,
+                'updated_at'    => $p->post_modified,
+                'status'        => get_post_meta( $p->ID, 'kh_planner_status', true ) ?: 'draft',
+                'pillar'        => get_post_meta( $p->ID, 'kh_planner_pillar', true ) ?: '',
+                'article_count' => is_array( $articles ) ? count( $articles ) : 0,
             ];
         }, $posts );
 
@@ -350,8 +495,6 @@ class PlannerEndpoints {
     public function create_session( $request ) {
         $params = $request->get_json_params();
         $title  = isset( $params['title'] ) ? sanitize_text_field( $params['title'] ) : '';
-        $role   = isset( $params['role'] ) ? sanitize_text_field( $params['role'] ) : 'research';
-        $preset_id = isset( $params['preset_id'] ) ? sanitize_text_field( $params['preset_id'] ) : null;
         $meta_input = isset( $params['meta'] ) && is_array( $params['meta'] ) ? $params['meta'] : [];
 
         if ( empty( $title ) ) {
@@ -372,10 +515,6 @@ class PlannerEndpoints {
 
         update_post_meta( $post_id, 'kh_planner_status', 'draft' );
         update_post_meta( $post_id, 'created_by', get_current_user_id() );
-        update_post_meta( $post_id, 'kh_planner_role', $role );
-        if ( $preset_id ) {
-            update_post_meta( $post_id, 'kh_planner_preset_id', $preset_id );
-        }
         if ( ! empty( $meta_input ) ) {
             update_post_meta( $post_id, 'kh_planner_meta', wp_json_encode( $meta_input ) );
         }
@@ -417,8 +556,6 @@ class PlannerEndpoints {
         return rest_ensure_response( [
             'session_id'    => (string) $post_id,
             'id'            => (string) $post_id,
-            'role'          => $role,
-            'preset_id'     => $preset_id,
             'audience_slug' => $resolved_audience_slug,
             'pillar'        => $resolved_pillar,
             'pillar_slug'   => $resolved_pillar_slug,
@@ -449,11 +586,6 @@ class PlannerEndpoints {
         return rest_ensure_response( [] );
     }
 
-    public function get_presets() {
-        $presets = apply_filters( 'kh_editorial_planner_presets', [] );
-        return rest_ensure_response( $presets );
-    }
-
     public function create_job( $request ) {
         $params = $request->get_json_params();
         return rest_ensure_response( [
@@ -471,6 +603,62 @@ class PlannerEndpoints {
             return $result;
         }
 
+        return rest_ensure_response( $result );
+    }
+
+    public function run_phase1( $request ) {
+        $params = $request->get_json_params();
+        $id = $params['id'] ?? 0;
+        if ( ! $id ) {
+            return new \WP_Error( 'missing_id', 'Session ID is required.', [ 'status' => 400 ] );
+        }
+        $orchestrator = new PlannerOrchestrator();
+        $result = $orchestrator->run( $id );
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+        return rest_ensure_response( $result );
+    }
+
+    public function run_phase2( $request ) {
+        $params = $request->get_json_params();
+        $id = $params['id'] ?? 0;
+        if ( ! $id ) {
+            return new \WP_Error( 'missing_id', 'Session ID is required.', [ 'status' => 400 ] );
+        }
+        $orchestrator = new PlannerOrchestrator();
+        $result = $orchestrator->run_phase2( $id );
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+        return rest_ensure_response( $result );
+    }
+
+    public function run_phase3( $request ) {
+        $params = $request->get_json_params();
+        $id = $params['id'] ?? 0;
+        if ( ! $id ) {
+            return new \WP_Error( 'missing_id', 'Session ID is required.', [ 'status' => 400 ] );
+        }
+        $orchestrator = new PlannerOrchestrator();
+        $result = $orchestrator->run_phase3( $id );
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+        return rest_ensure_response( $result );
+    }
+
+    public function run_phase4( $request ) {
+        $params = $request->get_json_params();
+        $id = $params['id'] ?? 0;
+        if ( ! $id ) {
+            return new \WP_Error( 'missing_id', 'Session ID is required.', [ 'status' => 400 ] );
+        }
+        $orchestrator = new PlannerOrchestrator();
+        $result = $orchestrator->run_phase4( $id );
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
         return rest_ensure_response( $result );
     }
 
@@ -509,24 +697,115 @@ class PlannerEndpoints {
     }
 
     public function get_session_detail( $request ) {
-        $id = $request['id'];
+        $id   = $request['id'];
         $post = get_post( $id );
 
         if ( ! $post || $post->post_type !== 'planner_session' ) {
             return new \WP_Error( 'not_found', 'Session not found', [ 'status' => 404 ] );
         }
 
+        $status   = get_post_meta( $id, 'kh_planner_status', true ) ?: 'draft';
+        $phase1   = get_post_meta( $id, 'kh_planner_phase1_result', true ) ?: null;
+        $phase2   = get_post_meta( $id, 'kh_planner_phase2_result', true ) ?: null;
+        $phase3   = get_post_meta( $id, 'kh_planner_phase3_result', true ) ?: null;
+        $phase4   = get_post_meta( $id, 'kh_planner_phase4_result', true ) ?: null;
+        $synopses = get_post_meta( $id, 'kh_planner_final_synopses', true ) ?: null;
+
+        // Derive per-phase status — 'completed' when a result exists, 'running' when
+        // the overall session status indicates that phase is executing, else 'pending'.
+        $phases = [
+            'phase1' => [
+                'status'  => $phase1 ? 'completed' : ( $status === 'phase1_running' ? 'running' : 'pending' ),
+                'payload' => $phase1,
+            ],
+            'phase2' => [
+                'status'  => $phase2 ? 'completed' : ( $status === 'phase2_running' ? 'running' : 'pending' ),
+                'payload' => $phase2,
+            ],
+            'phase3' => [
+                'status'  => $phase3 ? 'completed' : ( $status === 'phase3_running' ? 'running' : 'pending' ),
+                'payload' => $phase3,
+            ],
+            'phase4' => [
+                'status'  => $phase4 ? 'completed' : ( $status === 'phase4_running' ? 'running' : 'pending' ),
+                'payload' => $phase4,
+            ],
+        ];
+
+        // Load the existing kh_planner_meta JSON blob (may contain articles, research_policy, etc.)
+        $meta_json = get_post_meta( $id, 'kh_planner_meta', true );
+        $meta_base = ( $meta_json ? json_decode( $meta_json, true ) : null ) ?: [];
+
+        // Load dive deeper research results
+        $dives = get_post_meta( $id, 'kh_planner_dives', true ) ?: [];
+
+        // Merge phases and flat phase aliases so JS can read either
+        // sessionDetail.meta.phases.phase1.status  OR  sessionDetail.meta.phase1.trends
+        $meta = array_merge( $meta_base, [
+            'phases' => $phases,
+            // Flat aliases for legacy JS access paths (e.g. meta?.phase1?.candidate_keywords)
+            'phase1' => $phase1,
+            'phase2' => $phase2,
+            'phase3' => $phase3,
+            'phase4' => $phase4,
+            'dives'  => $dives,
+        ] );
+
+        // Convert synopses to meta.articles entries so the JS renderArticlesTable can display them
+        if ( $synopses && is_array( $synopses['synopses'] ?? null ) ) {
+            $existing_articles = $meta['articles'] ?? [];
+            $existing_ids      = wp_list_pluck( $existing_articles, 'id' );
+            $articles          = $existing_articles;
+
+            foreach ( $synopses['synopses'] as $i => $s ) {
+                $slug = sanitize_title( $s['headline'] ?? ( 'synopsis-' . $i ) );
+                if ( in_array( $slug, $existing_ids, true ) ) {
+                    continue; // already exists
+                }
+                $articles[] = [
+                    'id'             => $slug,
+                    'headline'       => $s['headline'] ?? '',
+                    'summary'        => $s['summary'] ?? '',
+                    'key_points'     => $s['key_points'] ?? [],
+                    'keywords'       => $s['keywords'] ?? ( $s['target_keywords'] ?? [] ),
+                    'priority_score' => $s['priority_score'] ?? 0.0,
+                    'citations'      => $s['citations'] ?? [],
+                    'synopsis'       => $s,
+                ];
+            }
+
+            $meta['articles'] = $articles;
+        }
+
+        // Enrich articles with live dive_deeper job status from AI job table
+        $meta = $this->enrich_articles_with_dive_status( $meta );
+
+        // Fallback: if articles have dive_deeper_jobs from the AI job table,
+        // also merge in any dive results stored directly in kh_planner_dives
+        // that match the article headline. This catches runs where the job
+        // reference wasn't linked (e.g. before the synopsis→article fix).
+        if ( ! empty( $dives ) && ! empty( $meta['articles'] ) ) {
+            $meta = $this->merge_stored_dives_into_articles( $meta, $dives );
+        }
+
+        // Enrich articles with completed framework results from the AI job table.
+        // This catches runs where the fw- idempotency key handler wasn't present
+        // (e.g. before the AIWorker fix was deployed).
+        $meta = $this->enrich_articles_with_framework_results( $meta, $id );
+
         return rest_ensure_response( [
-            'id'      => $post->ID,
-            'title'   => $post->post_title,
-            'status'  => get_post_meta( $id, 'kh_planner_status', true ) ?: 'draft',
+            'id'     => $post->ID,
+            'title'  => $post->post_title,
+            'status' => $status,
+            'meta'   => $meta,
+            // Keep 'results' for backward compatibility
             'results' => [
-                'phase1' => get_post_meta( $id, 'kh_planner_phase1_result', true ),
-                'phase2' => get_post_meta( $id, 'kh_planner_phase2_result', true ),
-                'phase3' => get_post_meta( $id, 'kh_planner_phase3_result', true ),
-                'phase4' => get_post_meta( $id, 'kh_planner_phase4_result', true ),
-                'synopses' => get_post_meta( $id, 'kh_planner_final_synopses', true ),
-            ]
+                'phase1'   => $phase1,
+                'phase2'   => $phase2,
+                'phase3'   => $phase3,
+                'phase4'   => $phase4,
+                'synopses' => $synopses,
+            ],
         ] );
     }
 
@@ -794,7 +1073,6 @@ class PlannerEndpoints {
         // Set standard session meta
         update_post_meta( $post_id, 'kh_planner_status', 'draft' );
         update_post_meta( $post_id, 'created_by', get_current_user_id() );
-        update_post_meta( $post_id, 'kh_planner_role', 'research' );
 
         // Set pillar and audience context
         if ( $pillar ) {
@@ -825,5 +1103,957 @@ class PlannerEndpoints {
             'status'       => 'draft',
             'message'      => 'New planner session created targeting this content gap.',
         ] );
+    }
+
+    // ─── Queue Callbacks ─────────────────────────────────────────────────
+
+    /**
+     * GET editorial/v1/planner/queue
+     * Returns current queue counts and active items for this session.
+     */
+    public function get_planner_queue( \WP_REST_Request $request ) {
+        $session_id = $request->get_param( 'id' ) ?: 0;
+        $items = [];
+
+        if ( $session_id ) {
+            $raw = get_post_meta( (int) $session_id, 'kh_planner_queue', true );
+            if ( is_array( $raw ) ) {
+                $items = $raw;
+            }
+        }
+
+        $counts = [ 'queued' => 0, 'running' => 0, 'completed' => 0, 'failed' => 0 ];
+        foreach ( $items as $item ) {
+            $status = $item['status'] ?? 'queued';
+            if ( isset( $counts[ $status ] ) ) {
+                $counts[ $status ]++;
+            }
+        }
+
+        return rest_ensure_response( [
+            'counts'       => $counts,
+            'active_items' => $items,
+        ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/queue/add
+     */
+    public function queue_add( \WP_REST_Request $request ) {
+        $params    = $request->get_json_params();
+        $session_id = (int) ( $params['id'] ?? 0 );
+        $task_type  = sanitize_text_field( $params['task_type'] ?? '' );
+        $article_id = sanitize_text_field( $params['article_id'] ?? '' );
+
+        if ( ! $session_id || ! $task_type ) {
+            return new \WP_Error( 'missing_params', 'id and task_type are required.', [ 'status' => 400 ] );
+        }
+
+        $queue_id = uniqid( 'q_', true );
+        $item = [
+            'id'         => $queue_id,
+            'task_type'  => $task_type,
+            'article_id' => $article_id,
+            'status'     => 'queued',
+            'created_at' => current_time( 'mysql' ),
+        ];
+        if ( ! empty( $params['payload'] ) ) {
+            $item['payload'] = $params['payload'];
+        }
+
+        $queue = get_post_meta( $session_id, 'kh_planner_queue', true );
+        if ( ! is_array( $queue ) ) {
+            $queue = [];
+        }
+        $queue[] = $item;
+        update_post_meta( $session_id, 'kh_planner_queue', $queue );
+
+        return rest_ensure_response( [ 'ok' => true, 'queue_id' => $queue_id, 'item' => $item ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/queue/run
+     * 
+     * Processes a single queue item. For framework_generation tasks,
+     * delegates to PlannerOrchestrator::run_framework_generation().
+     */
+    public function queue_run( \WP_REST_Request $request ) {
+        $params   = $request->get_json_params();
+        $queue_id = sanitize_text_field( $params['queue_id'] ?? '' );
+        $session_id = (int) ( $params['id'] ?? 0 );
+
+        if ( ! $queue_id ) {
+            return new \WP_Error( 'missing_queue_id', 'queue_id is required.', [ 'status' => 400 ] );
+        }
+
+        // Locate the queue item in session meta
+        $queue = get_post_meta( $session_id, 'kh_planner_queue', true );
+        if ( ! is_array( $queue ) ) {
+            return new \WP_Error( 'queue_empty', 'No queue items found.', [ 'status' => 404 ] );
+        }
+
+        $item = null;
+        $item_idx = null;
+        foreach ( $queue as $idx => $qi ) {
+            if ( ( $qi['id'] ?? '' ) === $queue_id ) {
+                $item = $qi;
+                $item_idx = $idx;
+                break;
+            }
+        }
+        if ( ! $item ) {
+            return new \WP_Error( 'queue_item_not_found', 'Queue item not found.', [ 'status' => 404 ] );
+        }
+
+        // Mark as running
+        $queue[ $item_idx ]['status'] = 'running';
+        $queue[ $item_idx ]['started_at'] = current_time( 'mysql' );
+        update_post_meta( $session_id, 'kh_planner_queue', $queue );
+
+        $task_type  = $item['task_type'] ?? '';
+        $article_id = $item['article_id'] ?? '';
+
+        if ( $task_type === 'framework_generation' && $article_id && $session_id ) {
+            $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
+            $result = $orchestrator->run_framework_generation( $session_id, $article_id );
+
+            if ( is_wp_error( $result ) ) {
+                $queue[ $item_idx ]['status'] = 'failed';
+                $queue[ $item_idx ]['error_message'] = $result->get_error_message();
+                $queue[ $item_idx ]['completed_at'] = current_time( 'mysql' );
+                update_post_meta( $session_id, 'kh_planner_queue', $queue );
+                return $result;
+            }
+
+            $queue[ $item_idx ]['status'] = 'dispatched';
+            $queue[ $item_idx ]['job_id'] = $result['job_id'];
+            $queue[ $item_idx ]['completed_at'] = current_time( 'mysql' );
+            update_post_meta( $session_id, 'kh_planner_queue', $queue );
+
+            return rest_ensure_response( [
+                'ok'      => true,
+                'job_id'  => $result['job_id'],
+                'queue_id' => $queue_id,
+                'status'  => 'dispatched',
+            ] );
+        }
+
+        // For other task types, return simple acknowledgment
+        $job_id = uniqid( 'job_', true );
+        return rest_ensure_response( [ 'ok' => true, 'job_id' => $job_id, 'queue_id' => $queue_id ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/queue/run-bulk
+     * 
+     * Processes multiple queue items. For each queued framework_generation item,
+     * delegates to PlannerOrchestrator::run_framework_generation(). Unlike the
+     * single queue/run endpoint, this processes items synchronously in the current
+     * request (each framework job is dispatched to the AI worker, not run inline).
+     */
+    public function queue_run_bulk( \WP_REST_Request $request ) {
+        $params     = $request->get_json_params();
+        $queue_ids  = $params['queue_ids'] ?? [];
+        $run_all    = ! empty( $params['run_all_queued'] );
+        $session_id = (int) ( $params['id'] ?? 0 );
+
+        if ( ! $session_id ) {
+            return new \WP_Error( 'missing_session', 'Session id is required.', [ 'status' => 400 ] );
+        }
+
+        $queue = get_post_meta( $session_id, 'kh_planner_queue', true );
+        if ( ! is_array( $queue ) ) {
+            return rest_ensure_response( [ 'ok' => true, 'started' => 0, 'failed' => 0 ] );
+        }
+
+        if ( $run_all ) {
+            $queue_ids = array_values( array_map( function( $item ) {
+                return $item['id'] ?? '';
+            }, array_filter( $queue, function( $item ) {
+                return ( $item['status'] ?? '' ) === 'queued';
+            } ) ) );
+        }
+
+        $started = 0;
+        $failed  = 0;
+
+        foreach ( $queue as $idx => $qi ) {
+            $qid = $qi['id'] ?? '';
+            if ( ! in_array( $qid, $queue_ids, true ) ) {
+                continue;
+            }
+            if ( ( $qi['status'] ?? '' ) !== 'queued' ) {
+                continue;
+            }
+
+            $task_type = $qi['task_type'] ?? '';
+            $article_id = $qi['article_id'] ?? '';
+
+            // Mark as running
+            $queue[ $idx ]['status'] = 'running';
+            $queue[ $idx ]['started_at'] = current_time( 'mysql' );
+            update_post_meta( $session_id, 'kh_planner_queue', $queue );
+
+            $started++;
+
+            if ( $task_type === 'framework_generation' && $article_id ) {
+                $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
+                $result = $orchestrator->run_framework_generation( $session_id, $article_id );
+
+                if ( is_wp_error( $result ) ) {
+                    $queue[ $idx ]['status'] = 'failed';
+                    $queue[ $idx ]['error_message'] = $result->get_error_message();
+                    $queue[ $idx ]['completed_at'] = current_time( 'mysql' );
+                    $failed++;
+                } else {
+                    $queue[ $idx ]['status'] = 'dispatched';
+                    $queue[ $idx ]['job_id'] = $result['job_id'] ?? '';
+                    $queue[ $idx ]['completed_at'] = current_time( 'mysql' );
+                }
+                update_post_meta( $session_id, 'kh_planner_queue', $queue );
+            }
+        }
+
+        return rest_ensure_response( [
+            'ok'      => true,
+            'started' => $started,
+            'failed'  => $failed,
+        ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/queue/reorder
+     */
+    public function queue_reorder( \WP_REST_Request $request ) {
+        $params      = $request->get_json_params();
+        $session_id  = (int) ( $params['id'] ?? 0 );
+        $ordered_ids = $params['ordered_ids'] ?? [];
+
+        if ( $session_id && is_array( $ordered_ids ) ) {
+            $queue = get_post_meta( $session_id, 'kh_planner_queue', true );
+            if ( is_array( $queue ) ) {
+                $indexed = [];
+                foreach ( $queue as $item ) {
+                    $indexed[ $item['id'] ] = $item;
+                }
+                $reordered = [];
+                foreach ( $ordered_ids as $qid ) {
+                    if ( isset( $indexed[ $qid ] ) ) {
+                        $reordered[] = $indexed[ $qid ];
+                    }
+                }
+                update_post_meta( $session_id, 'kh_planner_queue', $reordered );
+            }
+        }
+
+        return rest_ensure_response( [ 'ok' => true ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/queue/remove
+     */
+    public function queue_remove( \WP_REST_Request $request ) {
+        $params   = $request->get_json_params();
+        $queue_id = sanitize_text_field( $params['queue_id'] ?? '' );
+
+        return rest_ensure_response( [ 'ok' => true, 'queue_id' => $queue_id ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/queue/stop
+     */
+    public function queue_stop( \WP_REST_Request $request ) {
+        $params   = $request->get_json_params();
+        $queue_id = sanitize_text_field( $params['queue_id'] ?? '' );
+
+        return rest_ensure_response( [ 'ok' => true, 'queue_id' => $queue_id, 'stopped' => true ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/queue/remove-all
+     */
+    public function queue_remove_all( \WP_REST_Request $request ) {
+        $params     = $request->get_json_params();
+        $session_id = (int) ( $params['id'] ?? 0 );
+
+        if ( $session_id ) {
+            delete_post_meta( $session_id, 'kh_planner_queue' );
+        }
+
+        return rest_ensure_response( [ 'ok' => true ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/queue/clear
+     */
+    public function queue_clear( \WP_REST_Request $request ) {
+        $params     = $request->get_json_params();
+        $session_id = (int) ( $params['id'] ?? 0 );
+
+        if ( $session_id ) {
+            $queue = get_post_meta( $session_id, 'kh_planner_queue', true );
+            if ( is_array( $queue ) ) {
+                $active = array_filter( $queue, function( $item ) {
+                    return in_array( $item['status'] ?? '', [ 'running', 'dispatched' ], true );
+                } );
+                update_post_meta( $session_id, 'kh_planner_queue', array_values( $active ) );
+            }
+        }
+
+        return rest_ensure_response( [ 'ok' => true ] );
+    }
+
+    // ─── Research / Policy / Author Callbacks ────────────────────────────
+
+    /**
+     * GET editorial/v1/planner/research-validation
+     */
+    public function get_research_validation( \WP_REST_Request $request ) {
+        $session_id = (int) ( $request->get_param( 'id' ) ?: 0 );
+
+        $research_policy    = $session_id ? get_post_meta( $session_id, 'kh_planner_research_policy', true ) : null;
+        $research_validation = $session_id ? get_post_meta( $session_id, 'kh_planner_research_validation', true ) : null;
+
+        return rest_ensure_response( [
+            'research_policy'       => $research_policy ?: null,
+            'research_validation'   => $research_validation ?: null,
+            'search_provider_status'=> null,
+        ] );
+    }
+
+    /**
+     * GET editorial/v1/planner/author-policy
+     */
+    public function get_author_policy( \WP_REST_Request $request ) {
+        $session_id   = (int) ( $request->get_param( 'id' ) ?: 0 );
+        $author_policy = $session_id ? get_post_meta( $session_id, 'kh_planner_author_policy', true ) : null;
+
+        return rest_ensure_response( [
+            'author_policy' => $author_policy ?: null,
+        ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/author-policy
+     */
+    public function save_author_policy( \WP_REST_Request $request ) {
+        $params     = $request->get_json_params();
+        $session_id = (int) ( $params['id'] ?? 0 );
+
+        if ( $session_id && ! empty( $params['author_policy'] ) ) {
+            update_post_meta( $session_id, 'kh_planner_author_policy', $params['author_policy'] );
+        }
+
+        return rest_ensure_response( [ 'ok' => true ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/policy
+     */
+    public function save_policy( \WP_REST_Request $request ) {
+        $params     = $request->get_json_params();
+        $session_id = (int) ( $params['id'] ?? 0 );
+
+        if ( $session_id && ! empty( $params['policy'] ) ) {
+            update_post_meta( $session_id, 'kh_planner_research_policy', $params['policy'] );
+        }
+
+        return rest_ensure_response( [ 'ok' => true ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/run-framework
+     * 
+     * Generates an editorial framework for a specific article using
+     * web search + LLM synthesis. Uses the connection-close pattern
+     * (like dive_deeper) for synchronous background processing.
+     */
+    public function run_framework( \WP_REST_Request $request ) {
+        $params     = $request->get_json_params();
+        $session_id = (int) ( $params['id'] ?? 0 );
+        $article_id = sanitize_text_field( $params['article_id'] ?? '' );
+
+        if ( ! $session_id ) {
+            return new \WP_Error( 'missing_id', 'Session ID is required.', [ 'status' => 400 ] );
+        }
+        if ( ! $article_id ) {
+            return new \WP_Error( 'missing_article_id', 'article_id is required.', [ 'status' => 400 ] );
+        }
+
+        $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
+        $result = $orchestrator->run_framework_generation( $session_id, $article_id, true );
+
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        $job_id = $result['job_id'] ?? '';
+
+        if ( empty( $job_id ) ) {
+            return rest_ensure_response( [
+                'ok'         => true,
+                'session_id' => $session_id,
+                'article_id' => $article_id,
+                'job_id'     => '',
+                'status'     => 'skipped',
+            ] );
+        }
+
+        $response_data = [
+            'ok'         => true,
+            'session_id' => $session_id,
+            'article_id' => $article_id,
+            'job_id'     => $job_id,
+            'status'     => 'queued',
+        ];
+        $response_json = wp_json_encode( $response_data );
+
+        // ─── Early Response: Close HTTP connection ──────────────
+        ignore_user_abort( true );
+        set_time_limit( 300 );
+
+        while ( ob_get_level() > 0 ) {
+            ob_end_clean();
+        }
+
+        header( 'Content-Type: application/json; charset=UTF-8' );
+        header( 'Content-Length: ' . strlen( $response_json ) );
+        header( 'Connection: close' );
+
+        echo $response_json;
+
+        if ( function_exists( 'ob_flush' ) ) {
+            @ob_flush();
+        }
+        flush();
+
+        // ─── Background Processing ───────────────────────────────
+        error_log( '[PLANNER] Early response sent for run_framework job: ' . $job_id . ' — starting background processing' );
+        if ( class_exists( '\KH\Editorial\Services\AI\AIWorker' ) ) {
+            $worker = new \KH\Editorial\Services\AI\AIWorker();
+            $worker->process_job( $job_id, 'planner' );
+        }
+        error_log( '[PLANNER] Background processing completed for run_framework job: ' . $job_id );
+
+        exit;
+    }
+
+    /**
+     * POST editorial/v1/planner/synopsis-plan
+     */
+    public function synopsis_plan( \WP_REST_Request $request ) {
+        $params     = $request->get_json_params();
+        $session_id = (int) ( $params['id'] ?? 0 );
+
+        if ( ! $session_id ) {
+            return new \WP_Error( 'missing_id', 'Session ID is required.', [ 'status' => 400 ] );
+        }
+
+        $orchestrator = new PlannerOrchestrator();
+        if ( method_exists( $orchestrator, 'run_synopsis_plan' ) ) {
+            $result = $orchestrator->run_synopsis_plan( $session_id );
+            if ( is_wp_error( $result ) ) {
+                return $result;
+            }
+            return rest_ensure_response( $result );
+        }
+
+        return rest_ensure_response( [ 'ok' => true, 'session_id' => $session_id ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/synopses
+     */
+    public function run_synopses( \WP_REST_Request $request ) {
+        $params     = $request->get_json_params();
+        $session_id = (int) ( $params['id'] ?? 0 );
+
+        if ( ! $session_id ) {
+            return new \WP_Error( 'missing_id', 'Session ID is required.', [ 'status' => 400 ] );
+        }
+
+        $orchestrator = new PlannerOrchestrator();
+        if ( method_exists( $orchestrator, 'run_synopses' ) ) {
+            $result = $orchestrator->run_synopses( $session_id );
+            if ( is_wp_error( $result ) ) {
+                return $result;
+            }
+            return rest_ensure_response( $result );
+        }
+
+        return rest_ensure_response( [ 'ok' => true, 'session_id' => $session_id ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/export
+     */
+    public function planner_export( \WP_REST_Request $request ) {
+        $params     = $request->get_json_params();
+        $session_id = (int) ( $params['id'] ?? 0 );
+        $format     = sanitize_text_field( $params['format'] ?? 'json' );
+
+        return rest_ensure_response( [ 'ok' => true, 'session_id' => $session_id, 'format' => $format ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/export-synopses
+     */
+    public function export_synopses( \WP_REST_Request $request ) {
+        $params     = $request->get_json_params();
+        $session_id = (int) ( $params['id'] ?? 0 );
+
+        return rest_ensure_response( [ 'ok' => true, 'session_id' => $session_id ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/export-framework
+     */
+    public function export_framework( \WP_REST_Request $request ) {
+        $params     = $request->get_json_params();
+        $session_id = (int) ( $params['id'] ?? 0 );
+
+        return rest_ensure_response( [ 'ok' => true, 'session_id' => $session_id ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/run-author
+     */
+    public function run_author( \WP_REST_Request $request ) {
+        $params     = $request->get_json_params();
+        $session_id = (int) ( $params['id'] ?? 0 );
+
+        if ( ! $session_id ) {
+            return new \WP_Error( 'missing_id', 'Session ID is required.', [ 'status' => 400 ] );
+        }
+
+        return rest_ensure_response( [ 'ok' => true, 'session_id' => $session_id, 'status' => 'queued' ] );
+    }
+
+    /**
+     * POST editorial/v1/planner/article-action
+     *
+     * Dispatches research actions on a completed article synopsis:
+     *   - dive_deeper: Find additional citations for the article
+     *   - opinion_piece: Generate an opinion piece (placeholder)
+     *   - expand: Expand the article into a full brief (placeholder)
+     */
+    public function article_action( \WP_REST_Request $request ) {
+        $params     = $request->get_json_params();
+        $session_id = (int) ( $params['id'] ?? 0 );
+        $action     = sanitize_text_field( $params['action'] ?? '' );
+        $article_id = sanitize_text_field( $params['article_id'] ?? '' );
+        $extra      = $params['params'] ?? [];
+
+        if ( ! $session_id || ! $action ) {
+            return new \WP_Error( 'missing_params', 'id and action are required.', [ 'status' => 400 ] );
+        }
+
+        $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
+
+        switch ( $action ) {
+            case 'dive_deeper':
+                // On some (particularly local) environments, WP-Cron doesn't fire
+                // reliably, so jobs scheduled via wp_schedule_single_event may sit
+                // in the queue forever. Instead, we use the "close-connection-then-
+                // process" pattern: flush the HTTP response to the browser immediately,
+                // then run the job synchronously in the same PHP process (which keeps
+                // running after the connection is closed). The JS polls every 3s via
+                // refreshSessionDetail to pick up the completed status.
+                //
+                // First create the job record synchronously (fast), then send the
+                // early response, then process the job in background.
+                $result = $orchestrator->run_dive_deeper( $session_id, $article_id, $extra );
+                if ( is_wp_error( $result ) ) {
+                    return $result;
+                }
+
+                $job_id = $result['job_id'] ?? '';
+
+                // If skipped (already 4+ citations), return immediately
+                if ( empty( $job_id ) ) {
+                    return rest_ensure_response( [
+                        'ok'         => true,
+                        'session_id' => $session_id,
+                        'article_id' => $article_id,
+                        'action'     => $action,
+                        'job_id'     => '',
+                        'status'     => 'skipped',
+                        'message'    => $result['message'] ?? 'Article already has 4+ citations.',
+                    ] );
+                }
+
+                // Persist the job reference to the article in session meta so
+                // the frontend can find it via article.dive_deeper_jobs.
+                $meta_json = get_post_meta( $session_id, 'kh_planner_meta', true );
+                $meta = ( $meta_json ? json_decode( $meta_json, true ) : null ) ?: [];
+                $articles = $meta['articles'] ?? [];
+
+                // If meta.articles is empty, rebuild it from the synopses data
+                // so we can attach the dive_deeper_jobs reference.
+                if ( empty( $articles ) ) {
+                    $synopses = get_post_meta( $session_id, 'kh_planner_final_synopses', true );
+                    if ( $synopses && is_array( $synopses['synopses'] ?? null ) ) {
+                        $articles = [];
+                        foreach ( $synopses['synopses'] as $i => $s ) {
+                            $slug = sanitize_title( $s['headline'] ?? ( 'synopsis-' . $i ) );
+                            $articles[] = [
+                                'id'               => $slug,
+                                'headline'         => $s['headline'] ?? '',
+                                'summary'          => $s['summary'] ?? '',
+                                'key_points'       => $s['key_points'] ?? [],
+                                'keywords'         => $s['keywords'] ?? ( $s['target_keywords'] ?? [] ),
+                                'priority_score'   => $s['priority_score'] ?? 0.0,
+                                'citations'        => $s['citations'] ?? [],
+                                'citation_count'   => count( $s['citations'] ?? [] ),
+                                'dive_deeper_jobs' => [],
+                            ];
+                        }
+                    }
+                }
+
+                $found = false;
+                foreach ( $articles as &$article ) {
+                    if ( $article['id'] === $article_id ) {
+                        if ( ! isset( $article['dive_deeper_jobs'] ) || ! is_array( $article['dive_deeper_jobs'] ) ) {
+                            $article['dive_deeper_jobs'] = [];
+                        }
+                        $article['dive_deeper_jobs'][] = [
+                            'job_id'     => $job_id,
+                            'status'     => 'queued',
+                            'created_at' => current_time( 'mysql' ),
+                        ];
+                        $found = true;
+                        break;
+                    }
+                }
+                unset( $article );
+                if ( $found ) {
+                    $meta['articles'] = $articles;
+                    update_post_meta( $session_id, 'kh_planner_meta', wp_json_encode( $meta ) );
+                }
+
+                // Build the JSON response body
+                $response_data = [
+                    'ok'         => true,
+                    'session_id' => $session_id,
+                    'article_id' => $article_id,
+                    'action'     => $action,
+                    'job_id'     => $job_id,
+                ];
+                $response_json = wp_json_encode( $response_data );
+
+                // ─── Early Response: Close HTTP connection ──────────────
+                // Send the JSON response to the browser immediately, then
+                // process the dive_deeper job synchronously in the background.
+                ignore_user_abort( true );
+                set_time_limit( 300 ); // 5 minutes for the LLM call
+
+                // Remove any output buffering layers that would prevent flush
+                while ( ob_get_level() > 0 ) {
+                    ob_end_clean();
+                }
+
+                header( 'Content-Type: application/json; charset=UTF-8' );
+                header( 'Content-Length: ' . strlen( $response_json ) );
+                header( 'Connection: close' );
+
+                echo $response_json;
+
+                // Flush the response via FastCGI/proxy buffers — ignore any
+                // notice if no user-level output buffer was active.
+                if ( function_exists( 'ob_flush' ) ) {
+                    @ob_flush();
+                }
+                flush();
+
+                // ─── Background Processing ───────────────────────────────
+                // The browser has already received the response. Now process
+                // the job — the LLM call runs here, after the HTTP connection
+                // is closed, so the frontend gets the job_id instantly.
+                error_log( '[PLANNER] Early response sent for dive_deeper job: ' . $job_id . ' — starting background processing' );
+                if ( class_exists( '\KH\Editorial\Services\AI\AIWorker' ) ) {
+                    $worker = new \KH\Editorial\Services\AI\AIWorker();
+                    $worker->process_job( $job_id, 'planner' );
+                }
+                error_log( '[PLANNER] Background processing completed for dive_deeper job: ' . $job_id );
+
+                // We must exit to prevent WP from sending more output after us
+                exit;
+
+
+            case 'opinion_piece':
+                // Placeholder — will be implemented with RunAuthorAgent
+                return rest_ensure_response( [
+                    'ok'         => true,
+                    'session_id' => $session_id,
+                    'article_id' => $article_id,
+                    'action'     => $action,
+                    'job_id'     => '',
+                ] );
+
+            default:
+                return new \WP_Error( 'unknown_action', 'Unknown article action: ' . $action, [ 'status' => 400 ] );
+        }
+    }
+
+    /**
+     * POST editorial/v1/planner/dispatch-job
+     *
+     * Internal endpoint called via non-blocking wp_remote_post to process
+     * dive_deeper and other long-running jobs asynchronously. The caller
+     * fires and forgets — this endpoint handles the actual LLM call.
+     */
+    public function dispatch_job( \WP_REST_Request $request ) {
+        $params = $request->get_json_params();
+        $job_id = $params['job_id'] ?? '';
+        $type   = $params['type'] ?? 'planner';
+
+        if ( empty( $job_id ) ) {
+            return new \WP_Error( 'missing_job_id', 'job_id is required.', [ 'status' => 400 ] );
+        }
+
+        $worker = new \KH\Editorial\Services\AI\AIWorker();
+        $worker->process_job( $job_id, $type );
+
+        return rest_ensure_response( [ 'ok' => true, 'job_id' => $job_id ] );
+    }
+
+    /**
+     * Merge stored kh_planner_dives into articles by matching headline slug.
+     *
+     * This is a fallback for existing dives that were stored before the
+     * synopsis→article linking fix was deployed. It matches each dive's
+     * article_headline to an article's slug and appends the citations.
+     */
+    private function merge_stored_dives_into_articles( $meta, array $dives ) {
+        $articles = $meta['articles'] ?? [];
+        if ( empty( $articles ) || empty( $dives ) ) {
+            return $meta;
+        }
+
+        // Index dives by article slug, keeping only the latest per article
+        $latest_dive_per_article = [];
+        foreach ( $dives as $dive ) {
+            $dive_headline = $dive['article_headline'] ?? '';
+            if ( ! $dive_headline ) {
+                continue;
+            }
+            $dive_slug = sanitize_title( $dive_headline );
+            // Later dives overwrite earlier ones in the loop
+            $latest_dive_per_article[ $dive_slug ] = $dive;
+        }
+
+        foreach ( $articles as &$article ) {
+            $article_slug = $article['id'] ?? '';
+            if ( ! $article_slug ) {
+                continue;
+            }
+
+            $dive = $latest_dive_per_article[ $article_slug ] ?? null;
+            if ( ! $dive ) {
+                continue;
+            }
+
+            $dive_citations = $dive['citations'] ?? [];
+            if ( empty( $dive_citations ) ) {
+                continue;
+            }
+
+            // Build existing title set from the article's original citations
+            $existing_titles = [];
+            foreach ( $article['citations'] ?? [] as $c ) {
+                $existing_titles[ strtolower( trim( $c['title'] ?? '' ) ) ] = true;
+            }
+
+            // Only append citations that don't already exist, cap at target_citations
+            $needed = $dive['target_citations'] ?? 4;
+            $new_citations = [];
+            foreach ( $dive_citations as $dc ) {
+                if ( count( $new_citations ) >= $needed ) {
+                    break;
+                }
+                $t = strtolower( trim( $dc['title'] ?? '' ) );
+                if ( ! isset( $existing_titles[ $t ] ) ) {
+                    $existing_titles[ $t ] = true;
+                    $new_citations[] = [
+                        'url'         => $dc['url'] ?? '',
+                        'title'       => $dc['title'] ?? '',
+                        'source_type' => $dc['source_type'] ?? 'industry',
+                        'relevance'   => $dc['relevance_note'] ?? $dc['relevance'] ?? '',
+                        'publication_date' => $dc['publication_date'] ?? '',
+                    ];
+                }
+            }
+
+            if ( ! empty( $new_citations ) ) {
+                $article['citations'] = array_merge( $article['citations'] ?? [], $new_citations );
+                $article['citation_count'] = count( $article['citations'] );
+            }
+        }
+        unset( $article );
+
+        $meta['articles'] = $articles;
+        return $meta;
+    }
+
+    /**
+     * Enrich meta.articles with dive_deeper_jobs status from the AI job table.
+     *
+     * Called from get_session_detail after articles are assembled.
+     */
+    private function enrich_articles_with_dive_status( $meta ) {
+        $articles = $meta['articles'] ?? [];
+        if ( empty( $articles ) ) {
+            return $meta;
+        }
+
+        if ( ! class_exists( '\KH\Editorial\Services\AI\AIStorage' ) ) {
+            return $meta;
+        }
+
+        $storage = new \KH\Editorial\Services\AI\AIStorage();
+
+        foreach ( $articles as &$article ) {
+            $jobs = $article['dive_deeper_jobs'] ?? [];
+            if ( ! is_array( $jobs ) || empty( $jobs ) ) {
+                continue;
+            }
+            $dive_citations = [];
+            $updated = [];
+            foreach ( $jobs as $job ) {
+                $job_id = $job['job_id'] ?? '';
+                if ( $job_id ) {
+                    $row = $storage->get_job( $job_id );
+                    if ( $row && ! empty( $row['status'] ) ) {
+                        $job['status'] = $row['status'];
+                        $job['response'] = isset( $row['response'] ) ? json_decode( $row['response'], true ) : null;
+                        
+                        // If the dive completed with citations, extract them for article display
+                        if ( $job['status'] === 'completed' && ! empty( $job['response']['content']['citations'] ) ) {
+                            foreach ( $job['response']['content']['citations'] as $c ) {
+                                $dive_citations[] = [
+                                    'url'         => $c['url'] ?? '',
+                                    'title'       => $c['title'] ?? '',
+                                    'source_type' => $c['source_type'] ?? 'industry',
+                                    'relevance'   => $c['relevance_note'] ?? '',
+                                    'publication_date' => $c['publication_date'] ?? '',
+                                ];
+                            }
+                        }
+                    }
+                }
+                $updated[] = $job;
+            }
+            $article['dive_deeper_jobs'] = $updated;
+            
+            // Merge dive citations into article.citations for display
+            if ( ! empty( $dive_citations ) ) {
+                $existing_citations = $article['citations'] ?? [];
+                $article['citations'] = array_merge( $existing_citations, $dive_citations );
+                // Recalculate citation_count from the merged array
+                $article['citation_count'] = count( $article['citations'] );
+            }
+        }
+        unset( $article );
+
+        $meta['articles'] = $articles;
+        return $meta;
+    }
+
+    /**
+     * Enrich meta.articles with completed framework results from the AI job table.
+     *
+     * This is a fallback for runs where the fw- idempotency key handler in
+     * AIWorker wasn't present (e.g. before the fix was deployed). It looks
+     * for completed jobs with fw- idempotency keys and writes the LLM
+     * response into article.framework.output.
+     *
+     * @param array $meta      Session meta array.
+     * @param int   $session_id Session post ID.
+     * @return array Updated meta.
+     */
+    private function enrich_articles_with_framework_results( $meta, $session_id ) {
+        $articles = $meta['articles'] ?? [];
+        if ( empty( $articles ) ) {
+            return $meta;
+        }
+
+        if ( ! class_exists( '\KH\Editorial\Services\AI\AIStorage' ) ) {
+            return $meta;
+        }
+
+        $storage = new \KH\Editorial\Services\AI\AIStorage();
+
+        foreach ( $articles as &$article ) {
+            // Skip if framework is already set
+            if ( ! empty( $article['framework']['output'] ) ) {
+                continue;
+            }
+
+            // Build the expected idempotency key base for this article
+            $article_hash = substr( md5( $article['id'] ?? '' ), 0, 12 );
+
+            // Try both the base key (no re-run) and any fw- keys with -r{timestamp} suffix
+            $idempotency_candidates = [
+                'fw-' . $session_id . '-' . $article_hash,
+                'fw-' . $session_id . '-' . $article_hash . '-r',
+            ];
+
+            $found_job = null;
+            foreach ( $idempotency_candidates as $candidate_base ) {
+                if ( substr( $candidate_base, -2 ) === '-r' ) {
+                    // Wildcard: search for any job starting with this prefix
+                    $pattern = $candidate_base;
+                } else {
+                    // Exact match first (non-force mode)
+                    $job = $storage->get_job_by_idempotency( $session_id, $candidate_base );
+                    if ( $job ) {
+                        $full_job = $storage->get_job( $job['id'] );
+                        if ( $full_job && $full_job['status'] === 'completed' ) {
+                            $found_job = $full_job;
+                            break;
+                        }
+                    }
+                    continue;
+                }
+            }
+
+            // If no exact match, try direct MySQL LIKE query for -r{timestamp} variants
+            if ( ! $found_job ) {
+                global $wpdb;
+                $table = $wpdb->prefix . 'ai_jobs';
+                $prefix = 'fw-' . $session_id . '-' . $article_hash . '-r';
+                $rows = $wpdb->get_results( $wpdb->prepare(
+                    "SELECT * FROM $table WHERE session_id = %d AND idempotency_key LIKE %s AND status = 'completed' ORDER BY finished_at DESC LIMIT 1",
+                    $session_id,
+                    $prefix . '%'
+                ), ARRAY_A );
+                if ( ! empty( $rows ) ) {
+                    $found_job = $rows[0];
+                }
+            }
+
+            if ( ! $found_job ) {
+                continue;
+            }
+
+            // Parse the response
+            $response = isset( $found_job['response'] ) ? json_decode( $found_job['response'], true ) : null;
+            if ( ! $response || empty( $response['content'] ) ) {
+                continue;
+            }
+
+            $article['framework'] = [
+                'status'       => 'completed',
+                'output'       => $response['content'],
+                'completed_at' => $found_job['finished_at'] ?? current_time( 'mysql' ),
+            ];
+
+            error_log( '[PLANNER] Framework result enriched from AI job table for article ' . $article['id'] . ' in session ' . $session_id );
+        }
+        unset( $article );
+
+        $meta['articles'] = $articles;
+        return $meta;
     }
 }
