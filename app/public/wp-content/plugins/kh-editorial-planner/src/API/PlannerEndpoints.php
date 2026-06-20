@@ -1712,7 +1712,10 @@ class PlannerEndpoints {
     /**
      * POST editorial/v1/planner/run-author
      *
-     * Enqueues an author generation job for the specified article.
+     * Runs author generation for the specified article.
+     * Uses connection-close pattern for synchronous background processing
+     * (same as dive_deeper in article_action).
+     *
      * Expects: { id: session_id, article_id: string, author_profile?: string }
      */
     public function run_author( \WP_REST_Request $request ) {
@@ -1729,20 +1732,47 @@ class PlannerEndpoints {
             return new \WP_Error( 'missing_article_id', 'article_id is required.', [ 'status' => 400 ] );
         }
 
+        // Send an early response with "running" status, then process synchronously
+        $response_data = [
+            'ok'         => true,
+            'session_id' => $session_id,
+            'article_id' => $article_id,
+            'status'     => 'running',
+        ];
+        $response_json = wp_json_encode( $response_data );
+
+        // ─── Early Response: Close HTTP connection ──────────────
+        ignore_user_abort( true );
+        set_time_limit( 300 );
+
+        while ( ob_get_level() > 0 ) {
+            ob_end_clean();
+        }
+
+        header( 'Content-Type: application/json; charset=UTF-8' );
+        header( 'Content-Length: ' . strlen( $response_json ) );
+        header( 'Connection: close' );
+
+        echo $response_json;
+
+        if ( function_exists( 'ob_flush' ) ) {
+            @ob_flush();
+        }
+        flush();
+
+        // ─── Background Processing ───────────────────────────────
+        error_log( '[PLANNER] Early response sent for run_author — starting background author generation' );
+
         $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
         $result = $orchestrator->run_author_generation( $session_id, $article_id, $author_profile );
 
         if ( is_wp_error( $result ) ) {
-            return $result;
+            error_log( '[PLANNER] run_author failed: ' . $result->get_error_message() );
+        } else {
+            error_log( '[PLANNER] run_author completed for article ' . $article_id . ' in session ' . $session_id );
         }
 
-        return rest_ensure_response( [
-            'ok'         => true,
-            'session_id' => $session_id,
-            'article_id' => $article_id,
-            'job_id'     => $result['job_id'] ?? '',
-            'status'     => $result['status'] ?? 'queued',
-        ] );
+        exit;
     }
 
     /**

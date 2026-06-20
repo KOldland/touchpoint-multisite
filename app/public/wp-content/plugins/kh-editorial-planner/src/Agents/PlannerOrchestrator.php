@@ -1176,12 +1176,13 @@ APA_EXAMPLES;
     /**
      * Run Author Generation for a specific article.
      *
-     * Creates a draft article from the framework output using the author agent
-     * and enqueues the job for background processing.
+     * Delegates to the kh-editorial-author plugin's DraftAgent which handles
+     * prompt construction, LLM calling, policy enforcement, and citation validation.
+     * Runs synchronously using the connection-close pattern from the endpoint.
      *
      * @param int    $post_id        Session post ID.
      * @param string $article_id     Article ID from session meta.
-     * @param string $author_profile Author profile key (e.g. 'balanced', 'authoritative').
+     * @param string $author_profile Author profile key ('balanced', 'authoritative', 'conversational', 'analytical').
      * @return array|\WP_Error
      */
     public function run_author_generation( $post_id, $article_id, $author_profile = '' ) {
@@ -1198,10 +1199,11 @@ APA_EXAMPLES;
         $session_meta = json_decode( get_post_meta( $post_id, 'kh_planner_meta', true ), true ) ?: [];
         $articles     = $session_meta['articles'] ?? [];
         $article      = null;
-
-        foreach ( $articles as &$a ) {
+        $article_idx  = null;
+        foreach ( $articles as $idx => $a ) {
             if ( $a['id'] === $article_id ) {
-                $article = &$a;
+                $article     = &$a;
+                $article_idx = $idx;
                 break;
             }
         }
@@ -1211,7 +1213,14 @@ APA_EXAMPLES;
             return new \WP_Error( 'article_not_found', 'Article not found in session meta.' );
         }
 
-        $title = $article['headline'] ?? $article['title'] ?? '';
+        // Resolve author profile to a DraftAgent persona
+        $persona_map = [
+            'balanced'         => 'journalist',
+            'authoritative'    => 'analyst',
+            'analytical'       => 'analyst',
+            'conversational'   => 'veteran',
+        ];
+        $persona = $persona_map[ $author_profile ] ?? 'journalist';
 
         // Collect citations from the article
         $citations = $article['citations'] ?? [];
@@ -1228,23 +1237,84 @@ APA_EXAMPLES;
             }
         }
 
-        // Build the author generation prompt
-        $prompt = PromptFactory::get_author_prompt( $title, $citations, $article, $author_profile );
+        // Normalize citations to the format DraftAgent expects
+        $normalized_citations = [];
+        foreach ( $citations as $c ) {
+            $normalized_citations[] = [
+                'lead_author'     => $c['lead_author'] ?? '',
+                'title'           => $c['title'] ?? '',
+                'year'            => $c['year'] ?? ( $c['publication_date'] ?? '' ),
+                'publication'     => $c['publication'] ?? ( $c['organisation'] ?? '' ),
+                'organisation'    => $c['organisation'] ?? ( $c['source'] ?? '' ),
+                'url'             => $c['url'] ?? '',
+                'passage_snippet' => $c['passage_snippet'] ?? ( $c['snippet'] ?? '' ),
+            ];
+        }
 
-        // Build a unique idempotency key
-        $article_hash    = substr( md5( $article_id . $author_profile . time() ), 0, 12 );
-        $idempotency_key = 'auth-' . $post_id . '-' . $article_hash;
+        // Build the author policy from session meta (or defaults)
+        $author_policy = get_post_meta( $post_id, 'kh_planner_author_policy', true ) ?: [];
+        $author_policy = \KH\EditorialAuthor\Core\AuthorPolicy::sanitize( $author_policy );
 
-        // Mark the article as author-running so the frontend sees immediate state
+        // Use the framework output as planner_data context
+        $framework_output = $article['framework']['output'] ?? [];
+
+        // Build context for DraftAgent::execute()
+        $context = [
+            'author_policy' => $author_policy,
+            'persona'       => $persona,
+            'citations'     => $normalized_citations,
+            'planner_data'  => $framework_output,
+            'dossier'       => '',
+        ];
+
+        $instructions = sprintf(
+            'Write a draft article based on the framework "%s" using the %s writing profile. Word count: 800-1200 words.',
+            $framework_output['title'] ?? ( $article['headline'] ?? $article['title'] ?? '' ),
+            $author_profile
+        );
+
+        // Instantiate the author plugin's DraftAgent
+        if ( ! class_exists( '\KH\EditorialAuthor\Agents\DraftAgent' ) ) {
+            return new \WP_Error( 'author_agent_missing', 'kh-editorial-author plugin is not active.' );
+        }
+
+        $intelligence = new \KH\EditorialAuthor\Integration\IntelligenceBridge();
+        $draft_agent  = new \KH\EditorialAuthor\Agents\DraftAgent( $intelligence );
+
+        // Mark as running in session meta before the potentially long LLM call
         if ( ! isset( $article['author'] ) ) {
             $article['author'] = [];
         }
         $article['author']['status']  = 'running';
-        $article['author']['job_key'] = $idempotency_key;
         $article['author']['profile'] = $author_profile;
         $session_meta['articles'] = $articles;
         update_post_meta( $post_id, 'kh_planner_meta', wp_json_encode( $session_meta ) );
 
-        return $this->enqueue_job( $post_id, $prompt, 'draft', $idempotency_key, 'phase_complete' );
+        // Execute synchronously
+        $result = $draft_agent->execute( $context, $instructions, (int) get_post_field( 'post_author', $post_id ) );
+
+        if ( is_wp_error( $result ) ) {
+            // Update session meta with failure
+            $article['author']['status']   = 'failed';
+            $article['author']['error']    = $result->get_error_message();
+            $article['author']['completed_at'] = current_time( 'mysql' );
+            $session_meta['articles'] = $articles;
+            update_post_meta( $post_id, 'kh_planner_meta', wp_json_encode( $session_meta ) );
+            return $result;
+        }
+
+        // Store result into article.author.output
+        $article['author']['status']  = 'completed';
+        $article['author']['output']  = $result;
+        $article['author']['completed_at'] = current_time( 'mysql' );
+        $session_meta['articles'] = $articles;
+        update_post_meta( $post_id, 'kh_planner_meta', wp_json_encode( $session_meta ) );
+
+        return [
+            'session_id' => $post_id,
+            'article_id' => $article_id,
+            'status'     => 'completed',
+            'result'     => $result,
+        ];
     }
 }
