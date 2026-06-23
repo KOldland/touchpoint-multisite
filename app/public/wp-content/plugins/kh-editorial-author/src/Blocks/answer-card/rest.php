@@ -937,8 +937,8 @@ function run_answercard_generation_job( $job, $force = false ) {
 
     update_geo_generation_metrics( $post_id, $card['generation_status'] );
 
-    if ( function_exists( '\\KHM\\Blocks\\AnswerCard\\persist_to_database' ) ) {
-        \KHM\Blocks\AnswerCard\persist_to_database( $post_id, $cards );
+    if ( function_exists( '\\KH\\EditorialAuthor\\Blocks\\AnswerCard\\persist_to_database' ) ) {
+        \KH\EditorialAuthor\Blocks\AnswerCard\persist_to_database( $post_id, $cards );
     }
 
     return array(
@@ -1429,8 +1429,8 @@ function approve_answercard_summary( $request ) {
     update_post_meta( $post_id, '_geo_answercards', $cards );
     update_geo_generation_metrics( $post_id, 'approved' );
 
-    if ( function_exists( '\\KHM\\Blocks\\AnswerCard\\persist_to_database' ) ) {
-        \KHM\Blocks\AnswerCard\persist_to_database( $post_id, $cards );
+    if ( function_exists( '\\KH\\EditorialAuthor\\Blocks\\AnswerCard\\persist_to_database' ) ) {
+        \KH\EditorialAuthor\Blocks\AnswerCard\persist_to_database( $post_id, $cards );
     }
 
     return rest_ensure_response( array(
@@ -1650,8 +1650,8 @@ function calculate_score_on_demand( $request ) {
         try {
             $engine = new \KHM_SEO\GEO\Scoring\ScoringEngine();
             $settings = $payload;
-            if ( function_exists( '\\KHM\\Blocks\\AnswerCard\\normalize_scoring_settings' ) ) {
-                $settings = \KHM\Blocks\AnswerCard\normalize_scoring_settings( array(
+            if ( function_exists( '\\KH\\EditorialAuthor\\Blocks\\AnswerCard\\normalize_scoring_settings' ) ) {
+                $settings = \KH\EditorialAuthor\Blocks\AnswerCard\normalize_scoring_settings( array(
                     'question'       => $payload['question'] ?? '',
                     'concise_answer' => $payload['concise_answer'] ?? ( $payload['conciseAnswer'] ?? '' ),
                     'key_points'     => $payload['key_points'] ?? ( $payload['keyPoints'] ?? array() ),
@@ -1937,7 +1937,7 @@ function recompute_post_score_details( $request ) {
         return new \WP_Error( 'post_not_found', 'Post not found', array( 'status' => 404 ) );
     }
 
-    if ( ! function_exists( '\\KHM\\Blocks\\AnswerCard\\run_scoring_for_post' ) ) {
+    if ( ! function_exists( '\\KH\\EditorialAuthor\\Blocks\\AnswerCard\\run_scoring_for_post' ) ) {
         return new \WP_Error( 'scoring_unavailable', 'Scoring is unavailable', array( 'status' => 500 ) );
     }
 
@@ -1946,7 +1946,7 @@ function recompute_post_score_details( $request ) {
         return new \WP_Error( 'no_cards', 'No answer cards found', array( 'status' => 404 ) );
     }
 
-    call_user_func( '\\KHM\\Blocks\\AnswerCard\\run_scoring_for_post', $post_id, $cards );
+    call_user_func( '\\KH\\EditorialAuthor\\Blocks\\AnswerCard\\run_scoring_for_post', $post_id, $cards );
 
     $score_details = get_post_meta( $post_id, '_geo_score_details', true );
     $score = get_post_meta( $post_id, '_geo_score', true );

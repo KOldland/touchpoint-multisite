@@ -79,6 +79,7 @@ class PlannerBridge {
         foreach ($meta['articles'] as &$article) {
             if (($article['id'] ?? '') == $article_id) {
                 $article['wp_post_id'] = $post_id;
+                $article['edit_url'] = admin_url("post.php?post={$post_id}&action=edit");
                 $article['status'] = 'drafted';
                 $found = true;
                 break;

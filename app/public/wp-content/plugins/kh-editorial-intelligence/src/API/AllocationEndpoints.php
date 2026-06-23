@@ -75,6 +75,25 @@ class AllocationEndpoints {
             'callback'            => [ $this, 'handle_sites' ],
             'permission_callback' => [ $this, 'check_permission' ],
         ] );
+
+        // POST /kh-editorial/v1/allocation/rewrite — rewrite an already-cloned post
+        register_rest_route( 'kh-editorial/v1', '/allocation/rewrite', [
+            'methods'             => \WP_REST_Server::CREATABLE,
+            'callback'            => [ $this, 'handle_rewrite' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+            'args'                => [
+                'post_id'    => [
+                    'required'          => true,
+                    'type'              => 'integer',
+                    'sanitize_callback' => 'absint',
+                ],
+                'site_slug'  => [
+                    'required'          => true,
+                    'type'              => 'string',
+                    'sanitize_callback' => 'sanitize_key',
+                ],
+            ],
+        ] );
     }
 
     /**
@@ -95,9 +114,12 @@ class AllocationEndpoints {
         $site_slugs = $request->get_param( 'site_slugs' );
         $rewrite    = $request->get_param( 'rewrite' ) ?? false;
 
+        error_log( '[Allocation API] handle_clone called: post_id=' . $post_id . ' sites=' . json_encode( $site_slugs ) . ' rewrite=' . ( $rewrite ? 'true' : 'false' ) );
+
         // Validate origin post exists
         $origin_post = get_post( $post_id );
         if ( ! $origin_post ) {
+            error_log( '[Allocation API] Post not found: ' . $post_id );
             return new WP_Error(
                 'post_not_found',
                 __( 'Origin post not found.', 'kh-editorial-intelligence' ),
@@ -107,6 +129,7 @@ class AllocationEndpoints {
 
         // Validate post is on the hub site (blog_id=1)
         if ( get_current_blog_id() !== 1 ) {
+            error_log( '[Allocation API] Not hub site. Current blog: ' . get_current_blog_id() );
             return new WP_Error(
                 'not_hub_site',
                 __( 'Content allocation is only available from the central hub.', 'kh-editorial-intelligence' ),
@@ -115,6 +138,7 @@ class AllocationEndpoints {
         }
 
         if ( empty( $site_slugs ) ) {
+            error_log( '[Allocation API] No sites selected' );
             return new WP_Error(
                 'no_sites',
                 __( 'No target sites selected.', 'kh-editorial-intelligence' ),
@@ -127,9 +151,11 @@ class AllocationEndpoints {
         $success_count = 0;
 
         foreach ( $site_slugs as $slug ) {
+            error_log( '[Allocation API] Processing slug: ' . $slug );
             $blog_id = $this->service->resolve_blog_id( $slug );
 
             if ( ! $blog_id ) {
+                error_log( '[Allocation API] Could not resolve blog_id for slug: ' . $slug );
                 $errors[] = [
                     'slug'    => $slug,
                     'message' => __( 'Could not resolve blog ID for this site.', 'kh-editorial-intelligence' ),
@@ -137,23 +163,35 @@ class AllocationEndpoints {
                 continue;
             }
 
-            $result = $this->service->clone_to_site( $post_id, $blog_id, $rewrite );
+            error_log( '[Allocation API] Resolved blog_id=' . $blog_id . ' for slug=' . $slug . '. Calling clone_to_site...' );
 
-            if ( $result['success'] ) {
-                $success_count++;
-                $results[] = [
-                    'slug'            => $slug,
-                    'blog_id'         => $blog_id,
-                    'target_post_id'  => $result['target_post_id'],
-                    'edit_url'        => $result['edit_url'] ?? '',
-                    'rewrite_applied' => $result['rewrite_applied'] ?? false,
-                    'message'         => $result['message'] ?? '',
-                ];
-            } else {
+            try {
+                $result = $this->service->clone_to_site( $post_id, $blog_id, $rewrite );
+                error_log( '[Allocation API] clone_to_site result: ' . json_encode( $result ) );
+
+                if ( $result['success'] ) {
+                    $success_count++;
+                    $results[] = [
+                        'slug'            => $slug,
+                        'blog_id'         => $blog_id,
+                        'target_post_id'  => $result['target_post_id'],
+                        'edit_url'        => $result['edit_url'] ?? '',
+                        'rewrite_applied' => $result['rewrite_applied'] ?? false,
+                        'message'         => $result['message'] ?? '',
+                    ];
+                } else {
+                    $errors[] = [
+                        'slug'    => $slug,
+                        'blog_id' => $blog_id,
+                        'message' => $result['message'] ?? __( 'Clone failed.', 'kh-editorial-intelligence' ),
+                    ];
+                }
+            } catch ( \Throwable $e ) {
+                error_log( '[Allocation API] EXCEPTION in clone_to_site for slug=' . $slug . ': ' . $e->getMessage() . "\n" . $e->getTraceAsString() );
                 $errors[] = [
                     'slug'    => $slug,
                     'blog_id' => $blog_id,
-                    'message' => $result['message'] ?? __( 'Clone failed.', 'kh-editorial-intelligence' ),
+                    'message' => $e->getMessage(),
                 ];
             }
         }
@@ -220,6 +258,59 @@ class AllocationEndpoints {
             'success' => true,
             'sites'   => $sites,
             'total'   => count( $sites ),
+        ] );
+    }
+
+    /**
+     * POST /allocation/rewrite — rewrite an already-cloned post for a target site.
+     *
+     * @param WP_REST_Request $request
+     * @return WP_REST_Response|WP_Error
+     */
+    public function handle_rewrite( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+        $post_id   = $request->get_param( 'post_id' );
+        $site_slug = $request->get_param( 'site_slug' );
+
+        // Validate origin post exists
+        $origin_post = get_post( $post_id );
+        if ( ! $origin_post ) {
+            return new WP_Error(
+                'post_not_found',
+                __( 'Origin post not found.', 'kh-editorial-intelligence' ),
+                [ 'status' => 404 ]
+            );
+        }
+
+        if ( get_current_blog_id() !== 1 ) {
+            return new WP_Error(
+                'not_hub_site',
+                __( 'Content allocation is only available from the central hub.', 'kh-editorial-intelligence' ),
+                [ 'status' => 400 ]
+            );
+        }
+
+        $blog_id = $this->service->resolve_blog_id( $site_slug );
+        if ( ! $blog_id ) {
+            return new WP_Error(
+                'invalid_site',
+                __( 'Could not resolve target site.', 'kh-editorial-intelligence' ),
+                [ 'status' => 400 ]
+            );
+        }
+
+        $result = $this->service->rewrite_for_post( $post_id, $blog_id );
+
+        if ( ! $result['success'] ) {
+            return new WP_REST_Response( [
+                'success' => false,
+                'message' => $result['message'],
+            ], 500 );
+        }
+
+        return new WP_REST_Response( [
+            'success'   => true,
+            'message'   => $result['message'],
+            'edit_url'  => $result['edit_url'] ?? '',
         ] );
     }
 }

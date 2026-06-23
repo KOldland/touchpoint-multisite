@@ -19,6 +19,9 @@ namespace KH\EditorialAuthor\Blocks\AnswerCard;
 
 defined( 'ABSPATH' ) || exit;
 
+// Load REST API endpoints for answer card functionality
+require_once __DIR__ . '/rest.php';
+
 // DEBUG: Add a simple inline script to admin head to prove this file is loading
 add_action( 'admin_head', function() {
     echo '<script>console.log("[KHM DEBUG] answer-card.php is loading - admin_head hook fired!");</script>';
@@ -52,12 +55,11 @@ function enqueue_answercard_frontend_assets() {
         return;
     }
 
-    if ( ! function_exists( 'has_block' ) ) {
-        return;
-    }
-
-    $post = get_post();
-    if ( ! $post || ! has_block( 'khm/answer-card', $post ) ) {
+    // Enqueue on all singular pages.  has_block() can race in multisite contexts
+    // (global post not yet resolved / switch_to_blog), causing intermittent asset
+    // drops.  The view.js init gracefully no-ops when no .khm-answer-card elements
+    // exist, so unconditionally enqueuing on singular is safe.
+    if ( ! is_singular() ) {
         return;
     }
 

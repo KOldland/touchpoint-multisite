@@ -15,6 +15,7 @@ use KH\Editorial\Services\GEO\AnswerCardSchemaValidator;
 use KH\Editorial\Services\GEO\SuggestionCacheManager;
 use KH\Editorial\Services\GEO\RateLimiter;
 use KH\Editorial\Services\GEO\SuggestionAuditLogger;
+use KH\Editorial\Services\SiteAudienceProfile;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -314,7 +315,12 @@ class SuggestAnswerCardsEndpoint {
      * @return array|\WP_Error
      */
     private function call_llm( $title, $url, $content, $max_cards, $is_retry = false ) {
-        $system_prompt = $this->build_system_prompt();
+        // Resolve post_id from the request context for audience-aware prompting
+        $post_id = 0;
+        if ( isset( $GLOBALS['wp']->query_vars['post_id'] ) ) {
+            $post_id = absint( $GLOBALS['wp']->query_vars['post_id'] );
+        }
+        $system_prompt = $this->build_system_prompt( $post_id );
         $user_prompt   = $this->build_user_prompt( $title, $url, $content, $max_cards, $is_retry );
 
         if ( ! class_exists( '\\KH\\Editorial\\Core\\LLMService' ) ) {
@@ -360,7 +366,54 @@ class SuggestAnswerCardsEndpoint {
      *
      * @return string
      */
-    private function build_system_prompt() {
+    /**
+     * Resolve the site slug for the current post.
+     *
+     * Uses AllocationService blog_id → slug mapping to identify which
+     * publication the post belongs to.
+     *
+     * @param int $post_id Post ID.
+     * @return string Site slug, or empty string if unmatched.
+     */
+    private function resolve_site_slug( int $post_id ): string {
+        static $reverse_map = null;
+
+        if ( null === $reverse_map ) {
+            $reverse_map = [];
+            if ( class_exists( '\\KH\\Editorial\\Services\\AllocationService' ) ) {
+                $allocation = new \KH\Editorial\Services\AllocationService();
+                foreach ( $allocation->get_blog_id_map() as $slug => $blog_id ) {
+                    $reverse_map[ $blog_id ] = $slug;
+                }
+            }
+        }
+
+        // The post lives on the current blog in a standard single-site request
+        // or on a specific blog in a multisite switch_to_blog context.
+        $blog_id = get_current_blog_id();
+
+        return $reverse_map[ $blog_id ] ?? '';
+    }
+
+    /**
+     * Build the system prompt
+     *
+     * @param int $post_id Post ID for audience context resolution.
+     * @return string
+     */
+    private function build_system_prompt( int $post_id = 0 ) {
+        $audience_context = '';
+        if ( $post_id ) {
+            $site_slug = $this->resolve_site_slug( $post_id );
+            if ( $site_slug ) {
+                $audience_context = SiteAudienceProfile::get_audience_context( $site_slug );
+            }
+        }
+
+        $audience_block = $audience_context
+            ? "AUDIENCE PROFILE:\n{$audience_context}\n\n"
+            : '';
+
         return <<<PROMPT
 You are an expert at Generative Engine Optimization (GEO) with a focus on evidence-based AnswerCard generation. Your task is to analyze article content, reference blocks, and citation contexts to generate structured AnswerCards optimized for AI citation and featured snippets.
 

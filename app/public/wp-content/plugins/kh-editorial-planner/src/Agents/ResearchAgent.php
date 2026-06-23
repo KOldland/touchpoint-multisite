@@ -17,22 +17,39 @@ class ResearchAgent {
     /**
      * Gather raw discovery data for a topic.
      */
-    public function gather_discovery_inputs( $topic, $includes = [], $subgroup = '' ) {
+    public function gather_discovery_inputs( $topic, $includes = [], $subgroup = '', $pillar = '', $audience_slug = '', $blog_id = null ) {
         $keyword_provider = new \KH\Editorial\Providers\KeywordProvider();
         $search_provider  = new \KH\Editorial\Providers\SearchProvider();
 
+        // Build richer search queries to maximize citation-quality SERP results
         $queries = [
-            $topic . ' trends',
-            $topic . ' industry report',
+            $topic . ' industry trends 2026',
+            $topic . ' market report analysis 2026',
+            $topic . ' innovation technology transformation',
         ];
         
-        foreach ( array_slice( (array) $includes, 0, 2 ) as $inc ) {
-            $queries[] = $inc . ' trends';
+        if ( $pillar ) {
+            $queries[] = $pillar . ' ' . $topic . ' strategy';
         }
+        
+        foreach ( array_slice( (array) $includes, 0, 3 ) as $inc ) {
+            $queries[] = $inc . ' industry insights';
+        }
+
+        // Add query variations to capture different types of sources
+        $queries[] = $topic . ' case study';
+        $queries[] = $topic . ' whitepaper PDF';
+        $queries[] = $topic . ' data statistics';
+        $queries[] = $topic . ' forecast outlook';
+        $queries[] = $topic . ' best practices survey';
+        $queries[] = $topic . ' competitive landscape analysis';
+        $queries[] = $topic . ' challenges solutions innovation';
+        $queries[] = $topic . ' regulatory compliance framework';
+        $queries[] = $topic . ' industry benchmarks ROI';
 
         $serp_snapshot = [];
         foreach ( $queries as $query ) {
-            $results = $search_provider->search_serpapi( $query, 5 );
+            $results = $search_provider->search( $query, 15 ); // More results per query to maximize source variety
             if ( ! is_wp_error( $results ) ) {
                 $serp_snapshot[$query] = $results['organic_results'] ?? [];
             } else {

@@ -265,6 +265,18 @@ class AuthorEndpoints {
             error_log("[AuthorEndpoints] Planner linkage failed for post {$post_id}: " . $e->getMessage());
         }
 
+        // 5. Auto-apply tp_category and tp_pillar taxonomies via the Planner Taxonomy Bridge
+        try {
+            $pillar_slug = '';
+            if ($session_id) {
+                $pillar_slug = get_post_meta($session_id, 'kh_planner_pillar_slug', true);
+            }
+            do_action('kh_planner_after_persist_draft', $post_id, $session_id, $pillar_slug);
+        } catch (\Throwable $e) {
+            $warnings[] = __('Taxonomy bridge error.', 'kh-editorial-author');
+            error_log("[AuthorEndpoints] Taxonomy bridge failed for post {$post_id}: " . $e->getMessage());
+        }
+
         return new WP_REST_Response([
             'success'  => true,
             'post_id'  => $post_id,

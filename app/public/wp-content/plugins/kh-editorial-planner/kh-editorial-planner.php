@@ -57,6 +57,23 @@ add_action( 'plugins_loaded', function() {
     if ( class_exists( 'KH\\Planner\\Agents\\PlannerOrchestrator' ) ) {
         KH\Planner\Agents\PlannerOrchestrator::init();
     }
+
+    // 5. Initialize Taxonomy Bridge (Category/Pillar sync with posts)
+    if ( class_exists( 'KH\\Planner\\Core\\PlannerTaxonomyBridge' ) ) {
+        $bridge = new KH\Planner\Core\PlannerTaxonomyBridge();
+        $bridge->init();
+    }
+} );
+
+// ─── Cron Hook: Process dive_deeper jobs asynchronously ─────────
+// Scheduled by PlannerOrchestrator::enqueue_job for research agent_key.
+// Runs on the next WP cron execution, preventing HTTP timeout on the
+// REST endpoint that enqueued the job.
+add_action( 'kh_editorial_process_planner_job', function( $job_id ) {
+    if ( ! empty( $job_id ) && class_exists( 'KH\\Editorial\\Services\\AI\\AIWorker' ) ) {
+        $worker = new KH\Editorial\Services\AI\AIWorker();
+        $worker->process_job( $job_id, 'planner' );
+    }
 } );
 
 // Create custom DB tables on activation

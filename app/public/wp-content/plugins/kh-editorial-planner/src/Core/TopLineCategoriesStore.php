@@ -2,11 +2,8 @@
 /**
  * Top-Line Categories Store
  *
- * Persists top-line categories to the `dual_gpt_top_line_categories`
- * WordPress option (matching the legacy key for backward compatibility).
- *
- * Each category is a structured array with name, slug, research policy,
- * personas, sponsors, competitors, journals, etc.
+ * Persists top-line categories to the `kh_planner_top_line_categories`
+ * WordPress option. Default data seeds from SiteAudienceProfile on first use.
  *
  * @package KH\Planner\Core
  * @since 0.3.0
@@ -20,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class TopLineCategoriesStore {
 
-	const OPTION_KEY = 'dual_gpt_top_line_categories';
+	const OPTION_KEY = 'kh_planner_top_line_categories';
 
 	/**
 	 * Get all top-line categories.
@@ -171,10 +168,14 @@ class TopLineCategoriesStore {
 	}
 
 	/**
-	 * Seed default categories if the store is empty.
+	 * Seed default categories from SiteAudienceProfile if the store is empty.
 	 *
-	 * Reads from the legacy backup at archive_2026/08_data_backups/dual_gpt_categories_backup.json
-	 * if it exists, otherwise uses built-in defaults.
+	 * Cycles through every audience profile in SiteAudienceProfile and
+	 * builds a full category entry with name, slug, site_slug, pillars,
+	 * target personas (from readers), and the standard research_policy defaults.
+	 *
+	 * After seeding, pillar data is already populated from the profile,
+	 * so no separate pillar seeding step is needed.
 	 *
 	 * @return bool True if seeded, false if already had data.
 	 */
@@ -184,38 +185,38 @@ class TopLineCategoriesStore {
 			return false;
 		}
 
-		// Try to load from backup
-		$backup_path = WP_CONTENT_DIR . '/../../../../archive_2026/08_data_backups/dual_gpt_categories_backup.json';
-		if ( file_exists( $backup_path ) ) {
-			$json = file_get_contents( $backup_path );
-			if ( $json ) {
-				$categories = json_decode( $json, true );
-				if ( is_array( $categories ) && ! empty( $categories ) ) {
-					update_option( self::OPTION_KEY, $categories, false );
-					return true;
-				}
-			}
+		if ( ! class_exists( '\KH\Editorial\Services\SiteAudienceProfile' ) ) {
+			return false;
 		}
 
-		// Built-in fallback defaults
-		$defaults = array(
-			array(
-				'slug'         => 'manufacturing',
-				'name'         => 'Manufacturing',
-				'category_type'=> '',
-				'pref_domain'  => '',
-				'core_content_channel' => '',
-				'target_personas' => array(),
-				'target_sponsors' => array(),
-				'key_competitors' => array(),
-				'trade_associations' => array(),
-				'academic_journals' => array(),
-				'acronyms'         => array(),
-				'cultural_lexicon' => array(),
-				'key_speakers'     => array(),
-				'subgroups'        => array(),
-				'research_policy'  => array(
-					'priority_domains'    => array( 'mckinsey.com', 'bain.com', 'gartner.com', 'idc.com' ),
+		$profile_class = '\KH\Editorial\Services\SiteAudienceProfile';
+		$audience_data = $profile_class::AUDIENCE;
+
+		if ( empty( $audience_data ) ) {
+			return false;
+		}
+
+		$categories = array();
+		foreach ( $audience_data as $slug => $profile ) {
+			$pillars = $profile['pillars'] ?? array();
+
+			$categories[] = array(
+				'slug'                => $slug,
+				'name'                => $profile['label'] ?? ucfirst( $slug ),
+				'channel'             => '', // Will be populated from CSV mapping later
+				'pillars'             => $pillars,
+				'target_personas'     => array(), // Will be populated from pillars if available
+				'keywords'            => array(), // Will be populated from pillars if available
+				'target_sponsors'     => array(),
+				'key_competitors'     => array(),
+				'trade_associations'  => array(),
+				'academic_journals'   => array(),
+				'acronyms'            => array(),
+				'cultural_lexicon'    => array(),
+				'key_speakers'        => array(),
+				'subgroups'           => array(),
+				'research_policy'     => array(
+					'priority_domains'    => array(),
 					'blocked_domains'     => array( 'wikipedia.org', 'pinterest.com', 'reddit.com', 'quora.com' ),
 					'blocked_keywords'    => array( 'chatgpt', 'gemini', 'claude', 'ai-generated', 'synthetic study' ),
 					'preferred_sources'   => array(),
@@ -229,46 +230,86 @@ class TopLineCategoriesStore {
 					'max_citations_per_org'    => 2,
 					'min_priority_domains_hit' => 1,
 				),
-			),
-			array(
-				'slug'         => 'field-service',
-				'name'         => 'Field Service',
-				'category_type'=> '',
-				'pref_domain'  => '',
-				'core_content_channel' => '',
-				'target_personas'      => array(),
-				'target_sponsors'      => array(),
-				'key_competitors'      => array(),
-				'trade_associations'   => array(),
-				'academic_journals'    => array(),
-				'acronyms'             => array(),
-				'cultural_lexicon'     => array(),
-				'key_speakers'         => array(),
-				'subgroups'            => array(),
-				'research_policy'      => array(
-					'priority_domains'    => array( 'mckinsey.com', 'bain.com', 'bcg.com', 'gartner.com', 'forrester.com', 'idc.com', 'fieldservicenews.com', 'servicecouncil.com', 'tsia.com', 'hbr.org', 'sloanreview.mit.edu' ),
-					'blocked_domains'     => array( 'wikipedia.org', 'pinterest.com', 'reddit.com', 'quora.com' ),
-					'blocked_keywords'    => array( 'chatgpt', 'gemini', 'claude', 'ai-generated', 'synthetic study' ),
-					'preferred_sources'   => array( 'Journal of Service Management', 'International Journal of Operations & Production Management', 'Field Service Management', 'Service Industries Journal', 'Production and Operations Management', 'Gartner Magic Quadrant for Field Service Management', 'TSIA State of Field Services' ),
-					'source_mix_minimums' => array(
-						'academic'   => 2,
-						'analyst'    => 2,
-						'industry'   => 2,
-						'case_study' => 2,
-					),
-					'recency_months'           => 36,
-					'max_citations_per_org'    => 2,
-					'min_priority_domains_hit' => 3,
-				),
-			),
-		);
+			);
+		}
 
-		update_option( self::OPTION_KEY, $defaults, false );
+		if ( empty( $categories ) ) {
+			return false;
+		}
+
+		update_option( self::OPTION_KEY, $categories, false );
 		return true;
 	}
 
 	/**
-	 * Normalize a category array with sensible defaults.
+	 * Get pillars for a category by slug.
+	 *
+	 * Merges from SiteAudienceProfile if available, falling back to stored pillars.
+	 *
+	 * @param string $slug Category slug.
+	 * @return array Array of pillar arrays, each with 'name' and 'focus' keys.
+	 */
+	public function get_pillars( string $slug ): array {
+		$category = $this->get_by_slug( $slug );
+		$stored_pillars = $category['pillars'] ?? array();
+
+		// Use stored pillars (which can be customized) if present
+		if ( ! empty( $stored_pillars ) ) {
+			return $stored_pillars;
+		}
+
+		// Fall back to SiteAudienceProfile if the slug matches a known site
+		if ( class_exists( '\KH\Editorial\Services\SiteAudienceProfile' ) ) {
+			$profile_pillars = \KH\Editorial\Services\SiteAudienceProfile::get_pillars( $slug );
+			if ( ! empty( $profile_pillars ) ) {
+				return $profile_pillars;
+			}
+		}
+
+		return array();
+	}
+
+	/**
+	 * Auto-populate pillars from SiteAudienceProfile for any categories
+	 * whose slugs match a known audience profile.
+	 *
+	 * @return int Number of categories updated.
+	 */
+	public function seed_pillars_from_profiles(): int {
+		if ( ! class_exists( '\KH\Editorial\Services\SiteAudienceProfile' ) ) {
+			return 0;
+		}
+
+		$all = $this->get_all();
+		$updated = 0;
+
+		foreach ( $all as $i => $category ) {
+			$slug = $category['slug'] ?? '';
+			if ( empty( $slug ) ) {
+				continue;
+			}
+
+			$profile_pillars = \KH\Editorial\Services\SiteAudienceProfile::get_pillars( $slug );
+			if ( ! empty( $profile_pillars ) ) {
+				// Only set if not already populated
+				$stored = $category['pillars'] ?? array();
+				if ( empty( $stored ) ) {
+					$all[ $i ]['pillars'] = $profile_pillars;
+					$all[ $i ]['site_slug'] = $slug; // Keep site_slug for now, might be useful
+					$updated++;
+				}
+			}
+		}
+
+		if ( $updated > 0 ) {
+			update_option( self::OPTION_KEY, $all, false );
+		}
+
+		return $updated;
+	}
+
+	/**
+	 * Normalize a category array with sensible defaults and mapping.
 	 *
 	 * @param array $category Raw category data.
 	 * @return array
@@ -276,13 +317,23 @@ class TopLineCategoriesStore {
 	private function normalize_category( array $category ): array {
 		$slug = sanitize_title( $category['slug'] ?? $category['name'] ?? '' );
 
+		// Determine site_slug — use explicit or infer from the category slug
+		$site_slug = $category['site_slug'] ?? null;
+		if ( ! $site_slug && class_exists( '\KH\Editorial\Services\SiteAudienceProfile' ) ) {
+			// Check if this slug matches a known audience profile
+			$profile = \KH\Editorial\Services\SiteAudienceProfile::get_profile( $slug );
+			if ( $profile ) {
+				$site_slug = $slug;
+			}
+		}
+
 		$defaults = array(
 			'slug'                => $slug,
 			'name'                => '',
-			'category_type'       => '',
-			'pref_domain'         => '',
-			'core_content_channel'=> '',
-			'target_personas'     => array(),
+			'channel'             => '', // Mapped from Core Content Channel
+			'pillars'             => array(), // Seeded from SiteAudienceProfile, overridden by CSV
+			'target_personas'     => array(), // Aggregated from pillars, editable
+			'keywords'            => array(), // Aggregated from pillars, editable
 			'target_sponsors'     => array(),
 			'key_competitors'     => array(),
 			'trade_associations'  => array(),
@@ -310,6 +361,24 @@ class TopLineCategoriesStore {
 
 		$merged = array_merge( $defaults, $category );
 
+		// Auto-seed pillars from SiteAudienceProfile if empty and slug matches
+		if ( empty( $merged['pillars'] ) && ! empty( $merged['site_slug'] ) && class_exists( '\KH\Editorial\Services\SiteAudienceProfile' ) ) {
+			$profile_pillars = \KH\Editorial\Services\SiteAudienceProfile::get_pillars( $merged['site_slug'] );
+			if ( ! empty( $profile_pillars ) ) {
+				$merged['pillars'] = $profile_pillars;
+
+				// Also populate target_personas and keywords from the newly seeded pillars
+				$all_readers = [];
+				$all_keywords = [];
+				foreach ( $merged['pillars'] as $pillar ) {
+					$all_readers = array_merge( $all_readers, $pillar['readers'] ?? [] );
+					$all_keywords = array_merge( $all_keywords, $pillar['keywords'] ?? [] );
+				}
+				$merged['target_personas'] = array_values( array_unique( $all_readers ) );
+				$merged['keywords'] = array_values( array_unique( $all_keywords ) );
+			}
+		}
+
 		// Merge nested research_policy
 		if ( isset( $category['research_policy'] ) && is_array( $category['research_policy'] ) ) {
 			$merged['research_policy'] = array_merge( $defaults['research_policy'], $category['research_policy'] );
@@ -328,71 +397,282 @@ class TopLineCategoriesStore {
 	}
 
 	/**
-	 * Convert a CSV-style row (flat headers) into a category array.
+	 * Get the pillar-to-channel mapping based on the provided data.
 	 *
-	 * @param array $row Flat associative array (e.g., from CSV import).
 	 * @return array
 	 */
-	private function normalize_import_row( array $row ): array {
-		$name = $row['Brand Title'] ?? $row['name'] ?? $row['Name'] ?? $row['Category Name'] ?? '';
-		$slug = sanitize_title( $name );
-
-		if ( empty( $name ) || empty( $slug ) ) {
-			return array();
-		}
-
-		$category = array(
-			'slug'                => $slug,
-			'name'                => $name,
-			'category_type'       => $row['Category Type'] ?? $row['category_type'] ?? '',
-			'pref_domain'         => $row['Pref. Domain'] ?? $row['pref_domain'] ?? '',
-			'core_content_channel'=> $row['Core Content Channel'] ?? $row['core_content_channel'] ?? '',
-			'target_personas'     => $this->parse_csv_list( $row['Target Personas'] ?? $row['target_personas'] ?? '' ),
-			'target_sponsors'     => $this->parse_csv_list( $row['Target Sponsors'] ?? $row['target_sponsors'] ?? '' ),
-			'key_competitors'     => $this->parse_csv_list( $row['Key Competitors'] ?? $row['key_competitors'] ?? '' ),
-			'trade_associations'  => $this->parse_csv_list( $row['Trade Associations'] ?? $row['trade_associations'] ?? '' ),
-			'academic_journals'   => $this->parse_csv_list( $row['Academic Journals'] ?? $row['academic_journals'] ?? '' ),
-			'acronyms'            => $this->parse_csv_list( $row['Acronyms'] ?? $row['acronyms'] ?? '' ),
-			'cultural_lexicon'    => $this->parse_csv_list( $row['Cultural Lexicon'] ?? $row['cultural_lexicon'] ?? '' ),
-			'key_speakers'        => $this->parse_csv_list( $row['Key Speakers'] ?? $row['key_speakers'] ?? '' ),
-			'subgroups'           => $this->parse_csv_list( $row['Subgroups'] ?? $row['subgroups'] ?? '' ),
-			'research_policy'     => array(
-				'priority_domains'    => $this->parse_csv_list( $row['Priority Domains'] ?? $row['priority_domains'] ?? '' ),
-				'blocked_domains'     => $this->parse_csv_list( $row['Blocked Domains'] ?? $row['blocked_domains'] ?? 'wikipedia.org,pinterest.com,reddit.com,quora.com' ),
-				'blocked_keywords'    => $this->parse_csv_list( $row['Blocked Keywords'] ?? $row['blocked_keywords'] ?? 'chatgpt,gemini,claude,ai-generated,synthetic study' ),
-				'preferred_sources'   => $this->parse_csv_list( $row['Preferred Sources'] ?? $row['preferred_sources'] ?? '' ),
-				'source_mix_minimums' => array(
-					'academic'   => (int) ( $row['Source Mix: Academic'] ?? $row['source_mix_academic'] ?? 1 ),
-					'analyst'    => (int) ( $row['Source Mix: Analyst'] ?? $row['source_mix_analyst'] ?? 1 ),
-					'industry'   => (int) ( $row['Source Mix: Industry'] ?? $row['source_mix_industry'] ?? 1 ),
-					'case_study' => (int) ( $row['Source Mix: Case Study'] ?? $row['source_mix_case_study'] ?? 1 ),
-				),
-				'recency_months'           => (int) ( $row['Recency Months'] ?? $row['recency_months'] ?? 36 ),
-				'max_citations_per_org'    => (int) ( $row['Max Citations Per Org'] ?? $row['max_citations_per_org'] ?? 2 ),
-				'min_priority_domains_hit' => (int) ( $row['Min Priority Domains Hit'] ?? $row['min_priority_domains_hit'] ?? 1 ),
-			),
-		);
-
-		return $this->normalize_category( $category );
+	private function get_pillar_channel_mapping(): array {
+		return [
+			'aftermarket' => [
+				'pillars' => [
+					[
+						'name' => 'Service Revenue Streams',
+						'core_content_channels' => ['Aftermarket Profitability & Growth', 'Customer Loyalty & Brand Experience'],
+					],
+					[
+						'name' => 'Servitization & Advanced Service Strategies',
+						'core_content_channels' => ['Service Business Models & Servitization'],
+					],
+					[
+						'name' => 'Installed Base Intelligence',
+						'core_content_channels' => ['Aftermarket Digital Transformation'],
+					],
+					[
+						'name' => 'Installed Base Lifecycle Management',
+						'core_content_channels' => ['Installed Base Lifecycle Management'],
+					],
+				],
+			],
+			'pricing' => [
+				'pillars' => [
+					[
+						'name' => 'Pricing Strategy & Tactics',
+						'core_content_channels' => ['Commercial Strategy'],
+					],
+					[
+						'name' => 'Price Optimization & Analytics',
+						'core_content_channels' => ['Price & Margin Excellence', 'Revenue Intelligence'],
+					],
+					[
+						'name' => 'Contract & Deal Management',
+						'core_content_channels' => ['Rebate & Incentive Mgmt'],
+					],
+					[
+						'name' => 'Value-Based Selling & Growth',
+						'core_content_channels' => ['Demand Operations'],
+					],
+				],
+			],
+			'field-service' => [
+				'pillars' => [
+					[
+						'name' => 'Field Service Delivery',
+						'core_content_channels' => ['Maintenance Strategy & Execution', 'Service Delivery & Customer Experience'],
+					],
+					[
+						'name' => 'Mobile Workforce Management',
+						'core_content_channels' => ['Scheduling, Dispatch & Logistics', 'Workforce Operations & Talent'],
+					],
+					[
+						'name' => 'Field Service Profitability',
+						'core_content_channels' => ['Operational Visibility & KPIs'],
+					],
+					[
+						'name' => 'Customer Experience & Success',
+						'core_content_channels' => ['Service Delivery & Customer Experience'],
+					],
+				],
+			],
+			'spare-parts' => [
+				'pillars' => [
+					[
+						'name' => 'Network Design & Infrastructure',
+						'core_content_channels' => ['Distribution & Last-Mile Logistics', 'Strategic Sourcing & Supply Resilience'],
+					],
+					[
+						'name' => 'Warehousing & Operations',
+						'core_content_channels' => ['Warehouse Operations & Physical Footprint'],
+					],
+					[
+						'name' => 'Inventory & Digital Tracking',
+						'core_content_channels' => ['Inventory Planning & Demand Intelligence', 'Parts Discovery & Digital Enablement'],
+					],
+					[
+						'name' => 'Lifecycle Service & Regulations',
+						'core_content_channels' => ['Returns, Cores & Remanufacturing'],
+					],
+				],
+			],
+			'ecommerce' => [
+				'pillars' => [
+					[
+						'name' => 'Digital Sales Channels',
+						'core_content_channels' => ['Platform & Architecture'],
+					],
+					[
+						'name' => 'B2B User Experience (UX)',
+						'core_content_channels' => ['Customer Experience (CX) & Conversion'],
+					],
+					[
+						'name' => 'eCommerce Tech Stack & Integration',
+						'core_content_channels' => ['Payments, Fraud & Security', 'Supply Chain & Fulfillment'],
+					],
+					[
+						'name' => 'Digital Customer Acquisition & Growth',
+						'core_content_channels' => ['Data, AI & Analytics'],
+					],
+				],
+			],
+			'aerospace' => [
+				'pillars' => [
+					[
+						'name' => 'Procurement & Engineering',
+						'core_content_channels' => ['Production Backlogs'],
+					],
+					[
+						'name' => 'Maintenance, Repair & Overhaul (MRO)',
+						'core_content_channels' => ['Commercial MRO', 'Skills Gaps'],
+					],
+					[
+						'name' => 'Digital Innovation & Tech',
+						'core_content_channels' => ['Autonomous Systems'],
+					],
+					[
+						'name' => 'Regulation & Growth',
+						'core_content_channels' => ['Geopolitical/Regulatory', 'Decarbonization'],
+					],
+				],
+			],
+			'built-env' => [
+				'pillars' => [
+					[
+						'name' => 'Construction & Development',
+						'core_content_channels' => ['Digital Project Delivery', 'Transport & Connectivity Infrastructure', 'Health, Safety & Workforce Wellbeing'],
+					],
+					[
+						'name' => 'Maintenance, Facilities & Asset Management',
+						'core_content_channels' => ['Infrastructure & Physical Asset Management'],
+					],
+					[
+						'name' => 'Smart Technology & Integration',
+						'core_content_channels' => ['ASmart Buildings & Facilities Management'],
+					],
+					[
+						'name' => 'Sustainability & Infrastructure Performance',
+						'core_content_channels' => ['Circular Infrastructure & Materials'],
+					],
+				],
+			],
+			'industrial' => [
+				'pillars' => [
+					[
+						'name' => 'Design & Engineering',
+						'core_content_channels' => ['Electrification & Alternative Powertrains'],
+					],
+					[
+						'name' => 'Manufacturing Operations',
+						'core_content_channels' => ['Production Ramp-up & Supply Resilience', 'Operational Safety & Ergonomics'],
+					],
+					[
+						'name' => 'Industrial Digitalization',
+						'core_content_channels' => ['Connected Equipment & Industrial AI', 'Automation & Autonomous Systems'],
+					],
+					[
+						'name' => 'Sustainability & Remanufacturing',
+						'core_content_channels' => ['Service Lifecycle Management'],
+					],
+				],
+			],
+			'utilities' => [
+				'pillars' => [
+					[
+						'name' => 'Design & Engineering',
+						'core_content_channels' => ['Load Growth & Interconnection Queues'],
+					],
+					[
+						'name' => 'Asset Operations & Network Management',
+						'core_content_channels' => ['Grid Modernization & Resilience', 'Compliance, Safety & PFAS'],
+					],
+					[
+						'name' => 'Digital Grid & Smart Metering',
+						'core_content_channels' => ['AI & Intelligent Operations', 'Workforce Capability & AI Literacy'],
+					],
+					[
+						'name' => 'Servitization & Sustainability Models',
+						'core_content_channels' => ['Circular Resources & Recycling'],
+					],
+				],
+			],
+			'manufacturing' => [
+				'pillars' => [
+					[
+						'name' => 'Advanced Production Systems (APS)',
+						'core_content_channels' => ['Industry 5.0', 'Human-Machine Collaboration'],
+					],
+					[
+						'name' => 'Supply Chain & Lifecycle Management',
+						'core_content_channels' => ['Industrial Sustainability & Circularity'],
+					],
+					[
+						'name' => 'Smart Factory & Digitalization',
+						'core_content_channels' => ['Agentic AI & Industrial Intelligence'],
+					],
+					[
+						'name' => 'Servitization & Business Model Innovation',
+						'core_content_channels' => ['Servitization & XaaS Business Models'],
+					],
+				],
+			],
+		];
 	}
 
+
 	/**
-	 * Parse a comma-separated or array field into an array of strings.
+	 * Get a prompt-ready audience context string, enriched with core content channels.
 	 *
-	 * @param mixed $value String or array.
-	 * @return array
+	 * Uses the main TopLineCategory entry if available, falling back to SiteAudienceProfile.
+	 *
+	 * @param string $slug Category slug.
+	 * @return string Human-readable context paragraph, or empty string if slug not found.
 	 */
-	private function parse_csv_list( $value ): array {
-		if ( is_array( $value ) ) {
-			return array_values( array_filter( array_map( 'trim', $value ) ) );
+	public function get_enriched_audience_context( string $slug ): string {
+		$category = $this->get_by_slug( $slug );
+
+		if ( ! $category && class_exists( '\KH\Editorial\Services\SiteAudienceProfile' ) ) {
+			return \KH\Editorial\Services\SiteAudienceProfile::get_audience_context( $slug );
 		}
 
-		$string = trim( (string) $value );
-		if ( empty( $string ) ) {
-			return array();
+		if ( ! $category ) {
+			return '';
 		}
 
-		$parts = explode( ',', $string );
-		return array_values( array_filter( array_map( 'trim', $parts ) ) );
+		$pillar_lines = [];
+		$all_readers = [];
+		$all_keywords = [];
+		$all_channels = [];
+
+		$pillars = $category['pillars'] ?? [];
+
+		foreach ( $pillars as $pillar ) {
+			$pillar_name = $pillar['name'] ?? '';
+			$pillar_focus = $pillar['focus'] ?? '';
+			if ( ! empty( $pillar_name ) ) {
+				$pillar_lines[] = "{$pillar_name} ({$pillar_focus})";
+			}
+
+			$all_readers = array_merge( $all_readers, $pillar['readers'] ?? [] );
+			$all_keywords = array_merge( $all_keywords, $pillar['keywords'] ?? [] );
+
+			// Append core content channels if they exist for this pillar
+			if ( ! empty( $pillar['core_content_channels'] ) ) {
+				$all_channels = array_merge( $all_channels, $pillar['core_content_channels'] );
+			}
+		}
+
+		// Use category level fallbacks if pillar data is empty
+		if ( empty( $all_readers ) && ! empty( $category['target_personas'] ) ) {
+			$all_readers = $category['target_personas'];
+		}
+		if ( empty( $all_keywords ) && ! empty( $category['keywords'] ) ) {
+			$all_keywords = $category['keywords'];
+		}
+
+		$unique_readers = implode( ', ', array_unique( $all_readers ) );
+		$unique_keywords = implode( ', ', array_unique( $all_keywords ) );
+		$pillars_text = implode( '; ', $pillar_lines );
+		$unique_channels = implode( '; ', array_unique( $all_channels ) );
+
+		$context = "This publication serves: {$unique_readers}. ";
+		$context .= "Editorial coverage spans: {$pillars_text}. ";
+		$context .= "Key topics include: {$unique_keywords}.";
+
+		if ( ! empty( $unique_channels ) ) {
+			$context .= " Core content channels include: {$unique_channels}.";
+		} elseif ( ! empty( $category['channel'] ) ) {
+			// Fallback to top-level channel if individual pillars don't have mapping
+			$context .= " Core content channels include: {$category['channel']}.";
+		}
+
+		return $context;
 	}
 }

@@ -24,6 +24,7 @@ namespace KH\Editorial\Services\GEO;
 
 use KH\Editorial\PostTypes\AtomicArticlePostType;
 use KH\Editorial\Core\LLMService;
+use KH\Editorial\Services\SiteAudienceProfile;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -163,8 +164,48 @@ class AtomicArticleGenerator {
      * @param string $content Cleaned article text.
      * @return array[]|\WP_Error Array of unit arrays or WP_Error.
      */
+    /**
+     * Resolve the site slug for the current blog context.
+     *
+     * @return string Site slug, or empty string if unmatched.
+     */
+    private function resolve_site_slug(): string {
+        static $reverse_map = null;
+
+        if ( null === $reverse_map ) {
+            $reverse_map = [];
+            if ( class_exists( '\\KH\\Editorial\\Services\\AllocationService' ) ) {
+                $allocation = new \KH\Editorial\Services\AllocationService();
+                foreach ( $allocation->get_blog_id_map() as $slug => $blog_id ) {
+                    $reverse_map[ $blog_id ] = $slug;
+                }
+            }
+        }
+
+        $blog_id = get_current_blog_id();
+        return $reverse_map[ $blog_id ] ?? '';
+    }
+
+    /**
+     * Call LLM to decompose the article into atomic units.
+     *
+     * @param string $title   Parent article title.
+     * @param string $content Cleaned article text.
+     * @return array[]|\WP_Error Array of unit arrays or WP_Error.
+     */
     private function decompose_via_llm( string $title, string $content ) {
         $max_units = AtomicArticlePostType::MAX_PER_POST;
+
+        // Build audience context for the target site
+        $audience_context = '';
+        $site_slug = $this->resolve_site_slug();
+        if ( $site_slug ) {
+            $audience_context = SiteAudienceProfile::get_audience_context( $site_slug );
+        }
+
+        $audience_block = $audience_context
+            ? "AUDIENCE PROFILE:\n{$audience_context}\n\n"
+            : '';
 
         $system_prompt = <<<PROMPT
 You are a content strategist specialising in GEO (Generative Engine Optimisation).

@@ -3,6 +3,7 @@
  * Refactored to support async drafting, polling, and SmartSEO integration.
  */
 const { useState, useEffect } = wp.element;
+const { useDispatch } = wp.data;
 const { __ } = wp.i18n;
 const { 
     Spinner, 
@@ -28,6 +29,33 @@ const apiFetch = (options) =>
             ...(options.headers || {}),
         },
     });
+
+/**
+ * Very small markdown to HTML converter used for preview rendering.
+ * Handles headings, bold, italics, links and paragraphs.
+ */
+const convertMarkdownToHtml = (md) => {
+    if (!md) return '';
+    // Escape HTML entities first
+    let html = md.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // Headings ##, ### etc.
+    html = html.replace(/^######\s*(.*)$/gm, '<h6>$1</h6>')
+        .replace(/^#####\s*(.*)$/gm, '<h5>$1</h5>')
+        .replace(/^####\s*(.*)$/gm, '<h4>$1</h4>')
+        .replace(/^###\s*(.*)$/gm, '<h3>$1</h3>')
+        .replace(/^##\s*(.*)$/gm, '<h2>$1</h2>')
+        .replace(/^#\s*(.*)$/gm, '<h1>$1</h1>');
+    // Bold **text**
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // Italic *text*
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    // Links [text](url)
+    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    // Paragraphs (split by double line breaks)
+    const paragraphs = html.split(/\n{2,}/g).map(p => p.trim()).filter(p => p.length);
+    html = paragraphs.map(p => p.startsWith('<h') ? p : `<p>${p}</p>`).join('\n');
+    return html;
+};
 
 /**
  * SmartRecommendationsPanel Component
@@ -744,7 +772,7 @@ const WritingStudioApp = () => {
      * Persist the draft to WordPress database.
      */
     const handleSaveToWordPress = async () => {
-        if (!draftResult || !draftResult.blocks) return;
+        if (!draftResult) return;
 
         try {
             setIsPersisting(true);
@@ -754,15 +782,20 @@ const WritingStudioApp = () => {
                 path: 'editorial/v1/author/persist',
                 method: 'POST',
                 data: {
-                    id: selectedArticle.wp_post_id || null, // Ensure we update if ID exists
+                    id: selectedArticle.wp_post_id || null,
                     title: selectedArticle.headline || selectedArticle.title,
-                    content: convertBlocksToHtml(draftResult.blocks),
-                    blocks: draftResult.blocks, // raw blocks for Gutenberg compilation
+                    // Persist the markdown text directly; no block data needed
+                    content: draftResult.text,
                     planner_session_id: selectedSession.session_id,
                     article_id: selectedArticle.id,
                     author_policy: policy
                 }
             });
+
+            // Ensure we have a usable edit URL even if the API omitted it
+            if (!response.edit_url && response.post_id) {
+                response.edit_url = `${authorData.adminUrl}post.php?post=${response.post_id}&action=edit`;
+            }
 
             if (response.success) {
                 setPersistenceNotice({
@@ -1021,19 +1054,24 @@ const WritingStudioApp = () => {
                         </Notice>
                     )}
 
-                    <Button 
-                        isPrimary 
-                        isBusy={isPersisting}
-                        disabled={!draftResult || isPersisting}
-                        onClick={handleSaveToWordPress}
-                        style={{ width: '100%', justifyContent: 'center' }}
-                        icon="wordpress"
-                    >
-                        {selectedArticle?.wp_post_id 
-                            ? __('Update WP Draft', 'kh-editorial-author') 
-                            : __('Save Draft to WordPress', 'kh-editorial-author')
-                        }
-                    </Button>
+            {draftResult && draftResult.word_count < (policy.min_words || 1500) && (
+                <Notice status="warning" isDismissible={false} style={{ marginBottom: '10px' }}>
+                    {__('Article is below the minimum word count of', 'kh-editorial-author')} {policy.min_words || 1500} {__('words.', 'kh-editorial-author')}
+                </Notice>
+            )}
+            <Button 
+                isPrimary 
+                isBusy={isPersisting}
+                disabled={!draftResult || isPersisting || (draftResult && draftResult.word_count < (policy.min_words || 1500))}
+                onClick={handleSaveToWordPress}
+                style={{ width: '100%', justifyContent: 'center' }}
+                icon="wordpress"
+            >
+                {selectedArticle?.wp_post_id 
+                    ? __('Update WP Draft', 'kh-editorial-author') 
+                    : __('Save Draft to WordPress', 'kh-editorial-author')
+                }
+            </Button>
                     
                     {selectedArticle?.wp_post_id && !persistenceNotice && (
                         <div style={{ marginTop: '10px', textAlign: 'center' }}>
@@ -1098,31 +1136,8 @@ const WritingStudioApp = () => {
                         )}
 
                         {/* Article Preview */}
-                        <article className="entry-content">
-                            {draftResult.blocks && draftResult.blocks.map((block, idx) => {
-                                if (block.type === 'heading') {
-                                    const Tag = `h${block.level || 2}`;
-                                    return <Tag key={idx}>{block.content}</Tag>;
-                                }
-                                if (block.type === 'list') {
-                                    const ListTag = block.ordered ? 'ol' : 'ul';
-                                    return (
-                                        <ListTag key={idx}>
-                                            {block.items && block.items.map((item, i) => <li key={i}>{item}</li>)}
-                                        </ListTag>
-                                    );
-                                }
-                                if (block.type === 'pullquote') {
-                                    return (
-                                        <blockquote key={idx} style={{ borderLeft: '4px solid #007cba', paddingLeft: '20px', fontStyle: 'italic', fontSize: '1.2em' }}>
-                                            <p>{block.content}</p>
-                                            {block.cite && <cite>&mdash; {block.cite}</cite>}
-                                        </blockquote>
-                                    );
-                                }
-                                return <p key={idx} style={{ lineHeight: '1.6', fontSize: '16px' }}>{block.content}</p>;
-                            })}
-                        </article>
+                        {/* Render draft preview from markdown text */}
+                        <article className="entry-content" dangerouslySetInnerHTML={{ __html: convertMarkdownToHtml(draftResult.text) }} />
                     </div>
                 )}
                 

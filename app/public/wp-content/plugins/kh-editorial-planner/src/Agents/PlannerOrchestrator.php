@@ -323,7 +323,7 @@ class PlannerOrchestrator {
         $directives = $policy_agent->get_exclusion_directives( $post_id );
         
         // Read synopsis_count from session meta (per-session override), fall back to 4
-        $session_meta = json_decode( get_post_meta( $post_id, 'kh_planner_meta', true ), true ) ?: [];
+        $session_meta = $this->get_planner_meta_array( $post_id );
         $synopsis_count = in_array( (int) ( $session_meta['synopsis_count'] ?? 4 ), [ 1, 4, 8 ] ) ? (int) $session_meta['synopsis_count'] : 4;
         
         $prompt = PromptFactory::get_final_synopsis_prompt( $post->post_title, wp_json_encode( $context ), $directives, $pillar, $audience_context, $synopsis_count );
@@ -385,7 +385,7 @@ class PlannerOrchestrator {
         }
 
         // Load session meta and find the target article
-        $session_meta = json_decode( get_post_meta( $post_id, 'kh_planner_meta', true ), true ) ?: [];
+        $session_meta = $this->get_planner_meta_array( $post_id );
         $articles     = $session_meta['articles'] ?? [];
         $article      = null;
         $article_idx  = null;
@@ -461,7 +461,7 @@ class PlannerOrchestrator {
             [ 'status' => $status ],
             $extra
         );
-        $session_meta = json_decode( get_post_meta( $post_id, 'kh_planner_meta', true ), true ) ?: [];
+        $session_meta = $this->get_planner_meta_array( $post_id );
         $session_meta['articles'] = $articles;
         update_post_meta( $post_id, 'kh_planner_meta', wp_json_encode( $session_meta ) );
     }
@@ -1197,13 +1197,13 @@ APA_EXAMPLES;
         }
 
         // Load session meta and find the target article
-        $session_meta = json_decode( get_post_meta( $post_id, 'kh_planner_meta', true ), true ) ?: [];
+        $session_meta = $this->get_planner_meta_array( $post_id );
         $articles     = $session_meta['articles'] ?? [];
         $article      = null;
         $article_idx  = null;
         foreach ( $articles as $idx => $a ) {
             if ( $a['id'] === $article_id ) {
-                $article     = &$a;
+                $article     = &$articles[ $idx ];
                 $article_idx = $idx;
                 break;
             }
@@ -1220,6 +1220,7 @@ APA_EXAMPLES;
             'authoritative'    => 'analyst',
             'analytical'       => 'analyst',
             'conversational'   => 'veteran',
+            'executive'        => 'veteran',
         ];
         $persona = $persona_map[ $author_profile ] ?? 'journalist';
 
@@ -1336,5 +1337,29 @@ APA_EXAMPLES;
             'status'     => 'completed',
             'result'     => $result,
         ];
+    }
+
+    /**
+     * Load kh_planner_meta for a session and return it as an array.
+     *
+     * WordPress's get_post_meta() with $single=true can return an already-
+     * unserialized array if the value was stored as a PHP-serialized array
+     * rather than a JSON string. This helper handles both shapes safely.
+     *
+     * @param int $session_id
+     * @return array
+     */
+    private function get_planner_meta_array( $session_id ) {
+        $raw = get_post_meta( $session_id, 'kh_planner_meta', true );
+        if ( is_array( $raw ) ) {
+            return $raw;
+        }
+        if ( is_string( $raw ) && $raw !== '' ) {
+            $decoded = json_decode( $raw, true );
+            if ( json_last_error() === JSON_ERROR_NONE && is_array( $decoded ) ) {
+                return $decoded;
+            }
+        }
+        return [];
     }
 }

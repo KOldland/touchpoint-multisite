@@ -3,6 +3,7 @@
 namespace KH\Editorial\Services\AI;
 
 use KH\Editorial\Core\LLMService;
+use KH\Editorial\Services\SiteAudienceProfile;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -250,9 +251,37 @@ class SEOAgent {
     }
 
     /**
+     * Resolve the site slug for the current blog context.
+     *
+     * @return string Site slug, or empty string if unmatched.
+     */
+    private function resolve_site_slug(): string {
+        static $reverse_map = null;
+
+        if ( null === $reverse_map ) {
+            $reverse_map = [];
+            if ( class_exists( '\\KH\\Editorial\\Services\\AllocationService' ) ) {
+                $allocation = new \KH\Editorial\Services\AllocationService();
+                foreach ( $allocation->get_blog_id_map() as $slug => $blog_id ) {
+                    $reverse_map[ $blog_id ] = $slug;
+                }
+            }
+        }
+
+        return $reverse_map[ get_current_blog_id() ] ?? '';
+    }
+
+    /**
      * Build a prompt for the LLM based on deterministic analysis.
      */
     public function build_llm_prompt( \WP_Post $post, array $analysis, string $keyword ): string {
+        // Build audience context for the target site
+        $audience_context = '';
+        $site_slug = $this->resolve_site_slug();
+        if ( $site_slug ) {
+            $audience_context = SiteAudienceProfile::get_audience_context( $site_slug );
+        }
+
         $current_state = [
             'seo_title' => get_post_meta( $post->ID, '_khm_seo_title', true ),
             'meta_description' => get_post_meta( $post->ID, '_khm_seo_description', true ),
@@ -273,6 +302,13 @@ class SEOAgent {
 
         $prompt = [
             'You are the KHM SEO Agent. Return JSON only that matches the required schema.',
+        ];
+
+        if ( $audience_context ) {
+            $prompt[] = 'AUDIENCE PROFILE: ' . $audience_context;
+        }
+
+        $prompt = array_merge( $prompt, [
             'sponsor_safe=' . $sponsor_safe,
             'no_hallucination=true',
             'Use only these supported action types: set_meta_title, set_meta_description, set_focus_keyword, set_keywords, set_schema_config.',
@@ -293,7 +329,7 @@ class SEOAgent {
             '',
             'Output schema:',
             '{"summary":{"issues_total":0,"issues_high":0,"suggestions_total":0,"score":0},"issues":[],"suggestions":[],"apply_actions":[],"upstream_signals":[]}'
-        ];
+        ]);
 
         return implode( "\n", $prompt );
     }

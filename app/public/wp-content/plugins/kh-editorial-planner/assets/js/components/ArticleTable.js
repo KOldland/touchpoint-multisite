@@ -22,6 +22,8 @@ export const ArticleTable = ({
     onPreview,
     onFrameworkPreview,
     onExportFramework,
+    onRegenerateFramework,
+    onQueueFramework,
     onRunAuthor,
     onQueueAuthor,
     onViewDraft,
@@ -74,6 +76,7 @@ export const ArticleTable = ({
                 const isDeepDiveLoading = !!articleActionLoading[`dive_deeper:${article.id}`];
                 const isOpinionLoading = !!articleActionLoading[`opinion_piece:${article.id}`];
                 const isQueueArticleLoading = !!queueActionLoading[`enqueue:article_creation:${article.id}`];
+                const isFrameworkLoading = !!frameworkLoading[article.id];
 
                 return createElement('tr', { key: article.id },
                     createElement('td', null, 
@@ -108,6 +111,8 @@ export const ArticleTable = ({
                         createElement(Button, { isPrimary: true, onClick: () => onOpinion(article), disabled: isOpinionLoading }, isOpinionLoading ? createElement(Spinner) : 'Opinion Piece'),
                         createElement(Button, { isSecondary: true, onClick: () => onDismiss(article), disabled: isDismissLoading }, 'Dismiss'),
                         createElement(Button, { isSecondary: true, onClick: () => onPreview(article) }, 'Preview'),
+                        !frameworkReady && createElement(Button, { isPrimary: true, onClick: () => onRegenerateFramework(article), disabled: isFrameworkLoading }, isFrameworkLoading ? createElement(Spinner) : 'Run Framework'),
+                        !frameworkReady && createElement(Button, { isSecondary: true, onClick: () => onQueueFramework(article) }, 'Queue Framework'),
                         frameworkReady && createElement(Button, { isSecondary: true, onClick: () => onFrameworkPreview(article) }, 'View Framework'),
                         createElement(Button, { isSecondary: true, onClick: () => onExportFramework(article), disabled: !frameworkReady }, 'Export Framework'),
                         createElement(Button, { isSecondary: true, onClick: () => onRunAuthor(article), disabled: !meetsCitationThreshold || !frameworkReady || isAuthorLoading }, isAuthorLoading ? createElement(Spinner) : 'Run Author'),

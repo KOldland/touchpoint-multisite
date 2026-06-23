@@ -8,6 +8,8 @@ use KH\EditorialAuthor\Core\AuthorPolicy;
  * Class PromptFactory
  * 
  * Centralizes the prompt engineering logic for the Author Suite.
+ * Mirrors the legacy dual-gpt Author Agent prompt structure which
+ * uses JSON-mode output with structured blocks.
  */
 class PromptFactory {
 
@@ -24,6 +26,7 @@ class PromptFactory {
 
         $persona_text = $persona_descriptions[$persona] ?? ($policy['reporter_voice_required'] ? 'Experienced Analyst / Senior Journalist.' : 'Professional B2B analyst writer.');
 
+        // Legacy behavior: output raw markdown text, not JSON. Ensure no JSON expectations are present.
         $lines = [
             'You are the Author Agent. You execute an approved editorial plan and framework without adding new strategy, SEO, or distribution logic.',
             'You must not introduce new citations, entities, or claims beyond provided materials.',
@@ -36,7 +39,8 @@ class PromptFactory {
             $policy['disallow_em_dash'] ? 'No em dashes (—) or double hyphens (--).' : $em_dash_guidance,
             $policy['disallow_tidy_conclusion'] ? 'No tidy conclusions. No omniscient voice. Allow tonal variation and friction.' : 'Avoid definitive resolution unless source-backed.',
             $policy['disallow_first_person'] ? 'Do not use first-person pronouns (I, we, our, us).' : 'Prefer third-person perspective.',
-            'Output must be JSON only (no markdown or commentary).',
+            // Legacy: output raw markdown text, not JSON
+            'Output the draft as plain markdown text without any JSON wrapper.',
         ];
 
         if (!empty($policy['banned_phrases'])) {
@@ -97,7 +101,7 @@ class PromptFactory {
         $prompt[] = $context['dossier'] ?? 'No dossier provided.';
         $prompt[] = '';
 
-        $prompt[] = 'Verified Citations (use numeric markers [1], [2], etc. Do not invent new sources):';
+        $prompt[] = 'Verified Citations (use numeric markers [1], [2], etc. and do not invent new sources):';
         $citations = $context['citations'] ?? [];
         if (!empty($citations)) {
             foreach ($citations as $index => $citation) {
@@ -130,34 +134,33 @@ class PromptFactory {
         $prompt[] = '- No listicle framing.';
         $prompt[] = '- No punchline one-liners.';
         $prompt[] = '- No over-smoothed transitions.';
-        
         if ($policy['disallow_em_dash']) {
             $prompt[] = '- No em dashes (—) or double hyphens (--).';
         } else {
-            $prompt[] = '- Em-dash usage per brand profile: ' . AuthorPolicy::get_em_dash_guidance($policy['brand_profile']);
+            $prompt[] = '- Em-dash usage per brand profile: ' . AuthorPolicy::get_em_dash_guidance($policy['brand_profile'] ?? 'Brand A (FSI)');
         }
-
         $prompt[] = '- Every paragraph: at least one sentence >20 words and one sentence <8 words.';
         $prompt[] = '- At least one contradiction or self-correction per 500 words.';
-        $prompt[] = '- Markers: ' . implode(', ', AuthorPolicy::get_contradiction_markers()) . '.';
         $prompt[] = '- Paragraphs broken by thought, not template.';
         $prompt[] = '- Preserve ambiguity, temporal drift, unresolved tension.';
         $prompt[] = '- Observational, reported, investigative stance.';
         $prompt[] = '- Do not use generic section headings: "Overview", "Conclusion", or "Summary".';
-        
         if ($policy['disallow_tidy_conclusion']) {
             $prompt[] = '- No tidy conclusions or definitive resolution.';
         }
         if ($policy['disallow_first_person']) {
             $prompt[] = '- No first-person pronouns (I, we, our, us).';
         }
+        $prompt[] = '- No fabricated data, names, or quotes.';
+        $prompt[] = '- No inferred academic claims.';
+        $prompt[] = '- All claims must be attributable or framed with humility.';
+        $prompt[] = '- Do not add SEO keywords or optimize copy.';
+        $prompt[] = sprintf('- Target word count range: %d-%d words.', intval($policy['min_words']), intval($policy['max_words']));
+        if (!empty($policy['banned_phrases'])) {
+            $prompt[] = '- Banned phrases: ' . implode(', ', $policy['banned_phrases']) . '.';
+        }
 
-        $prompt[] = sprintf('- Target word count range: %d-%d words.', $policy['min_words'], $policy['max_words']);
-        
-        $prompt[] = '';
-        $prompt[] = 'Output JSON schema:';
-        $prompt[] = '{"blocks":[{"type":"heading","level":2,"content":""},{"type":"paragraph","content":""}],"citations_used":[1,2],"word_count":1234}';
-
+        // Legacy: no explicit JSON schema; output raw markdown.
         return implode("\n", $prompt);
     }
 

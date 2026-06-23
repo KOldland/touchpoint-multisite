@@ -327,6 +327,7 @@ class EditorialAdmin {
             }
 
             $settings = [
+                'planner_focus_level'   => min( 100, max( 0, (int) ( $_POST['planner_focus_level'] ?? 50 ) ) ),
                 'openai_api_key'      => sanitize_text_field( $_POST['openai_api_key'] ),
                 'openai_model'        => sanitize_text_field( $_POST['openai_model'] ?? '' ),
                 'google_ai_key'       => sanitize_text_field( $_POST['google_ai_key'] ),
@@ -336,7 +337,6 @@ class EditorialAdmin {
                 'dataforseo_login'    => sanitize_text_field( $_POST['dataforseo_login'] ),
                 'dataforseo_password' => sanitize_text_field( $_POST['dataforseo_password'] ),
                 'serpapi_key'        => sanitize_text_field( $_POST['serpapi_key'] ),
-                'tavily_key'         => sanitize_text_field( $_POST['tavily_key'] ),
                 'search_primary'     => sanitize_text_field( $_POST['search_primary'] ),
                 'show_prompt_editor' => isset( $_POST['show_prompt_editor'] ) ? 1 : 0,
                 'agent_models'       => $agent_models,
@@ -370,8 +370,7 @@ class EditorialAdmin {
             'dataforseo_login'    => '',
             'dataforseo_password' => '',
             'serpapi_key'        => '',
-            'tavily_key'         => '',
-            'search_primary'     => 'serpapi',
+            'search_primary'     => 'dataforseo',
             'show_prompt_editor' => 1,
             'agent_models'       => [],
             'agent_fallbacks'    => [],
@@ -522,15 +521,11 @@ class EditorialAdmin {
                                 <div class="kh-form-label"><strong>Search (SERP)</strong></div>
                                 <div class="kh-form-control">
                                     <select name="search_primary">
-                                        <option value="serpapi" <?php selected( $settings['search_primary'], 'serpapi' ); ?>>SerpAPI (Google) — Default</option>
-                                        <option value="tavily" <?php selected( $settings['search_primary'], 'tavily' ); ?>>Tavily (AI Search)</option>
-                                        <option value="dataforseo" <?php selected( $settings['search_primary'], 'dataforseo' ); ?>>DataForSEO</option>
+                                        <option value="dataforseo" <?php selected( $settings['search_primary'], 'dataforseo' ); ?>>DataForSEO — Default</option>
+                                        <option value="serpapi" <?php selected( $settings['search_primary'], 'serpapi' ); ?>>SerpAPI (Google) (Legacy)</option>
                                     </select>
                                     <div style="margin-top:6px;">
-                                        <input name="serpapi_key" type="password" value="<?php echo esc_attr( $settings['serpapi_key'] ); ?>" placeholder="SerpAPI Key" style="width:300px;">
-                                    </div>
-                                    <div style="margin-top:4px;">
-                                        <input name="tavily_key" type="password" value="<?php echo esc_attr( $settings['tavily_key'] ); ?>" placeholder="Tavily Key" style="width:300px;">
+                                        <input name="serpapi_key" type="password" value="<?php echo esc_attr( $settings['serpapi_key'] ); ?>" placeholder="SerpAPI Key (Legacy)" style="width:300px;">
                                     </div>
                                 </div>
                             </div>
@@ -602,6 +597,25 @@ class EditorialAdmin {
 
                         <!-- Collapsible agent model selectors -->
                         <div id="kh-customise-panel" style="display:none;">
+
+                        <!-- Planner Settings -->
+                        <div class="kh-subsection">
+                            <h3>Planner</h3>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label"><strong>Research Depth</strong><span class="kh-help">Controls breadth vs depth in planning sessions</span></div>
+                                <div class="kh-form-control">
+                                    <div style="display:flex;align-items:center;gap:12px;">
+                                        <span style="font-size:12px;color:#646970;">Broad</span>
+                                        <input name="planner_focus_level" type="range" min="0" max="100" step="10" value="<?php echo esc_attr( $settings['planner_focus_level'] ?? 50 ); ?>" oninput="this.nextElementSibling.textContent=this.value" style="flex:1;">
+                                        <span style="font-size:13px;font-weight:600;min-width:24px;text-align:center;"><?php echo esc_html( $settings['planner_focus_level'] ?? 50 ); ?></span>
+                                        <span style="font-size:12px;color:#646970;">Deep</span>
+                                    </div>
+                                    <div class="kh-desc" style="margin-top:8px;">
+                                        <strong>0 (Broad)</strong> — wide coverage across many subtopics. <strong>50 (Balanced)</strong> — default, balanced scope and depth. <strong>100 (Deep)</strong> — narrow focus, deep analysis on fewer topics.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
                         <!-- Profile Settings — Research -->
                         <div class="kh-subsection">

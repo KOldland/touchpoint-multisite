@@ -150,6 +150,9 @@ class AllocationService {
             ? get_post_meta( $featured_image_id, '_wp_attachment_image_alt', true )
             : '';
 
+        // Capture origin blog ID before switching
+        $origin_blog_id = get_current_blog_id();
+
         // Ensure user exists on target blog
         $this->ensure_user_on_blog( get_current_user_id(), $target_blog_id );
 
@@ -208,7 +211,7 @@ class AllocationService {
         $rewrite_applied = false;
 
         $record_id = AllocationTable::record(
-            get_current_blog_id(), // origin (hub)
+            $origin_blog_id, // origin (hub)
             $origin_post_id,
             $target_blog_id,
             $target_post_id,

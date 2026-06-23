@@ -21,6 +21,35 @@ class AIStorage {
         global $wpdb;
         $table = $wpdb->prefix . 'ai_jobs';
 
+        // Auto-create the table if it doesn't exist, or if it's missing required columns
+        $needs_create = $wpdb->get_var( "SHOW TABLES LIKE '$table'" ) !== $table;
+        if ( ! $needs_create ) {
+            // Verify the prompt column exists (might be from a failed schema attempt)
+            $has_prompt_col = $wpdb->get_var( "SHOW COLUMNS FROM $table LIKE 'prompt'" );
+            if ( ! $has_prompt_col ) {
+                // Drop the broken table so dbDelta can rebuild it correctly
+                $wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}ai_jobs" );
+                $wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}ai_budgets" );
+                $wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}ai_audit" );
+                $needs_create = true;
+            }
+        }
+        if ( ! $needs_create ) {
+            // Drop stale foreign key constraint (from earlier schema version) that blocks inserts
+            $fks = $wpdb->get_results( "SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '$table' AND REFERENCED_TABLE_NAME IS NOT NULL" );
+            foreach ( $fks as $fk ) {
+                $wpdb->query( "ALTER TABLE $table DROP FOREIGN KEY `{$fk->CONSTRAINT_NAME}`" );
+            }
+        }
+        if ( $needs_create ) {
+            if ( class_exists( '\KH\Editorial\Database\AISchema' ) ) {
+                if ( ! function_exists( 'dbDelta' ) ) {
+                    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+                }
+                \KH\Editorial\Database\AISchema::up();
+            }
+        }
+
         $defaults = [
             'id'           => wp_generate_uuid4(),
             'status'       => 'queued',

@@ -1113,29 +1113,465 @@ import { getQueueProgressDetail } from './TaskQueueManager.js';
                                                     : '';
 
 
-        // --- Handler Stubs (decoupled from monolith — wire up real implementations) ---
-        const openSynopsisModal = () => { /* TODO */ };
-        const handleRerunPhase1 = async () => { /* TODO */ };
-        const handleRerunPhase2 = async () => { /* TODO */ };
-        const handleRerunPhase3 = async () => { /* TODO */ };
-        const handleRerunPhase4 = async () => { /* TODO */ };
-        const handleReanalyseGaps = async () => { /* TODO */ };
-        const handleDismissArticle = async () => { /* TODO */ };
-        const handleDeepDiveArticle = async (article) => { /* TODO */ };
-        const handleOpinionPieceArticle = async (article) => { /* TODO */ };
-        const handleRegenerateFramework = async (article) => { /* TODO */ };
-        const handleQueueFrameworkGeneration = async (article) => { /* TODO */ };
-        const handleRunAuthorAgent = async (article) => { /* TODO */ };
-        const handleQueueAuthorAgent = async (article) => { /* TODO */ };
-        const handleRecommendImageArticle = async (article) => { /* TODO */ };
-        const handleGenerateImageArticle = async (article) => { /* TODO */ };
-        const handleExportFramework = (article) => { /* TODO */ };
-        const updateSynopsisCount = (count) => { /* TODO */ };
-        const handleGenerateSynopses = async () => { /* TODO */ };
-        const closeDiveDeeperModal = () => { setDiveDeeperModalOpen(false); setDiveDeeperArticle(null); setDiveDeeperSuccess(false); };
-        const handleDiveDeeperSubmit = async () => { /* TODO */ };
-        const handleDiveDeeperQueueSubmit = async () => { /* TODO */ };
-        const handleDiveDeeperRetry = async () => { /* TODO */ };
+        // --- Handler Implementations (wired to REST API) ---
+        const openSynopsisModal = async () => {
+            if (!sessionDetail?.id) return;
+            try {
+                setSynopsisPlanLoading(true);
+                setSynopsisPlanError('');
+                const response = await apiFetch({
+                    path: 'editorial/v1/planner/synopsis-plan',
+                    method: 'POST',
+                    data: { id: sessionDetail.id },
+                });
+                setSynopsisPlan(response?.plan || {});
+                setSynopsisModalOpen(true);
+            } catch (error) {
+                console.error('Failed to load synopsis plan:', error);
+                setSynopsisPlanError(error?.message || 'Failed to load synopsis plan.');
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to load synopsis plan.', { type: 'snackbar' });
+            } finally {
+                setSynopsisPlanLoading(false);
+            }
+        };
+
+        const handleRerunPhase1 = async () => {
+            if (!sessionDetail?.id) return;
+            if (!window.confirm('Re-run Research Phase 1? This will trigger LLM and search API usage.')) return;
+            try {
+                setPhase1RerunLoading(true);
+                await apiFetch({
+                    path: 'editorial/v1/planner/phase1',
+                    method: 'POST',
+                    data: { id: sessionDetail.id },
+                });
+                dispatch('core/notices').createNotice('success', 'Research Phase 1 re-run queued.', { type: 'snackbar' });
+                scheduleQueueFollowUpSync();
+                await refreshSessionDetail();
+            } catch (error) {
+                console.error('Failed to re-run Phase 1:', error);
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to re-run Phase 1.', { type: 'snackbar' });
+            } finally {
+                setPhase1RerunLoading(false);
+            }
+        };
+
+        const handleRerunPhase2 = async () => {
+            if (!sessionDetail?.id) return;
+            if (!window.confirm('Re-run Research Phase 2? This will trigger LLM and search API usage.')) return;
+            try {
+                setPhase2RerunLoading(true);
+                await apiFetch({
+                    path: 'editorial/v1/planner/phase2-qualification',
+                    method: 'POST',
+                    data: { id: sessionDetail.id },
+                });
+                dispatch('core/notices').createNotice('success', 'Research Phase 2 re-run queued.', { type: 'snackbar' });
+                scheduleQueueFollowUpSync();
+                await refreshSessionDetail();
+            } catch (error) {
+                console.error('Failed to re-run Phase 2:', error);
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to re-run Phase 2.', { type: 'snackbar' });
+            } finally {
+                setPhase2RerunLoading(false);
+            }
+        };
+
+        const handleRerunPhase3 = async () => {
+            if (!sessionDetail?.id) return;
+            if (!window.confirm('Re-run Research Phase 3? This will trigger LLM and search API usage.')) return;
+            try {
+                setPhase3RerunLoading(true);
+                await apiFetch({
+                    path: 'editorial/v1/planner/phase2',
+                    method: 'POST',
+                    data: { id: sessionDetail.id },
+                });
+                dispatch('core/notices').createNotice('success', 'Research Phase 3 re-run queued.', { type: 'snackbar' });
+                scheduleQueueFollowUpSync();
+                await refreshSessionDetail();
+            } catch (error) {
+                console.error('Failed to re-run Phase 3:', error);
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to re-run Phase 3.', { type: 'snackbar' });
+            } finally {
+                setPhase3RerunLoading(false);
+            }
+        };
+
+        const handleRerunPhase4 = async () => {
+            if (!sessionDetail?.id) return;
+            if (!window.confirm('Re-run Research Phase 4? This will trigger LLM and search API usage.')) return;
+            try {
+                setPhase4RerunLoading(true);
+                await apiFetch({
+                    path: 'editorial/v1/planner/phase4',
+                    method: 'POST',
+                    data: { id: sessionDetail.id },
+                });
+                dispatch('core/notices').createNotice('success', 'Research Phase 4 re-run queued.', { type: 'snackbar' });
+                scheduleQueueFollowUpSync();
+                await refreshSessionDetail();
+            } catch (error) {
+                console.error('Failed to re-run Phase 4:', error);
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to re-run Phase 4.', { type: 'snackbar' });
+            } finally {
+                setPhase4RerunLoading(false);
+            }
+        };
+
+        const handleReanalyseGaps = async () => {
+            if (!sessionDetail?.id) return;
+            try {
+                setResearchValidationLoading(true);
+                const cacheBuster = new Date().getTime();
+                const response = await apiFetch({
+                    path: `editorial/v1/planner/research-validation?id=${sessionDetail.id}&_t=${cacheBuster}`,
+                    method: 'GET',
+                });
+                setResearchPolicyDetail(response?.research_policy || sessionDetail?.meta?.research_policy || null);
+                setResearchValidationDetail(response?.research_validation || null);
+                setSearchProviderStatus(response?.search_provider_status || null);
+                setPolicyDirty(false); // Allow policy draft to sync with fresh data
+                dispatch('core/notices').createNotice('success', 'Content gaps re-analysed.', { type: 'snackbar' });
+            } catch (error) {
+                console.error('Failed to re-analyse gaps:', error);
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to re-analyse gaps.', { type: 'snackbar' });
+            } finally {
+                setResearchValidationLoading(false);
+            }
+        };
+
+        const handleDismissArticle = async (article) => {
+            if (!sessionDetail?.id || !article?.id) return;
+            try {
+                setArticleActionLoading(prev => ({ ...prev, [`dismiss:${article.id}`]: true }));
+                await apiFetch({
+                    path: 'editorial/v1/planner/article-action',
+                    method: 'POST',
+                    data: { id: sessionDetail.id, action: 'dismiss', article_id: article.id },
+                });
+                dispatch('core/notices').createNotice('success', `"${article.headline || article.title || 'Article'}" dismissed.`, { type: 'snackbar' });
+                await refreshSessionDetail();
+            } catch (error) {
+                console.error('Failed to dismiss article:', error);
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to dismiss article.', { type: 'snackbar' });
+            } finally {
+                setArticleActionLoading(prev => ({ ...prev, [`dismiss:${article.id}`]: false }));
+            }
+        };
+
+        const handleDeepDiveArticle = (article) => {
+            if (!article?.id) return;
+            setDiveDeeperArticle(article);
+            setDiveDeeperSuccess(false);
+            setDiveDeeperJobId('');
+            setDiveDeeperJobStatus('');
+            setDiveDeeperJobError('');
+            setDiveDeeperElapsedSeconds(0);
+            setDiveDeeperDepthSlider(3);
+            setDiveDeeperModalOpen(true);
+        };
+
+        const handleOpinionPieceArticle = async (article) => {
+            if (!sessionDetail?.id || !article?.id) return;
+            try {
+                setArticleActionLoading(prev => ({ ...prev, [`opinion:${article.id}`]: true }));
+                // Backend currently returns a stub — this will trigger real generation in a future update
+                await apiFetch({
+                    path: 'editorial/v1/planner/article-action',
+                    method: 'POST',
+                    data: { id: sessionDetail.id, action: 'opinion_piece', article_id: article.id },
+                });
+                dispatch('core/notices').createNotice('info', `Opinion piece variant requested for "${article.headline || article.title || 'Article'}". Backend generation is pending implementation.`, { type: 'snackbar' });
+                await refreshSessionDetail();
+            } catch (error) {
+                console.error('Failed to queue opinion piece:', error);
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to queue opinion piece.', { type: 'snackbar' });
+            } finally {
+                setArticleActionLoading(prev => ({ ...prev, [`opinion:${article.id}`]: false }));
+            }
+        };
+
+        const handleRegenerateFramework = async (article) => {
+            console.log('[PLANNER] handleRegenerateFramework called', { sessionId: sessionDetail?.id, articleId: article?.id });
+            if (!sessionDetail?.id) {
+                console.warn('[PLANNER] handleRegenerateFramework: missing sessionDetail.id');
+                dispatch('core/notices').createNotice('error', 'No active session. Please reload the page.', { type: 'snackbar' });
+                return;
+            }
+            if (!article?.id) {
+                console.warn('[PLANNER] handleRegenerateFramework: missing article.id', article);
+                dispatch('core/notices').createNotice('error', 'Cannot identify article. Please reload the page.', { type: 'snackbar' });
+                return;
+            }
+            try {
+                setFrameworkLoading(prev => ({ ...prev, [article.id]: true }));
+
+                // Add to queue first (avoids the connection-close/exit pattern in the
+                // direct run-framework endpoint which crashes the PHP process on some envs)
+                const enqueueKey = `enqueue:framework_generation:${article.id}`;
+                setQueueActionLoading(prev => ({ ...prev, [enqueueKey]: true }));
+                const addResponse = await apiFetch({
+                    path: 'editorial/v1/planner/queue/add',
+                    method: 'POST',
+                    data: {
+                        id: sessionDetail.id,
+                        article_id: article.id,
+                        task_type: 'framework_generation',
+                    },
+                });
+                setQueueActionLoading(prev => ({ ...prev, [enqueueKey]: false }));
+
+                const queueId = addResponse?.queue_id;
+                if (!queueId) {
+                    throw new Error('Failed to create queue item for framework generation.');
+                }
+
+                // Immediately run the queued item
+                const runKey = `run:${queueId}`;
+                setQueueActionLoading(prev => ({ ...prev, [runKey]: true }));
+                const runResponse = await apiFetch({
+                    path: 'editorial/v1/planner/queue/run',
+                    method: 'POST',
+                    data: { id: sessionDetail.id, queue_id: queueId },
+                });
+                setQueueActionLoading(prev => ({ ...prev, [runKey]: false }));
+
+                console.log('[PLANNER] Framework queued and run:', { queueId, runResponse });
+                dispatch('core/notices').createNotice('success', `Framework generation started for "${article.headline || article.title || 'Article'}".`, { type: 'snackbar' });
+                scheduleQueueFollowUpSync();
+                await refreshSessionDetail();
+                // Keep frameworkLoading true — the auto-refresh will pick up the completed
+                // framework and set frameworkReady, which hides the button. Only clear on error.
+            } catch (error) {
+                console.error('Failed to regenerate framework:', error);
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to regenerate framework.', { type: 'snackbar' });
+                setFrameworkLoading(prev => ({ ...prev, [article.id]: false }));
+            }
+        };
+
+        const handleQueueFrameworkGeneration = async (article) => {
+            if (!article?.id) return;
+            await enqueuePlannerTask({
+                taskType: 'framework_generation',
+                articleId: article.id,
+                successMessage: `Framework generation queued for "${article.headline || article.title || 'Article'}".`,
+            });
+        };
+
+        const handleRunAuthorAgent = async (article) => {
+            if (!sessionDetail?.id || !article?.id) return;
+            const authorProfile = authorProfileSelection[article.id] || article?.author?.profile || '';
+            const wordCountRange = wordLengthSelection[article.id] || '';
+            try {
+                setAuthorLoading(prev => ({ ...prev, [article.id]: true }));
+                await apiFetch({
+                    path: 'editorial/v1/planner/run-author',
+                    method: 'POST',
+                    data: {
+                        id: sessionDetail.id,
+                        article_id: article.id,
+                        author_profile: authorProfile,
+                        word_count_range: wordCountRange,
+                    },
+                });
+                dispatch('core/notices').createNotice('success', `Author generation started for "${article.headline || article.title || 'Article'}".`, { type: 'snackbar' });
+                scheduleQueueFollowUpSync();
+                await refreshSessionDetail();
+            } catch (error) {
+                console.error('Failed to run author agent:', error);
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to run author agent.', { type: 'snackbar' });
+            } finally {
+                setAuthorLoading(prev => ({ ...prev, [article.id]: false }));
+            }
+        };
+
+        const handleQueueAuthorAgent = async (article) => {
+            if (!article?.id) return;
+            const authorProfile = authorProfileSelection[article.id] || article?.author?.profile || '';
+            const wordCountRange = wordLengthSelection[article.id] || '';
+            await enqueuePlannerTask({
+                taskType: 'article_creation',
+                articleId: article.id,
+                payload: { author_profile: authorProfile, word_count_range: wordCountRange },
+                successMessage: `Author generation queued for "${article.headline || article.title || 'Article'}".`,
+            });
+        };
+
+        const handleRecommendImageArticle = async (article) => {
+            if (!article?.id) return;
+            try {
+                setImageActionLoading(prev => ({ ...prev, [`recommend:${article.id}`]: true }));
+                const response = await apiFetch({
+                    path: 'editorial/v1/images/recommend',
+                    method: 'POST',
+                    data: {
+                        title: article.headline || article.title || '',
+                        summary: article.summary || article.brief || '',
+                    },
+                });
+                if (response?.prompt) {
+                    dispatch('core/notices').createNotice('success', `Image prompt generated for "${article.headline || article.title || 'Article'}". Use "Generate Image" to create it.`, { type: 'snackbar' });
+                    // Store the recommended prompt so the generate handler can use it
+                    setGeneratedImageByArticle(prev => ({ ...prev, [article.id]: { recommendedPrompt: response.prompt, altText: response.alt_text || '', caption: response.caption || '' } }));
+                } else {
+                    dispatch('core/notices').createNotice('info', response?.message || 'Image recommendation returned no prompt.', { type: 'snackbar' });
+                }
+            } catch (error) {
+                console.error('Failed to recommend image:', error);
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to recommend image.', { type: 'snackbar' });
+            } finally {
+                setImageActionLoading(prev => ({ ...prev, [`recommend:${article.id}`]: false }));
+            }
+        };
+
+        const handleGenerateImageArticle = async (article) => {
+            if (!article?.id) return;
+            try {
+                setImageActionLoading(prev => ({ ...prev, [`generate:${article.id}`]: true }));
+                // Use the recommended prompt if available, otherwise build a default
+                const existing = generatedImageByArticle[article.id];
+                const prompt = existing?.recommendedPrompt || `Create a publication-quality editorial image for: ${article.headline || article.title || 'Article'}`;
+                const response = await apiFetch({
+                    path: 'editorial/v1/images/generate',
+                    method: 'POST',
+                    data: {
+                        prompt: prompt,
+                        title: article.headline || article.title || '',
+                        summary: article.summary || article.brief || '',
+                        store_in_media_library: true,
+                    },
+                });
+                if (response?.success && response?.image_url) {
+                    setGeneratedImageByArticle(prev => ({ ...prev, [article.id]: { ...prev[article.id], imageUrl: response.image_url, altText: response.alt_text || '', caption: response.caption || '', attachments: response.attachments || [] } }));
+                    dispatch('core/notices').createNotice('success', `Image generated for "${article.headline || article.title || 'Article'}".`, { type: 'snackbar' });
+                } else {
+                    dispatch('core/notices').createNotice('error', response?.message || 'Image generation failed.', { type: 'snackbar' });
+                }
+            } catch (error) {
+                console.error('Failed to generate image:', error);
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to generate image.', { type: 'snackbar' });
+            } finally {
+                setImageActionLoading(prev => ({ ...prev, [`generate:${article.id}`]: false }));
+            }
+        };
+
+        const handleExportFramework = async (article) => {
+            if (!sessionDetail?.id || !article?.id) return;
+            try {
+                const response = await apiFetch({
+                    path: 'editorial/v1/planner/export-framework',
+                    method: 'POST',
+                    data: { id: sessionDetail.id, article_id: article.id },
+                });
+                if (response?.file_url) {
+                    window.open(response.file_url, '_blank');
+                    dispatch('core/notices').createNotice('success', 'Framework exported — opening in new tab.', { type: 'snackbar' });
+                } else {
+                    dispatch('core/notices').createNotice('success', response?.message || 'Framework exported.', { type: 'snackbar' });
+                }
+            } catch (error) {
+                console.error('Failed to export framework:', error);
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to export framework.', { type: 'snackbar' });
+            }
+        };
+
+        const updateSynopsisCount = (count) => {
+            setSynopsisTotal(count);
+        };
+
+        const handleGenerateSynopses = async () => {
+            if (!sessionDetail?.id) return;
+            try {
+                setSynopsisGenerateLoading(true);
+                await apiFetch({
+                    path: 'editorial/v1/planner/synopses',
+                    method: 'POST',
+                    data: { id: sessionDetail.id, synopsis_count: synopsisTotal },
+                });
+                dispatch('core/notices').createNotice('success', 'Article synopses generation started.', { type: 'snackbar' });
+                setSynopsisModalOpen(false);
+                scheduleQueueFollowUpSync();
+                await refreshSessionDetail();
+            } catch (error) {
+                console.error('Failed to generate synopses:', error);
+                setSynopsisPlanError(error?.message || 'Failed to generate synopses.');
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to generate synopses.', { type: 'snackbar' });
+            } finally {
+                setSynopsisGenerateLoading(false);
+            }
+        };
+
+        // closeDiveDeeperModal is already wired in the stub block below
+        const closeDiveDeeperModal = () => { setDiveDeeperModalOpen(false); setDiveDeeperArticle(null); setDiveDeeperSuccess(false); setDiveDeeperJobId(''); setDiveDeeperJobStatus(''); setDiveDeeperJobError(''); };
+
+        const handleDiveDeeperSubmit = async () => {
+            if (!sessionDetail?.id || !diveDeeperArticle?.id) return;
+            const loadingKey = `dive_deeper:${diveDeeperArticle.id}`;
+            try {
+                setArticleActionLoading(prev => ({ ...prev, [loadingKey]: true }));
+                setDiveDeeperJobId('');
+                setDiveDeeperJobStatus('queued');
+                setDiveDeeperSuccess(false);
+                setDiveDeeperJobError('');
+                setDiveDeeperElapsedSeconds(0);
+
+                const response = await apiFetch({
+                    path: 'editorial/v1/planner/article-action',
+                    method: 'POST',
+                    data: {
+                        id: sessionDetail.id,
+                        action: 'dive_deeper',
+                        article_id: diveDeeperArticle.id,
+                        params: { depth: diveDeeperDepthSlider },
+                    },
+                });
+
+                if (response?.job_id) {
+                    setDiveDeeperJobId(response.job_id);
+                    scheduleQueueFollowUpSync();
+                }
+                if (response?.status === 'skipped') {
+                    setDiveDeeperSuccess(true);
+                    dispatch('core/notices').createNotice('success', response?.message || 'Article already has sufficient citations.', { type: 'snackbar' });
+                }
+            } catch (error) {
+                console.error('Failed to submit dive deeper:', error);
+                setDiveDeeperJobError(error?.message || 'Failed to submit dive deeper request.');
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to submit dive deeper request.', { type: 'snackbar' });
+                setDiveDeeperJobStatus('failed');
+            } finally {
+                setArticleActionLoading(prev => ({ ...prev, [loadingKey]: false }));
+            }
+        };
+
+        const handleDiveDeeperQueueSubmit = async () => {
+            if (!diveDeeperArticle?.id) return;
+            try {
+                setDiveDeeperQueueLoading(true);
+                await enqueuePlannerTask({
+                    taskType: 'dive_deeper',
+                    articleId: diveDeeperArticle.id,
+                    payload: { depth: diveDeeperDepthSlider },
+                    successMessage: 'Dive deeper added to queue.',
+                    silentSuccess: true,
+                });
+                closeDiveDeeperModal();
+                dispatch('core/notices').createNotice('success', 'Dive deeper task added to queue.', { type: 'snackbar' });
+            } catch (error) {
+                console.error('Failed to queue dive deeper:', error);
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to queue dive deeper.', { type: 'snackbar' });
+            } finally {
+                setDiveDeeperQueueLoading(false);
+            }
+        };
+
+        const handleDiveDeeperRetry = async () => {
+            setDiveDeeperJobStatus('');
+            setDiveDeeperJobError('');
+            setDiveDeeperElapsedSeconds(0);
+            await handleDiveDeeperSubmit();
+        };
 
         // 2. Synchronized Driver Hook Initialization (after all function definitions)
         usePlannerSync({
@@ -1245,6 +1681,7 @@ import { getQueueProgressDetail } from './TaskQueueManager.js';
                     authorLoading: authorLoading,
                     articleActionLoading: articleActionLoading,
                     queueActionLoading: queueActionLoading,
+                    frameworkLoading: frameworkLoading,
                     
                     // Modals / Action link handlers required by ArticleTable
                     onDismiss: handleDismissArticle,
@@ -1341,7 +1778,10 @@ import { getQueueProgressDetail } from './TaskQueueManager.js';
                     diveDeeperJobError: diveDeeperJobError,
                     diveDeeperElapsedSeconds: diveDeeperElapsedSeconds,
                     isDiveDeeperWorking: isDiveDeeperWorking,
+                    isDeepDiveLoading: isDeepDiveLoading,
+                    diveDeeperQueueLoading: diveDeeperQueueLoading,
                     diveDeeperStageMeta: diveDeeperStageMeta,
+                    diveDeeperStageKey: diveDeeperStageKey,
                     isDiveDeeperStalled: isDiveDeeperStalled,
                     handleDiveDeeperSubmit: handleDiveDeeperSubmit,
                     handleDiveDeeperQueueSubmit: handleDiveDeeperQueueSubmit,
@@ -1350,7 +1790,16 @@ import { getQueueProgressDetail } from './TaskQueueManager.js';
                     activePhaseLabel: activePhaseLabel,
                     thinkingPhraseIndex: thinkingPhraseIndex,
                     THINKING_PHRASES: THINKING_PHRASES,
-                    onNavigateBack: navigateBack
+                    onNavigateBack: navigateBack,
+                    // Article action handlers for the modal
+                    handleExportFramework: handleExportFramework,
+                    handleRunAuthorAgent: handleRunAuthorAgent,
+                    handleExportAuthorDraft: handleExportAuthorDraft,
+                    // Utility Profile Mappers
+                    getAuthorProfileLabel: getAuthorProfileLabel,
+                    getSelectedAuthorProfile: (article) => authorProfileSelection[article.id] || article?.author?.profile || '',
+                    getRecommendedAuthorProfile: (article) => getRecommendedAuthorProfile(article),
+                    blocksToHTML: blocksToHTML
                 })
             );
         }

@@ -44,11 +44,42 @@ class AuthorOrchestrator {
         // Ensure context has the specific policy for prompt building
         $context['author_policy'] = $policy;
 
-        return $this->draft_agent->execute(
-            $context, 
-            $prompt_data['instructions'] ?? '', 
+        // Extract session and article identifiers from the job payload
+        $session_id = $job['session_id'] ?? null;
+        $article_id = $job['article_id'] ?? null;
+
+        $result = $this->draft_agent->execute(
+            $context,
+            $prompt_data['instructions'] ?? '',
             $job['created_by']
         );
+
+        // If draft succeeded and we have both session and article IDs, link the post and set edit_url in session metadata
+        if (!is_wp_error($result) && $session_id && $article_id) {
+            // The DraftAgent may return a 'post_id' when it creates a WP post; use it if present
+            $post_id = $result['post_id'] ?? 0;
+            // Link the post and set edit_url (status set to 'drafted')
+            $this->planner->link_article_to_post($session_id, $article_id, $post_id);
+
+            // Update the article status to 'completed' and ensure edit_url is present
+            $meta = get_post_meta($session_id, '_kh_planner_data', true);
+            if (is_array($meta) && !empty($meta['articles'])) {
+                foreach ($meta['articles'] as &$article) {
+                    if (($article['id'] ?? '') == $article_id) {
+                        $article['status'] = 'completed';
+                        // edit_url should already be set by link_article_to_post, but ensure it exists
+                        if (empty($article['edit_url'])) {
+                            $article['edit_url'] = admin_url("post.php?post={$post_id}&action=edit");
+                        }
+                        break;
+                    }
+                }
+                // Save updated metadata back to the session
+                update_post_meta($session_id, '_kh_planner_data', $meta);
+            }
+        }
+
+        return $result;
     }
 
     public function run($params, $user_id) {

@@ -14,13 +14,7 @@ const {
 } = wp.components;
 const { dispatch } = wp.data;
 
-const TOPIC_OPTIONS = [
-    { label: 'Manufacturing', value: 'Manufacturing' },
-    { label: 'Field Service', value: 'Field Service' },
-    { label: 'Logistics', value: 'Logistics' },
-    { label: 'Energy', value: 'Energy' },
-    { label: 'Retail', value: 'Retail' },
-];
+const TOPIC_OPTIONS = [];
 
 const apiFetch = (options) =>
     wp.apiFetch({
@@ -31,83 +25,47 @@ const apiFetch = (options) =>
         },
     });
 
-const normalizeProfileLabel = (name = '') =>
-    String(name)
-        .replace(/Editorial Planner/gi, 'Generic')
-        .replace(/Research Assistant/gi, 'Specialist');
-
-const hasRole = (preset, roles = []) => {
-    const role = String(preset?.role || '').toLowerCase();
-    return roles.includes(role);
-};
-
 const EditorialNewSessionApp = () => {
     const [topicOptions, setTopicOptions] = useState(TOPIC_OPTIONS);
     const [topLineCategories, setTopLineCategories] = useState([]);
-    const [selectedTopic, setSelectedTopic] = useState(TOPIC_OPTIONS[0].value);
-    const [subgroupOptions, setSubgroupOptions] = useState([]);
-    const [selectedSubgroup, setSelectedSubgroup] = useState('');
+    const [selectedTopic, setSelectedTopic] = useState('');
     const [includes, setIncludes] = useState([]);
     const [excludes, setExcludes] = useState([]);
     const [starting, setStarting] = useState(false);
     const [error, setError] = useState('');
-    const [focusLevel, setFocusLevel] = useState(50);
-    const showFocusControls = true;
     
-    // New sponsor-related fields
-    const [researchProfile, setResearchProfile] = useState('');
+    // Synopsis count per session
+    const [synopsisCount, setSynopsisCount] = useState(4);
+    
+    // Sponsor-related fields
     const [isSponsored, setIsSponsored] = useState(false);
     const [selectedSponsor, setSelectedSponsor] = useState('');
     const [sponsors, setSponsors] = useState([]);
     const [sponsorWeighting, setSponsorWeighting] = useState(2);
     const [loadingSponsors, setLoadingSponsors] = useState(false);
-
-    // Content channel + exclusion fields
-    const [contentChannel, setContentChannel] = useState('house');
-    const [quoteClubMode, setQuoteClubMode] = useState('summary');
-    const [submittingVendorName, setSubmittingVendorName] = useState('');
-    const [submittingVendorType, setSubmittingVendorType] = useState('');
-    const [circleClientName, setCircleClientName] = useState('');
-    const [circleClientType, setCircleClientType] = useState('');
     
     // Pillar selection state
     const [pillarOptions, setPillarOptions] = useState([]);
     const [selectedPillar, setSelectedPillar] = useState('');
-    const [loadingPillars, setLoadingPillars] = useState(false);
-    
-    // Presets for dropdowns
-    const [researchPresets, setResearchPresets] = useState([]);
-    const [loadingPresets, setLoadingPresets] = useState(false);
+    const [loadingPillars, setLoadingPillars] = useState(true);
 
-    // Load presets on mount
+    // Load categories on mount
     useEffect(() => {
-        loadPresets();
         loadTopLineCategories();
     }, []);
 
-    // When topic changes, update subgroup options and load pillars
+    // When topic changes, load pillars
     useEffect(() => {
         const selected = topLineCategories.find((category) => String(category?.name || '') === String(selectedTopic));
-        const subgroupRows = Array.isArray(selected?.subgroups) ? selected.subgroups : [];
-        const options = subgroupRows
-            .map((name) => String(name || '').trim())
-            .filter(Boolean)
-            .map((name) => ({ label: name, value: name }));
-        setSubgroupOptions(options);
-        if (!options.some((option) => option.value === selectedSubgroup)) {
-            setSelectedSubgroup('');
-        }
-        
-        // Load pillar options for this category
         loadPillarsForTopic(selected);
-    }, [selectedTopic, topLineCategories, selectedSubgroup]);
+    }, [selectedTopic, topLineCategories]);
 
     const loadPillarsForTopic = async (selectedCategory) => {
-        // Determine the slug: prefer site_slug, then category slug, then derive from name
         const slug = selectedCategory?.site_slug || selectedCategory?.slug || '';
         if (!slug) {
             setPillarOptions([]);
             setSelectedPillar('');
+            setLoadingPillars(false);
             return;
         }
 
@@ -125,7 +83,6 @@ const EditorialNewSessionApp = () => {
                 slug: p.name ? p.name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '') : '',
             }));
             setPillarOptions(options);
-            // Reset pillar selection if current selection not in options
             if (!options.some((o) => o.value === selectedPillar)) {
                 setSelectedPillar('');
             }
@@ -157,31 +114,10 @@ const EditorialNewSessionApp = () => {
             setTopLineCategories(rows);
             setTopicOptions(options);
             if (!options.some((option) => option.value === selectedTopic)) {
-                setSelectedTopic(options[0]?.value || TOPIC_OPTIONS[0].value);
+                setSelectedTopic(options[0]?.value || '');
             }
         } catch (err) {
             console.error('Failed to load top-line categories:', err);
-        }
-    };
-
-    const loadPresets = async () => {
-        try {
-            setLoadingPresets(true);
-            const response = await apiFetch({
-                path: 'editorial/v1/presets',
-                method: 'GET',
-            });
-            
-            if (Array.isArray(response)) {
-                // Support both legacy (research/author) and newer (generic/specialist) role naming.
-                const research = response.filter((p) => hasRole(p, ['research', 'generic', 'both']));
-                setResearchPresets(research);
-            }
-        } catch (err) {
-            console.error('Failed to load presets:', err);
-            // Don't show error - presets are optional
-        } finally {
-            setLoadingPresets(false);
         }
     };
 
@@ -217,7 +153,6 @@ const EditorialNewSessionApp = () => {
             return;
         }
 
-        // Validation for sponsored content
         if (isSponsored && !selectedSponsor && sponsors.length > 0) {
             setError('Please select a sponsor for sponsored content, or ensure sponsors are available.');
             return;
@@ -227,26 +162,19 @@ const EditorialNewSessionApp = () => {
             setStarting(true);
             setError('');
 
-            // Get sponsor name if selected
             const sponsorName = selectedSponsor ? 
                 sponsors.find(s => s.id === parseInt(selectedSponsor))?.name : 
                 null;
 
-            const defaultResearchPreset =
-                researchPresets.find((preset) => ['generic-default', 'research-default'].includes(preset?.id))?.id ||
-                (researchPresets[0]?.id || 'research-default');
-
             const sessionPayload = {
                 role: 'research',
-                preset_id: researchProfile || defaultResearchPreset,
+                preset_id: 'research-default',
                 title: selectedTopic,
                 meta: {
                     topic: selectedTopic,
-                    ...(selectedSubgroup ? { subgroup: selectedSubgroup } : {}),
                     includes,
                     excludes,
-                    ...(showFocusControls ? { focus_level: focusLevel } : {}),
-                    // Pillar context for audience-aware research
+                    synopsis_count: synopsisCount,
                     ...(selectedPillar ? {
                         pillar: selectedPillar,
                         pillar_slug: selectedPillar.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, ''),
@@ -256,23 +184,11 @@ const EditorialNewSessionApp = () => {
                         sponsor_id: selectedSponsor || undefined,
                         sponsor_name: sponsorName || undefined,
                         sponsor_weighting: sponsorWeighting,
-                        // Instructions for sponsor handling
                         sponsor_config: {
                             ignore_non_sponsor_vendors: true,
-                            prioritize_sponsor_queries: !selectedSponsor, // Only when no sponsor library selected
+                            prioritize_sponsor_queries: !selectedSponsor,
                             weighting_level: sponsorWeighting
                         }
-                    } : {}),
-                    // Content channel + exclusion context
-                    content_channel: contentChannel,
-                    ...(contentChannel === 'quote_club' ? {
-                        quote_club_mode: quoteClubMode,
-                        ...(quoteClubMode === 'framework' && submittingVendorName ? {
-                            submitting_vendor: { name: submittingVendorName, type: submittingVendorType.toLowerCase() },
-                        } : {}),
-                    } : {}),
-                    ...(contentChannel === 'circle' && circleClientName ? {
-                        circle_client: { name: circleClientName, type: circleClientType.toLowerCase() },
                     } : {}),
                 },
                 idempotency_key: `planner-${Date.now()}`,
@@ -289,12 +205,8 @@ const EditorialNewSessionApp = () => {
             }
 
             await apiFetch({
-                path: 'editorial/v1/planner/run',
+                path: `editorial/v1/sessions/${sessionResponse.session_id}/run`,
                 method: 'POST',
-                data: {
-                    session_id: sessionResponse.session_id,
-                    ...(showFocusControls ? { focus_level: focusLevel } : {}),
-                },
             });
 
             dispatch('core/notices').createNotice(
@@ -303,27 +215,16 @@ const EditorialNewSessionApp = () => {
                 { type: 'snackbar' }
             );
 
-            // Reset form
             setIncludes([]);
             setExcludes([]);
-            setSelectedTopic(topicOptions[0]?.value || TOPIC_OPTIONS[0].value);
-            setSelectedSubgroup('');
+            setSelectedTopic(topicOptions[0]?.value || '');
             setSelectedPillar('');
             setPillarOptions([]);
-            setFocusLevel(50);
-            setResearchProfile('');
             setIsSponsored(false);
             setSelectedSponsor('');
             setSponsorWeighting(2);
-            setContentChannel('house');
-            setQuoteClubMode('summary');
-            setSubmittingVendorName('');
-            setSubmittingVendorType('');
-            setCircleClientName('');
-            setCircleClientType('');
 
-            // Navigate directly to the created planner session.
-            window.location.href = `${admin_url}admin.php?page=editorial_planner&session_id=${encodeURIComponent(sessionResponse.session_id)}`;
+            window.location.href = `${editorialData.adminUrl}admin.php?page=kh-editorial-planner&session_id=${encodeURIComponent(sessionResponse.session_id)}`;
         } catch (err) {
             console.error('Failed to create session:', err);
             setError(err.message || 'Failed to create session. Please try again.');
@@ -346,130 +247,51 @@ const EditorialNewSessionApp = () => {
                 CardBody,
                 { style: { padding: '20px' } },
                 wp.element.createElement(SelectControl, {
-                    label: 'Top-line Topic',
+                    label: 'Magazine',
                     value: selectedTopic,
                     options: topicOptions,
                     onChange: setSelectedTopic,
                     help: 'Select the primary topic or industry for this planning session',
                 }),
-                subgroupOptions.length > 0 && wp.element.createElement('div', { style: { marginTop: '12px' } },
-                    wp.element.createElement(SelectControl, {
-                        label: 'Subgroup',
-                        value: selectedSubgroup,
-                        options: [
-                            { label: '-- Optional subgroup --', value: '' },
-                            ...subgroupOptions,
-                        ],
-                        onChange: setSelectedSubgroup,
-                        help: 'Optional: focus this session on a specific subgroup within the top-line category.',
-                    })
-                ),
-                // Pillar selection dropdown
-                pillarOptions.length > 0 && wp.element.createElement('div', { style: { marginTop: '12px' } },
+                wp.element.createElement('div', { style: { marginTop: '12px' } },
                     loadingPillars ?
                         wp.element.createElement(Spinner, null) :
-                        wp.element.createElement(SelectControl, {
-                            label: 'Editorial Pillar',
-                            value: selectedPillar,
-                            options: [
-                                { label: '-- No specific pillar --', value: '' },
-                                ...pillarOptions.map((p) => ({ label: p.label, value: p.value })),
-                            ],
-                            onChange: setSelectedPillar,
-                            help: 'Optional: scope research to a specific editorial pillar within this topic.',
-                        })
+                        pillarOptions.length > 0 ?
+                            wp.element.createElement(SelectControl, {
+                                label: 'Editorial Pillar',
+                                value: selectedPillar,
+                                options: [
+                                    { label: '-- No specific pillar --', value: '' },
+                                    ...pillarOptions.map((p) => ({ label: p.label, value: p.value })),
+                                ],
+                                onChange: setSelectedPillar,
+                                help: 'Optional: scope research to a specific editorial pillar within this topic.',
+                            }) :
+                            null
                 ),
                 wp.element.createElement('hr', { style: { margin: '20px 0', borderColor: '#ddd' } }),
-                wp.element.createElement(SelectControl, {
-                    label: 'Content Channel',
-                    value: contentChannel,
-                    options: [
-                        { label: 'House Content', value: 'house' },
-                        { label: 'Quote Club', value: 'quote_club' },
-                        { label: 'Circle (Ghost-written)', value: 'circle' },
-                    ],
-                    onChange: setContentChannel,
-                    help: 'Determines citation and vendor exclusion rules for this session.',
-                }),
-                contentChannel === 'quote_club' && wp.element.createElement(
-                    'div',
-                    { style: { marginTop: '12px', padding: '12px', backgroundColor: '#f0f6fc', border: '1px solid #c8d8e8', borderRadius: '4px' } },
-                    wp.element.createElement(SelectControl, {
-                        label: 'Quote Club Mode',
-                        value: quoteClubMode,
-                        options: [
-                            { label: 'Summary (vendor-agnostic)', value: 'summary' },
-                            { label: 'Framework (submitting vendor stays)', value: 'framework' },
-                        ],
-                        onChange: setQuoteClubMode,
-                        help: 'Summary: all sponsors excluded. Framework: submitting vendor kept, same-type competitors excluded.',
-                    }),
-                    quoteClubMode === 'framework' && wp.element.createElement(
-                        'div',
-                        { style: { marginTop: '10px' } },
-                        wp.element.createElement('p', { style: { fontWeight: '500', marginBottom: '6px', fontSize: '13px' } }, 'Submitting Vendor'),
-                        wp.element.createElement('div', { style: { display: 'flex', gap: '10px' } },
-                            wp.element.createElement('input', {
-                                type: 'text',
-                                placeholder: 'Vendor name (e.g. SAP)',
-                                value: submittingVendorName,
-                                onChange: (e) => setSubmittingVendorName(e.target.value),
-                                style: { flex: 2, padding: '6px 8px', border: '1px solid #ccc', borderRadius: '3px' },
-                            }),
-                            wp.element.createElement('input', {
-                                type: 'text',
-                                placeholder: 'Type (e.g. software)',
-                                value: submittingVendorType,
-                                onChange: (e) => setSubmittingVendorType(e.target.value),
-                                style: { flex: 1, padding: '6px 8px', border: '1px solid #ccc', borderRadius: '3px' },
-                            })
-                        ),
-                        wp.element.createElement('p', { style: { fontSize: '12px', color: '#666', marginTop: '4px' } },
-                            'Type matches your category entity types (software, consultant, manufacturer, etc.)'
-                        )
-                    )
-                ),
-                contentChannel === 'circle' && wp.element.createElement(
-                    'div',
-                    { style: { marginTop: '12px', padding: '12px', backgroundColor: '#f5f0fc', border: '1px solid #d0c0e0', borderRadius: '4px' } },
-                    wp.element.createElement('p', { style: { fontWeight: '500', marginBottom: '6px', fontSize: '13px' } }, 'Client (Ghost-written for)'),
-                    wp.element.createElement('p', { style: { fontSize: '12px', color: '#666', marginTop: '0', marginBottom: '8px' } },
-                        'Same-type competitors will be excluded from research. The client itself stays in.'
+                wp.element.createElement('div', { style: { marginTop: '20px' } },
+                    wp.element.createElement('label', { style: { display: 'block', marginBottom: '8px', fontWeight: '500' } }, 'Article Summaries'),
+                    wp.element.createElement('div', { style: { display: 'flex', gap: '16px', marginBottom: '4px' } },
+                        [1, 4, 8].map(function(count) {
+                            return wp.element.createElement('label', {
+                                key: count,
+                                style: { display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }
+                            },
+                                wp.element.createElement('input', {
+                                    type: 'radio',
+                                    name: 'synopsis_count',
+                                    value: count,
+                                    checked: synopsisCount === count,
+                                    onChange: function() { setSynopsisCount(count); }
+                                }),
+                                wp.element.createElement('span', null, String(count))
+                            );
+                        })
                     ),
-                    wp.element.createElement('div', { style: { display: 'flex', gap: '10px' } },
-                        wp.element.createElement('input', {
-                            type: 'text',
-                            placeholder: 'Client name (e.g. Deloitte)',
-                            value: circleClientName,
-                            onChange: (e) => setCircleClientName(e.target.value),
-                            style: { flex: 2, padding: '6px 8px', border: '1px solid #ccc', borderRadius: '3px' },
-                        }),
-                        wp.element.createElement('input', {
-                            type: 'text',
-                            placeholder: 'Type (e.g. consultant)',
-                            value: circleClientType,
-                            onChange: (e) => setCircleClientType(e.target.value),
-                            style: { flex: 1, padding: '6px 8px', border: '1px solid #ccc', borderRadius: '3px' },
-                        })
+                    wp.element.createElement('p', { style: { margin: '4px 0 0 0', fontSize: '12px', color: '#646970' } },
+                        'Number of article summaries to produce. 1 for a focused brief, 4 for standard coverage, 8 for comprehensive exploration.'
                     )
-                ),
-                wp.element.createElement('hr', { style: { margin: '20px 0', borderColor: '#ddd' } }),
-                wp.element.createElement('div', { style: { marginTop: '0' } },
-                    loadingPresets ? 
-                        wp.element.createElement(Spinner, null) :
-                        wp.element.createElement(SelectControl, {
-                            label: 'Generic Profile',
-                            value: researchProfile,
-                            options: [
-                                { label: '-- Select Generic Profile --', value: '' },
-                                ...researchPresets.map(preset => ({
-                                    label: normalizeProfileLabel(preset.name),
-                                    value: preset.id
-                                }))
-                            ],
-                            onChange: setResearchProfile,
-                            help: 'Optional: Generic perspective from presets',
-                        })
                 ),
                 wp.element.createElement('div', { style: { marginTop: '20px' } },
                     wp.element.createElement(ToggleControl, {
@@ -560,22 +382,6 @@ const EditorialNewSessionApp = () => {
                         onChange: setExcludes,
                         placeholder: 'Add terms to exclude',
                         help: 'Optional: Specify topics or keywords to avoid',
-                    })
-                ),
-                showFocusControls && wp.element.createElement('div', { style: { marginTop: '20px' } },
-                    wp.element.createElement('label', null, 'Research Depth'),
-                    wp.element.createElement(RangeControl, {
-                        value: focusLevel,
-                        onChange: setFocusLevel,
-                        min: 0,
-                        max: 100,
-                        step: 10,
-                        marks: [
-                            { value: 0, label: 'Broad' },
-                            { value: 50, label: 'Balanced' },
-                            { value: 100, label: 'Deep' }
-                        ],
-                        help: 'Balance between breadth of topics and depth of analysis',
                     })
                 ),
                 wp.element.createElement(

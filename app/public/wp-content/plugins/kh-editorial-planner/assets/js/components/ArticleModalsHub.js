@@ -198,7 +198,12 @@ export const ArticleModalsHub = ({
             ),
             createElement('div', {
                 style: { maxHeight: '60vh', overflowY: 'auto', padding: '12px', border: '1px solid #dcdcde', borderRadius: '6px', background: '#fff', lineHeight: '1.7', color: '#1d2327' },
-                dangerouslySetInnerHTML: { __html: blocksToHTML(authorPreview.author?.output?.blocks || []) || 'No draft available.' }
+                dangerouslySetInnerHTML: { __html: authorPreview.author?.output 
+                    ? (typeof authorPreview.author.output === 'string' 
+                        ? authorPreview.author.output 
+                        : blocksToHTML(authorPreview.author.output?.blocks || []) || authorPreview.author.output?.text || 'No draft available.')
+                    : 'No draft available.'
+                }
             })
         )
     );

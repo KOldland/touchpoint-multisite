@@ -122,8 +122,40 @@ class AIWorker {
     public function handle_planner_job( $dummy, $job ) {
         $payload = ( $job['payload'] ?? null ) ? json_decode( $job['payload'], true ) : [];
         $payload = is_array( $payload ) ? $payload : [];
+        $task_type = $payload['task_type'] ?? '';
         $prompt = $payload['prompt'] ?? $job['prompt'] ?? '';
         $session_id = (int) ($payload['session_id'] ?? $job['session_id'] ?? 0);
+
+        // ─── Author Generation ───────────────────────────────────────
+        // This task type calls PlannerOrchestrator::run_author_generation()
+        // directly rather than going through an LLM prompt. It wraps the
+        // DraftAgent in a try/catch so the job table gets updated correctly.
+        if ( $task_type === 'author_generation' ) {
+            $article_id       = $payload['article_id'] ?? '';
+            $author_profile   = $payload['author_profile'] ?? '';
+            $word_count_range = $payload['word_count_range'] ?? 'short';
+
+            if ( ! $session_id || ! $article_id ) {
+                return new \WP_Error( 'invalid_params', 'session_id and article_id are required for author_generation.' );
+            }
+
+            if ( ! class_exists( '\KH\Planner\Agents\PlannerOrchestrator' ) ) {
+                return new \WP_Error( 'planner_missing', 'Planner plugin is not active.' );
+            }
+
+            $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
+            $result = $orchestrator->run_author_generation( $session_id, $article_id, $author_profile, $word_count_range );
+
+            if ( is_wp_error( $result ) ) {
+                return $result;
+            }
+
+            return [
+                'content'    => $result['result'] ?? [],
+                'usage'      => null,
+                'session_id' => $session_id,
+            ];
+        }
 
         if ( empty( $prompt ) ) {
             return new \WP_Error( 'invalid_prompt', 'Missing prompt in planner job payload.' );

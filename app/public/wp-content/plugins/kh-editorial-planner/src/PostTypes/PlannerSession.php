@@ -38,7 +38,10 @@ class PlannerSession {
             'status', 
             'created_by', 
             'topics', 
-            'portfolio'
+            'portfolio',
+            'pillar',
+            'pillar_slug',
+            'audience_slug',
         );
 
         foreach ( $meta_fields as $field ) {

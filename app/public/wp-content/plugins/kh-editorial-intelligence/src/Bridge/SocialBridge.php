@@ -168,7 +168,7 @@ class SocialBridge {
         $required = (int) get_post_meta( $post->ID, 'kss_credit_cost', true );
         $available = 0;
 
-        if ( $user_id > 0 ) {
+        if ( $user_id > 0 && method_exists( $this->membership, 'get_user_credits' ) ) {
             $available = $this->membership->get_user_credits( $user_id );
         }
 

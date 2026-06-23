@@ -688,3 +688,35 @@
     color: #666;
     gap: 8px;
 }
+
+/* Content Gap Analysis Dashboard */
+.content-gaps-dashboard .components-card {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.content-gaps-dashboard .components-card__header {
+    border-bottom: 1px solid #f0f0f1;
+}
+
+.content-gaps-dashboard .widefat.striped th {
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #50575e;
+    padding: 8px 10px;
+}
+
+.content-gaps-dashboard .widefat.striped td {
+    padding: 8px 10px;
+    vertical-align: middle;
+}
+
+.content-gaps-dashboard .components-modal__content {
+    padding: 24px;
+}
+
+.content-gaps-dashboard .components-modal__header {
+    border-bottom: 1px solid #f0f0f1;
+    margin-bottom: 16px;
+}

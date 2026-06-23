@@ -50,13 +50,35 @@ export const isPlaceholderSource = (title, url) => {
 
 // --- Core HTML / Document Drivers (Restored) ---
 export const blocksToHTML = (blocks) => {
-    if (!Array.isArray(blocks)) return '';
-    return blocks.map(block => block.innerHTML || '').join('');
+    if (!Array.isArray(blocks) || blocks.length === 0) return '';
+    
+    return blocks.map(block => {
+        // Handle both 'content' (from DraftAgent) and 'innerHTML' (legacy) properties
+        const content = block.content || block.innerHTML || '';
+        
+        if (block.type === 'heading') {
+            const level = block.level || 2;
+            const Tag = `h${Math.max(1, Math.min(6, level))}`;
+            return `<${Tag}>${content}</${Tag}>`;
+        }
+        
+        // Wrap paragraphs in <p> tags for proper HTML formatting
+        return `<p>${content}</p>`;
+    }).join('');
 };
 
 export const handleExportAuthorDraft = (article) => {
     if (!article?.author?.output) return;
-    const content = article.author.output;
+    let content = article.author.output;
+    // If the output is an object (e.g., Gutenberg blocks), convert to HTML string
+    if (content && typeof content === 'object') {
+        // Prefer blocksToHTML if blocks array is present, otherwise JSON stringify
+        if (Array.isArray(content.blocks)) {
+            content = blocksToHTML(content.blocks);
+        } else {
+            content = JSON.stringify(content);
+        }
+    }
     const blob = new Blob([content], { type: 'text/html' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');

@@ -473,8 +473,20 @@ class PlannerEndpoints {
         $posts = get_posts( $args );
         
         $out = array_map( function( $p ) {
-            $meta_json = get_post_meta( $p->ID, 'kh_planner_meta', true );
-            $meta      = $meta_json ? json_decode( $meta_json, true ) : [];
+            $meta_raw  = get_post_meta( $p->ID, 'kh_planner_meta', true );
+            // get_post_meta may return an array if the value was stored as
+            // PHP-serialized array (unserialized by WP) — guard against that.
+            if ( is_array( $meta_raw ) ) {
+                $meta = $meta_raw;
+                $meta_json = null;
+            } elseif ( is_string( $meta_raw ) && $meta_raw !== '' ) {
+                $decoded = json_decode( $meta_raw, true );
+                $meta = ( json_last_error() === JSON_ERROR_NONE && is_array( $decoded ) ) ? $decoded : [];
+                $meta_json = $meta_raw;
+            } else {
+                $meta = [];
+                $meta_json = null;
+            }
             $articles  = $meta['articles'] ?? [];
 
             return [
@@ -733,11 +745,20 @@ class PlannerEndpoints {
         ];
 
         // Load the existing kh_planner_meta JSON blob (may contain articles, research_policy, etc.)
-        $meta_json = get_post_meta( $id, 'kh_planner_meta', true );
-        $meta_base = ( $meta_json ? json_decode( $meta_json, true ) : null ) ?: [];
+        $meta_base = $this->get_planner_meta_array( $id );
 
         // Load dive deeper research results
         $dives = get_post_meta( $id, 'kh_planner_dives', true ) ?: [];
+
+        // Load author plugin data (_kh_planner_data) which contains author output, edit_url, etc.
+        // This data is written by kh-editorial-author plugin and needs to be merged with kh_planner_meta
+        // so the frontend can display draft previews and edit URLs.
+        $author_meta = get_post_meta( $id, '_kh_planner_data', true );
+        if ( is_array( $author_meta ) ) {
+            // Merge author data into meta_base - author data takes precedence for article fields
+            // This ensures article.author.output, article.edit_url, article.status are available
+            $meta_base = $this->merge_author_meta_with_planner_meta( $meta_base, $author_meta );
+        }
 
         // Merge phases and flat phase aliases so JS can read either
         // sessionDetail.meta.phases.phase1.status  OR  sessionDetail.meta.phase1.trends
@@ -1220,30 +1241,41 @@ class PlannerEndpoints {
         $task_type  = $item['task_type'] ?? '';
         $article_id = $item['article_id'] ?? '';
 
-        if ( $task_type === 'framework_generation' && $article_id && $session_id ) {
-            $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
-            $result = $orchestrator->run_framework_generation( $session_id, $article_id );
+            if ( $task_type === 'framework_generation' && $article_id && $session_id ) {
+                $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
+                $result = $orchestrator->run_framework_generation( $session_id, $article_id );
 
-            if ( is_wp_error( $result ) ) {
-                $queue[ $item_idx ]['status'] = 'failed';
-                $queue[ $item_idx ]['error_message'] = $result->get_error_message();
+                if ( is_wp_error( $result ) ) {
+                    $queue[ $item_idx ]['status'] = 'failed';
+                    $queue[ $item_idx ]['error_message'] = $result->get_error_message();
+                    $queue[ $item_idx ]['completed_at'] = current_time( 'mysql' );
+                    update_post_meta( $session_id, 'kh_planner_queue', $queue );
+                    return $result;
+                }
+
+                $queue[ $item_idx ]['status'] = 'dispatched';
+                $queue[ $item_idx ]['job_id'] = $result['job_id'];
                 $queue[ $item_idx ]['completed_at'] = current_time( 'mysql' );
                 update_post_meta( $session_id, 'kh_planner_queue', $queue );
-                return $result;
+
+                // Direct fallback: if the job is still queued after a short wait, process it synchronously.
+                if ( $result['job_id'] && class_exists( '\\KH\\Editorial\\Services\\AI\\AIStorage' ) ) {
+                    $storage = new \KH\Editorial\Services\AI\AIStorage();
+                    $job = $storage->get_job( $result['job_id'] );
+                    $status = $job['status'] ?? '';
+                    if ( in_array( $status, [ 'queued', 'running', '' ], true ) && class_exists( '\\KH\\Editorial\\Services\\AI\\AIWorker' ) ) {
+                        $worker = new \KH\Editorial\Services\AI\AIWorker();
+                        $worker->process_job( $result['job_id'], 'planner' );
+                    }
+                }
+
+                return rest_ensure_response( [
+                    'ok'      => true,
+                    'job_id'  => $result['job_id'],
+                    'queue_id' => $queue_id,
+                    'status'  => 'dispatched',
+                ] );
             }
-
-            $queue[ $item_idx ]['status'] = 'dispatched';
-            $queue[ $item_idx ]['job_id'] = $result['job_id'];
-            $queue[ $item_idx ]['completed_at'] = current_time( 'mysql' );
-            update_post_meta( $session_id, 'kh_planner_queue', $queue );
-
-            return rest_ensure_response( [
-                'ok'      => true,
-                'job_id'  => $result['job_id'],
-                'queue_id' => $queue_id,
-                'status'  => 'dispatched',
-            ] );
-        }
 
         if ( $task_type === 'article_creation' && $article_id && $session_id ) {
             $author_profile   = $item['payload']['author_profile'] ?? '';
@@ -1661,11 +1693,19 @@ class PlannerEndpoints {
      * POST editorial/v1/planner/synopses
      */
     public function run_synopses( \WP_REST_Request $request ) {
-        $params     = $request->get_json_params();
-        $session_id = (int) ( $params['id'] ?? 0 );
+        $params      = $request->get_json_params();
+        $session_id  = (int) ( $params['id'] ?? 0 );
+        $synopsis_count = isset( $params['synopsis_count'] ) ? (int) $params['synopsis_count'] : 0;
 
         if ( ! $session_id ) {
             return new \WP_Error( 'missing_id', 'Session ID is required.', [ 'status' => 400 ] );
+        }
+
+        // Persist the synopsis count to session meta so orchestrator.reads it
+        if ( $synopsis_count > 0 && in_array( $synopsis_count, [ 1, 4, 8, 20 ], true ) ) {
+            $meta = $this->get_planner_meta_array( $session_id );
+            $meta['synopsis_count'] = $synopsis_count;
+            update_post_meta( $session_id, 'kh_planner_meta', wp_json_encode( $meta ) );
         }
 
         $orchestrator = new PlannerOrchestrator();
@@ -1703,12 +1743,39 @@ class PlannerEndpoints {
 
     /**
      * POST editorial/v1/planner/export-framework
+     *
+     * Exports the framework for the given article as a self-contained
+     * HTML document and returns the file URL so the frontend can
+     * present a download link or open the file directly.
+     *
+     * Accepts: { id: session_id, article_id: string, format?: 'html'|'json' }
      */
     public function export_framework( \WP_REST_Request $request ) {
-        $params     = $request->get_json_params();
-        $session_id = (int) ( $params['id'] ?? 0 );
+        $params      = $request->get_json_params();
+        $session_id  = (int) ( $params['id'] ?? 0 );
+        $article_id  = sanitize_text_field( $params['article_id'] ?? '' );
+        $format      = sanitize_text_field( $params['format'] ?? 'html' );
 
-        return rest_ensure_response( [ 'ok' => true, 'session_id' => $session_id ] );
+        if ( ! $session_id ) {
+            return new \WP_Error( 'missing_id', 'Session ID is required.', [ 'status' => 400 ] );
+        }
+        if ( ! $article_id ) {
+            return new \WP_Error( 'missing_article_id', 'article_id is required.', [ 'status' => 400 ] );
+        }
+
+        $agent = new \KH\Planner\Agents\ExportAgent();
+
+        if ( $format === 'json' ) {
+            $result = $agent->export_framework_to_json( $session_id, $article_id );
+        } else {
+            $result = $agent->export_framework_to_html( $session_id, $article_id );
+        }
+
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        return rest_ensure_response( array_merge( [ 'ok' => true ], $result ) );
     }
 
     /**
@@ -1738,47 +1805,145 @@ class PlannerEndpoints {
             return new \WP_Error( 'missing_article_id', 'article_id is required.', [ 'status' => 400 ] );
         }
 
-        // Send an early response with "running" status, then process synchronously
-        $response_data = [
-            'ok'         => true,
-            'session_id' => $session_id,
-            'article_id' => $article_id,
-            'status'     => 'running',
-        ];
-        $response_json = wp_json_encode( $response_data );
+        // Pre-flight: mark the article as running so the frontend sees it immediately.
+        // If the article already has a 'running' status but no output, the previous
+        // run crashed — allow re-running by clearing the stale state first.
+        $meta = $this->get_planner_meta_array( $session_id );
+        $articles = $meta['articles'] ?? [];
+        $found = false;
+        foreach ( $articles as $idx => $a ) {
+            if ( $a['id'] === $article_id ) {
+                $existing_author = $articles[ $idx ]['author'] ?? [];
+                $existing_status  = $existing_author['status'] ?? '';
+                $has_output       = ! empty( $existing_author['output'] );
 
-        // ─── Early Response: Close HTTP connection ──────────────
-        ignore_user_abort( true );
-        set_time_limit( 300 );
+                // If the previous run died mid-flight (status=running but no output),
+                // clear the stale author key so the frontend doesn't block re-runs.
+                if ( $existing_status === 'running' && ! $has_output ) {
+                    error_log( '[PLANNER] run_author: clearing stale running state for article ' . $article_id . ' (no output from previous run)' );
+                    unset( $articles[ $idx ]['author'] );
+                }
 
-        while ( ob_get_level() > 0 ) {
-            ob_end_clean();
+                if ( ! isset( $articles[ $idx ]['author'] ) ) {
+                    $articles[ $idx ]['author'] = [];
+                }
+                $articles[ $idx ]['author']['status']  = 'running';
+                $articles[ $idx ]['author']['profile'] = $author_profile;
+                $found = true;
+                break;
+            }
+        }
+        if ( $found ) {
+            $meta['articles'] = $articles;
+            update_post_meta( $session_id, 'kh_planner_meta', wp_json_encode( $meta ) );
         }
 
-        header( 'Content-Type: application/json; charset=UTF-8' );
-        header( 'Content-Length: ' . strlen( $response_json ) );
-        header( 'Connection: close' );
-
-        echo $response_json;
-
-        if ( function_exists( 'ob_flush' ) ) {
-            @ob_flush();
-        }
-        flush();
-
-        // ─── Background Processing ───────────────────────────────
-        error_log( '[PLANNER] Early response sent for run_author — starting background author generation' );
-
-        $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
-        $result = $orchestrator->run_author_generation( $session_id, $article_id, $author_profile, $word_count_range );
-
-        if ( is_wp_error( $result ) ) {
-            error_log( '[PLANNER] run_author failed: ' . $result->get_error_message() );
-        } else {
-            error_log( '[PLANNER] run_author completed for article ' . $article_id . ' in session ' . $session_id );
+        // Create an AI job so the worker can process this asynchronously.
+        // This avoids the close-connection-early pattern which doesn't work
+        // reliably on all environments (Local, nginx buffering, etc.).
+        $job_id = '';
+        if ( class_exists( '\KH\Editorial\Services\AI\AIStorage' ) ) {
+            $storage = new \KH\Editorial\Services\AI\AIStorage();
+            $job_id = $storage->insert_job( [
+                'type'       => 'planner',
+                'status'     => 'queued',
+                'payload'    => wp_json_encode( [
+                    'task_type'        => 'author_generation',
+                    'session_id'       => $session_id,
+                    'article_id'       => $article_id,
+                    'author_profile'   => $author_profile,
+                    'word_count_range' => $word_count_range,
+                ] ),
+                'created_by' => get_current_user_id(),
+            ] );
         }
 
-        exit;
+        // If we got a valid job_id (not an error), dispatch it asynchronously.
+        // After dispatch we will perform a short watchdog check (5 seconds) to see
+        // if the job has been picked up. If it remains queued/running we fall back
+        // to processing the job directly via AIWorker.
+        if ( $job_id && ! is_wp_error( $job_id ) ) {
+            if ( function_exists( 'wp_remote_post' ) ) {
+                $dispatch_url = rest_url( 'editorial/v1/planner/dispatch-job' );
+                wp_remote_post( $dispatch_url, [
+                    'timeout'   => 1,
+                    'blocking'  => false,
+                    'headers'   => [ 'Content-Type' => 'application/json' ],
+                    'body'      => wp_json_encode( [
+                        'job_id'    => $job_id,
+                        'type'      => 'planner',
+                    ] ),
+                ] );
+            }
+
+            // Return early response to client.
+            $response = [
+                'ok'         => true,
+                'session_id' => $session_id,
+                'article_id' => $article_id,
+                'job_id'     => $job_id,
+                'status'     => 'queued',
+            ];
+
+            // Watchdog: wait a few seconds then verify job status.
+            sleep( 5 );
+            $job_status = '';
+            if ( class_exists( '\\KH\\Editorial\\Services\\AI\\AIStorage' ) ) {
+                $storage_check = new \KH\Editorial\Services\AI\AIStorage();
+                $job_record    = $storage_check->get_job( $job_id );
+                if ( $job_record && ! empty( $job_record['status'] ) ) {
+                    $job_status = $job_record['status'];
+                }
+            }
+
+            // If still pending, process directly.
+            if ( in_array( $job_status, [ 'queued', 'running', '' ], true ) ) {
+                if ( class_exists( '\\KH\\Editorial\\Services\\AI\\AIWorker' ) ) {
+                    $worker = new \KH\Editorial\Services\AI\AIWorker();
+                    $worker->process_job( $job_id, 'planner' );
+                }
+            }
+
+            return rest_ensure_response( $response );
+        }
+
+        // Fallback: process synchronously (kept for environments where AIStorage isn't available)
+        // The LLM call can take 60-180s — ensure PHP doesn't time out mid-request.
+        error_log( '[PLANNER] run_author: AIStorage unavailable or insert failed, falling back to synchronous processing for article ' . $article_id );
+        set_time_limit( 300 ); // 5 minutes
+        @ini_set( 'max_execution_time', 300 );
+
+        try {
+            $orchestrator = new \KH\Planner\Agents\PlannerOrchestrator();
+            $result = $orchestrator->run_author_generation( $session_id, $article_id, $author_profile, $word_count_range );
+
+            if ( is_wp_error( $result ) ) {
+                error_log( '[PLANNER] run_author fallback failed: ' . $result->get_error_message() );
+                return $result;
+            }
+
+            error_log( '[PLANNER] run_author fallback succeeded for article ' . $article_id . ' in session ' . $session_id );
+            return rest_ensure_response( array_merge( $result, [ 'ok' => true ] ) );
+        } catch ( \Throwable $e ) {
+            error_log( '[PLANNER] run_author fallback fatal error: ' . $e->getMessage() );
+            // Best-effort: mark article as failed
+            $meta2 = $this->get_planner_meta_array( $session_id );
+            $articles2 = $meta2['articles'] ?? [];
+            foreach ( $articles2 as $idx2 => $a2 ) {
+                if ( $a2['id'] === $article_id ) {
+                    if ( ! isset( $articles2[ $idx2 ]['author'] ) ) {
+                        $articles2[ $idx2 ]['author'] = [];
+                    }
+                    $articles2[ $idx2 ]['author']['status']  = 'failed';
+                    $articles2[ $idx2 ]['author']['error']   = $e->getMessage();
+                    $articles2[ $idx2 ]['author']['completed_at'] = current_time( 'mysql' );
+                    break;
+                }
+            }
+            $meta2['articles'] = $articles2;
+            update_post_meta( $session_id, 'kh_planner_meta', wp_json_encode( $meta2 ) );
+            return new \WP_Error( 'author_generation_failed', $e->getMessage() );
+        }
     }
 
     /**
@@ -1836,8 +2001,7 @@ class PlannerEndpoints {
 
                 // Persist the job reference to the article in session meta so
                 // the frontend can find it via article.dive_deeper_jobs.
-                $meta_json = get_post_meta( $session_id, 'kh_planner_meta', true );
-                $meta = ( $meta_json ? json_decode( $meta_json, true ) : null ) ?: [];
+                $meta = $this->get_planner_meta_array( $session_id );
                 $articles = $meta['articles'] ?? [];
 
                 // If meta.articles is empty, rebuild it from the synopses data
@@ -1941,6 +2105,33 @@ class PlannerEndpoints {
                     'article_id' => $article_id,
                     'action'     => $action,
                     'job_id'     => '',
+                ] );
+
+            case 'dismiss':
+                // Remove the article from session meta.articles array
+                if ( ! $article_id ) {
+                    return new \WP_Error( 'missing_article_id', 'article_id is required for dismiss action.', [ 'status' => 400 ] );
+                }
+                $meta = $this->get_planner_meta_array( $session_id );
+                $articles = $meta['articles'] ?? [];
+                $found = false;
+                foreach ( $articles as $idx => $a ) {
+                    if ( ( $a['id'] ?? '' ) === $article_id ) {
+                        array_splice( $articles, $idx, 1 );
+                        $found = true;
+                        break;
+                    }
+                }
+                if ( $found ) {
+                    $meta['articles'] = $articles;
+                    update_post_meta( $session_id, 'kh_planner_meta', wp_json_encode( $meta ) );
+                }
+                return rest_ensure_response( [
+                    'ok'         => true,
+                    'session_id' => $session_id,
+                    'article_id' => $article_id,
+                    'action'     => $action,
+                    'dismissed'  => $found,
                 ] );
 
             default:
@@ -2110,6 +2301,93 @@ class PlannerEndpoints {
 
         $meta['articles'] = $articles;
         return $meta;
+    }
+
+    /**
+     * Load kh_planner_meta for a session and return it as an array.
+     *
+     * WordPress's get_post_meta() with $single=true can return an already-
+     * unserialized array if the value was stored as a PHP-serialized array
+     * rather than a JSON string. This helper handles both shapes safely.
+     *
+     * @param int $session_id
+     * @return array
+     */
+    private function get_planner_meta_array( $session_id ) {
+        $raw = get_post_meta( $session_id, 'kh_planner_meta', true );
+        if ( is_array( $raw ) ) {
+            return $raw;
+        }
+        if ( is_string( $raw ) && $raw !== '' ) {
+            $decoded = json_decode( $raw, true );
+            if ( json_last_error() === JSON_ERROR_NONE && is_array( $decoded ) ) {
+                return $decoded;
+            }
+        }
+        return [];
+    }
+
+    /**
+     * Merge author metadata (_kh_planner_data) into planner metadata (kh_planner_meta).
+     *
+     * This ensures that article.author.output, article.edit_url, article.status, etc.
+     * from the kh-editorial-author plugin are available in the session detail response.
+     *
+     * @param array $planner_meta The base planner metadata.
+     * @param array $author_meta  The author plugin metadata.
+     * @return array Merged metadata with author data taking precedence for article fields.
+     */
+    private function merge_author_meta_with_planner_meta( $planner_meta, $author_meta ) {
+        // Merge top-level fields from author_meta into planner_meta
+        foreach ( $author_meta as $key => $value ) {
+            // For articles, we need to merge deeply
+            if ( $key === 'articles' && is_array( $value ) && is_array( $planner_meta['articles'] ?? null ) ) {
+                $planner_meta['articles'] = $this->merge_articles_deep( $planner_meta['articles'], $value );
+            } else {
+                // For other fields, author_meta takes precedence
+                $planner_meta[ $key ] = $value;
+            }
+        }
+        return $planner_meta;
+    }
+
+    /**
+     * Deep merge articles arrays, matching by article ID.
+     *
+     * @param array $planner_articles Articles from kh_planner_meta.
+     * @param array $author_articles  Articles from _kh_planner_data.
+     * @return array Merged articles array.
+     */
+    private function merge_articles_deep( $planner_articles, $author_articles ) {
+        // Index planner articles by ID for quick lookup
+        $merged = [];
+        $indexed = [];
+        foreach ( $planner_articles as $article ) {
+            $id = $article['id'] ?? '';
+            if ( $id ) {
+                $indexed[ $id ] = $article;
+            }
+        }
+
+        // Merge author articles into indexed planner articles
+        foreach ( $author_articles as $author_article ) {
+            $id = $author_article['id'] ?? '';
+            if ( $id && isset( $indexed[ $id ] ) ) {
+                // Deep merge: author data takes precedence for nested fields
+                $merged[ $id ] = array_merge( $indexed[ $id ], $author_article );
+                unset( $indexed[ $id ] );
+            } else {
+                // New article from author plugin
+                $merged[ $id ] = $author_article;
+            }
+        }
+
+        // Add any remaining planner articles that weren't in author_articles
+        foreach ( $indexed as $id => $article ) {
+            $merged[ $id ] = $article;
+        }
+
+        return array_values( $merged );
     }
 
     /**

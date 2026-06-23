@@ -155,6 +155,32 @@ class AllocationTable {
     }
 
     /**
+     * Update the rewrite_applied flag for an existing allocation.
+     *
+     * @param int  $origin_post_id
+     * @param int  $target_blog_id
+     * @param bool $rewrite_applied
+     * @param int  $origin_blog_id
+     * @return int|false Number of rows updated, or false on error.
+     */
+    public static function update_rewrite_applied( int $origin_post_id, int $target_blog_id, bool $rewrite_applied, int $origin_blog_id = 1 ): int|false {
+        global $wpdb;
+        $table = $wpdb->base_prefix . self::TABLE_NAME;
+
+        return $wpdb->update(
+            $table,
+            [ 'rewrite_applied' => $rewrite_applied ? 1 : 0 ],
+            [
+                'origin_blog_id' => $origin_blog_id,
+                'origin_post_id' => $origin_post_id,
+                'target_blog_id' => $target_blog_id,
+            ],
+            [ '%d' ],
+            [ '%d', '%d', '%d' ]
+        );
+    }
+
+    /**
      * Delete allocation records for an origin post across all targets.
      *
      * @param int $origin_post_id

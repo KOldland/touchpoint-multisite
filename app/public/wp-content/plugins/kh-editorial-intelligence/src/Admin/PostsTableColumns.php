@@ -3,6 +3,7 @@
 namespace KH\Editorial\Admin;
 
 use KH\Editorial\Database\AllocationTable;
+use KH\Editorial\Services\SiteAudienceProfile;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -165,11 +166,11 @@ class PostsTableColumns {
 
         $badges = [];
         foreach ( $allocations as $alloc ) {
-            $blog_id   = (int) $alloc['blog_id'];
-            $site_name = $this->get_site_label( $blog_id );
+            $target_blog_id = (int) ( $alloc['target_blog_id'] ?? 0 );
             $rewritten = (bool) ( $alloc['rewrite_applied'] ?? false );
+            $site_name = $this->resolve_site_label( $target_blog_id ) ?: 'Site ' . $target_blog_id;
             $badge     = $rewritten
-                ? sprintf( '<span style="background:#dba617;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;margin-right:4px;">%s (RW)</span>', esc_html( $site_name ) )
+                ? sprintf( '<span style="background:#dba617;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;margin-right:4px;">%s ✨</span>', esc_html( $site_name ) )
                 : sprintf( '<span style="background:#2271b1;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;margin-right:4px;">%s</span>', esc_html( $site_name ) );
             $badges[] = $badge;
         }
@@ -190,24 +191,42 @@ class PostsTableColumns {
     }
 
     /**
-     * Map blog_id to a human-readable label.
+     * Resolve a blog_id to a human-readable site label using SiteAudienceProfile
+     * as the primary source, falling back to blog_details.
+     *
+     * @param int $blog_id
+     * @return string
      */
-    private function get_site_label( int $blog_id ): string {
-        $map = [
-            1 => 'Hub',
-            2 => 'UK',
-        ];
+    private function resolve_site_label( int $blog_id ): string {
+        $blog_ids = apply_filters( 'kh_allocation_blog_ids', [
+            'pricing'       => 19,
+            'aftermarket'   => 21,
+            'field-service' => 17,
+            'spare-parts'   => 18,
+            'ecommerce'     => 20,
+            'industrial'    => 16,
+            'aerospace'     => 13,
+            'utilities'     => 22,
+            'built-env'     => 15,
+            'manufacturing' => 23,
+        ] );
 
-        if ( isset( $map[ $blog_id ] ) ) {
-            return $map[ $blog_id ];
+        $slug = array_search( $blog_id, $blog_ids, true );
+
+        if ( $slug ) {
+            $label = SiteAudienceProfile::get_label( $slug );
+            if ( $label ) {
+                return $label;
+            }
         }
 
+        // Fallback: use blog_details
         $details = get_blog_details( $blog_id );
         if ( $details ) {
             return $details->blogname;
         }
 
-        return 'Site ' . $blog_id;
+        return '';
     }
 
     /**
