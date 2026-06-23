@@ -13,6 +13,24 @@ class PlannerWorkspace {
     public function init() {
         add_action('admin_menu', [$this, 'register_menu']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
+        add_filter('script_loader_tag', [$this, 'add_module_type_to_script'], 10, 2);
+    }
+
+    /**
+     * Add type="module" to ES module scripts.
+     */
+    public function add_module_type_to_script($tag, $handle) {
+        $module_handles = [
+            'kh-planner-main-js',
+            'kh-planner-new-js',
+            'kh-planner-sessions-js',
+            'kh-planner-categories-js',
+            'kh-planner-content-gaps-js',
+        ];
+        if (in_array($handle, $module_handles, true)) {
+            $tag = str_replace('<script ', '<script type="module" ', $tag);
+        }
+        return $tag;
     }
 
     public function register_menu() {
@@ -51,6 +69,15 @@ class PlannerWorkspace {
             'kh-planner-categories',
             [$this, 'render_categories_page']
         );
+
+        add_submenu_page(
+            'kh-editorial-planner',
+            __('Content Gaps', 'kh-editorial-planner'),
+            __('Content Gaps', 'kh-editorial-planner'),
+            'edit_posts',
+            'kh-planner-content-gaps',
+            [$this, 'render_content_gaps_page']
+        );
     }
 
     public function enqueue_assets($hook) {
@@ -78,6 +105,9 @@ class PlannerWorkspace {
         } elseif (strpos($hook, 'kh-planner-categories') !== false) {
             $script_handle = 'kh-planner-categories-js';
             $script_file = 'assets/js/editorial-top-line-categories.js';
+        } elseif (strpos($hook, 'kh-planner-content-gaps') !== false) {
+            $script_handle = 'kh-planner-content-gaps-js';
+            $script_file = 'assets/js/editorial-content-gaps.js';
         } else {
             $script_handle = 'kh-planner-main-js';
             $script_file = 'assets/js/editorial-planner.js';
@@ -87,14 +117,15 @@ class PlannerWorkspace {
             $script_handle,
             KH_PLANNER_PLUGIN_URL . $script_file,
             ['wp-element', 'wp-components', 'wp-api-fetch', 'wp-data', 'wp-i18n'],
-            KH_PLANNER_VERSION,
+            filemtime(KH_PLANNER_PLUGIN_DIR . $script_file),
             true
         );
 
         wp_localize_script($script_handle, 'editorialData', [
-            'apiRoot' => esc_url_raw(rest_url('editorial/v1')),
-            'nonce'   => wp_create_nonce('wp_rest'),
-            'user'    => get_current_user_id(),
+            'apiRoot'  => esc_url_raw(rest_url('editorial/v1')),
+            'nonce'    => wp_create_nonce('wp_rest'),
+            'user'     => get_current_user_id(),
+            'adminUrl' => esc_url_raw(admin_url()),
         ]);
     }
 
@@ -130,6 +161,15 @@ class PlannerWorkspace {
             <div class="kh-planner-loading">
                 <span class="spinner is-active" style="float:none;margin:0 8px 0 0;"></span>
                 <span>Loading Top-Line Categories...</span>
+            </div>
+        </div>';
+    }
+
+    public function render_content_gaps_page() {
+        echo '<div id="editorial-content-gaps-app" aria-live="polite">
+            <div class="kh-planner-loading">
+                <span class="spinner is-active" style="float:none;margin:0 8px 0 0;"></span>
+                <span>Loading Content Gap Analysis...</span>
             </div>
         </div>';
     }
