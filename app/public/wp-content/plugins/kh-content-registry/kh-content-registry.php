@@ -111,7 +111,6 @@ if ( is_admin() ) {
                         <strong class="row-title"><a href="<?php echo esc_url( $edit_url ); ?>"><?php echo esc_html( $article->title ); ?></a></strong>
                         <div class="row-actions">
                             <span class="edit"><a href="<?php echo esc_url( $edit_url ); ?>" aria-label="Edit "<?php echo esc_attr( $article->title ); ?>"">Edit</a> | </span>
-                            <span class="inline hide-if-no-js"><button type="button" class="button-link editinline" aria-label="Quick edit "<?php echo esc_attr( $article->title ); ?>" inline" aria-expanded="false">Quick&nbsp;Edit</button> | </span>
                             <span class="trash"><a href="<?php echo admin_url( 'admin.php?page=kh-content-registry-new&action=delete&id=' . $article->id ); ?>" class="submitdelete" aria-label="Delete "<?php echo esc_attr( $article->title ); ?>"">Trash</a></span>
                         </div>
                     </td>

@@ -79,6 +79,13 @@ class ContentRegistryService {
      * Create a WordPress post for the article.
      */
     private function create_wordpress_post(array $args, int $registry_id): int|WP_Error {
+        $target_blog_id = $args['target_blog_id'] ?? get_current_blog_id();
+        
+        // Switch to the target blog to create the post there
+        if (function_exists('switch_to_blog') && $target_blog_id != get_current_blog_id()) {
+            switch_to_blog($target_blog_id);
+        }
+        
         $post_data = [
             'post_title' => $args['title'],
             'post_content' => $args['content_body'] ?? '',
@@ -89,6 +96,11 @@ class ContentRegistryService {
         ];
         
         $post_id = wp_insert_post($post_data);
+        
+        // Restore the current blog
+        if (function_exists('restore_current_blog') && $target_blog_id != get_current_blog_id()) {
+            restore_current_blog();
+        }
         
         if (is_wp_error($post_id)) {
             return $post_id;
