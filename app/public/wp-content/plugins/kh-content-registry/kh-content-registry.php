@@ -96,9 +96,16 @@ if ( is_admin() ) {
                     $smma_pill = $smma_status === 'Awaiting' ? 'style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;"' : ($smma_status === 'Scheduled' ? 'style="background: #dba617; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;"' : 'style="background: #28a745; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;"');
                     $atomic_pill = $atomic_count === 0 ? 'style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;"' : 'style="background: #28a745; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;"';
                     
-                    // Get WordPress post ID for edit link (stored in postmeta or as separate field)
+                    // Get WordPress post ID for edit link
                     $wp_post_id = $article->wp_post_id ?? null;
-                    $edit_url = $wp_post_id ? get_edit_post_link( $wp_post_id, 'raw' ) : admin_url( 'post-new.php?post_type=post&registry_id=' . $article->id );
+                    if ($wp_post_id) {
+                        // Switch to the correct blog to get the edit link
+                        switch_to_blog($article->target_blog_id);
+                        $edit_url = get_edit_post_link($wp_post_id, 'raw');
+                        restore_current_blog();
+                    } else {
+                        $edit_url = admin_url('post-new.php?post_type=post&registry_id=' . $article->id);
+                    }
                 ?>
                 <tr id="post-<?php echo esc_attr( $article->id ); ?>" class="iedit author-self level-0 post-<?php echo esc_attr( $article->id ); ?> type-post status-<?php echo esc_attr( $article_status ); ?> format-standard hentry">
                     <th scope="row" class="check-column">
