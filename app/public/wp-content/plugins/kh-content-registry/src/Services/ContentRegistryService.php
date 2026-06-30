@@ -243,7 +243,7 @@ class ContentRegistryService {
     public function get_articles_by_status(string $status, ?int $blog_id = null): array {
         global $wpdb;
         
-        $query = "SELECT * FROM $this->table WHERE article_status = %s";
+        $query = "SELECT * FROM $this->table WHERE article_status = %s AND (parent_post_id IS NULL OR parent_post_id = 0)";
         $params = [$status];
         
         if ($blog_id) {
@@ -264,7 +264,8 @@ class ContentRegistryService {
         global $wpdb;
         $query = $wpdb->prepare(
             "SELECT * FROM $this->table 
-             WHERE article_status IN ('Summary', 'Framework')"
+             WHERE article_status IN ('Summary', 'Framework')
+             AND (parent_post_id IS NULL OR parent_post_id = 0)"
         );
         
         $articles = $wpdb->get_results($query);

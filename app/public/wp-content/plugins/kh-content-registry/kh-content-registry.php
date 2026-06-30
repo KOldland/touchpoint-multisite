@@ -418,7 +418,8 @@ if ( is_admin() ) {
     
     function khcr_get_all_articles() {
         global $wpdb;
-        $articles = $wpdb->get_results( "SELECT * FROM {$wpdb->base_prefix}content_registry ORDER BY created_at DESC" );
+        // Only get parent articles (not atomic children)
+        $articles = $wpdb->get_results( "SELECT * FROM {$wpdb->base_prefix}content_registry WHERE parent_post_id IS NULL OR parent_post_id = 0 ORDER BY created_at DESC" );
         foreach ( $articles as $article ) {
             $article->seo_metadata = isset($article->seo_metadata) ? json_decode($article->seo_metadata, true) : [];
             $article->geo_flags = isset($article->geo_flags) ? json_decode($article->geo_flags, true) : [];
