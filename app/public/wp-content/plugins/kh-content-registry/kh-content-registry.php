@@ -82,11 +82,8 @@ if ( is_admin() ) {
                     $geo_score = is_array($geo_data) && isset($geo_data['score']) ? (int)$geo_data['score'] : 0;
                     $smma_status = is_array($smma_data) && isset($smma_data['status']) ? $smma_data['status'] : 'Awaiting';
                     
-                    // Get atomic count from post meta
-                    $atomic_count = 0;
-                    if ( class_exists( 'KH\\Editorial\\PostTypes\\AtomicArticlePostType' ) ) {
-                        $atomic_count = count( \KH\Editorial\PostTypes\AtomicArticlePostType::get_ids_for_parent( $article->id ) );
-                    }
+                    // Get atomic count from database
+                    $atomic_count = (int) ($article->atomic_count ?? 0);
                     
                     $scheduled_date = ($article_status === 'Scheduled') ? esc_html( $article->updated_at ?? $article->created_at ) : 'Awaiting';
                     
