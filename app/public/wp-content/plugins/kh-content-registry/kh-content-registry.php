@@ -95,6 +95,10 @@ if ( is_admin() ) {
                     $geo_pill = $geo_score >= 80 ? 'style="display: inline-block; min-width: 32px; padding: 2px 8px; border-radius: 12px; background: #28a745; color: #fff; font-weight: 600; text-align: center; font-size: 12px;"' : ($geo_score >= 65 ? 'style="display: inline-block; min-width: 32px; padding: 2px 8px; border-radius: 12px; background: #dba617; color: #fff; font-weight: 600; text-align: center; font-size: 12px;"' : 'style="display: inline-block; min-width: 32px; padding: 2px 8px; border-radius: 12px; background: #dc3545; color: #fff; font-weight: 600; text-align: center; font-size: 12px;"');
                     $smma_pill = $smma_status === 'Awaiting' ? 'style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;"' : ($smma_status === 'Scheduled' ? 'style="background: #dba617; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;"' : 'style="background: #28a745; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;"');
                     $atomic_pill = $atomic_count === 0 ? 'style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;"' : 'style="background: #28a745; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;"';
+                    
+                    // Get WordPress post ID for edit link (stored in postmeta or as separate field)
+                    $wp_post_id = $article->wp_post_id ?? null;
+                    $edit_url = $wp_post_id ? get_edit_post_link( $wp_post_id, 'raw' ) : admin_url( 'post-new.php?post_type=post&registry_id=' . $article->id );
                 ?>
                 <tr id="post-<?php echo esc_attr( $article->id ); ?>" class="iedit author-self level-0 post-<?php echo esc_attr( $article->id ); ?> type-post status-<?php echo esc_attr( $article_status ); ?> format-standard hentry">
                     <th scope="row" class="check-column">
@@ -104,11 +108,11 @@ if ( is_admin() ) {
                         </label>
                     </th>
                     <td class="title column-title has-row-actions column-primary page-title" data-colname="Title">
-                        <strong class="row-title"><a href="<?php echo admin_url( 'admin.php?page=kh-content-registry-new&action=edit&id=' . $article->id ); ?>"><?php echo esc_html( $article->title ); ?></a></strong>
+                        <strong class="row-title"><a href="<?php echo esc_url( $edit_url ); ?>"><?php echo esc_html( $article->title ); ?></a></strong>
                         <div class="row-actions">
-                            <span class="edit"><a href="<?php echo admin_url( 'admin.php?page=kh-content-registry-new&action=edit&id=' . $article->id ); ?>" aria-label="Edit “<?php echo esc_attr( $article->title ); ?>”">Edit</a> | </span>
-                            <span class="inline hide-if-no-js"><button type="button" class="button-link editinline" aria-label="Quick edit “<?php echo esc_attr( $article->title ); ?>” inline" aria-expanded="false">Quick&nbsp;Edit</button> | </span>
-                            <span class="trash"><a href="<?php echo admin_url( 'admin.php?page=kh-content-registry-new&action=delete&id=' . $article->id ); ?>" class="submitdelete" aria-label="Delete “<?php echo esc_attr( $article->title ); ?>”">Trash</a></span>
+                            <span class="edit"><a href="<?php echo esc_url( $edit_url ); ?>" aria-label="Edit "<?php echo esc_attr( $article->title ); ?>"">Edit</a> | </span>
+                            <span class="inline hide-if-no-js"><button type="button" class="button-link editinline" aria-label="Quick edit "<?php echo esc_attr( $article->title ); ?>" inline" aria-expanded="false">Quick&nbsp;Edit</button> | </span>
+                            <span class="trash"><a href="<?php echo admin_url( 'admin.php?page=kh-content-registry-new&action=delete&id=' . $article->id ); ?>" class="submitdelete" aria-label="Delete "<?php echo esc_attr( $article->title ); ?>"">Trash</a></span>
                         </div>
                     </td>
                     <td class="status column-status" data-colname="Status"><?php echo esc_html( $article_status ); ?></td>

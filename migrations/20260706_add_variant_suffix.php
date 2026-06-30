@@ -28,6 +28,21 @@ function run_add_variant_suffix_migration() {
              ADD INDEX idx_variant (variant_suffix)"
         );
     }
+    
+    // Add wp_post_id column if it doesn't exist
+    $column_exists = $wpdb->get_row(
+        $wpdb->prepare(
+            "SHOW COLUMNS FROM {$table_name} WHERE Field = %s",
+            'wp_post_id'
+        )
+    );
+    
+    if (!$column_exists) {
+        $wpdb->query(
+            "ALTER TABLE {$table_name} 
+             ADD COLUMN wp_post_id BIGINT UNSIGNED DEFAULT NULL"
+        );
+    }
 }
 
 run_add_variant_suffix_migration();

@@ -59,8 +59,59 @@ class ContentRegistryService {
             return new WP_Error('db_error', $wpdb->last_error);
         }
         
+        $registry_id = $wpdb->insert_id;
+        
+        // Create WordPress post for Gutenberg editing
+        $post_id = $this->create_wordpress_post($args, $registry_id);
+        if ($post_id) {
+            $wpdb->update(
+                $this->table,
+                ['wp_post_id' => $post_id],
+                ['id' => $registry_id]
+            );
+        }
+        
         $this->invalidate_article_cache($data['target_blog_id'], $data['slug']);
-        return $wpdb->insert_id;
+        return $registry_id;
+    }
+    
+    /**
+     * Create a WordPress post for the article.
+     */
+    private function create_wordpress_post(array $args, int $registry_id): int|WP_Error {
+        $post_data = [
+            'post_title' => $args['title'],
+            'post_content' => $args['content_body'] ?? '',
+            'post_excerpt' => $args['excerpt'] ?? '',
+            'post_status' => $this->map_status_to_wp($args['article_status']),
+            'post_type' => 'post',
+            'post_author' => get_current_user_id() ?: 1,
+        ];
+        
+        $post_id = wp_insert_post($post_data);
+        
+        if (is_wp_error($post_id)) {
+            return $post_id;
+        }
+        
+        // Store registry ID in post meta
+        update_post_meta($post_id, '_registry_id', $registry_id);
+        
+        return $post_id;
+    }
+    
+    /**
+     * Map article status to WordPress post status.
+     */
+    private function map_status_to_wp(string $status): string {
+        $map = [
+            'Summary' => 'draft',
+            'Framework' => 'draft',
+            'Draft' => 'draft',
+            'Scheduled' => 'future',
+            'Live' => 'publish',
+        ];
+        return $map[$status] ?? 'draft';
     }
 
     public function get_article_by_id(int $id): ?object {
