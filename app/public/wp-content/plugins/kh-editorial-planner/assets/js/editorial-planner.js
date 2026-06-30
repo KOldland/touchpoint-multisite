@@ -5,6 +5,7 @@ import { ArticleModalsHub } from './components/ArticleModalsHub.js';
 import { SessionsDashboardList } from './components/SessionsDashboardList.js';
 import { ArticleTable } from './components/ArticleTable.js';
 import { PhaseCard } from './components/PhaseCard.js';
+import { MainHeader } from './components/MainHeader.js';
 import ResearchPolicyPanel from './components/ResearchPolicyPanel.js';
 import { usePlannerSync } from './hooks/usePlannerSync.js'; // 1. Hook Import Added
 import { 
@@ -206,7 +207,7 @@ import { getQueueProgressDetail } from './TaskQueueManager.js';
         const showFocusControls = true;
 
         const params = new URLSearchParams(window.location.search);
-        const viewingSessionId = params.get('session') || params.get('id');
+        const viewingSessionId = params.get('session_id') || params.get('session') || params.get('id');
 
         const navigateToSession = (sessionId) => {
             if (!sessionId) {
@@ -1219,6 +1220,26 @@ import { getQueueProgressDetail } from './TaskQueueManager.js';
             }
         };
 
+        const handleGenerateArticles = async () => {
+            if (!sessionDetail?.id) return;
+            if (!window.confirm('Generate article synopses? This will trigger article generation.')) return;
+            try {
+                setSynopsisPlanLoading(true);
+                const response = await apiFetch({
+                    path: 'editorial/v1/planner/synopsis-plan',
+                    method: 'POST',
+                    data: { id: sessionDetail.id },
+                });
+                setSynopsisPlan(response?.plan || {});
+                setSynopsisModalOpen(true);
+            } catch (error) {
+                console.error('Failed to generate articles:', error);
+                dispatch('core/notices').createNotice('error', error?.message || 'Failed to generate articles.', { type: 'snackbar' });
+            } finally {
+                setSynopsisPlanLoading(false);
+            }
+        };
+
         const handleReanalyseGaps = async () => {
             if (!sessionDetail?.id) return;
             try {
@@ -1637,6 +1658,25 @@ import { getQueueProgressDetail } from './TaskQueueManager.js';
             return wp.element.createElement(
                 'div',
                 { className: 'editorial-planner-session-detail' },
+                // Top Action Bar with Phase Run Buttons
+                wp.element.createElement(MainHeader, {
+                    sessionDetail: sessionDetail,
+                    phases: phases,
+                    onRunPhase1: handleRerunPhase1,
+                    onRunPhase2: handleRerunPhase2,
+                    onRunPhase3: handleRerunPhase3,
+                    onRunPhase4: handleRerunPhase4,
+                    onGenerateArticles: handleGenerateArticles,
+                    isLoadingPhase1: phase1RerunLoading,
+                    isLoadingPhase2: phase2RerunLoading,
+                    isLoadingPhase3: phase3RerunLoading,
+                    isLoadingPhase4: phase4RerunLoading,
+                    hasPhase1: phases?.phase1?.status === 'completed',
+                    hasPhase2: phases?.phase2?.status === 'completed',
+                    hasPhase3: phases?.phase3?.status === 'completed',
+                    hasPhase4: phases?.phase4?.status === 'completed',
+                    hasProviderErrors: hasProviderErrors
+                }),
                 
                 // 1. Research Phases Grid Rendering Layer
                 wp.element.createElement(

@@ -1,0 +1,133 @@
+/**
+ * MainHeader Component
+ * 
+ * Top action bar for the Planner Session View with phase run buttons
+ * and generate articles action.
+ */
+const { Card, CardBody, Button, Spinner, Notice } = wp.components;
+const { createElement } = wp.element;
+
+export const MainHeader = ({
+    sessionDetail,
+    phases,
+    onRunPhase1,
+    onRunPhase2,
+    onRunPhase3,
+    onRunPhase4,
+    onGenerateArticles,
+    isLoadingPhase1,
+    isLoadingPhase2,
+    isLoadingPhase3,
+    isLoadingPhase4,
+    hasPhase1,
+    hasPhase2,
+    hasPhase3,
+    hasPhase4,
+    hasProviderErrors,
+}) => {
+    const phase1Disabled = isLoadingPhase1 || !hasPhase1;
+    const phase2Disabled = isLoadingPhase2 || !hasPhase1;
+    const phase3Disabled = isLoadingPhase3 || !hasPhase2 || !hasPhase3;
+    const phase4Disabled = isLoadingPhase4 || !hasPhase3 || !hasPhase4 || hasProviderErrors;
+    const generateDisabled = isLoadingPhase4 || !hasPhase4 || hasProviderErrors;
+
+    return createElement(
+        Card,
+        { style: { marginBottom: '16px' } },
+        createElement(CardBody, null,
+            createElement(
+                'div',
+                { 
+                    style: { 
+                        display: 'flex', 
+                        flexWrap: 'wrap', 
+                        gap: '8px', 
+                        alignItems: 'center',
+                        padding: '8px 0'
+                    },
+                    className: 'planner-action-bar'
+                },
+                [
+                    createElement(
+                        'span',
+                        { 
+                            key: 'label',
+                            style: { 
+                                fontWeight: 600, 
+                                color: '#50575e',
+                                marginRight: '8px',
+                                alignSelf: 'center'
+                            } 
+                        },
+                        'Actions:'
+                    ),
+                    createElement(
+                        Button,
+                        {
+                            key: 'phase1',
+                            isSecondary: true,
+                            onClick: onRunPhase1,
+                            disabled: phase1Disabled,
+                            style: { minWidth: '120px' }
+                        },
+                        isLoadingPhase1 
+                            ? createElement(Spinner, null) 
+                            : 'Run Phase 1'
+                    ),
+                    createElement(
+                        Button,
+                        {
+                            key: 'phase2',
+                            isSecondary: true,
+                            onClick: onRunPhase2,
+                            disabled: phase2Disabled,
+                            style: { minWidth: '120px' }
+                        },
+                        isLoadingPhase2 
+                            ? createElement(Spinner, null) 
+                            : 'Run Phase 2'
+                    ),
+                    createElement(
+                        Button,
+                        {
+                            key: 'phase3',
+                            isSecondary: true,
+                            onClick: onRunPhase3,
+                            disabled: phase3Disabled,
+                            style: { minWidth: '120px' }
+                        },
+                        isLoadingPhase3 
+                            ? createElement(Spinner, null) 
+                            : 'Run Phase 3'
+                    ),
+                    createElement(
+                        Button,
+                        {
+                            key: 'phase4',
+                            isSecondary: true,
+                            onClick: onRunPhase4,
+                            disabled: phase4Disabled,
+                            style: { minWidth: '120px' }
+                        },
+                        isLoadingPhase4 
+                            ? createElement(Spinner, null) 
+                            : 'Run Phase 4'
+                    ),
+                    createElement(
+                        Button,
+                        {
+                            key: 'generate',
+                            isPrimary: true,
+                            onClick: onGenerateArticles,
+                            disabled: generateDisabled,
+                            style: { minWidth: '160px' }
+                        },
+                        isLoadingPhase4 
+                            ? createElement(Spinner, null) 
+                            : 'Generate Articles'
+                    )
+                ]
+            )
+        )
+    );
+};

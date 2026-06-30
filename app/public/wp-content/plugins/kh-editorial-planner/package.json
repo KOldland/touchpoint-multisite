@@ -1,0 +1,29 @@
+{
+  "name": "kh-editorial-planner",
+  "version": "0.1.0",
+  "description": "Dedicated workspace for content planning, article frameworks, and agentic brief generation.",
+  "main": "assets/js/editorial-planner.js",
+  "scripts": {
+    "build": "wp-scripts build",
+    "watch": "wp-scripts watch",
+    "lint": "wp-scripts lint",
+    "format": "wp-scripts format"
+  },
+  "keywords": [
+    "wordpress",
+    "editorial",
+    "planner",
+    "content"
+  ],
+  "author": "KHM Dev",
+  "license": "GPL-2.0-or-later",
+  "devDependencies": {
+    "@wordpress/scripts": "^27.0.0",
+    "@wordpress/element": "^5.0.0",
+    "@wordpress/components": "^28.0.0",
+    "@wordpress/api-fetch": "^6.0.0",
+    "@wordpress/data": "^9.0.0",
+    "@wordpress/i18n": "^4.0.0",
+    "@wordpress/hooks": "^3.0.0"
+  }
+}

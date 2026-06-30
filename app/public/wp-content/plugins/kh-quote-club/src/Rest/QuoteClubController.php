@@ -10,6 +10,7 @@ use KHM\Services\SponsorService;
 use QuoteClub\Services\QuoteClubCreditBundleService;
 use KHM\Services\PressReleaseService;
 use KHM\Sponsors\SponsorMigration;
+use KH\ContentRegistry\Services\ContentRegistryService;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -515,6 +516,12 @@ class QuoteClubController {
             ];
         }
 
+        // Merge registry articles into search results
+        if ($keywords !== '') {
+            $registry_results = $this->search_registry_articles($keywords, $per_page);
+            $results = array_merge($results, $registry_results);
+        }
+
         usort($results, function(array $a, array $b): int {
             return (int) $b['match_score'] <=> (int) $a['match_score'];
         });
@@ -524,7 +531,7 @@ class QuoteClubController {
             'meta' => [
                 'page' => $page,
                 'per_page' => $per_page,
-                'total' => (int) $query->found_posts,
+                'total' => (int) $query->found_posts + count($registry_results ?? []),
             ],
             'results' => $results,
         ], 200);
@@ -721,6 +728,11 @@ class QuoteClubController {
         }
 
         $commentary_id = (int) $wpdb->insert_id;
+
+        // Append commentary to content registry for network-wide tracking
+        $sponsor_name = is_array($sponsor) ? ((string) ($sponsor['name'] ?? '')) : '';
+        $this->append_commentary_to_registry($session_id, $text, (int) ($sponsor['id'] ?? 0), $sponsor_name);
+
         do_action('khm_quoteclub_commentary_submitted', $commentary_id, $session_id, $user_id, (int) ($sponsor['id'] ?? 0));
         $this->dispatch_connect_ad_targeting_hook('commentary_submitted', [
             'commentary_id' => $commentary_id,
@@ -884,6 +896,14 @@ class QuoteClubController {
             }
 
             do_action('khm_quoteclub_commentary_approved', $id, (int) ($commentary['post_id'] ?? 0), (int) ($commentary['user_id'] ?? 0));
+        }
+
+        // Mark registry article as having sponsor commentary
+        if (!$already_approved) {
+            $session_id = (string) ($commentary['session_id'] ?? '');
+            if ($session_id !== '') {
+                $this->mark_registry_has_commentary($commentary, $session_id);
+            }
         }
 
         $insert = (bool) $request->get_param('insert');
@@ -1978,6 +1998,10 @@ class QuoteClubController {
             return new WP_REST_Response(['success' => false, 'error' => 'db_update_failed'], 500);
         }
 
+        // Append commentary to content registry for network-wide tracking
+        $sponsor_name_confirm = is_array($sponsor) ? ((string) ($sponsor['name'] ?? '')) : '';
+        $this->append_commentary_to_registry($session_id, (string) ($row['commentary_text'] ?? ''), (int) ($sponsor['id'] ?? 0), $sponsor_name_confirm);
+
         do_action('khm_quoteclub_commentary_submitted', $id, $session_id, $user_id, (int) ($sponsor['id'] ?? 0));
         $this->dispatch_connect_ad_targeting_hook('commentary_confirmed', [
             'commentary_id' => $id,
@@ -2192,6 +2216,14 @@ class QuoteClubController {
 
         $draft_id = (int) $wpdb->insert_id;
 
+        // Register press release in content registry
+        $registry_result = $this->register_press_release_in_registry($draft_id, $sponsor_id, $title, $content, $dist_ids);
+        if (!is_wp_error($registry_result)) {
+            $wpdb->update($table, ['registry_id' => $registry_result], ['id' => $draft_id], ['%d'], ['%d']);
+        } else {
+            error_log('[KHM QC] Failed to register PR ' . $draft_id . ' in registry: ' . $registry_result->get_error_message());
+        }
+
         return new WP_REST_Response([
             'success'               => true,
             'draft_id'              => $draft_id,
@@ -2399,6 +2431,9 @@ class QuoteClubController {
             return new WP_REST_Response(['success' => false, 'error' => 'update_failed'], 500);
         }
 
+        // Sync registry status to Scheduled
+        $this->sync_registry_status($id, 'Scheduled');
+
         do_action('khm_press_release_submitted', $id, $sponsor_id, $user_id);
 
         // S7: Fire distribution hook if extra blog IDs were requested.
@@ -2501,6 +2536,9 @@ class QuoteClubController {
             return new WP_REST_Response(['success' => false, 'error' => 'update_failed'], 500);
         }
 
+        // Sync registry status to Live
+        $this->sync_registry_status($id, 'Live');
+
         do_action('khm_press_release_published', $id, (int) $row['sponsor_id'], (int) $row['user_id']);
 
         return new WP_REST_Response([
@@ -2564,5 +2602,362 @@ class QuoteClubController {
             'id' => $id,
             'status' => 'rejected',
         ], 200);
+    }
+
+    // -------------------------------------------------------------------------
+    // Content Registry Integration Helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Search the content registry for unpublished articles matching keywords.
+     *
+     * Returns formatted results compatible with the search() response structure,
+     * so they can be merged with planner_session results.
+     */
+    protected function search_registry_articles(string $keywords, int $limit = 20): array {
+        if (!class_exists('\KH\ContentRegistry\Services\ContentRegistryService')) {
+            return [];
+        }
+
+        try {
+            $registry = ContentRegistryService::instance();
+
+            // Search for articles that are not yet Live
+            $articles = $registry->search_articles($keywords, null, true);
+
+            $results = [];
+            $count = 0;
+            foreach ($articles as $article) {
+                // Skip already-published articles
+                if (in_array($article->article_status, ['Live'], true)) {
+                    continue;
+                }
+
+                if ($count >= $limit) {
+                    break;
+                }
+
+                $topics = [];
+                if (!empty($article->seo_metadata) && is_array($article->seo_metadata)) {
+                    $topics = $article->seo_metadata['keywords'] ?? [];
+                }
+
+                $results[] = [
+                    'session_id' => 'reg-' . $article->id,
+                    'title' => $article->title,
+                    'scheduled_publish' => $article->created_at,
+                    'portfolio' => '',
+                    'topics' => is_array($topics) ? $topics : [],
+                    'word_count' => str_word_count(wp_strip_all_tags($article->content_body ?? '')),
+                    'brief_snippet' => wp_trim_words($article->excerpt ?? ($article->content_body ?? ''), 24, '...'),
+                    'match_score' => 30, // Default score for registry articles
+                    'source' => 'registry_article',
+                    'registry_id' => (int) $article->id,
+                    'article_status' => $article->article_status,
+                    'post_id' => 0,
+                    'session_brief_url' => '',
+                ];
+                $count++;
+            }
+
+            return $results;
+        } catch (\Exception $e) {
+            error_log('[KHM QC] Registry search failed: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Append sponsor commentary to the content registry article.
+     *
+     * Resolves the registry article via the planner session's audience_slug
+     * and appends the commentary text with attribution metadata.
+     */
+    protected function append_commentary_to_registry(string $session_id, string $text, int $sponsor_id, string $sponsor_name): void {
+        if (!class_exists('\KH\ContentRegistry\Services\ContentRegistryService')) {
+            return;
+        }
+
+        try {
+            $blog_id = $this->resolve_blog_id_for_session($session_id);
+            if (!$blog_id) {
+                return;
+            }
+
+            $registry = ContentRegistryService::instance();
+
+            // Generate slug from session title
+            $session_context = $this->get_session_context_for_connect($session_id);
+            if (empty($session_context) || empty($session_context['title'])) {
+                return;
+            }
+
+            $slug = sanitize_title($session_context['title']);
+
+            // Look up the registry article by blog_id + slug
+            $article = $registry->get_article_for_route($blog_id, $slug);
+
+            if (!$article) {
+                // Try searching for it — it may have been created with a different slug
+                $articles = $registry->search_articles($slug, $blog_id, true);
+                $article = !empty($articles) ? $articles[0] : null;
+            }
+
+            if (!$article) {
+                // Article not yet in registry — create it now
+                $result = $registry->create_article([
+                    'target_blog_id' => $blog_id,
+                    'slug' => $slug,
+                    'article_status' => 'Framework',
+                    'title' => $session_context['title'],
+                    'content_body' => '',
+                    'sponsor_commentary' => json_encode([
+                        'timestamp' => current_time('mysql'),
+                        'sponsor_id' => $sponsor_id,
+                        'sponsor_name' => $sponsor_name,
+                        'text' => $text,
+                    ]) . "\n\n",
+                ]);
+
+                if (!is_wp_error($result)) {
+                    error_log('[KHM QC] Created registry article for session: ' . $session_id . ' (registry_id: ' . $result . ')');
+                } else {
+                    error_log('[KHM QC] Failed to create registry article: ' . $result->get_error_message());
+                }
+                return;
+            }
+
+            // Append commentary to existing article
+            $attributed = json_encode([
+                'timestamp' => current_time('mysql'),
+                'sponsor_id' => $sponsor_id,
+                'sponsor_name' => $sponsor_name,
+                'text' => $text,
+            ]);
+
+            $result = $registry->append_sponsor_commentary($article->id, $attributed);
+
+            if (is_wp_error($result)) {
+                error_log('[KHM QC] Failed to append commentary to registry: ' . $result->get_error_message());
+            }
+        } catch (\Exception $e) {
+            error_log('[KHM QC] Append commentary to registry failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Mark the registry entry as having sponsor commentary.
+     *
+     * Sets smma_flags.has_sponsor_commentary on the registry article
+     * associated with the given session.
+     */
+    protected function mark_registry_has_commentary(array $commentary, string $session_id): void {
+        if (!class_exists('\KH\ContentRegistry\Services\ContentRegistryService')) {
+            return;
+        }
+
+        try {
+            $blog_id = $this->resolve_blog_id_for_session($session_id);
+            if (!$blog_id) {
+                return;
+            }
+
+            $registry = ContentRegistryService::instance();
+
+            // Generate slug from session title via post lookup
+            $post_id = (int) ($commentary['post_id'] ?? 0);
+            $title = '';
+            if ($post_id > 0) {
+                $title = get_the_title($post_id);
+            }
+            if (empty($title)) {
+                $session_context = $this->get_session_context_for_connect($session_id);
+                $title = $session_context['title'] ?? '';
+            }
+            if (empty($title)) {
+                return;
+            }
+
+            $slug = sanitize_title($title);
+
+            $article = $registry->get_article_for_route($blog_id, $slug);
+
+            if (!$article) {
+                $articles = $registry->search_articles($slug, $blog_id, true);
+                $article = !empty($articles) ? $articles[0] : null;
+            }
+
+            if (!$article) {
+                return; // No registry article yet — will be created on commentary append
+            }
+
+            // Update smma_flags to mark has_sponsor_commentary
+            $existing_flags = is_array($article->smma_flags) ? $article->smma_flags : [];
+            $existing_flags['has_sponsor_commentary'] = true;
+            $existing_flags['sponsor_id'] = (int) ($commentary['sponsor_id'] ?? 0);
+            $existing_flags['last_commentary_at'] = current_time('mysql');
+
+            $result = $registry->update_smma_flags($article->id, $existing_flags);
+
+            if (is_wp_error($result)) {
+                error_log('[KHM QC] Failed to mark registry commentary flags: ' . $result->get_error_message());
+            }
+        } catch (\Exception $e) {
+            error_log('[KHM QC] Mark registry commentary flags failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Register a press release in the content registry.
+     *
+     * Creates a registry entry with status 'Draft' and returns the registry ID.
+     */
+    protected function register_press_release_in_registry(int $pr_id, int $sponsor_id, string $title, string $content, array $dist_ids): int|\WP_Error {
+        if (!class_exists('\KH\ContentRegistry\Services\ContentRegistryService')) {
+            return new \WP_Error('registry_unavailable', 'Content Registry not active');
+        }
+
+        $registry = ContentRegistryService::instance();
+        $blog_id = $this->resolve_target_blog_id($dist_ids);
+
+        return $registry->create_article([
+            'target_blog_id' => $blog_id,
+            'slug' => sanitize_title($title) . '-pr-' . $pr_id,
+            'article_status' => 'Draft',
+            'title' => $title,
+            'content_body' => $content,
+            'excerpt' => wp_trim_words(wp_strip_all_tags($content), 30, '...'),
+            'sponsor_commentary' => wp_json_encode([
+                'source' => 'quote_club_press_release',
+                'press_release_id' => $pr_id,
+                'sponsor_id' => $sponsor_id,
+            ]),
+            'smma_flags' => [
+                'is_press_release' => true,
+                'sponsor_id' => $sponsor_id,
+                'press_release_id' => $pr_id,
+            ],
+        ]);
+    }
+
+    /**
+     * Sync a press release's registry entry status.
+     *
+     * Creates the registry entry if it doesn't exist (backward compat),
+     * then transitions to the given status.
+     */
+    protected function sync_registry_status(int $pr_id, string $new_registry_status): void {
+        if (!class_exists('\KH\ContentRegistry\Services\ContentRegistryService')) {
+            return;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'khm_press_releases';
+
+        try {
+            // Read the press release row (including registry_id)
+            $row = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$table} WHERE id = %d",
+                $pr_id
+            ), ARRAY_A);
+
+            if (!$row) {
+                return;
+            }
+
+            $registry = ContentRegistryService::instance();
+            $registry_id = isset($row['registry_id']) ? (int) $row['registry_id'] : null;
+
+            // Backward compat: create registry entry if missing
+            if (!$registry_id && !empty($row['content'])) {
+                $dist_raw = isset($row['distribution_site_ids']) ? (string) $row['distribution_site_ids'] : '[]';
+                $dist_ids = (array) json_decode($dist_raw, true);
+
+                $result = $this->register_press_release_in_registry(
+                    $pr_id,
+                    (int) ($row['sponsor_id'] ?? 0),
+                    (string) ($row['title'] ?? ''),
+                    (string) $row['content'],
+                    $dist_ids
+                );
+
+                if (is_wp_error($result)) {
+                    error_log('[KHM QC] Failed to create registry entry for PR ' . $pr_id . ': ' . $result->get_error_message());
+                    return;
+                }
+
+                $registry_id = $result;
+
+                // Save registry_id back to press release table
+                $wpdb->update($table, ['registry_id' => $registry_id], ['id' => $pr_id], ['%d'], ['%d']);
+            }
+
+            if (!$registry_id) {
+                return;
+            }
+
+            // Transition the registry status
+            $result = $registry->transition_status($registry_id, $new_registry_status);
+
+            if (is_wp_error($result)) {
+                error_log('[KHM QC] Registry status transition failed for PR ' . $pr_id . ': ' . $result->get_error_message());
+            }
+        } catch (\Exception $e) {
+            error_log('[KHM QC] Sync registry status failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Resolve a target blog_id from distribution site IDs.
+     *
+     * Uses the first valid distribution site, or falls back to the hub blog (1).
+     */
+    protected function resolve_target_blog_id(array $dist_ids): int {
+        if (!empty($dist_ids)) {
+            $first_id = (int) $dist_ids[0];
+            if ($first_id > 0) {
+                return $first_id;
+            }
+        }
+
+        // Fallback: use hub blog
+        return 1;
+    }
+
+    /**
+     * Resolve blog_id from a session's audience_slug meta.
+     *
+     * Returns the blog_id or null if it cannot be resolved.
+     */
+    protected function resolve_blog_id_for_session(string $session_id): ?int {
+        // Try to find the planner_session post by session_id meta
+        $query = new \WP_Query([
+            'post_type' => 'planner_session',
+            'post_status' => ['publish', 'future', 'draft', 'pending'],
+            'posts_per_page' => 1,
+            'meta_query' => [[
+                'key' => 'session_id',
+                'value' => $session_id,
+                'compare' => '=',
+            ]],
+        ]);
+
+        $post = $query->posts[0] ?? null;
+        if (!$post) {
+            return null;
+        }
+
+        $audience_slug = get_post_meta($post->ID, 'kh_planner_audience_slug', true) ?: '';
+        if (!$audience_slug) {
+            return null;
+        }
+
+        if (class_exists('\KH\Editorial\Services\AllocationService')) {
+            $alloc = new \KH\Editorial\Services\AllocationService();
+            $blog_id = $alloc->resolve_blog_id($audience_slug);
+            return $blog_id ?? 1;
+        }
+
+        return 1;
     }
 }

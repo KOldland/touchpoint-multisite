@@ -15,6 +15,8 @@
 
 namespace KH_SMMA\Social;
 
+use KH\ContentRegistry\Services\ContentRegistryService;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -304,6 +306,9 @@ class SocialManager {
 		update_post_meta( $post_id, self::META_PREFIX . '_last_posted', $now );
 		update_post_meta( $post_id, self::QUEUE_STATUS_KEY, 'published' );
 		update_post_meta( $post_id, self::META_PREFIX . '_last_response', $result );
+
+		// Transition registry status to Live
+		$this->sync_publish_to_registry( $post_id, $result );
 
 		wp_send_json_success( array(
 			'message'   => __( 'Posted to LinkedIn successfully.', 'kh-smma' ),
@@ -802,6 +807,60 @@ class SocialManager {
 			return $text;
 		}
 		return substr( $text, 0, $length - 3 ) . '...';
+	}
+
+	// ─── Content Registry Integration ─────────────────────────────
+
+	/**
+	 * Transition the content registry entry to Live after a successful social publish.
+	 *
+	 * @param int   $post_id The WordPress post ID.
+	 * @param array $result  The LinkedIn API response data.
+	 */
+	protected function sync_publish_to_registry( int $post_id, array $result ): void {
+		if ( ! class_exists( '\KH\ContentRegistry\Services\ContentRegistryService' ) ) {
+			return;
+		}
+
+		try {
+			$registry  = ContentRegistryService::instance();
+			$blog_id   = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 1;
+			$title     = get_the_title( $post_id ) ?: ( 'post-' . $post_id );
+			$slug      = sanitize_title( $title );
+
+			// Look up the registry article
+			$article = $registry->get_article_for_route( $blog_id, $slug );
+			if ( ! $article ) {
+				$articles = $registry->search_articles( $slug, $blog_id, true );
+				$article  = ! empty( $articles ) ? $articles[0] : null;
+			}
+
+			if ( ! $article ) {
+				return; // No registry entry — nothing to transition
+			}
+
+			// Update smma_flags with publish metadata
+			$existing_flags = is_array( $article->smma_flags ) ? $article->smma_flags : array();
+			$existing_flags['published_at']     = current_time( 'mysql' );
+			$existing_flags['platform']         = 'linkedin';
+			$existing_flags['platform_post_id'] = $result['id'] ?? null;
+			$existing_flags['linkedin_activity'] = $result['activity'] ?? null;
+
+			$flag_result = $registry->update_smma_flags( $article->id, $existing_flags );
+
+			if ( is_wp_error( $flag_result ) ) {
+				error_log( '[KHM SMMA] Failed to update publish flags in registry: ' . $flag_result->get_error_message() );
+			}
+
+			// Transition to Live
+			$transition = $registry->transition_status( $article->id, 'Live' );
+
+			if ( is_wp_error( $transition ) ) {
+				error_log( '[KHM SMMA] Failed to transition registry to Live after LinkedIn publish: ' . $transition->get_error_message() );
+			}
+		} catch ( \Exception $e ) {
+			error_log( '[KHM SMMA] Sync publish to registry failed: ' . $e->getMessage() );
+		}
 	}
 
 	// ─── Asset Enqueue ───────────────────────────────────────────

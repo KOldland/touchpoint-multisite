@@ -7,6 +7,8 @@ export const ArticleModalsHub = ({
     previewArticle,
     frameworkPreview,
     authorPreview,
+    synopsisModalOpen,
+    setSynopsisModalOpen,
     
     // Data elements
     THINKING_PHRASES,
@@ -20,6 +22,14 @@ export const ArticleModalsHub = ({
     isDeepDiveLoading,
     diveDeeperQueueLoading,
     
+    // Synopsis data elements
+    synopsisPlan,
+    synopsisPlanLoading,
+    synopsisPlanError,
+    synopsisGenerateLoading,
+    synopsisTotal,
+    updateSynopsisCount,
+    
     // Handlers
     closeDiveDeeperModal,
     handleDiveDeeperRetry,
@@ -31,6 +41,7 @@ export const ArticleModalsHub = ({
     handleExportFramework,
     handleRunAuthorAgent,
     handleExportAuthorDraft,
+    handleGenerateSynopses,
     
     // Utility Profile Mappers
     getAuthorProfileLabel,
@@ -205,6 +216,60 @@ export const ArticleModalsHub = ({
                     : 'No draft available.'
                 }
             })
+        ),
+
+        // ==========================================
+        // 5. SYNOPSIS PLAN MODAL
+        // ==========================================
+        synopsisModalOpen && createElement(
+            Modal,
+            {
+                title: 'Generate Article Synopses',
+                onRequestClose: () => setSynopsisModalOpen(false),
+                isDismissible: true,
+                shouldCloseOnClickOutside: false,
+            },
+            synopsisPlanLoading
+                ? createElement('div', { style: { textAlign: 'center', padding: '32px 24px' } },
+                      createElement(Spinner),
+                      createElement('p', { style: { marginTop: '16px', fontSize: '14px', color: '#666' } }, 'Loading synopsis plan...')
+                  )
+                : synopsisPlanError
+                ? createElement('div', { style: { padding: '24px' } },
+                      createElement(Notice, { status: 'error', isDismissible: false },
+                          createElement('p', { style: { margin: 0 } }, synopsisPlanError)
+                      ),
+                      createElement('div', { style: { marginTop: '16px', textAlign: 'right' } },
+                          createElement(Button, { isSecondary: true, onClick: () => setSynopsisModalOpen(false) }, 'Close')
+                      )
+                  )
+                : createElement('div', { style: { padding: '8px 0' } },
+                      // Topic plan list
+                      Object.keys(synopsisPlan).length > 0
+                          ? createElement('div', { style: { marginBottom: '16px' } },
+                                createElement('h3', { style: { margin: '0 0 12px', fontSize: '14px', fontWeight: 600 } }, 'Synopsis Plan — Topics'),
+                                createElement('ul', { style: { listStyle: 'none', padding: 0, margin: 0 } },
+                                    Object.entries(synopsisPlan).map(([topic, count], idx) =>
+                                        createElement('li', { key: idx, style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f0f0f1' } },
+                                            createElement('span', { style: { fontSize: '13px', flex: 1 } }, topic),
+                                            createElement('span', { style: { fontSize: '12px', color: '#50575e', background: '#f0f0f1', padding: '2px 8px', borderRadius: '3px' } }, `${count} synopsis`)
+                                        )
+                                    )
+                                )
+                            )
+                          : createElement('p', { style: { color: '#50575e', padding: '16px 0' } }, 'No topics found in synopsis plan.'),
+                      
+                      // Generate button
+                      createElement('div', { style: { marginTop: '20px', display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center', borderTop: '1px solid #dcdcde', paddingTop: '16px' } },
+                          createElement('span', { style: { fontSize: '12px', color: '#50575e', marginRight: 'auto' } },
+                              `Will generate articles for ${Object.keys(synopsisPlan).length} topic${Object.keys(synopsisPlan).length !== 1 ? 's' : ''}`
+                          ),
+                          createElement(Button, { isSecondary: true, onClick: () => setSynopsisModalOpen(false) }, 'Cancel'),
+                          createElement(Button, { isPrimary: true, onClick: handleGenerateSynopses, disabled: synopsisGenerateLoading || Object.keys(synopsisPlan).length === 0 },
+                              synopsisGenerateLoading ? createElement(Spinner) : 'Generate Synopses'
+                          )
+                      )
+                  )
         )
     );
 };

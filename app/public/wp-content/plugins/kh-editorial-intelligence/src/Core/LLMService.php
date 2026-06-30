@@ -88,6 +88,9 @@ class LLMService {
         // OpenAI (via OpenRouter)
         'openai/gpt-4o-mini' => 'GPT-4o Mini (OpenRouter)',
         'openai/gpt-4o'      => 'GPT-4o (OpenRouter)',
+
+        // OpenRouter auto-routed (free tier)
+        'openrouter/free'    => 'OpenRouter Free (auto-routed)',
     ];
 
     /**

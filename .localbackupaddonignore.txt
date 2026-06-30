@@ -1,0 +1,21 @@
+# Local Backups – Default Ignore File
+#
+# This file defines the default ignore rules for Local backups.
+# It uses glob patterns (similar to `.gitignore`) and is powered by Restic under the hood.
+#
+# For details on exclude rules, see the Restic documentation:
+# https://restic.readthedocs.io/en/latest/040_backup.html#excluding-files
+#
+# For more information about Local, visit:
+# https://localwp.com/
+#
+
+**/.git
+
+**/cache
+
+wp-content/upgrade
+
+wp-content/cache
+
+.yarn

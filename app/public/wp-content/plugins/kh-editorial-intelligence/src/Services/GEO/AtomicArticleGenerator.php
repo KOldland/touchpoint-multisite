@@ -25,6 +25,7 @@ namespace KH\Editorial\Services\GEO;
 use KH\Editorial\PostTypes\AtomicArticlePostType;
 use KH\Editorial\Core\LLMService;
 use KH\Editorial\Services\SiteAudienceProfile;
+use KH\ContentRegistry\Services\ContentRegistryService;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -359,7 +360,55 @@ PROMPT;
         // Queue embedding generation.
         $this->embedding_service->queue_embed( $post_id );
 
+        // Sync to content registry
+        $this->sync_atomic_to_registry( $post_id, $parent_id, $unit, $post_content );
+
         return $post_id;
+    }
+
+    /**
+     * Register atomic article in the content registry.
+     *
+     * @param int    $post_id      The WordPress post ID.
+     * @param int    $parent_id    Parent post ID.
+     * @param array  $unit         Sanitized unit array.
+     * @param string $post_content Generated post content.
+     */
+    private function sync_atomic_to_registry( int $post_id, int $parent_id, array $unit, string $post_content ): void {
+        if ( ! class_exists( '\KH\ContentRegistry\Services\ContentRegistryService' ) ) {
+            return;
+        }
+
+        try {
+            $registry = ContentRegistryService::instance();
+            $blog_id  = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 1;
+
+            $result = $registry->create_article( [
+                'target_blog_id'  => $blog_id,
+                'parent_post_id'  => $parent_id,
+                'slug'            => sanitize_title( $unit['title'] ),
+                'article_status'  => 'Live',
+                'title'           => $unit['title'],
+                'content_body'    => $post_content,
+                'excerpt'         => $unit['summary'],
+                'seo_metadata'    => [
+                    'schema_type'   => $unit['schema_type'],
+                    'parent_post_id' => $parent_id,
+                    'atomic_post_id' => $post_id,
+                ],
+                'geo_flags'       => [
+                    'schema_type'   => $unit['schema_type'],
+                    'generated_at'  => gmdate( 'c' ),
+                    'atomic_post_id' => $post_id,
+                ],
+            ] );
+
+            if ( is_wp_error( $result ) ) {
+                error_log( '[KHM GEO] Registry create for atomic article failed: ' . $result->get_error_message() );
+            }
+        } catch ( \Exception $e ) {
+            error_log( '[KHM GEO] Registry sync for atomic article failed: ' . $e->getMessage() );
+        }
     }
 
     /**

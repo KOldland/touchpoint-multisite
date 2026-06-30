@@ -51,25 +51,50 @@ add_action( 'plugins_loaded', function() {
         KH\Editorial\Database\AllocationTable::install();
     }
 
+    // 2c. Search Log Schema
+    if ( class_exists( 'KH\\Editorial\\Database\\SearchLogSchema' ) ) {
+        KH\Editorial\Database\SearchLogSchema::install();
+    }
+
+    // 2d. Migration Runner Schema
+    if ( class_exists( 'KH\\Editorial\\Database\\MigrationRunner' ) ) {
+        $migration_runner = new KH\Editorial\Database\MigrationRunner();
+        // Install the tracking table (idempotent — uses IF NOT EXISTS).
+        // Migrations are executed manually via the admin UI, not automatically.
+        $migration_runner->install_schema();
+    }
+
     // 3. Taxonomies
     if ( class_exists( 'KH\\Editorial\\Taxonomies\\EditorialTaxonomy' ) ) {
         KH\Editorial\Taxonomies\EditorialTaxonomy::init();
     }
     
     // 4. Admin UI
-    if ( is_admin() && class_exists( 'KH\\Editorial\\Admin\\EditorialAdmin' ) ) {
+    if ( function_exists( 'khm_can_show_admin_ui' ) && khm_can_show_admin_ui() && class_exists( 'KH\\Editorial\\Admin\\EditorialAdmin' ) ) {
+        $editorial_admin = new KH\Editorial\Admin\EditorialAdmin();
+        $editorial_admin->init();
+    } elseif ( is_admin() && class_exists( 'KH\\Editorial\\Admin\\EditorialAdmin' ) ) {
+        // Fallback when lockdown not active (single site or earlier WP version)
         $editorial_admin = new KH\Editorial\Admin\EditorialAdmin();
         $editorial_admin->init();
     }
 
     // 5. Atomic Article System (GEO tool)
-    if ( class_exists( 'KH\\Editorial\\PostTypes\\AtomicArticlePostType' ) ) {
+    // Post types and services are for content creation - only on main site
+    if ( function_exists( 'khm_can_show_admin_ui' ) && khm_can_show_admin_ui() && class_exists( 'KH\\Editorial\\PostTypes\\AtomicArticlePostType' ) ) {
+        ( new KH\Editorial\PostTypes\AtomicArticlePostType() )->register();
+    } elseif ( is_admin() && class_exists( 'KH\\Editorial\\PostTypes\\AtomicArticlePostType' ) ) {
+        // Fallback when lockdown not active
         ( new KH\Editorial\PostTypes\AtomicArticlePostType() )->register();
     }
     if ( class_exists( 'KH\\Editorial\\Services\\GEO\\AtomicArticleGenerator' ) ) {
         ( new KH\Editorial\Services\GEO\AtomicArticleGenerator() )->register();
     }
-    if ( class_exists( 'KH\\Editorial\\Admin\\AtomicMetaBox' ) ) {
+    // AtomicMetaBox is editor-only admin UI
+    if ( function_exists( 'khm_can_show_admin_ui' ) && khm_can_show_admin_ui() && class_exists( 'KH\\Editorial\\Admin\\AtomicMetaBox' ) ) {
+        ( new KH\Editorial\Admin\AtomicMetaBox() )->register();
+    } elseif ( is_admin() && class_exists( 'KH\\Editorial\\Admin\\AtomicMetaBox' ) ) {
+        // Fallback when lockdown not active
         ( new KH\Editorial\Admin\AtomicMetaBox() )->register();
     }
     if ( class_exists( 'KH\\Editorial\\Services\\GEO\\AtomicEmbeddingService' ) ) {
@@ -106,37 +131,81 @@ add_action( 'plugins_loaded', function() {
     }
 
     // 9. Content Allocation System
+    // Allocation endpoints are API-only - always register
     if ( class_exists( 'KH\\Editorial\\API\\AllocationEndpoints' ) ) {
         ( new KH\Editorial\API\AllocationEndpoints() )->register();
     }
-    if ( is_admin() && class_exists( 'KH\\Editorial\\Admin\\AllocationMetaBox' ) ) {
+    // AllocationMetaBox is admin-only
+    if ( function_exists( 'khm_can_show_admin_ui' ) && khm_can_show_admin_ui() && class_exists( 'KH\\Editorial\\Admin\\AllocationMetaBox' ) ) {
+        ( new KH\Editorial\Admin\AllocationMetaBox() )->init();
+    } elseif ( is_admin() && class_exists( 'KH\\Editorial\\Admin\\AllocationMetaBox' ) ) {
+        // Fallback when lockdown not active
         ( new KH\Editorial\Admin\AllocationMetaBox() )->init();
     }
 
     // 9b. Posts Table Columns (custom column set for edit.php)
-    if ( is_admin() && class_exists( 'KH\\Editorial\\Admin\\PostsTableColumns' ) ) {
+    if ( function_exists( 'khm_can_show_admin_ui' ) && khm_can_show_admin_ui() && class_exists( 'KH\\Editorial\\Admin\\PostsTableColumns' ) ) {
+        ( new KH\Editorial\Admin\PostsTableColumns() )->init();
+    } elseif ( is_admin() && class_exists( 'KH\\Editorial\\Admin\\PostsTableColumns' ) ) {
+        // Fallback when lockdown not active
         ( new KH\Editorial\Admin\PostsTableColumns() )->init();
     }
 
     // 9c. Distribution Overview Page
-    if ( is_admin() && class_exists( 'KH\\Editorial\\Admin\\DistributionPage' ) ) {
+    if ( function_exists( 'khm_can_show_admin_ui' ) && khm_can_show_admin_ui() && class_exists( 'KH\\Editorial\\Admin\\DistributionPage' ) ) {
+        ( new KH\Editorial\Admin\DistributionPage() )->init();
+    } elseif ( is_admin() && class_exists( 'KH\\Editorial\\Admin\\DistributionPage' ) ) {
+        // Fallback when lockdown not active
         ( new KH\Editorial\Admin\DistributionPage() )->init();
     }
 
-     // 7. Gutenberg Editor Assets
-    add_action( 'enqueue_block_editor_assets', function() {
-        $script_path = KH_EDITORIAL_PLUGIN_DIR . 'assets/js/editor-image-sidebar.js';
-        if ( ! file_exists( $script_path ) ) {
-            return;
-        }
-        wp_enqueue_script(
-            'kh-editorial-image-sidebar',
-            KH_EDITORIAL_PLUGIN_URL . 'assets/js/editor-image-sidebar.js',
-            [ 'wp-plugins', 'wp-edit-post', 'wp-editor', 'wp-element', 'wp-components', 'wp-data', 'wp-api-fetch', 'wp-i18n' ],
-            filemtime( $script_path ),
-            true
-        );
-        wp_localize_script( 'kh-editorial-image-sidebar', 'khEditorialSettings', \KH\Editorial\Admin\EditorialAdmin::get_sidebar_settings() );
+    // 10. Unified Search API (Phase 5) — Internal
+    if ( class_exists( 'KH\\Editorial\\Search\\API\\SearchEndpoint' ) ) {
+        ( new KH\Editorial\Search\API\SearchEndpoint() )->register();
+    }
 
-} );
+    // 10b. Unified Search API — Public (rate-limited, no auth required)
+    if ( class_exists( 'KH\\Editorial\\Search\\API\\PublicSearchEndpoint' ) ) {
+        ( new KH\Editorial\Search\API\PublicSearchEndpoint() )->register();
+    }
+
+    // 10c. Public-Facing Search Shortcode [khm_site_search]
+    if ( class_exists( 'KH\\Editorial\\Search\\Frontend\\SearchShortcode' ) ) {
+        ( new KH\Editorial\Search\Frontend\SearchShortcode() )->register();
+    }
+
+     // 11. Gutenberg Editor Assets
+    // Only load on main site or for super admins (editor UI)
+    if ( function_exists( 'khm_can_show_admin_ui' ) && khm_can_show_admin_ui() ) {
+        add_action( 'enqueue_block_editor_assets', function() {
+            $script_path = KH_EDITORIAL_PLUGIN_DIR . 'assets/js/editor-image-sidebar.js';
+            if ( ! file_exists( $script_path ) ) {
+                return;
+            }
+            wp_enqueue_script(
+                'kh-editorial-image-sidebar',
+                KH_EDITORIAL_PLUGIN_URL . 'assets/js/editor-image-sidebar.js',
+                [ 'wp-plugins', 'wp-edit-post', 'wp-editor', 'wp-element', 'wp-components', 'wp-data', 'wp-api-fetch', 'wp-i18n' ],
+                filemtime( $script_path ),
+                true
+            );
+            wp_localize_script( 'kh-editorial-image-sidebar', 'khEditorialSettings', \KH\Editorial\Admin\EditorialAdmin::get_sidebar_settings() );
+        } );
+    } elseif ( is_admin() ) {
+        // Fallback when lockdown not active
+        add_action( 'enqueue_block_editor_assets', function() {
+            $script_path = KH_EDITORIAL_PLUGIN_DIR . 'assets/js/editor-image-sidebar.js';
+            if ( ! file_exists( $script_path ) ) {
+                return;
+            }
+            wp_enqueue_script(
+                'kh-editorial-image-sidebar',
+                KH_EDITORIAL_PLUGIN_URL . 'assets/js/editor-image-sidebar.js',
+                [ 'wp-plugins', 'wp-edit-post', 'wp-editor', 'wp-element', 'wp-components', 'wp-data', 'wp-api-fetch', 'wp-i18n' ],
+                filemtime( $script_path ),
+                true
+            );
+            wp_localize_script( 'kh-editorial-image-sidebar', 'khEditorialSettings', \KH\Editorial\Admin\EditorialAdmin::get_sidebar_settings() );
+        } );
+    }
 } );

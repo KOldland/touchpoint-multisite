@@ -720,3 +720,21 @@
     border-bottom: 1px solid #f0f0f1;
     margin-bottom: 16px;
 }
+
+.planner-action-bar {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+}
+
+.planner-action-bar > span {
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .planner-action-bar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

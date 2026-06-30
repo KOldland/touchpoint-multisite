@@ -9,8 +9,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 class EditorialAdmin {
 
     public function init() {
+        // Admin UI guard — only on main site or for super admins
+        if ( function_exists( 'khm_can_show_admin_ui' ) && !khm_can_show_admin_ui() ) {
+            return;
+        }
+
         add_action( 'admin_menu', [ $this, 'register_menu' ] );
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_dashboard_assets' ] );
+
+        // Initialize SearchAnalyticsPage (Phase 6 — Monitoring).
+        if ( class_exists( 'KH\\Editorial\\Admin\\SearchAnalyticsPage' ) ) {
+            $search_analytics = new \KH\Editorial\Admin\SearchAnalyticsPage();
+            $search_analytics->init();
+        }
     }
 
     public function register_menu() {
@@ -354,6 +365,10 @@ class EditorialAdmin {
                 'default_article_price'  => (float) ( $_POST['default_article_price'] ?? 15.00 ),
                 'default_credit_cost'    => (int) ( $_POST['default_credit_cost'] ?? 1 ),
                 'show_per_post_pricing'  => isset( $_POST['show_per_post_pricing'] ) ? 1 : 0,
+                'enable_ai_answers'      => isset( $_POST['enable_ai_answers'] ) ? 1 : 0,
+                'ai_answer_model'        => sanitize_text_field( $_POST['ai_answer_model'] ?? 'openrouter/free' ),
+                'ai_answer_fallback'     => sanitize_text_field( $_POST['ai_answer_fallback'] ?? 'deepseek/deepseek-v4-flash' ),
+                'ai_answer_tertiary'     => sanitize_text_field( $_POST['ai_answer_tertiary'] ?? 'gpt-4o-mini' ),
             ];
 
             update_option( 'kh_editorial_settings', $settings );
@@ -372,6 +387,7 @@ class EditorialAdmin {
             'serpapi_key'        => '',
             'search_primary'     => 'dataforseo',
             'show_prompt_editor' => 1,
+            'enable_ai_answers'  => 1,
             'agent_models'       => [],
             'agent_fallbacks'    => [],
             'agent_tertiaries'   => [],
@@ -758,6 +774,58 @@ class EditorialAdmin {
                         </script>
                         <!-- End collapsible agent model selectors -->
 
+                        <!-- ================== AI ANSWER SYNTHESIS ================== -->
+                        <div class="kh-subsection">
+                            <h3>AI Answer Synthesis <span class="kh-help">Site Search</span></h3>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label"><strong>Enable</strong></div>
+                                <div class="kh-form-control">
+                                    <label style="display: flex; align-items: center; gap: 8px;">
+                                        <input name="enable_ai_answers" type="checkbox" <?php checked( ! empty( $settings['enable_ai_answers'] ) ); ?>>
+                                        <span>Synthesise human-readable answers from search results using an LLM</span>
+                                    </label>
+                                    <div class="kh-desc">When enabled, the <code>[khm_site_search]</code> widget will generate a concise answer above the search results. When disabled, the best-matching excerpt is shown instead. Settings apply to all profiles.</div>
+                                </div>
+                            </div>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label"><strong>Primary</strong></div>
+                                <div class="kh-form-control">
+                                    <select name="ai_answer_model">
+                                        <option value="" <?php selected( $settings['ai_answer_model'] ?? '', '' ); ?>>—</option>
+                                        <?php foreach ( $all_models as $m_val => $m_label ) : ?>
+                                            <option value="<?php echo esc_attr( $m_val ); ?>" <?php selected( $settings['ai_answer_model'] ?? 'openrouter/free', $m_val ); ?>><?php echo esc_html( $m_label ); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <div class="kh-desc">First-choice model for answer synthesis.</div>
+                                </div>
+                            </div>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label"><strong>Secondary</strong></div>
+                                <div class="kh-form-control">
+                                    <select name="ai_answer_fallback">
+                                        <option value="" <?php selected( $settings['ai_answer_fallback'] ?? '', '' ); ?>>—</option>
+                                        <?php foreach ( $all_models as $m_val => $m_label ) : ?>
+                                            <option value="<?php echo esc_attr( $m_val ); ?>" <?php selected( $settings['ai_answer_fallback'] ?? 'deepseek/deepseek-v4-flash', $m_val ); ?>><?php echo esc_html( $m_label ); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <div class="kh-desc">Fallback if the primary model is unavailable.</div>
+                                </div>
+                            </div>
+                            <div class="kh-form-row">
+                                <div class="kh-form-label"><strong>Tertiary</strong></div>
+                                <div class="kh-form-control">
+                                    <select name="ai_answer_tertiary">
+                                        <option value="" <?php selected( $settings['ai_answer_tertiary'] ?? '', '' ); ?>>—</option>
+                                        <?php foreach ( $all_models as $m_val => $m_label ) : ?>
+                                            <option value="<?php echo esc_attr( $m_val ); ?>" <?php selected( $settings['ai_answer_tertiary'] ?? 'gpt-4o-mini', $m_val ); ?>><?php echo esc_html( $m_label ); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <div class="kh-desc">Last-resort fallback if primary and secondary are unavailable.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- ============== END AI ANSWER SYNTHESIS ============== -->
+
                     </div>
                 </div>
 
@@ -850,16 +918,99 @@ class EditorialAdmin {
             echo '<div class="notice notice-success"><p>Database tables initialized.</p></div>';
         }
 
+        // Handle migration runner actions.
+        if ( isset( $_POST['kh_run_migrations'] ) && check_admin_referer( 'kh_editorial_db', 'kh_editorial_nonce' ) ) {
+            $runner = new \KH\Editorial\Database\MigrationRunner();
+            $runner->install_schema();
+
+            // Register Stage 5 migrations.
+            $runner->register( '20260704_fulltext_indexes', function () {
+                require_once WP_CONTENT_DIR . '/../../migrations/20260704_add_fulltext_indexes.php';
+                run_fulltext_indexes_migration();
+            } );
+            $runner->register( '20260705_blog_id_to_embeddings', function () {
+                require_once WP_CONTENT_DIR . '/../../migrations/20260705_add_blog_id_to_embeddings.php';
+                run_blog_id_to_embeddings_migration();
+            } );
+
+            $result = $runner->run_all();
+            $count_executed = count( $result['executed'] );
+            $count_skipped  = count( $result['skipped'] );
+            $count_failed   = count( $result['failed'] );
+
+            if ( $count_failed > 0 ) {
+                echo '<div class="notice notice-error"><p>Migrations completed with errors.</p><ul>';
+                foreach ( $result['failed'] as $failure ) {
+                    echo '<li><strong>' . esc_html( $failure['name'] ) . ':</strong> ' . esc_html( $failure['error'] ) . '</li>';
+                }
+                echo '</ul></div>';
+            } elseif ( $count_executed > 0 ) {
+                echo '<div class="notice notice-success"><p>' . esc_html( $count_executed ) . ' migration(s) executed successfully. ' . esc_html( $count_skipped ) . ' skipped.</p></div>';
+            } else {
+                echo '<div class="notice notice-info"><p>All migrations have already been executed. Nothing to run.</p></div>';
+            }
+        }
+
+        // Get migration status.
+        $migration_status = [];
+        if ( class_exists( '\\KH\\Editorial\\Database\\MigrationRunner' ) ) {
+            $runner = new \KH\Editorial\Database\MigrationRunner();
+            $migration_status = $runner->get_status();
+        }
+
         ?>
         <div class="wrap">
-            <h1>Editorial Suite Database</h1>
-            <p>Initialize or update the centralized AI job queue and budgeting tables.</p>
+            <h1><?php esc_html_e( 'Editorial Suite Database', 'kh-editorial-intelligence' ); ?></h1>
+
+            <h2><?php esc_html_e( 'Core Tables', 'kh-editorial-intelligence' ); ?></h2>
+            <p><?php esc_html_e( 'Initialize or update the centralized AI job queue and budgeting tables.', 'kh-editorial-intelligence' ); ?></p>
             <form method="post">
                 <?php wp_nonce_field( 'kh_editorial_db', 'kh_editorial_nonce' ); ?>
                 <p class="submit">
-                    <input type="submit" name="kh_editorial_init_db" class="button button-primary" value="Initialize Infrastructure">
+                    <input type="submit" name="kh_editorial_init_db" class="button button-primary" value="<?php esc_attr_e( 'Initialize Infrastructure', 'kh-editorial-intelligence' ); ?>">
                 </p>
             </form>
+
+            <h2><?php esc_html_e( 'Search Migrations', 'kh-editorial-intelligence' ); ?></h2>
+            <p><?php esc_html_e( 'Run Phase 5/6 database migrations (idempotent — safe to run multiple times).', 'kh-editorial-intelligence' ); ?></p>
+            <form method="post">
+                <?php wp_nonce_field( 'kh_editorial_db', 'kh_editorial_nonce' ); ?>
+                <p class="submit">
+                    <input type="submit" name="kh_run_migrations" class="button button-primary" value="<?php esc_attr_e( 'Run Pending Migrations', 'kh-editorial-intelligence' ); ?>">
+                </p>
+            </form>
+
+            <?php if ( ! empty( $migration_status ) ) : ?>
+            <h3><?php esc_html_e( 'Migration Status', 'kh-editorial-intelligence' ); ?></h3>
+            <table class="widefat striped" style="max-width: 800px;">
+                <thead>
+                    <tr>
+                        <th><?php esc_html_e( 'Migration', 'kh-editorial-intelligence' ); ?></th>
+                        <th><?php esc_html_e( 'Status', 'kh-editorial-intelligence' ); ?></th>
+                        <th><?php esc_html_e( 'Ran At', 'kh-editorial-intelligence' ); ?></th>
+                        <th><?php esc_html_e( 'Error', 'kh-editorial-intelligence' ); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ( $migration_status as $ms ) : ?>
+                    <tr>
+                        <td><code><?php echo esc_html( $ms['name'] ); ?></code></td>
+                        <td>
+                            <?php if ( $ms['ran_at'] && $ms['success'] ) : ?>
+                                <span style="color: #46b450;">✅ <?php esc_html_e( 'Success', 'kh-editorial-intelligence' ); ?></span>
+                            <?php elseif ( $ms['ran_at'] && ! $ms['success'] ) : ?>
+                                <span style="color: #d63638;">❌ <?php esc_html_e( 'Failed', 'kh-editorial-intelligence' ); ?></span>
+                            <?php else : ?>
+                                <span style="color: #646970;">⏳ <?php esc_html_e( 'Pending', 'kh-editorial-intelligence' ); ?></span>
+                            <?php endif; ?>
+                        </td>
+                        <td><?php echo $ms['ran_at'] ? esc_html( $ms['ran_at'] ) : '—'; ?></td>
+                        <td><?php echo $ms['error'] ? esc_html( $ms['error'] ) : '—'; ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <?php endif; ?>
         </div>
         <?php
     }

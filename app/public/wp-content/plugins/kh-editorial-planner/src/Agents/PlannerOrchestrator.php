@@ -13,12 +13,22 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Manages the flow from Discovery to Validation and Synopsis generation.
  */
 class PlannerOrchestrator {
+    
+    /**
+     * @var array Cached dependency status for graceful degradation.
+     */
+    private static $dependency_status = [];
 
     /**
      * Static init for the orchestrator hooks.
+     * 
+     * @param array $deps Dependency status array (optional, for forward compatibility).
      */
-    public static function init() {
-        // Reserved for background job hooks or specialized initialization
+    public static function init( $deps = [] ) {
+        // Store dependency status for use in methods that need it
+        if ( ! empty( $deps ) ) {
+            self::$dependency_status = $deps;
+        }
     }
 
     /**
@@ -461,6 +471,41 @@ class PlannerOrchestrator {
             [ 'status' => $status ],
             $extra
         );
+        
+        // Create registry entry when framework generation completes
+        if ( $status === 'completed' && class_exists( '\KH\ContentRegistry\Services\ContentRegistryService' ) ) {
+            $article = &$articles[ $article_idx ];
+            $framework_content = $article['framework']['content'] ?? '';
+            
+            if ( ! empty( $framework_content ) && empty( $article['framework']['registry_id'] ) ) {
+                $registry = \KH\ContentRegistry\Services\ContentRegistryService::instance();
+                
+                // Resolve target_blog_id from audience_slug
+                $audience_slug = get_post_meta( $post_id, 'kh_planner_audience_slug', true ) ?: '';
+                $blog_id = null;
+                if ( $audience_slug && class_exists( '\KH\Editorial\Services\AllocationService' ) ) {
+                    $alloc = new \KH\Editorial\Services\AllocationService();
+                    $blog_id = $alloc->resolve_blog_id( $audience_slug );
+                }
+                
+                if ( $blog_id ) {
+                    $result = $registry->create_article([
+                        'target_blog_id' => $blog_id,
+                        'slug' => sanitize_title( $article['headline'] ?? 'framework-' . time() ),
+                        'article_status' => 'Framework',
+                        'title' => $article['headline'] ?? '',
+                        'content_body' => $framework_content,
+                    ]);
+                    
+                    if ( ! is_wp_error( $result ) ) {
+                        $article['framework']['registry_id'] = $result;
+                    } else {
+                        error_log( 'ContentRegistry create_article failed: ' . $result->get_error_message() );
+                    }
+                }
+            }
+        }
+        
         $session_meta = $this->get_planner_meta_array( $post_id );
         $session_meta['articles'] = $articles;
         update_post_meta( $post_id, 'kh_planner_meta', wp_json_encode( $session_meta ) );
@@ -1158,7 +1203,10 @@ APA_EXAMPLES;
             'timeout'   => 5,
             'blocking'  => true,
             'body'      => wp_json_encode( [ 'job_id' => $job_id, 'type' => $type ] ),
-            'headers'   => [ 'Content-Type' => 'application/json' ],
+            'headers'   => [ 
+                'Content-Type'    => 'application/json',
+                'X-Internal-Call' => 'true',
+            ],
             'sslverify' => false,
         ] );
         

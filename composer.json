@@ -2,6 +2,9 @@
   "name": "kh/touchpoint-template",
   "description": "Local tooling for SMMA tests",
   "type": "project",
+    "require": {
+    "phpoffice/phpword": "^1.4"
+  },
   "require-dev": {
     "phpunit/phpunit": "^9.6"
   },

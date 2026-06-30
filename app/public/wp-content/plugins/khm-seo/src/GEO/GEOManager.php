@@ -24,6 +24,7 @@ use KHM_SEO\GEO\Series\SeriesManager;
 use KHM_SEO\GEO\Series\SeriesTables;
 use KHM_SEO\GEO\Export\ExportManager;
 use KHM_SEO\GEO\Export\ExportTables;
+use KH\ContentRegistry\Services\ContentRegistryService;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly
@@ -611,6 +612,76 @@ class GEOManager {
         
         // Let the entity manager handle the detection
         $this->entity_manager->on_post_save( $post_id );
+
+        // Sync GEO scores to content registry
+        $this->sync_post_geo_to_registry( $post_id );
+    }
+
+    /**
+     * Import existing GEO/SEO scores from post meta into the content registry's geo_flags.
+     *
+     * Reads _khm_seo_score, _khm_geo_score, _khm_geo_performance_score post meta
+     * and writes them to the registry entry's geo_flags JSON column.
+     *
+     * @param int $post_id Post ID.
+     */
+    private function sync_post_geo_to_registry( int $post_id ): void {
+        if ( ! class_exists( '\KH\ContentRegistry\Services\ContentRegistryService' ) ) {
+            return;
+        }
+
+        try {
+            $post = get_post( $post_id );
+            if ( ! $post ) {
+                return;
+            }
+
+            $registry = ContentRegistryService::instance();
+            $blog_id  = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 1;
+            $slug     = sanitize_title( $post->post_title );
+
+            // Look up the registry article
+            $article = $registry->get_article_for_route( $blog_id, $slug );
+            if ( ! $article ) {
+                $articles = $registry->search_articles( $slug, $blog_id, true );
+                $article  = ! empty( $articles ) ? $articles[0] : null;
+            }
+
+            if ( ! $article ) {
+                return; // No registry entry — nothing to sync
+            }
+
+            // Read existing GEO/SEO scores from post meta
+            $seo_score            = (int) get_post_meta( $post_id, '_khm_seo_score', true );
+            $geo_score            = (int) get_post_meta( $post_id, '_khm_geo_score', true );
+            $geo_performance      = get_post_meta( $post_id, '_khm_geo_performance_score', true );
+            $geo_engagement       = get_post_meta( $post_id, '_khm_geo_engagement_rate', true );
+            $geo_citation_rate    = get_post_meta( $post_id, '_khm_geo_citation_rate', true );
+
+            // Merge with existing geo_flags
+            $existing_flags = is_array( $article->geo_flags ) ? $article->geo_flags : [];
+            $geo_flags = array_merge( $existing_flags, [
+                'seo_score'              => $seo_score > 0 ? $seo_score : null,
+                'geo_score'              => $geo_score > 0 ? $geo_score : null,
+                'geo_performance_score'  => is_numeric( $geo_performance ) ? (float) $geo_performance : null,
+                'geo_engagement_rate'    => is_numeric( $geo_engagement ) ? (float) $geo_engagement : null,
+                'geo_citation_rate'      => is_numeric( $geo_citation_rate ) ? (float) $geo_citation_rate : null,
+                'last_geo_analysis'      => current_time( 'mysql' ),
+            ] );
+
+            // Remove null values to keep the JSON clean
+            $geo_flags = array_filter( $geo_flags, function ( $v ) {
+                return $v !== null;
+            } );
+
+            $result = $registry->update_geo_flags( $article->id, $geo_flags );
+
+            if ( is_wp_error( $result ) ) {
+                error_log( '[KHM SEO] Registry geo_flags update failed for post ' . $post_id . ': ' . $result->get_error_message() );
+            }
+        } catch ( \Exception $e ) {
+            error_log( '[KHM SEO] Sync post GEO to registry failed: ' . $e->getMessage() );
+        }
     }
     
     // ===== ADMIN PAGE RENDERERS =====

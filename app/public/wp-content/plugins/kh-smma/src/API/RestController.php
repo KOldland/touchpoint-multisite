@@ -14,6 +14,7 @@ use KH_SMMA\Variants\VariantRepository;
 use KH_SMMA\Variants\VariantRevisionRepository;
 use KH_SMMA\Telemetry\EventEmitter;
 use KH_SMMA\Telemetry\TraceContext;
+use KH\ContentRegistry\Services\ContentRegistryService;
 use WP_Error;
 use WP_REST_Request;
 
@@ -423,6 +424,15 @@ class RestController {
         ) );
 
         $latency_ms = (int) round( ( microtime( true ) - $start ) * 1000 );
+
+        // Sync variant generation to registry
+        $this->sync_generate_to_registry(
+            $payload,
+            count( $variants ),
+            $payload['tone'] ?? 'Authority',
+            $result['model'] ?? 'unknown'
+        );
+
         $this->emit_telemetry( 'generate.request', array(
             'session_id'              => $request_id,
             'prompt_hash'             => $prompt_hash,
@@ -641,6 +651,9 @@ class RestController {
             'service'          => 'smma',
         ) );
 
+        // Register schedule in the content registry
+        $this->register_schedule_in_registry( $schedule['schedule_id'], $variant_id, $sponsor_id, $payload );
+
         return rest_ensure_response( array(
             'schedule_id' => $schedule['schedule_id'],
             'status' => $schedule['status'],
@@ -703,6 +716,9 @@ class RestController {
         update_post_meta( $schedule_id, '_kh_smma_export_bundle', $export_bundle );
         update_post_meta( $schedule_id, '_kh_smma_schedule_status', 'awaiting_manual_export' );
 
+        // Sync boost/export to registry — transitions to Scheduled
+        $this->sync_boost_to_registry( $schedule_id );
+
         return rest_ensure_response( array(
             'status' => 'awaiting_manual_export',
             'bundle' => $export_bundle,
@@ -762,6 +778,9 @@ class RestController {
             ),
             'user_id' => get_current_user_id(),
         ) );
+
+        // Sync approval to registry
+        $this->sync_approval_to_registry( $schedule_id, $approver_id, $notes );
 
         // Telemetry
         ScheduleQueueProcessor::log_telemetry( $schedule_id, array(
@@ -1504,6 +1523,228 @@ class RestController {
             'preview_url' => sanitize_text_field( (string) ( $stored['preview_url'] ?? '' ) ),
             'saved_at'    => sanitize_text_field( (string) ( $stored['saved_at'] ?? '' ) ),
         );
+    }
+
+    // -------------------------------------------------------------------------
+    // Content Registry Integration Helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Register a newly created SMMA schedule in the content registry.
+     *
+     * Creates a registry entry with status 'Draft' and campaign metadata
+     * stored in smma_flags. Returns the registry ID or WP_Error.
+     */
+    protected function register_schedule_in_registry( string $schedule_id, string $variant_id, string $sponsor_id, array $payload ): ?int {
+        if ( ! class_exists( '\KH\ContentRegistry\Services\ContentRegistryService' ) ) {
+            return null;
+        }
+
+        try {
+            $registry = ContentRegistryService::instance();
+
+            $variant = $this->card1_store->get_variant( $variant_id );
+            $text    = (string) ( $variant['linkedIn']['text'] ?? '' );
+            $title   = mb_substr( $text, 0, 80 );
+            $slug    = sanitize_title( 'smma-' . $schedule_id . '-' . mb_substr( $title, 0, 40 ) );
+            $blog_id = $this->resolve_blog_id_for_schedule( $payload );
+
+            $boost_opts = $payload['boost_options'] ?? array();
+            $platform   = sanitize_text_field( $boost_opts['channels'][0] ?? 'linkedin' );
+
+            $result = $registry->create_article( array(
+                'target_blog_id' => $blog_id,
+                'slug'           => $slug,
+                'article_status' => 'Draft',
+                'title'          => $title ?: ( 'SMMA Schedule ' . $schedule_id ),
+                'content_body'   => $text,
+                'excerpt'        => wp_trim_words( $text, 30, '...' ),
+                'smma_flags'     => array(
+                    'source'          => 'smma_schedule',
+                    'schedule_id'     => $schedule_id,
+                    'variant_id'      => $variant_id,
+                    'sponsor_id'      => $sponsor_id,
+                    'platform'        => $platform,
+                    'phase_tag'       => sanitize_text_field( $payload['phase_tag'] ?? '' ),
+                    'compliance_status' => sanitize_text_field( $payload['compliance_status'] ?? 'OK' ),
+                    'created_at'      => current_time( 'mysql' ),
+                ),
+            ) );
+
+            if ( is_wp_error( $result ) ) {
+                error_log( '[KHM SMMA] Failed to create registry entry for schedule ' . $schedule_id . ': ' . $result->get_error_message() );
+                return null;
+            }
+
+            // Store registry_id on the schedule post meta for later lookups
+            update_post_meta( (int) $schedule_id, '_kh_smma_registry_id', $result );
+
+            return $result;
+        } catch ( \Exception $e ) {
+            error_log( '[KHM SMMA] Registry register failed for schedule ' . $schedule_id . ': ' . $e->getMessage() );
+            return null;
+        }
+    }
+
+    /**
+     * Sync variant generation metadata to the registry's smma_flags.
+     */
+    protected function sync_generate_to_registry( array $payload, int $variant_count, string $tone, string $model ): void {
+        if ( ! class_exists( '\KH\ContentRegistry\Services\ContentRegistryService' ) ) {
+            return;
+        }
+
+        $post_id = (int) ( $payload['post_id'] ?? 0 );
+        if ( ! $post_id ) {
+            return;
+        }
+
+        try {
+            $registry = ContentRegistryService::instance();
+            $blog_id  = $this->resolve_blog_id_for_schedule( $payload );
+            $slug     = sanitize_title( get_the_title( $post_id ) ?: ( 'post-' . $post_id ) );
+
+            // Look up existing registry entry by slug
+            $article  = $registry->get_article_for_route( $blog_id, $slug );
+            if ( ! $article ) {
+                $articles = $registry->search_articles( $slug, $blog_id, true );
+                $article  = ! empty( $articles ) ? $articles[0] : null;
+            }
+
+            if ( ! $article ) {
+                return; // No registry entry exists yet — will be created on schedule
+            }
+
+            $existing_flags = is_array( $article->smma_flags ) ? $article->smma_flags : array();
+            $existing_flags['variant_count'] = $variant_count;
+            $existing_flags['generated_at']  = current_time( 'mysql' );
+            $existing_flags['tone']          = $tone;
+            $existing_flags['model']         = $model;
+
+            $result = $registry->update_smma_flags( $article->id, $existing_flags );
+
+            if ( is_wp_error( $result ) ) {
+                error_log( '[KHM SMMA] Failed to sync generate to registry: ' . $result->get_error_message() );
+            }
+        } catch ( \Exception $e ) {
+            error_log( '[KHM SMMA] Sync generate to registry failed: ' . $e->getMessage() );
+        }
+    }
+
+    /**
+     * Sync approval status to the registry's smma_flags.
+     */
+    protected function sync_approval_to_registry( int $schedule_id, int $approver_id, string $notes ): void {
+        if ( ! class_exists( '\KH\ContentRegistry\Services\ContentRegistryService' ) ) {
+            return;
+        }
+
+        $registry_id = get_post_meta( $schedule_id, '_kh_smma_registry_id', true );
+        if ( ! $registry_id ) {
+            return;
+        }
+
+        try {
+            $registry = ContentRegistryService::instance();
+            $article  = $registry->get_article_by_id( (int) $registry_id );
+
+            if ( ! $article ) {
+                return;
+            }
+
+            $existing_flags = is_array( $article->smma_flags ) ? $article->smma_flags : array();
+            $existing_flags['approval_status'] = 'approved';
+            $existing_flags['approved_by']     = $approver_id;
+            $existing_flags['approved_at']     = current_time( 'mysql' );
+            if ( $notes ) {
+                $existing_flags['approval_notes'] = $notes;
+            }
+
+            $result = $registry->update_smma_flags( $article->id, $existing_flags );
+
+            if ( is_wp_error( $result ) ) {
+                error_log( '[KHM SMMA] Failed to sync approval to registry: ' . $result->get_error_message() );
+            }
+        } catch ( \Exception $e ) {
+            error_log( '[KHM SMMA] Sync approval to registry failed: ' . $e->getMessage() );
+        }
+    }
+
+    /**
+     * Sync boost/export to the registry — transitions status to Scheduled.
+     */
+    protected function sync_boost_to_registry( int $schedule_id ): void {
+        if ( ! class_exists( '\KH\ContentRegistry\Services\ContentRegistryService' ) ) {
+            return;
+        }
+
+        $registry_id = get_post_meta( $schedule_id, '_kh_smma_registry_id', true );
+        if ( ! $registry_id ) {
+            return;
+        }
+
+        try {
+            $registry = ContentRegistryService::instance();
+            $article  = $registry->get_article_by_id( (int) $registry_id );
+
+            if ( ! $article ) {
+                return;
+            }
+
+            // Read boost metadata from the schedule
+            $boost_options = get_post_meta( $schedule_id, '_kh_smma_payload', true );
+            $schedule_time = get_post_meta( $schedule_id, '_kh_smma_schedule_time', true );
+            $channels       = array();
+            if ( is_array( $boost_options ) && ! empty( $boost_options['boost_options']['channels'] ) ) {
+                $channels = (array) $boost_options['boost_options']['channels'];
+            }
+
+            // Update smma_flags with boost info
+            $existing_flags = is_array( $article->smma_flags ) ? $article->smma_flags : array();
+            $existing_flags['boost_status']    = 'scheduled';
+            $existing_flags['boost_channels']  = $channels;
+            $existing_flags['scheduled_time']  = $schedule_time ?: current_time( 'mysql' );
+            $existing_flags['export_status']   = 'awaiting_manual_export';
+
+            $result = $registry->update_smma_flags( $article->id, $existing_flags );
+
+            if ( is_wp_error( $result ) ) {
+                error_log( '[KHM SMMA] Failed to sync boost flags to registry: ' . $result->get_error_message() );
+            }
+
+            // Transition status to Scheduled
+            $transition = $registry->transition_status( $article->id, 'Scheduled' );
+
+            if ( is_wp_error( $transition ) ) {
+                error_log( '[KHM SMMA] Failed to transition registry status to Scheduled for schedule ' . $schedule_id . ': ' . $transition->get_error_message() );
+            }
+        } catch ( \Exception $e ) {
+            error_log( '[KHM SMMA] Sync boost to registry failed: ' . $e->getMessage() );
+        }
+    }
+
+    /**
+     * Resolve a target blog_id for the registry based on schedule payload context.
+     *
+     * Uses the post_id from the payload if available, otherwise falls back to the hub blog (1).
+     */
+    protected function resolve_blog_id_for_schedule( array $payload ): int {
+        $post_id = (int) ( $payload['post_id'] ?? 0 );
+
+        if ( $post_id && function_exists( 'get_current_blog_id' ) ) {
+            // If a post_id is provided on a multisite, try to resolve its original blog
+            if ( is_multisite() ) {
+                $blog_id = get_post_meta( $post_id, '_khm_original_blog_id', true );
+                if ( $blog_id ) {
+                    return (int) $blog_id;
+                }
+            }
+
+            return (int) get_current_blog_id();
+        }
+
+        // Fallback: use current blog or hub blog
+        return function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 1;
     }
 
 }

@@ -109,7 +109,21 @@ $table_prefix = 'wp_';
 
 
 /* Add any custom values between this line and the "stop editing" line. */
-
+// ============================================
+// Phase 9: Redis Object Cache Configuration
+// ============================================
+// Enable external object cache when Redis is available
+$redis_available = @fsockopen( '127.0.0.1', 6379, $errno, $errstr, 1 );
+if ( $redis_available ) {
+	fclose( $redis_available );
+	// Redis is running - enable object cache
+	define( 'WP_CACHE', true );
+	define( 'WP_REDIS_HOST', '127.0.0.1' );
+	define( 'WP_REDIS_PORT', 6379 );
+	define( 'WP_REDIS_TIMEOUT', 1 );
+	define( 'WP_REDIS_READ_TIMEOUT', 1 );
+	define( 'WP_REDIS_DATABASE', 0 );
+}
 
 
 /**

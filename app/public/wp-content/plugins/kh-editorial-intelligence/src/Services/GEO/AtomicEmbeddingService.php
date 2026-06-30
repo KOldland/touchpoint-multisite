@@ -149,6 +149,68 @@ class AtomicEmbeddingService {
     }
 
     /**
+     * Retrieve embeddings with pagination and optional blog_id filter.
+     *
+     * @param int      $limit   Number of rows to fetch.
+     * @param int      $offset  Offset for pagination.
+     * @param int|null $blog_id Optional blog_id filter (requires blog_id column to exist).
+     * @return array Array of rows with 'post_id' and 'embedding' keys.
+     */
+    public function get_embeddings_paginated( int $limit, int $offset, ?int $blog_id = null ): array {
+        global $wpdb;
+
+        $table = AtomicEmbeddingsMigration::table_name();
+
+        $where   = '';
+        $params = [];
+
+        if ( null !== $blog_id && $blog_id > 0 ) {
+            $where    = 'WHERE blog_id = %d';
+            $params[] = $blog_id;
+        }
+
+        $params[] = $limit;
+        $params[] = $offset;
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $sql = $wpdb->prepare(
+            "SELECT post_id, embedding FROM {$table} {$where} ORDER BY post_id ASC LIMIT %d OFFSET %d",
+            $params
+        );
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        return (array) $wpdb->get_results( $sql, ARRAY_A );
+    }
+
+    /**
+     * Store an embedding with optional blog_id for multisite scoping.
+     *
+     * @param int     $post_id   Post ID.
+     * @param array   $embedding Float array.
+     * @param int     $blog_id   Optional blog_id (defaults to current site).
+     * @return void
+     */
+    public function store_embedding_with_blog( int $post_id, array $embedding, int $blog_id = 0 ): void {
+        global $wpdb;
+
+        if ( $blog_id === 0 ) {
+            $blog_id = get_current_blog_id();
+        }
+
+        $table = AtomicEmbeddingsMigration::table_name();
+
+        $wpdb->replace(
+            $table,
+            [
+                'post_id'    => $post_id,
+                'blog_id'    => $blog_id,
+                'embedding'  => wp_json_encode( $embedding ),
+                'updated_at' => current_time( 'mysql', true ),
+            ],
+            [ '%d', '%d', '%s', '%s' ]
+        );
+    }
+    /**
      * Delete the stored embedding for a post (called on post deletion).
      *
      * @param int $post_id Post ID.

@@ -173,6 +173,9 @@ class Rest_Api {
         $analysis = $analysis_engine->analyze( $data );
         $this->persist_seo_score( $post_id, $analysis );
 
+        // Sync SEO/GEO scores to content registry
+        $this->sync_audit_to_registry( $post_id, $keyword );
+
         $audit_job_id = wp_generate_uuid4();
 
         if ( ! $this->is_openai_available() ) {
@@ -406,6 +409,89 @@ class Rest_Api {
         update_post_meta( $post_id, '_khm_seo_score', $score );
 
         return $score;
+    }
+
+    /**
+     * Sync SEO audit results to the content registry's geo_flags.
+     *
+     * Imports the SEO score and keyword data into the registry entry.
+     *
+     * @param int    $post_id Post ID.
+     * @param string $keyword Focus keyword.
+     */
+    private function sync_audit_to_registry( int $post_id, string $keyword ): void {
+        if ( ! class_exists( '\KH\ContentRegistry\Services\ContentRegistryService' ) ) {
+            return;
+        }
+
+        try {
+            $post = get_post( $post_id );
+            if ( ! $post ) {
+                return;
+            }
+
+            $registry = \KH\ContentRegistry\Services\ContentRegistryService::instance();
+            $blog_id  = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 1;
+            $slug     = sanitize_title( $post->post_title );
+
+            // Look up the registry article
+            $article = $registry->get_article_for_route( $blog_id, $slug );
+            if ( ! $article ) {
+                $articles = $registry->search_articles( $slug, $blog_id, true );
+                $article  = ! empty( $articles ) ? $articles[0] : null;
+            }
+
+            if ( ! $article ) {
+                // No registry entry — create one as Framework (answer cards are intermediate content)
+                $seo_score = (int) get_post_meta( $post_id, '_khm_seo_score', true );
+                $geo_score = (int) get_post_meta( $post_id, '_khm_geo_score', true );
+
+                $result = $registry->create_article( [
+                    'target_blog_id' => $blog_id,
+                    'slug'           => $slug,
+                    'article_status' => 'Framework',
+                    'title'          => $post->post_title,
+                    'content_body'   => $post->post_content,
+                    'excerpt'        => $post->post_excerpt,
+                    'geo_flags'      => [
+                        'seo_score'          => $seo_score > 0 ? $seo_score : null,
+                        'geo_score'          => $geo_score > 0 ? $geo_score : null,
+                        'audit_keyword'      => $keyword ?: null,
+                        'last_audit_at'      => current_time( 'mysql' ),
+                    ],
+                ] );
+
+                if ( ! is_wp_error( $result ) ) {
+                    error_log( '[KHM SEO Agent] Created registry entry for post ' . $post_id . ' (registry_id: ' . $result . ')' );
+                } else {
+                    error_log( '[KHM SEO Agent] Failed to create registry entry: ' . $result->get_error_message() );
+                }
+                return;
+            }
+
+            // Update existing registry entry with audit data
+            $existing_flags = is_array( $article->geo_flags ) ? $article->geo_flags : [];
+            $seo_score      = (int) get_post_meta( $post_id, '_khm_seo_score', true );
+
+            $geo_flags = array_merge( $existing_flags, [
+                'seo_score'     => $seo_score > 0 ? $seo_score : null,
+                'audit_keyword' => $keyword ?: null,
+                'last_audit_at' => current_time( 'mysql' ),
+            ] );
+
+            // Remove null values
+            $geo_flags = array_filter( $geo_flags, function ( $v ) {
+                return $v !== null;
+            } );
+
+            $result = $registry->update_geo_flags( $article->id, $geo_flags );
+
+            if ( is_wp_error( $result ) ) {
+                error_log( '[KHM SEO Agent] Registry geo_flags update failed for post ' . $post_id . ': ' . $result->get_error_message() );
+            }
+        } catch ( \Exception $e ) {
+            error_log( '[KHM SEO Agent] Sync audit to registry failed: ' . $e->getMessage() );
+        }
     }
 
     public function handle_audit_status( $request ) {

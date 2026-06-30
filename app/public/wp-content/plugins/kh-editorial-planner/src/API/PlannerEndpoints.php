@@ -86,13 +86,19 @@ class PlannerEndpoints {
 
         register_rest_route( 'editorial/v1', '/planner/phase2', [
             'methods'             => 'POST',
-            'callback'            => [ $this, 'run_phase3' ],
+            'callback'            => [ $this, 'run_phase2' ],
             'permission_callback' => [ $this, 'check_permission' ],
         ] );
 
         register_rest_route( 'editorial/v1', '/planner/phase2-qualification', [
             'methods'             => 'POST',
             'callback'            => [ $this, 'run_phase2' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/phase3', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'run_phase3' ],
             'permission_callback' => [ $this, 'check_permission' ],
         ] );
 
@@ -220,6 +226,19 @@ class PlannerEndpoints {
             'permission_callback' => [ $this, 'check_permission' ],
         ] );
 
+
+        register_rest_route( 'editorial/v1', '/planner/convert-to-pdf', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'convert_html_to_pdf' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'editorial/v1', '/planner/convert-to-docx', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'convert_html_to_docx' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
         register_rest_route( 'editorial/v1', '/planner/run-author', [
             'methods'             => 'POST',
             'callback'            => [ $this, 'run_author' ],
@@ -298,6 +317,13 @@ class PlannerEndpoints {
             'permission_callback' => [ $this, 'check_permission' ]
         ] );
 
+        // ─── Summaries Dashboard Endpoint ────────────────────────────────
+        register_rest_route( 'editorial/v1', '/planner/summaries', [
+            'methods'             => 'GET',
+            'callback'            => [ $this, 'get_summaries' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
         // ─── Content Gap Analysis Endpoints ─────────────────────────────
 
         // GET content-gaps/dashboard — summary across all audience sites
@@ -358,10 +384,6 @@ class PlannerEndpoints {
                 ],
             ],
         ] );
-    }
-
-    public function check_permission() {
-        return current_user_can( 'edit_posts' );
     }
 
     // ─── Top-Line Categories Store ──────────────────────────────────────
@@ -447,10 +469,17 @@ class PlannerEndpoints {
 
         $agent = new \KH\Planner\Agents\ExportAgent();
 
+        // Support legacy format names and the newer "word" alias.
+        // "word" should produce a DOCX file, not HTML.
         if ( $format === 'docx' ) {
             $result = $agent->export_to_docx( $session_id );
+        } elseif ( $format === 'word' ) {
+            // Use the explicit word export method which returns a DOCX.
+            $result = $agent->export_to_word( $session_id );
         } elseif ( $format === 'html' ) {
             $result = $agent->export_to_html( $session_id );
+        } elseif ( $format === 'pdf' ) {
+            $result = $agent->export_to_pdf( $session_id );
         } else {
             return new \WP_Error( 'invalid_format', 'Invalid export format' );
         }
@@ -1734,6 +1763,128 @@ class PlannerEndpoints {
     /**
      * POST editorial/v1/planner/export-synopses
      */
+
+    /**
+     * POST editorial/v1/planner/convert-to-pdf
+     *
+     * Converts HTML content to PDF using DomPDF.
+     * Accepts { html: string, filename?: string }
+     */
+    public function convert_html_to_pdf( \WP_REST_Request $request ) {
+        $params   = $request->get_json_params();
+        $html     = $params['html'] ?? '';
+        $filename = sanitize_text_field( $params['filename'] ?? 'export' );
+
+        if ( empty( $html ) ) {
+            return new \WP_Error( 'missing_html', 'HTML content is required.', [ 'status' => 400 ] );
+        }
+
+        $pdf_helper = new \KH\Planner\Agents\ExportPDFHelper();
+        $result = $pdf_helper->generate_pdf( $html, $filename . '-' . date('Y-m-d-H-i-s') );
+
+        if ( ! $result ) {
+            return new \WP_Error( 'pdf_failed', 'PDF generation failed.', [ 'status' => 500 ] );
+        }
+
+        return rest_ensure_response( $result );
+    }
+
+    /**
+     * POST editorial/v1/planner/convert-to-docx
+     *
+     * Converts HTML content to DOCX using PHPWord.
+     * Accepts { html: string, filename?: string }
+     */
+    public function convert_html_to_docx( \WP_REST_Request $request ) {
+        $params   = $request->get_json_params();
+        $html     = $params['html'] ?? '';
+        $filename = sanitize_text_field( $params['filename'] ?? 'export' );
+
+        if ( empty( $html ) ) {
+            return new \WP_Error( 'missing_html', 'HTML content is required.', [ 'status' => 400 ] );
+        }
+
+        if ( ! class_exists( 'PhpOffice\\PhpWord\\PhpWord' ) ) {
+            return new \WP_Error( 'phpword_not_found', 'PHPWord library not available.', [ 'status' => 500 ] );
+        }
+
+        $export_dir = $this->get_export_path();
+        $sanitized_filename = sanitize_title( $filename );
+        $filepath = $export_dir . '/' . $sanitized_filename . '-' . date('Y-m-d-H-i-s') . '.docx';
+
+        try {
+            $phpWord = new \PhpOffice\PhpWord\PhpWord();
+            $section = $phpWord->addSection();
+
+            // Add title
+            $section->addText( 'Generated by Touchpoint Editorial Planner', ['size' => 10, 'color' => '666666'] );
+            $section->addTextBreak(1);
+
+            // Convert HTML to DOCX - process as paragraphs
+            $text = strip_tags( $html );
+            $text = html_entity_decode( $text, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+            $text = preg_replace( '/\s+/', ' ', $text );
+            
+            // Split into sentences/paragraphs for better formatting
+            $paragraphs = preg_split( '/[.!?]+\s+/', $text );
+            foreach ( $paragraphs as $para ) {
+                $para = trim( $para );
+                if ( ! empty( $para ) ) {
+                    $section->addText( ucfirst( $para ) . '. ' );
+                    $section->addTextBreak(1);
+                }
+            }
+
+            // Ensure directory exists
+            if ( ! file_exists( $export_dir ) ) {
+                wp_mkdir_p( $export_dir );
+            }
+
+            // Save with error handling
+            $objWriter = \PhpOffice\PhpWord\IOFactory::createWriter( $phpWord, 'Word2007' );
+            $objWriter->save( $filepath );
+
+            // Verify file was created
+            if ( ! file_exists( $filepath ) ) {
+                return new \WP_Error( 'docx_save_failed', 'Failed to create DOCX file.', [ 'status' => 500 ] );
+            }
+
+            // Verify file is valid (check ZIP structure - DOCX is a ZIP file)
+            $zip = new \ZipArchive();
+            $result = $zip->open( $filepath );
+            if ( $result !== true ) {
+                unlink( $filepath ); // Remove corrupt file
+                return new \WP_Error( 'docx_invalid', 'Generated DOCX file is invalid.', [ 'status' => 500 ] );
+            }
+            $zip->close();
+
+            $file_url = $this->get_export_url( $sanitized_filename . '-' . date('Y-m-d-H-i-s') . '.docx' );
+
+            return rest_ensure_response( [
+                'file_url'  => $file_url,
+                'file_path' => $filepath,
+                'filename'  => basename( $filepath ),
+            ] );
+        } catch ( \Exception $e ) {
+            error_log( 'DOCX conversion error: ' . $e->getMessage() );
+            return new \WP_Error( 'docx_error', $e->getMessage(), [ 'status' => 500 ] );
+        }
+    }
+
+    private function get_export_path() {
+        $upload_dir = wp_upload_dir();
+        $export_dir = $upload_dir['basedir'] . '/editorial_exports';
+        if ( ! file_exists( $export_dir ) ) {
+            wp_mkdir_p( $export_dir );
+        }
+        return $export_dir;
+    }
+
+    private function get_export_url( $filename ) {
+        $upload_dir = wp_upload_dir();
+        return $upload_dir['baseurl'] . '/editorial_exports/' . $filename;
+    }
+
     public function export_synopses( \WP_REST_Request $request ) {
         $params     = $request->get_json_params();
         $session_id = (int) ( $params['id'] ?? 0 );
@@ -1765,8 +1916,15 @@ class PlannerEndpoints {
 
         $agent = new \KH\Planner\Agents\ExportAgent();
 
+        // Support "word" as an alias for the HTML export of a framework.
+        // The UI can then treat the result as a DOCX download if needed.
         if ( $format === 'json' ) {
             $result = $agent->export_framework_to_json( $session_id, $article_id );
+        } elseif ( $format === 'pdf' ) {
+            $result = $agent->export_framework_to_pdf( $session_id, $article_id );
+        } elseif ( $format === 'word' ) {
+            // Return a true DOCX file for the framework.
+            $result = $agent->export_framework_to_docx( $session_id, $article_id );
         } else {
             $result = $agent->export_framework_to_html( $session_id, $article_id );
         }
@@ -2145,8 +2303,23 @@ class PlannerEndpoints {
      * Internal endpoint called via non-blocking wp_remote_post to process
      * dive_deeper and other long-running jobs asynchronously. The caller
      * fires and forgets — this endpoint handles the actual LLM call.
+     * 
+     * Note: This endpoint is called internally by the orchestrator, so it
+     * validates either the nonce OR checks for internal call signature.
      */
     public function dispatch_job( \WP_REST_Request $request ) {
+        // Allow internal calls (from same WordPress instance) or validate nonce
+        $is_internal = $request->get_header( 'X-Internal-Call' ) === 'true';
+        $nonce = $request->get_header( 'X-WP-Nonce' ) ?: $request->get_param( 'nonce' );
+        
+        if ( ! $is_internal && $nonce ) {
+            if ( ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
+                return new \WP_Error( 'invalid_nonce', 'Invalid nonce.', [ 'status' => 403 ] );
+            }
+        } elseif ( ! $is_internal && ! current_user_can( 'edit_posts' ) ) {
+            return new \WP_Error( 'insufficient_permissions', 'Insufficient permissions.', [ 'status' => 403 ] );
+        }
+        
         $params = $request->get_json_params();
         $job_id = $params['job_id'] ?? '';
         $type   = $params['type'] ?? 'planner';
@@ -2485,5 +2658,71 @@ class PlannerEndpoints {
 
         $meta['articles'] = $articles;
         return $meta;
+    }
+
+    /**
+     * Get all article summaries for the dashboard.
+     */
+    public function get_summaries( $request ) {
+        $args = array(
+            'post_type'      => array( 'post', 'article' ),
+            'posts_per_page' => 50,
+            'post_status'    => array( 'publish', 'draft', 'pending', 'private' ),
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        );
+
+        $posts = get_posts( $args );
+        $summaries = array();
+
+        foreach ( $posts as $post ) {
+            $seo_score = get_post_meta( $post->ID, '_yoast_wpseo_metadesc', true ) ? 85 : 0;
+            $geo_score = get_post_meta( $post->ID, '_kh_geo_score', true ) ?: 0;
+            $quote_club_commentary = get_post_meta( $post->ID, '_kh_quote_club_rating', true ) ?: 0;
+            $boosted = get_post_meta( $post->ID, '_kh_boosted', true ) === '1';
+
+            $summaries[] = array(
+                'id'               => $post->ID,
+                'title'            => $post->post_title,
+                'status'           => $post->post_status,
+                'seo_score'        => (int) $seo_score,
+                'geo_score'        => (int) $geo_score,
+                'quote_club_rating'=> (int) $quote_club_commentary,
+                'boosted'          => $boosted,
+                'scheduled_date'   => get_post_meta( $post->ID, '_kh_scheduled_date', true ) ?: $post->post_date,
+                'views'            => get_post_meta( $post->ID, '_kh_views', true ) ?: 0,
+                'clicks'           => get_post_meta( $post->ID, '_kh_clicks', true ) ?: 0,
+                'permalink'        => get_permalink( $post->ID ),
+                'edit_url'         => get_edit_post_link( $post->ID ),
+            );
+        }
+
+        return rest_ensure_response( $summaries );
+    }
+
+    /**
+     * Check permissions for REST API endpoints.
+     * 
+     * Validates nonce for authenticated requests and checks user capabilities.
+     *
+     * @param \WP_REST_Request $request Full request object.
+     * @return bool|WP_Error True if permitted, WP_Error otherwise.
+     */
+    public function check_permission( $request ) {
+        // Check nonce for authenticated requests
+        $nonce = $request->get_header( 'X-WP-Nonce' ) ?: $request->get_param( 'nonce' );
+        
+        if ( $nonce ) {
+            if ( ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
+                return new \WP_Error( 'invalid_nonce', 'Invalid nonce.', [ 'status' => 403 ] );
+            }
+        } else {
+            // Fall back to capability check if no nonce provided
+            if ( ! current_user_can( 'edit_posts' ) ) {
+                return new \WP_Error( 'insufficient_permissions', 'Insufficient permissions.', [ 'status' => 403 ] );
+            }
+        }
+        
+        return true;
     }
 }

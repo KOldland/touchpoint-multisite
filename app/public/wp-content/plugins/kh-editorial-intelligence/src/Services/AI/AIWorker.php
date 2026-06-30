@@ -256,6 +256,38 @@ class AIWorker {
                     update_post_meta( $session_id, 'kh_planner_phase4_result', $content );
                 } elseif ( strpos( $idempotency_key, 'planner-final-' ) === 0 ) {
                     update_post_meta( $session_id, 'kh_planner_final_synopses', $content );
+                    
+                    // Convert synopses to metadata articles so they appear in the UI
+                    if ( ! empty( $content['synopses'] ) && is_array( $content['synopses'] ) ) {
+                        $meta_json = get_post_meta( $session_id, 'kh_planner_meta', true );
+                        $meta = ( $meta_json ? json_decode( $meta_json, true ) : null ) ?: [];
+                        $articles = $meta['articles'] ?? [];
+                        $existing_ids = [];
+                        
+                        foreach ( $content['synopses'] as $i => $s ) {
+                            $slug = sanitize_title( $s['headline'] ?? ( 'synopsis-' . $i ) );
+                            
+                            if ( in_array( $slug, $existing_ids, true ) ) {
+                                continue; // already exists
+                            }
+                            $existing_ids[] = $slug;
+                            
+                            $articles[] = [
+                                'id' => $slug,
+                                'headline' => $s['headline'] ?? '',
+                                'summary' => $s['summary'] ?? '',
+                                'key_points' => $s['key_points'] ?? [],
+                                'keywords' => $s['keywords'] ?? ( $s['target_keywords'] ?? [] ),
+                                'priority_score' => $s['priority_score'] ?? 0.0,
+                                'citations' => $s['citations'] ?? [],
+                                'synopsis' => $s,
+                            ];
+                        }
+                        
+                        $meta['articles'] = $articles;
+                        update_post_meta( $session_id, 'kh_planner_meta', wp_json_encode( $meta ) );
+                        error_log( '[PLANNER] Converted ' . count( $articles ) . ' synopses to meta.articles for session ' . $session_id );
+                    }
                 } elseif ( strpos( $idempotency_key, 'dive-' ) === 0 ) {
                     // Store dive_deeper results: kh_planner_dives
                     $existing = get_post_meta( $session_id, 'kh_planner_dives', true ) ?: [];

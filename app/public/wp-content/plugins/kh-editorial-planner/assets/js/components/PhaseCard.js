@@ -49,9 +49,67 @@ export const PhaseCard = ({
                         providerAdminInstruction
                     )
                 ),
-                phase?.payload?.trends && createElement('div', { style: { marginTop: '8px' } },
+                // Phase 1: Show trends
+                phaseKey === 'phase1' && phase?.payload?.trends && createElement('div', { style: { marginTop: '8px' } },
                     createElement('h2', { style: { margin: '0 0 6px' } }, 'Trends and Highlights'),
                     createElement(TrendBlocks, { trends: phase.payload.trends })
+                ),
+                // Phase 2: Show ranked keywords
+                phaseKey === 'phase2' && phase?.payload?.ranked_keywords && createElement('div', { style: { marginTop: '8px' } },
+                    createElement('h2', { style: { margin: '0 0 6px' } }, 'Ranked Keywords'),
+                    createElement('table', { style: { width: '100%', borderCollapse: 'collapse' } },
+                        createElement('thead', null,
+                            createElement('tr', null,
+                                createElement('th', { style: { textAlign: 'left', borderBottom: '1px solid #ddd', padding: '8px' } }, 'Keyword'),
+                                createElement('th', { style: { textAlign: 'right', borderBottom: '1px solid #ddd', padding: '8px' } }, 'Volume'),
+                                createElement('th', { style: { textAlign: 'right', borderBottom: '1px solid #ddd', padding: '8px' } }, 'Difficulty'),
+                                createElement('th', { style: { textAlign: 'right', borderBottom: '1px solid #ddd', padding: '8px' } }, 'Priority')
+                            )
+                        ),
+                        createElement('tbody', null,
+                            phase.payload.ranked_keywords.map((kw, idx) =>
+                                createElement('tr', { key: idx, style: { borderBottom: '1px solid #eee' } },
+                                    createElement('td', { style: { padding: '8px' } }, kw.keyword ?? kw.key ?? ''),
+                                    createElement('td', { style: { textAlign: 'right', padding: '8px' } }, kw.search_volume ?? '-'),
+                                    createElement('td', { style: { textAlign: 'right', padding: '8px' } }, kw.difficulty ?? '-'),
+                                    createElement('td', { style: { textAlign: 'right', padding: '8px' } }, kw.priority_score ?? '-')
+                                )
+                            )
+                        )
+                    )
+                ),
+                // Phase 3: Show prioritized topics
+                phaseKey === 'phase3' && phase?.payload?.prioritized_topics && createElement('div', { style: { marginTop: '8px' } },
+                    createElement('h2', { style: { margin: '0 0 6px' } }, 'Prioritized Topics'),
+                    createElement('div', null,
+                        phase.payload.prioritized_topics.map((topic, idx) =>
+                            createElement('div', { key: idx, style: { marginBottom: '12px', padding: '8px', background: '#f9f9f9', borderRadius: '4px' } },
+                                createElement('h3', { style: { margin: '0 0 4px' } }, topic.topic ?? ''),
+                                createElement('p', { style: { margin: '4px 0', color: '#666' } }, topic.why_now ?? ''),
+                                createElement('p', { style: { margin: '4px 0' } }, 'Key Findings:'),
+                                createElement('ul', { style: { margin: '4px 0' } },
+                                    (topic.key_findings || []).map((finding, fidx) =>
+                                        createElement('li', { key: fidx }, finding)
+                                    )
+                                ),
+                                createElement('p', { style: { margin: '4px 0' } }, 'Keywords: ' + (topic.keywords || []).join(', '))
+                            )
+                        )
+                    )
+                ),
+                // Phase 4: Show validated topics
+                phaseKey === 'phase4' && phase?.payload?.validated_topics && createElement('div', { style: { marginTop: '8px' } },
+                    createElement('h2', { style: { margin: '0 0 6px' } }, 'Validated Topics'),
+                    createElement('div', null,
+                        phase.payload.validated_topics.map((topic, idx) =>
+                            createElement('div', { key: idx, style: { marginBottom: '12px', padding: '8px', background: '#f9f9f9', borderRadius: '4px' } },
+                                createElement('h3', { style: { margin: '0 0 4px' } }, topic.topic ?? ''),
+                                createElement('p', { style: { margin: '4px 0' } }, 'Confidence: ' + (topic.confidence_score ?? 0)),
+                                createElement('p', { style: { margin: '4px 0' } }, topic.reason ?? ''),
+                                createElement('p', { style: { margin: '4px 0' } }, 'Supporting Citations: ' + (topic.supporting_citations || []).length)
+                            )
+                        )
+                    )
                 )
             ),
             isExpanded && phase?.payload?.next_step_question && createElement('div', { style: { marginTop: '8px' } },

@@ -34,17 +34,19 @@ class PlannerWorkspace {
     }
 
     public function register_menu() {
-        add_submenu_page(
-            'kh-editorial-studio',
+        // Main Editorial Planner page - top-level menu to match expected URL slug
+        add_menu_page(
             __('Editorial Planner', 'kh-editorial-planner'),
-            __('Planner', 'kh-editorial-planner'),
+            __('Editorial Planner', 'kh-editorial-planner'),
             'edit_posts',
-            'kh-editorial-planner',
-            [$this, 'render_planner_page']
+            'editorial_planner',
+            [$this, 'render_planner_page'],
+            'dashicons-admin-page',
+            6
         );
 
         add_submenu_page(
-            'kh-editorial-planner',
+            'editorial_planner',
             __('New Session', 'kh-editorial-planner'),
             __('New Session', 'kh-editorial-planner'),
             'edit_posts',
@@ -53,7 +55,7 @@ class PlannerWorkspace {
         );
 
         add_submenu_page(
-            'kh-editorial-planner',
+            'editorial_planner',
             __('Past Sessions', 'kh-editorial-planner'),
             __('Past Sessions', 'kh-editorial-planner'),
             'edit_posts',
@@ -62,7 +64,7 @@ class PlannerWorkspace {
         );
 
         add_submenu_page(
-            'kh-editorial-planner',
+            'editorial_planner',
             __('Top-Line Categories', 'kh-editorial-planner'),
             __('Top-Line Categories', 'kh-editorial-planner'),
             'edit_posts',
@@ -71,7 +73,7 @@ class PlannerWorkspace {
         );
 
         add_submenu_page(
-            'kh-editorial-planner',
+            'editorial_planner',
             __('Content Gaps', 'kh-editorial-planner'),
             __('Content Gaps', 'kh-editorial-planner'),
             'edit_posts',
@@ -81,7 +83,7 @@ class PlannerWorkspace {
     }
 
     public function enqueue_assets($hook) {
-        if (strpos($hook, 'kh-planner') === false && strpos($hook, 'kh-editorial-planner') === false) {
+        if (strpos($hook, 'kh-planner') === false && strpos($hook, 'kh-editorial-planner') === false && strpos($hook, 'editorial_planner') === false) {
             return;
         }
 
@@ -98,26 +100,26 @@ class PlannerWorkspace {
 
         if (strpos($hook, 'kh-planner-new') !== false) {
             $script_handle = 'kh-planner-new-js';
-            $script_file = 'assets/js/editorial-new-session.js';
+            $script_file = 'assets/js/build/editorial-new-session.js';
         } elseif (strpos($hook, 'kh-planner-sessions') !== false) {
             $script_handle = 'kh-planner-sessions-js';
-            $script_file = 'assets/js/editorial-sessions.js';
+            $script_file = 'assets/js/build/editorial-sessions.js';
         } elseif (strpos($hook, 'kh-planner-categories') !== false) {
             $script_handle = 'kh-planner-categories-js';
-            $script_file = 'assets/js/editorial-top-line-categories.js';
+            $script_file = 'assets/js/build/editorial-top-line-categories.js';
         } elseif (strpos($hook, 'kh-planner-content-gaps') !== false) {
             $script_handle = 'kh-planner-content-gaps-js';
-            $script_file = 'assets/js/editorial-content-gaps.js';
+            $script_file = 'assets/js/build/editorial-content-gaps.js';
         } else {
             $script_handle = 'kh-planner-main-js';
-            $script_file = 'assets/js/editorial-planner.js';
+            $script_file = 'assets/js/build/editorial-planner.js';
         }
 
         wp_enqueue_script(
             $script_handle,
             KH_PLANNER_PLUGIN_URL . $script_file,
             ['wp-element', 'wp-components', 'wp-api-fetch', 'wp-data', 'wp-i18n'],
-            filemtime(KH_PLANNER_PLUGIN_DIR . $script_file),
+            KH_PLANNER_VERSION,
             true
         );
 
