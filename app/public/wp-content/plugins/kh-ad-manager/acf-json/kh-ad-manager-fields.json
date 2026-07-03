@@ -1341,7 +1341,8 @@
         "hide_on_screen": "",
         "active": true,
         "description": "",
-        "show_in_rest": 0
+        "show_in_rest": 0,
+        "render_template": "partials/block-footnotes.php"
     },
     {
         "key": "group_689f9cbb028e7",
